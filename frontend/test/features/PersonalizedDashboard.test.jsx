@@ -18,6 +18,7 @@ vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({
   }
 }));
 import { DashboardPanel } from '../../src/features/indicators/DashboardPanel.jsx';
+import { DashboardEditor } from '../../src/features/indicators/components/DashboardEditor.jsx';
 import { ConfirmProvider } from '../../src/shared/components/ConfirmDialog.jsx';
 const policy = {
   minWidgets: 1,
@@ -498,15 +499,23 @@ describe('P9 personalized workspace', () => {
     expect(within(dialog).getAllByRole('button', { name: /^Reordenar / })[0]).toHaveAccessibleName(
       'Reordenar Trabalho em andamento, posição 1 de 2'
     );
-    expect(document.querySelector('.feedback-region--transient')).toBeNull();
+    expect(document.querySelector('.feedback-region--transient')).not.toHaveTextContent(
+      'Painel salvo'
+    );
     api.dashboard.mockRejectedValueOnce(new Error('GET failed'));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(
-      await screen.findByText('Painel salvo. Não foi possível atualizar os dados agora.')
+      await screen.findByText(/Painel salvo\. Não foi possível atualizar os dados agora\./)
     ).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getAllByRole('alert')).toHaveLength(1);
-    expect(screen.getByRole('alert').closest('.feedback-region--transient')).not.toBeNull();
+    expect(screen.getByRole('alert').closest('.feedback-region--transient')).toBeNull();
+    vi.useFakeTimers();
+    act(() => vi.advanceTimersByTime(10000));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Painel salvo. Não foi possível atualizar os dados agora.'
+    );
+    vi.useRealTimers();
     expect(screen.queryByText(/Não foi possível salvar/)).not.toBeInTheDocument();
     expect(screen.queryByText('Não foi possível carregar os indicadores.')).not.toBeInTheDocument();
     expect(stored.widgets).toEqual(['I23', 'I01']);
@@ -671,7 +680,11 @@ describe('P9.1 controls', () => {
 it('retries failed preference reads without falling back to a false default', async () => {
   api.preference.mockRejectedValueOnce(new Error('offline'));
   mount();
-  expect(await screen.findByText('Não foi possível carregar seu painel.')).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      'Não foi possível conectar ao servidor do TRACEFLOW. Verifique sua conexão e tente novamente.'
+    )
+  ).toBeInTheDocument();
   expect(api.dashboard).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
   await waitFor(() => expect(widgetOrder()).toEqual(policy.defaultPreference.widgets));
@@ -715,4 +728,62 @@ it('reuses catalog calculation details in Meu painel without displaying them per
       group.textContent.includes('× 100')
     )
   ).toBe(true);
+});
+
+it.each([[['I03', 'I01', 'I23']], [['I99', 'I03']]])(
+  'recovers legacy preference %j before CUSTOM request and editor rendering',
+  async (widgets) => {
+    stored = { ...stored, widgets, isDefault: false };
+    mount();
+    const dialog = await editor();
+    expect(
+      screen.getAllByText(/Alguns indicadores salvos não estão mais disponíveis/).length
+    ).toBeGreaterThan(0);
+    expect(api.dashboard).toHaveBeenCalledTimes(1);
+    expect(api.dashboard.mock.calls[0][1].widgets).toBe('I01,I23');
+    expect(within(dialog).getAllByRole('button', { name: /^Reordenar/ })).toHaveLength(2);
+    expect(api.savePreference).not.toHaveBeenCalled();
+  }
+);
+
+it('the editor itself tolerates an unknown selected ID and catalog removal during editing', () => {
+  const props = {
+    preference: { ...policy.defaultPreference, widgets: ['I99', 'I01'] },
+    catalog,
+    policy,
+    onSave: vi.fn(),
+    onReset: vi.fn(),
+    onSaved: vi.fn(),
+    onClose: vi.fn()
+  };
+  const app = render(
+    <ConfirmProvider>
+      <DashboardEditor {...props} />
+    </ConfirmProvider>
+  );
+  expect(screen.getAllByRole('button', { name: /^Reordenar/ })).toHaveLength(1);
+  app.rerender(
+    <ConfirmProvider>
+      <DashboardEditor {...props} catalog={catalog.filter((i) => i.metricId !== 'I01')} />
+    </ConfirmProvider>
+  );
+  expect(screen.queryByRole('button', { name: /^Reordenar/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Restaurar padrão' })).toBeEnabled();
+});
+
+it('allows an explicit reset even when all legacy widgets already display the default fallback', async () => {
+  stored = {
+    ...policy.defaultPreference,
+    isDefault: true,
+    configurationAdjusted: true,
+    updatedAt: '2026-10-06T12:00:00Z'
+  };
+  mount();
+  const dialog = await editor();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Restaurar padrão' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Restaurar', exact: true }));
+  expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeEnabled();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+  await waitFor(() => expect(api.resetPreference).toHaveBeenCalledOnce());
+  expect(await screen.findByText('Painel restaurado ao padrão')).toBeInTheDocument();
 });

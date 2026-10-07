@@ -69,6 +69,38 @@ const config = (widgets) => ({ configurationVersion: 1, widgets });
 const ids = (r) => r.body.sections.flatMap((s) => s.indicators.map((i) => i.metricId));
 
 describe('P9 personal preference and custom aggregate', () => {
+  it.each([
+    [['I03', 'I01'], ['I01']],
+    [['I99', 'I03'], defaultDashboardPreference().widgets]
+  ])('reads legacy %j safely without rewriting storage', async (widgets, expected) => {
+    const user = await actor();
+    const p = await project(user);
+    const saved = await prisma.projectDashboardPreference.create({
+      data: {
+        projectId: p.id,
+        userId: user.id,
+        configurationVersion: 1,
+        configuration: { widgets }
+      }
+    });
+    const response = await call(p, user);
+    expect(response.status).toBe(200);
+    expect(response.body.widgets).toEqual(expected);
+    expect(response.body.configurationAdjusted).toBe(true);
+    expect(await prisma.projectDashboardPreference.findUnique({ where: { id: saved.id } })).toEqual(
+      saved
+    );
+    const dashboard = await call(
+      p,
+      user,
+      'get',
+      `indicators/dashboard?view=CUSTOM&widgets=${expected.join(',')}`
+    );
+    expect(dashboard.status).toBe(200);
+    expect(ids(dashboard)).toEqual(expected);
+    expect((await call(p, user, 'put').send(config(widgets))).status).toBe(400);
+  });
+
   it.each(['VIEWER', 'MEMBER', 'MANAGER', 'OWNER'])(
     '%s can read/write/reset only their personal layout; GET never writes',
     async (role) => {

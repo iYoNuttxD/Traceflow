@@ -1772,11 +1772,19 @@ Resposta sem configuração persistida (GET ou DELETE):
 }
 ```
 
-Uma row persistida retorna `isDefault: false` e `updatedAt` ISO-8601. A posição no
+Uma row persistida utilizável retorna `isDefault: false` e `updatedAt` ISO-8601. A posição no
 array determina a ordem; não existem propriedades de dimensão/posição livre.
+Desde PR23-FIX-05, GET sanitiza somente a apresentação: remove IDs ausentes/não personalizáveis,
+duplicatas e excesso acima do limite, preservando a ordem relativa dos válidos. Se nenhum restar,
+usa o default canônico com `isDefault: true`. Nesses casos a resposta acrescenta
+`configurationAdjusted: true`, permitindo aviso discreto na UI; `updatedAt` continua indicando
+a última escrita persistida. GET não escreve nem migra a configuração original.
+`configurationVersion` identifica o formato aceito no PUT, não um mecanismo de migração automática.
+Uma seleção legada utilizável conserva a versão armazenada na apresentação; o fallback utiliza
+a versão do default. Apenas save/reset explícito altera a persistência.
 Mínimo 1, máximo 12, IDs únicos, conhecidos e elegíveis. Versão diferente de 1,
 ID proibido, campos extras (inclusive `userId`), shape inválido ou query inesperada
-são rejeitados com 400 pelo envelope de validação existente. DELETE aceita body
+são rejeitados no PUT com 400 pelo envelope de validação existente. DELETE aceita body
 vazio; GET/PUT/DELETE não possuem query de usuário.
 
 Autorização usa sessão e membership ativa: VIEWER, MEMBER, MANAGER e OWNER podem

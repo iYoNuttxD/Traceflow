@@ -25,6 +25,12 @@ import {
 import { useDashboardPreference } from './useDashboardPreference.js';
 import { DashboardEditor } from './components/DashboardEditor.jsx';
 import { CustomDashboard } from './components/CustomDashboard.jsx';
+import { DashboardRequestError } from './components/DashboardRequestError.jsx';
+import {
+  compatibleDashboardPreference,
+  dashboardPeriodError,
+  CATALOG_ADJUSTMENT_MESSAGE
+} from './dashboard-ux.js';
 import './DashboardPanel.css';
 
 const WARNING_LABELS = {
@@ -83,14 +89,21 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const selection = querySelection(searchParams);
   const { view, startDate, endDate, timeZone, sprintId } = selection;
   const preferenceState = useDashboardPreference(projectId, view === 'CUSTOM');
-  const widgets = view === 'CUSTOM' ? (preferenceState.preference?.widgets.join(',') ?? '') : '';
   const [editorContext, setEditorContext] = useState(null);
   const [savedContext, setSavedContext] = useState(null);
+  const [recoveryError, setRecoveryError] = useState(null);
   const personalizeRef = useRef(null);
+  const recoveryOwner = useRef(null);
   const closeEditor = useCallback(() => setEditorContext(null), []);
   useEffect(() => {
+    const owner = {};
+    recoveryOwner.current = owner;
     setEditorContext(null);
     setSavedContext(null);
+    setRecoveryError(null);
+    return () => {
+      if (recoveryOwner.current === owner) recoveryOwner.current = null;
+    };
   }, [projectId, view]);
   const [draft, setDraft] = useState(selection);
   const [filterError, setFilterError] = useState('');
@@ -100,6 +113,14 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const [manualRefresh, setManualRefresh] = useState(0);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [sprintRefresh, setSprintRefresh] = useState(0);
+  const catalog = catalogState.projectId === projectId ? catalogState.data : null;
+  const compatiblePreference = compatibleDashboardPreference(
+    preferenceState.preference,
+    catalog,
+    catalogState.personalization
+  );
+  const widgets = view === 'CUSTOM' ? (compatiblePreference?.widgets.join(',') ?? '') : '';
+  const invalidPeriod = dashboardPeriodError(selection);
   const dashboardGeneration = useRef(0);
   const catalogGeneration = useRef(0);
   const sprintGeneration = useRef(0);
@@ -183,6 +204,10 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
     if (view === 'CUSTOM' && !widgets) return;
     const generation = ++dashboardGeneration.current;
     const controller = new AbortController();
+    if (invalidPeriod) {
+      setDashboardState({ identity, data: null, error: null });
+      return () => controller.abort();
+    }
     setDashboardState({ identity, data: null, error: null });
     void indicatorsApi
       .dashboard(
@@ -220,8 +245,22 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
     refreshVersion,
     manualRefresh,
     identity,
-    widgets
+    widgets,
+    invalidPeriod
   ]);
+
+  async function recoverDefault() {
+    const owner = recoveryOwner.current;
+    setRecoveryError(null);
+    try {
+      if (await preferenceState.reset()) {
+        if (owner === recoveryOwner.current) setCatalogRefresh((value) => value + 1);
+      }
+    } catch (error) {
+      if (owner === recoveryOwner.current)
+        setRecoveryError(normalizeApiError(error, 'Não foi possível restaurar o painel.'));
+    }
+  }
 
   function selectView(view) {
     const next = new URLSearchParams(searchParams);
@@ -267,6 +306,11 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
         setFilterError('A data inicial deve ser anterior ou igual à final.');
         return;
       }
+      const periodError = dashboardPeriodError({ ...updated, view });
+      if (periodError) {
+        setFilterError(periodError);
+        return;
+      }
       for (const field of ['startDate', 'endDate', 'timeZone']) next.delete(field);
       if (updated.startDate && updated.endDate) {
         next.set('startDate', updated.startDate);
@@ -297,7 +341,6 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const dashboardError = dashboardState.identity === identity ? dashboardState.error : null;
   const confirmedSave = savedContext?.context === feedbackContext;
   const savedMessage = savedContext?.restored ? 'Painel restaurado ao padrão' : 'Painel salvo';
-  const catalog = catalogState.projectId === projectId ? catalogState.data : null;
   const catalogError = catalogState.projectId === projectId ? catalogState.error : null;
   const sprints = sprintState.projectId === projectId ? sprintState.rows : [];
   const catalogById = new Map((catalog ?? []).map((item) => [item.metricId, item]));
@@ -317,7 +360,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   ]
     .filter(Boolean)
     .join(' · ');
-  const loading = !dashboard && !dashboardError;
+  const loading =
+    !dashboard && !dashboardError && !invalidPeriod && !catalogError && !preferenceState.error;
   const periodInProgress = dashboard?.sections?.some((section) =>
     section.indicators.some((indicator) => indicator.limitations?.includes('PERIOD_NOT_COMPLETE'))
   );
@@ -461,7 +505,7 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             className="dashboard-panel__refresh"
             aria-label="Atualizar indicadores"
             title="Atualizar indicadores"
-            disabled={loading}
+            disabled={loading || dashboardError?.status === 429 || Boolean(invalidPeriod)}
             onClick={() => setManualRefresh((value) => value + 1)}
           >
             <span
@@ -485,34 +529,60 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
         className="dashboard-panel__body"
       >
         {view === 'CUSTOM' && preferenceState.error && (
-          <div role="alert" className="dashboard-panel__error">
-            <p>Não foi possível carregar seu painel.</p>
-            <button type="button" onClick={preferenceState.retry}>
-              Tentar novamente
-            </button>
-          </div>
+          <DashboardRequestError
+            key={`preference:${projectId}:${view}`}
+            error={preferenceState.error}
+            onRetry={preferenceState.retry}
+          />
         )}
         {catalogError && (
-          <div className="dashboard-panel__error" role="alert">
-            <p>Não foi possível carregar o catálogo de indicadores.</p>
-            <button type="button" onClick={() => setCatalogRefresh((value) => value + 1)}>
-              Tentar novamente
-            </button>
-          </div>
+          <DashboardRequestError
+            key={`catalog:${projectId}:${catalogRefresh}`}
+            error={catalogError}
+            onRetry={() => setCatalogRefresh((value) => value + 1)}
+          />
         )}
+        {invalidPeriod && (
+          <FeedbackRegion
+            error={`${invalidPeriod} Ajuste as datas no filtro ou limpe o período.`}
+          />
+        )}
+        {view === 'CUSTOM' && compatiblePreference?.configurationAdjusted && (
+          <FeedbackRegion info={CATALOG_ADJUSTMENT_MESSAGE} />
+        )}
+        {view === 'CUSTOM' &&
+          compatiblePreference &&
+          (!widgets || missingMetadata) &&
+          (recoveryError ? (
+            <DashboardRequestError
+              key={`recovery:${identity}`}
+              error={recoveryError}
+              onRetry={recoverDefault}
+            />
+          ) : (
+            <div className="dashboard-panel__error">
+              <FeedbackRegion error="A seleção não corresponde ao catálogo disponível. Restaure o padrão para recuperar seu painel." />
+              <button type="button" disabled={preferenceState.saving} onClick={recoverDefault}>
+                Restaurar padrão
+              </button>
+            </div>
+          ))}
         {dashboardError && (
-          <div className="dashboard-panel__error" role={confirmedSave ? undefined : 'alert'}>
-            {!confirmedSave && <p>Não foi possível carregar os indicadores.</p>}
-            <button type="button" onClick={() => setManualRefresh((value) => value + 1)}>
-              Tentar novamente
-            </button>
-          </div>
+          <DashboardRequestError
+            key={identity}
+            error={dashboardError}
+            prefix={
+              confirmedSave ? `${savedMessage}. Não foi possível atualizar os dados agora.` : ''
+            }
+            onRetry={() => setManualRefresh((value) => value + 1)}
+          />
         )}
         {!catalogError &&
           !dashboardError &&
-          !(view === 'CUSTOM' && preferenceState.error) &&
+          !invalidPeriod &&
+          !(view === 'CUSTOM' && (preferenceState.error || (compatiblePreference && !widgets))) &&
           (!dashboard || !catalog) && <LoadingDashboard />}
-        {dashboard && catalog && missingMetadata && (
+        {view !== 'CUSTOM' && dashboard && catalog && missingMetadata && (
           <p role="alert">
             O catálogo não corresponde aos indicadores desta visão. Atualize a página.
           </p>
@@ -696,36 +766,27 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           </>
         )}
       </div>
-      {confirmedSave && view === 'CUSTOM' && (
-        <FeedbackRegion
-          transient
-          success={dashboardError ? undefined : savedMessage}
-          warning={
-            dashboardError
-              ? `${savedMessage}. Não foi possível atualizar os dados agora.`
-              : undefined
-          }
+      <FeedbackRegion
+        key={`save:${feedbackContext}`}
+        transient
+        success={confirmedSave && view === 'CUSTOM' && !dashboardError ? savedMessage : undefined}
+      />
+      {view === 'CUSTOM' && editorContext === projectId && compatiblePreference && catalog && (
+        <DashboardEditor
+          key={projectId}
+          preference={compatiblePreference}
+          catalog={catalog}
+          policy={catalogState.personalization}
+          onSave={preferenceState.save}
+          onReset={preferenceState.reset}
+          returnFocusRef={personalizeRef}
+          onClose={closeEditor}
+          onSaved={({ restored }) => {
+            setSavedContext({ context: feedbackContext, restored });
+            closeEditor();
+          }}
         />
       )}
-      {view === 'CUSTOM' &&
-        editorContext === projectId &&
-        preferenceState.preference &&
-        catalog && (
-          <DashboardEditor
-            key={projectId}
-            preference={preferenceState.preference}
-            catalog={catalog}
-            policy={catalogState.personalization}
-            onSave={preferenceState.save}
-            onReset={preferenceState.reset}
-            returnFocusRef={personalizeRef}
-            onClose={closeEditor}
-            onSaved={({ restored }) => {
-              setSavedContext({ context: feedbackContext, restored });
-              closeEditor();
-            }}
-          />
-        )}
     </section>
   );
 }

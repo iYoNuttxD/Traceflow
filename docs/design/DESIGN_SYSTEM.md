@@ -429,6 +429,14 @@ Success, warning, error e info combinam icon, título/mensagem, surface e border
 dinâmicas devem adotar `role="status"`, `role="alert"` ou live region conforme urgência real. Cor não
 é o único sinal.
 
+`FeedbackRegion` mantém regiões de anúncio polite/assertive montadas. Com `transient`, somente
+success/info desaparecem após os 4 segundos canônicos. Error, warning vigente e rate-limit não
+têm auto-dismiss; o dono do fluxo remove a mensagem ao resolver a condição ou mudar de contexto.
+A contagem regressiva visual não é anunciada a cada segundo: o prazo inicial é informado uma
+vez. Retry permanece desabilitado durante Retry-After, sem repetição automática da request.
+Feedback com interação permite pointer events. Confirmação de save pode ser transitória, mas
+falha posterior de atualização permanece junto da ação de retry; não é erro de salvamento.
+
 ### Empty state
 
 Composição: ícone opcional, título, descrição, ação opcional e spacing centralizado. Ilustração não

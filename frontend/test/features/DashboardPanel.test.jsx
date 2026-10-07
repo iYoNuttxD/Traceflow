@@ -146,6 +146,11 @@ describe('P8 Dashboard na Visão Geral', () => {
     vi.clearAllMocks();
     mocks.catalog.mockResolvedValue({
       data: {
+        personalization: {
+          minWidgets: 1,
+          maxWidgets: 12,
+          defaultPreference: { configurationVersion: 1, widgets: ['I23'] }
+        },
         indicators: [
           definition('I23', 'WIP atual'),
           definition('I22', 'Throughput'),
@@ -1665,5 +1670,69 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(velocity.querySelector('svg')).toBeNull();
     expect(screen.getByRole('article', { name: 'Burnup' })).toHaveTextContent('4 h');
     expect(screen.queryByText('Ver dados')).not.toBeInTheDocument();
+  });
+  it('presents the safe API validation message and sanitizes technical errors', async () => {
+    mocks.dashboard.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { message: 'O período informado deve ter no máximo 366 dias.' }
+      }
+    });
+    renderPanel();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'O período informado deve ter no máximo 366 dias.'
+    );
+    mocks.dashboard.mockRejectedValueOnce({
+      response: { status: 500, data: { message: 'Prisma P2024 SQL stack secret' } }
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'O TRACEFLOW encontrou um problema interno.'
+    );
+    expect(screen.queryByText(/Prisma|secret/)).not.toBeInTheDocument();
+  });
+  it.each(['FLOW', 'TASK', 'CUSTOM'])(
+    'stops a long period only after switching to %s, preserving editable filters',
+    async (view) => {
+      renderPanel('/projects/1?view=GITHUB&startDate=2024-01-01&endDate=2026-01-01&timeZone=UTC');
+      await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(1));
+      const name = { FLOW: 'Fluxo', TASK: 'Tarefas', CUSTOM: 'Meu painel' }[view];
+      await userEvent.click(screen.getByRole('tab', { name }));
+      expect(await screen.findByText(/máximo 366 dias nesta visão/)).toHaveTextContent(
+        'Ajuste as datas'
+      );
+      expect(mocks.dashboard).toHaveBeenCalledTimes(1);
+    }
+  );
+  it('respects Retry-After without auto-retry and discards a countdown on view change', async () => {
+    vi.useFakeTimers();
+    mocks.dashboard.mockRejectedValueOnce({
+      response: { status: 429, data: { message: 'Muitas solicitações.', retryAfterSeconds: 3 } }
+    });
+    await act(async () => {
+      renderPanel();
+    });
+    const retry = screen.getByRole('button', { name: 'Tentar novamente' });
+    expect(retry).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Atualizar indicadores' })).toBeDisabled();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByText('Tente novamente em 2s.')).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(1000));
+    act(() => vi.advanceTimersByTime(1000));
+    expect(retry).toBeEnabled();
+    expect(mocks.dashboard).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+    await userEvent.click(retry);
+    await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
+    mocks.dashboard.mockRejectedValueOnce({
+      response: { status: 429, data: { retryAfterSeconds: 30 } }
+    });
+    await userEvent.click(screen.getByRole('tab', { name: 'Fluxo' }));
+    expect(await screen.findByText('Tente novamente em 30s.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'GitHub' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument()
+    );
+    expect(screen.queryByText(/Tente novamente em/)).not.toBeInTheDocument();
   });
 });

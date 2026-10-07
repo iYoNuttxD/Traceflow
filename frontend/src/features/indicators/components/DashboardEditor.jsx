@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SprintDialog } from '../../schedule/index.js';
 import { FeedbackRegion, SelectControl, useConfirm } from '../../../shared/index.js';
+import { normalizeApiError } from '../../../shared/index.js';
+import { useCountdown } from '../../../shared/hooks/useCountdown.js';
+import {
+  compatibleDashboardPreference,
+  filterDashboardWidgets,
+  CATALOG_ADJUSTMENT_MESSAGE
+} from '../dashboard-ux.js';
 import { METRIC_TITLES } from '../dashboard-display.js';
 import './PersonalizedDashboard.css';
 
@@ -19,7 +26,8 @@ const categoryLabel = (item) =>
   categoriesOf(item)
     .map((id) => CATEGORIES[id])
     .join(' · ');
-const titleOf = (item) => METRIC_TITLES[item.metricId] ?? item.title;
+const titleOf = (item) =>
+  item ? (METRIC_TITLES[item.metricId] ?? item.title) : 'Indicador indisponível';
 const searchText = (text) =>
   text
     .normalize('NFD')
@@ -36,12 +44,15 @@ export function DashboardEditor({
   onClose,
   returnFocusRef
 }) {
-  const [widgets, setWidgets] = useState(preference.widgets);
+  const initialPreference = compatibleDashboardPreference(preference, catalog, policy);
+  const [selection, setWidgets] = useState(initialPreference.widgets);
+  const widgets = filterDashboardWidgets(selection, catalog, policy.maxWidgets);
   const [reset, setReset] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
+  const retryRemaining = useCountdown(error?.status === 429 ? error.retryAfterSeconds : 0);
   const [announcement, setAnnouncement] = useState('');
   const [drag, setDrag] = useState(null);
   const selectedListRef = useRef(null);
@@ -61,7 +72,8 @@ export function DashboardEditor({
   const eligible = catalog.filter((item) => item.customization?.customizable);
   const byId = new Map(eligible.map((item) => [item.metricId, item]));
   const dirty =
-    widgets.join(',') !== preference.widgets.join(',') || (reset && !preference.isDefault);
+    widgets.join(',') !== initialPreference.widgets.join(',') ||
+    (reset && (!preference.isDefault || initialPreference.configurationAdjusted));
   const valid = widgets.length >= policy.minWidgets && widgets.length <= policy.maxWidgets;
   const filtered = eligible.filter(
     (item) =>
@@ -147,16 +159,18 @@ export function DashboardEditor({
     )
       return;
     if (!alive.current) return;
-    setWidgets([...policy.defaultPreference.widgets]);
+    setWidgets(
+      filterDashboardWidgets(policy.defaultPreference.widgets, catalog, policy.maxWidgets)
+    );
     setReset(true);
     setAnnouncement('Seleção padrão restaurada. Salve para aplicar.');
   }
   async function save(event) {
     event.preventDefault();
-    if (inFlight.current || !dirty || !valid) return;
+    if (inFlight.current || retryRemaining > 0 || !dirty || !valid) return;
     inFlight.current = true;
     setBusy(true);
-    setError('');
+    setError(null);
     try {
       const saved = reset
         ? await onReset()
@@ -165,11 +179,14 @@ export function DashboardEditor({
             widgets
           });
       if (alive.current && saved) onSaved({ restored: reset });
-    } catch {
-      if (alive.current)
-        setError(
-          'Não foi possível salvar o painel. Sua seleção foi mantida; tente salvar novamente.'
-        );
+    } catch (failure) {
+      if (alive.current) {
+        const normalized = normalizeApiError(failure, 'Não foi possível salvar o painel.');
+        setError({
+          ...normalized,
+          message: `${normalized.message} Sua seleção foi mantida; tente salvar novamente.`
+        });
+      }
     } finally {
       inFlight.current = false;
       if (alive.current) setBusy(false);
@@ -349,7 +366,15 @@ export function DashboardEditor({
         <span className="sr-only" role="status" aria-live="polite">
           {announcement}
         </span>
-        <FeedbackRegion error={error} />
+        {initialPreference.configurationAdjusted && (
+          <FeedbackRegion info={CATALOG_ADJUSTMENT_MESSAGE} />
+        )}
+        <FeedbackRegion
+          error={error && error.status !== 429 ? error.message : undefined}
+          rateLimit={error?.status === 429 ? error.message : undefined}
+          retryAfterSeconds={error?.retryAfterSeconds}
+          remainingRetryAfterSeconds={retryRemaining}
+        />
         <footer className="dashboard-editor__footer">
           <button
             type="button"
@@ -371,7 +396,7 @@ export function DashboardEditor({
             <button
               type="submit"
               className="button button-primary"
-              disabled={busy || !dirty || !valid}
+              disabled={busy || retryRemaining > 0 || !dirty || !valid}
             >
               {busy ? 'Salvando...' : 'Salvar'}
             </button>

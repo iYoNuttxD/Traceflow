@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { normalizeApiError } from '../../shared/index.js';
 import { indicatorsApi } from './api/indicators.api.js';
 
 export function useDashboardPreference(projectId, active) {
@@ -26,8 +27,13 @@ export function useDashboardPreference(projectId, active) {
       (response) => {
         if (!controller.signal.aborted) setState({ projectId, data: response.data, error: false });
       },
-      () => {
-        if (!controller.signal.aborted) setState({ projectId, data: null, error: true });
+      (error) => {
+        if (!controller.signal.aborted)
+          setState({
+            projectId,
+            data: null,
+            error: normalizeApiError(error, 'Não foi possível carregar seu painel.')
+          });
       }
     );
     return () => controller.abort();
