@@ -3,6 +3,7 @@ import { projectRepository } from '../../projects/project.repository.js';
 import { auditService } from '../../audit/audit.service.js';
 import { parseProjectId, ProjectServiceError } from '../../projects/project.schema.js';
 import { logger } from '../../../shared/logger/index.js';
+import { traceabilityAlertService } from '../../traceability/traceability-alert.service.js';
 import { normalizeGithubSyncError, syncProjectGithubData } from './sync-project-github.service.js';
 
 export const GITHUB_SYNC_STALE_AFTER_MS = 30 * 60 * 1000;
@@ -114,6 +115,7 @@ export async function executeGithubSyncRun(runId) {
       finishedAt.getTime() - startedAtMs
     );
     await recordRunAudit(run, 'GITHUB_SYNC_SUCCEEDED');
+    await traceabilityAlertService.reconcileAfterSync(run.projectId);
     logger.info('Execução persistida de sincronização GitHub concluída.', {
       event: 'github_sync_run_completed',
       projectId: run.projectId,
@@ -134,6 +136,7 @@ export async function executeGithubSyncRun(runId) {
       durationMs: finishedAt.getTime() - startedAtMs
     });
     await recordRunAudit(run, 'GITHUB_SYNC_FAILED', 'FAILURE', errorCode);
+    await traceabilityAlertService.reconcileAfterSync(run.projectId);
     logger.warn('Execução persistida de sincronização GitHub falhou.', {
       event: 'github_sync_run_failed',
       projectId: run.projectId,

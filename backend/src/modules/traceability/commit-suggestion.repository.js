@@ -3,6 +3,7 @@ import {
   affectedRequirementIds,
   reconcileRequirements
 } from './requirement-reconciliation.repository.js';
+import { reconcileTraceabilityAlerts } from './traceability-alert.repository.js';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 
@@ -141,6 +142,7 @@ export const commitSuggestionRepository = {
           sourceEntityType: 'Task',
           sourceEntityId: suggestion.taskId
         });
+        await reconcileTraceabilityAlerts(tx, { projectId, taskIds: [suggestion.taskId] });
         return {
           outcome: 'UPDATED',
           suggestion: await tx.taskCommitSuggestion.findUnique({

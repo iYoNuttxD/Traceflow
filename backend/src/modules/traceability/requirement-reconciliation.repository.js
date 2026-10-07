@@ -2,6 +2,10 @@ import { prisma } from '../../database/prismaClient.js';
 import { lockActiveProject } from '../projects/active-project-write.js';
 import { loadRequirementProjections } from './requirement-projection.repository.js';
 import { relatedRequirementIds } from './requirement-traceability.policy.js';
+import {
+  alertScopeForTasks,
+  reconcileTraceabilityAlerts
+} from './traceability-alert.repository.js';
 
 const unique = (ids) => [...new Set(ids.filter(Boolean))].sort((a, b) => a - b);
 const taskLinks = { select: { relationType: true, task: { select: { requirementId: true } } } };
@@ -146,11 +150,23 @@ async function resolveContext(tx, context) {
   return { ...context, projectId: row?.projectId };
 }
 
+async function reconcileTaskAlerts(tx, scope, before) {
+  if (!scope.taskIds?.length) return;
+  const after = await alertScopeForTasks(tx, scope.projectId, scope.taskIds);
+  await reconcileTraceabilityAlerts(tx, {
+    projectId: scope.projectId,
+    taskIds: scope.taskIds,
+    pullRequestIds: [...before.pullRequestIds, ...after.pullRequestIds],
+    issueIds: [...before.issueIds, ...after.issueIds]
+  });
+}
+
 export async function traceabilityMutation(tx, context, work) {
   const scope = await resolveContext(tx, context);
   if (!scope.projectId) return work();
   await lockActiveProject(tx, scope.projectId);
   const before = await affectedRequirementIds(tx, scope);
+  const alertsBefore = await alertScopeForTasks(tx, scope.projectId, scope.taskIds);
   const result = await work();
   if (scope.createdEntity && result?.id) {
     scope[scope.createdEntity] = [...(scope[scope.createdEntity] || []), result.id];
@@ -158,6 +174,7 @@ export async function traceabilityMutation(tx, context, work) {
   }
   const after = await affectedRequirementIds(tx, scope);
   await reconcileRequirements(tx, { ...scope, requirementIds: unique([...before, ...after]) });
+  await reconcileTaskAlerts(tx, scope, alertsBefore);
   const linkedRequirement = (result?.task ?? result)?.requirement;
   if (linkedRequirement?.id && linkedRequirement.status !== undefined) {
     const current = await tx.requirement.findUnique({
