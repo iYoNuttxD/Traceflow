@@ -1,5 +1,63 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-10-07 — S2-01 alertas de rastreabilidade (RF13, RF39, RF40, RF58)
+
+**Ambiente.** Chrome real autenticado em `localhost:5173`, com backend local em `localhost:3001`.
+A migration `20261007010000_s201_traceability_alerts` foi aplicada no banco de desenvolvimento.
+Havia três projetos sintéticos `[S2-01]` (Mínimo, Escala e Sem integração), criados por script
+descartável e não versionado, e os alertas existentes foram gerados por
+`npm run traceability:alerts`. A simulação deu 1, 28 e 0 alertas criados; repetida depois da
+gravação, deu `created=0`.
+
+**O que foi operado pela interface no projeto Escala:**
+
+- paginação de 28 alertas (20 + 8, sem duplicar);
+- filtros de situação (Abertos, Dispensados, Resolvidos) e de tipo;
+- detalhe de PR, de issue e de tarefa;
+- vínculo da PR #2 à TASK-91 pelo alerta, que resolveu com `PULL_REQUEST_LINKED`;
+- dispensa da Issue #108 e da Issue #107 com justificativa, incluindo o erro de campo com menos de
+  10 caracteres pelo teclado;
+- "Abrir tarefa no Kanban" abrindo a TASK-80, vínculo de commit por ali e alerta resolvido com
+  `COMMIT_LINKED`;
+- exclusão da TASK-79 pelo Kanban, resolvida com `TASK_DELETED`, com `TASK-79 · Tarefa concluída 11`
+  preservado como snapshot.
+
+O resumo e o contador "Alertas (N)" acompanharam cada mutação (28 → 23).
+
+**Extremos de dados:**
+
+| Projeto | Resultado |
+|---|---|
+| Sem integração | "Nenhum alerta aberto.", item "Alertas" sem contagem e aviso de regra inativa |
+| Escala | 28 alertas abertos e 28 tarefas sem vínculo técnico em duas páginas |
+| Tarefa sem histórico de status (TASK-80, antes do vínculo) | "Data da conclusão indisponível" |
+
+**Correções feitas durante a rodada:**
+
+- barra de rolagem vertical na sub-navegação;
+- resumo sem padding;
+- cards herdando `min-height: 24rem` de `.sprint-card`;
+- botão "Carregar mais" desalinhado;
+- link-botão sublinhado;
+- itens da lista RF58 com `flex-direction: column` herdado;
+- foco caindo no `body` ao fechar o detalhe de um alerta que saiu da lista; agora vai para o título
+  "Alertas", com teste automatizado.
+
+**Temas e larguras.** Dark na janela a 1440 px; Light por `data-theme` num iframe da mesma origem a
+1024 e 768 px; 390 e 768 px pelo mesmo iframe. A janela maximizada não aceitou redimensionamento.
+Em nenhuma largura houve overflow horizontal da página. As sub-navegações rolam na horizontal em
+largura estreita, como as abas do projeto.
+
+**Limites.**
+
+- As larguras estreitas foram medidas em iframe, não em dispositivo.
+- Os papéis VIEWER e MEMBER foram cobertos por testes automatizados, não por sessão real, porque a
+  única conta local é OWNER.
+- As capturas ficaram no diretório temporário da sessão e não foram versionadas.
+
+Nenhuma surface S2-01 foi promovida a `VISUALLY APPROVED` com esta evidência: a aprovação visual é
+do João.
+
 ## 2026-09-23 — PR #21 targeted corrections (inspeção parcial)
 
 Chrome real autenticado em `localhost:5173`, projeto local 2, sem mutation de negócio.
