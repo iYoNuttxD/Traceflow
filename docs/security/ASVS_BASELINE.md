@@ -143,3 +143,22 @@ exercitados; não é certificação ASVS nem validação de infraestrutura de pr
 Limites: detecção de formato não é antivírus/decodificação integral; nenhum teste
 local comprova ACLs, backup ou deploy de produção. Queda entre promoção e commit pode
 exigir reconciliação manual de órfãos. Range de vídeo e storage externo não implementados.
+
+## Delta S2-01 — alertas de rastreabilidade (RF13, RF39, RF40, RF58)
+
+A entrega acrescenta seis rotas project-scoped e uma tabela nova (`TraceabilityAlert`). Não há
+upload, token, canal ou origem nova. O mapeamento descreve controles exercitados; não é
+certificação ASVS.
+
+| Área | Controle aplicado | Evidência |
+|---|---|---|
+| Controle de acesso | VIEWER+ lê; dispensa e reprocessamento exigem MANAGER+ no middleware (`requiredRole`) e de novo no service; alerta de outro projeto responde 404 opaco | `test/api/s201-traceability-alerts.test.js` (matriz completa e isolamento), `test/unit/traceability-alert.service.test.js` |
+| Validação de entrada | schemas `strictObject` (parâmetro desconhecido responde 400); justificativa de 10 a 500 caracteres depois do `trim`; enums de situação, tipo e status; `limit` até 100 | API S2-01 |
+| CSRF e abuso | mutações exigem CSRF; o reprocessamento tem limitador próprio por usuário e projeto, com o teto do sync manual | API S2-01 (POST sem token responde 403); `app.js`, `rate-limit.js` |
+| Lógica de negócio no servidor | detecção e resolução são exclusivas do servidor, sob o lock do projeto; o índice único sobre a coluna gerada `activeKey` impede dois alertas ativos por sujeito, mesmo em concorrência | `test/integration/s201-traceability-alerts.test.js` (I14–I16) |
+| Logging e auditoria | logs só com contagens e gatilho; auditoria de dispensa e reprocessamento com metadata allowlisted (`alertType`, `created`, `resolved`), sem justificativa | API S2-01 (auditoria não contém a justificativa), unit do service |
+| Minimização (V14) | DTO sem e-mail, `dedupeKey`, `activeKey` ou campos crus do GitHub; quem dispensou aparece só como `{id,name}` | API S2-01 (DTO e contexto) |
+
+Limites: a reconciliação pós-sync roda no processo da API, depois de o run ser persistido; uma
+falha nela fica só no log e é recuperada pelo reprocessamento manual ou pelo script
+`traceability:alerts`. Nenhum teste local cobre o limitador sob carga real.

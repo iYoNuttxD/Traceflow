@@ -66,11 +66,11 @@ revalidação.
 
 <!-- INVENTORY_COUNTS_START -->
 
-- Total surfaces: 213
+- Total surfaces: 219
 - `C2 COMPLETE`: 171
 - `LEGACY`: 6
 - `HYBRID`: 24
-- `NOT REVIEWED`: 11
+- `NOT REVIEWED`: 17
 - `NOT APPLICABLE`: 1
 
 | Domain                        | Total |  C2 | Legacy | Hybrid | Not Reviewed |
@@ -80,7 +80,7 @@ revalidação.
 | Projects                      |    27 |  27 |      0 |      0 |            0 |
 | Tasks and Kanban              |    46 |  25 |      2 |     19 |            0 |
 | Planning                      |    71 |  70 |      0 |      0 |            0 |
-| Requirements and Traceability |     9 |   1 |      3 |      5 |            0 |
+| Requirements and Traceability |    15 |   1 |      3 |      5 |            6 |
 | Repository / GitHub           |     4 |   4 |      0 |      0 |            0 |
 | Settings and Remaining        |    21 |  20 |      1 |      0 |            0 |
 | Test Cases                    |    11 |   0 |      0 |      0 |           11 |
@@ -88,7 +88,7 @@ revalidação.
 Validation evidence:
 
 - `VISUALLY APPROVED`: 42
-- `TECHNICALLY VERIFIED`: 161
+- `TECHNICALLY VERIFIED`: 167
 - `STRUCTURALLY IDENTIFIED`: 4
 - `ENVIRONMENT BLOCKED`: 0
 - `NOT VALIDATED`: 0
@@ -341,6 +341,12 @@ homologação própria registrada nos relatórios canônicos.
 | `TRACEABILITY-SITUATION-HISTORY` | Traceability | Situation history | `Requirement Card` | Histórico de situação | Dialog / History | `RequirementHistory.jsx; SprintDialog; HistoryEventRow` | Histórico | VIEWER+ | Loading, empty, baseline, transition, error, cursor append | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Baseline real renderizado; cursor, regressões e concorrência automatizados. Sem filtros fictícios. |
 | `TRACEABILITY-DETAIL-STATES` | Traceability | Requirement perspective | `Traceability main` | Detalhe da cadeia | State | `TraceabilityScreen.jsx` | Ver rastreabilidade | VIEWER+ | No selection, loading, error/retry, loaded | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | HYBRID | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Foco/scroll ao heading; erro do fluxo preserva catálogo; contrato do canvas anterior. |
 | `TRACEABILITY-FLOW-CANVAS` | Traceability | Expanded graph | Detail loaded | Fluxograma interativo | Canvas / State | `TraceabilityFlow; GraphNode; GraphEdge; GraphEntityDetails` | Ver rastreabilidade | VIEWER+ | Eight real types, metadata, groups, paging/retry, collapse, fit, Details | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco, labels textuais; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | S1-09 Etapa 4; grafo real + fixture isolada de 85 entidades, identidade única, controles horizontais, pan contido. Ver relatório de entrega. |
+| `TRACEABILITY-SUBNAV` | Traceability | Section navigation | `/projects/:projectId/traceability{,/alerts,/unlinked-tasks}` | Seções da rastreabilidade | Tabs | `TraceabilitySubnav.jsx; internal-tabs.css` | Abrir Rastreabilidade | VIEWER+ | Requisitos/Alertas/Tarefas sem vínculo; `aria-current`; "Alertas (N)" só com N > 0; resumo indisponível sem contagem | Pendente | Pendente | Pendente | Automatizado: papel, nome acessível, `aria-current` e href | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S2-01 | Não cria 12ª aba no projeto (ADR-015). `TraceabilityPage.test.jsx`. |
+| `TRACEABILITY-ALERTS-LIST` | Traceability | Traceability alerts | `/projects/:projectId/traceability/alerts` | Alertas de rastreabilidade | Page / List / State | `TraceabilityAlertsScreen.jsx; AlertCard.jsx; useTraceabilityAlerts.js; useAlertSummary.js` | Seção Alertas | VIEWER+; reprocessar MANAGER+ | Loading, fatal error/retry, resumo textual, aviso de regra inativa, filtros situação/tipo, vazio, vazio filtrado, append "Carregar mais", latest-wins, reprocessamento | Pendente | Pendente | Pendente | Automatizado: lista/itens por papel, `aria-live` no resumo, foco devolvido ao fechar o detalhe | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S2-01 | RF13/RF39/RF40. Testes F1–F16 em `TraceabilityAlertsPage.test.jsx`. Matriz visual da seção 6 do prompt S2-01 pendente. |
+| `TRACEABILITY-ALERT-DETAIL` | Traceability | Alert context | Alerts list | Detalhe do alerta | Dialog | `AlertDetails.jsx; SprintDialog; GithubExternalAction` | Ver detalhes | VIEWER+ | Loading, error/retry, contexto por tipo (tarefa/PR/issue), sujeito excluído, sugestões RF41 pendentes, feedback, "Abrir tarefa no Kanban" | Pendente | Pendente | Pendente | Automatizado: foco preso, retorno ao gatilho, nomes acessíveis | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S2-01 | Tarefa abre no Kanban (`?task=`), onde o vínculo de commit é editável. |
+| `TRACEABILITY-ALERT-DISMISS` | Traceability | Dismiss alert | Alert detail | Dispensar alerta | Form step | `AlertDismissForm.jsx` | Dispensar alerta | MANAGER, OWNER | Justificativa 10–500 com contador, erro de campo, envio, 409 já resolvido, sucesso e releitura | Pendente | Pendente | Pendente | Automatizado: `aria-invalid`, `aria-describedby`, erro com `role="alert"` | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S2-01 | Passo dentro do diálogo do alerta, com "Voltar". |
+| `TRACEABILITY-ALERT-LINK` | Traceability | Link artifact to task | Alert detail (PR/issue) | Vincular a uma tarefa | Form step / Combobox | `AlertLinkTask.jsx; SearchCombobox; ConfirmDialog` | Vincular a uma tarefa | MEMBER, MANAGER, OWNER | Busca, seleção, confirmação de substituição de PR, erro, sucesso e releitura | Pendente | Pendente | Pendente | Automatizado: combobox e option por nome, confirmação cancelável | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S2-01 | Usa as rotas de vínculo da tarefa; o servidor resolve o alerta. |
+| `TRACEABILITY-UNLINKED-TASKS` | Traceability | Tasks without technical links | `/projects/:projectId/traceability/unlinked-tasks` | Tarefas sem vínculo técnico | Page / List / State | `UnlinkedTasksScreen.jsx; useUnlinkedTasks.js` | Seção Tarefas sem vínculo técnico | VIEWER+ | Loading, fatal error/retry, vazio, filtro de status, contagem, append, "Abrir no Kanban" | Pendente | Pendente | Pendente | Automatizado: lista, link com nome acessível, `aria-live` na contagem | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S2-01 | RF58. `UnlinkedTasksPage.test.jsx`. |
 
 ## Repository / GitHub
 

@@ -13,7 +13,7 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | E15-F10 | Testes E2E reais de navegador | login, projetos e jornadas críticas | MÉDIA | ambiente isolado, fixtures não runtime e gate de CI definido |
 | E15-F11 | Validação jurídica final de LGPD | base legal, controlador, DPO, fornecedores e transferência | ALTA | responsáveis jurídicos/operacionais definidos |
 | E15-F12 | Observabilidade, alertas e SLOs | incidentes e disponibilidade | MÉDIA | plataforma de logs/métricas e política de acesso/retenção |
-| E15-F13 | Funcionalidades oficiais ainda fora do produto | RF13, RF15–RF18, RF29–RF34, RF36, RF37, RF39–RF40, RF42–RF46, RF54–RF64 (o RF35 saiu da lista: foi entregue no S1-04) | PRODUTO | priorização funcional e incrementos próprios; não são cleanup E15 |
+| E15-F13 | Funcionalidades oficiais ainda fora do produto | RF15–RF18, RF29–RF34, RF36, RF37, RF42–RF46, RF54–RF57, RF59–RF64 (o RF35 saiu da lista: foi entregue no S1-04; RF13, RF39, RF40 e RF58 saíram com o S2-01) | PRODUTO | priorização funcional e incrementos próprios; não são cleanup E15 |
 
 ## Pendências abertas pelo S1-04 / RF10
 
@@ -42,6 +42,17 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | L1-F02 | Configurar GitHub App real e validar permissões/webhooks | RF02–RF06, RF21, RF50 | ALTA | App instalada com permissões mínimas, callback e webhook HTTPS; executar smoke test externo |
 | L1-F03 | Testes E2E reais da jornada de identidade e instalação | RF23, RF27, RF28 e GitHub App | MÉDIA | ambiente isolado com SMTP/GitHub controlados e gate de CI definido |
 | L1-F04 | MFA para perfis administrativos | ASVS/contas privilegiadas | MÉDIA | decisão de produto e modelo de recuperação aprovados |
+
+## Pendências abertas pelo S2-01 (alertas de rastreabilidade)
+
+| ID | Pendência | Requisito/impacto | Prioridade | Critério para iniciar |
+|---|---|---|---|---|
+| S201-F01 | Notificar alertas a pessoas | o S2-01 entrega alertas do projeto, sem destinatário (ADR-015 D1); avisar responsáveis pertence à central de notificações | MÉDIA | S2-02/S2-03 entregues; decidir quem recebe cada tipo de alerta |
+| S201-F02 | Alerta de PR e issue só nasce no fim do sync | webhooks não processam `pull_request`/`issues`, e não há sync automático; o atraso é igual ao intervalo entre syncs manuais | MÉDIA | decisão sobre sync por webhook ou agendado (S2-03 e OCI) |
+| S201-F03 | Desfazer dispensa ou reabrir alerta | hoje a dispensa só se desfaz quando a condição cessa e volta; não existe ação para reverter uma dispensa equivocada | BAIXA | pedido de uso real; exige contrato, auditoria e regra para a chave ativa |
+| S201-F04 | Persistir `state_reason` da issue | issue fechada como "not planned" também gera alerta; a dispensa cobre o caso | BAIXA | se o volume desses alertas incomodar; exige campo novo no sync e regra na política |
+| S201-F05 | Contador de alertas fora de Rastreabilidade | o número de alertas abertos só aparece na sub-navegação de Rastreabilidade, não na navegação principal do projeto nem na aba Repositório | BAIXA | decisão de produto sobre a navegação canônica de 11 abas |
+| S201-F06 | Timeouts de 5 s em `KanbanPage.test.jsx` e `TestCases.test.jsx` na suíte completa | na máquina de desenvolvimento (Windows), a suíte completa do frontend estoura 5 s em 6 a 8 testes desses dois arquivos; sozinhos, os dois passam 87/87. Preexistente ao S2-01, que não toca essas telas, mas cresce com o número de arquivos de teste | MÉDIA | medir na CI; avaliar `testTimeout` maior para esses arquivos ou reduzir o custo de render dos testes integrados |
 
 ## Fechadas pela LR.2
 

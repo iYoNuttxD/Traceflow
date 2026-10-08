@@ -1238,3 +1238,67 @@ histórico. `Requirement.status` é o macro derivado de situation pela mesma pol
 a cadeia técnica/qualidade completa e independe do status anterior; novas pendências reabrem a cadeia automaticamente.
 Política, exemplo JSON, hooks, migração, inicialização e limite de escala do
 agregado em memória: [Requirement Traceability History](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).
+
+## S2-01 — Alertas de rastreabilidade (RF13, RF39, RF40, RF58)
+
+Rotas sob `/api/projects/:projectId/traceability`. Decisão em
+[ADR-015](../architecture/ADR-015-TRACEABILITY-ALERTS.md). A regra executável (tipos, corte,
+gatilhos e motivos) está em [Traceability Alerts](../data/TRACEABILITY_ALERTS.md). Não há rota que
+crie ou resolva alerta manualmente: detecção e resolução são do servidor.
+
+| Método | Sufixo                              | Entrada                                                                                     | Resposta                                                                                         |
+| ------ | ----------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| GET    | `/alerts`                           | `status?` = OPEN (padrão)/DISMISSED/RESOLVED; `type?`; `page?`, `limit?` (máx. 100)         | `200`, `{projectId,status,type,alerts,pagination,permissions}`                                   |
+| GET    | `/alerts/summary`                   | —                                                                                           | `200`, `{projectId,open{total,byType},dismissed{total},rules{taskWithoutCommitActive},permissions}` |
+| GET    | `/alerts/:alertId`                  | IDs positivos                                                                               | `200`, `{alert,permissions}`; `alert.context` conforme o tipo                                    |
+| POST   | `/alerts/:alertId/dismiss`          | `{reason}`, de 10 a 500 caracteres depois do `trim`                                         | `200`, `{alert,changed}`                                                                         |
+| POST   | `/alerts/reconcile`                 | body vazio                                                                                  | `200`, `{projectId,result{created,resolved,kept}}`                                               |
+| GET    | `/tasks-without-technical-links`    | `status?` = A_FAZER/EM_ANDAMENTO/CONCLUIDO; `page?`, `limit?` (máx. 100)                    | `200`, `{projectId,status,tasks,pagination}`                                                     |
+
+**Autorização.** Leituras exigem VIEWER+. Dispensa e reprocessamento exigem MANAGER+, CSRF e
+revalidação do papel no serviço. Sem sessão, a resposta é 401. Quem não é membro, e quem acessa
+um alerta de outro projeto, recebe 404 opaco. O reprocessamento tem limitador próprio
+(`traceability-alerts-reconcile`), com a mesma janela e o mesmo teto do sync manual. Parâmetro
+desconhecido responde 400.
+
+**Listagem.** Ordem `detectedAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
+`totalPages`. O resumo conta o projeto inteiro, nunca a página.
+`rules.taskWithoutCommitActive` é `true` quando o projeto tem `ProjectGitHubIntegration`.
+`permissions` traz `canLink` (MEMBER+) e `canManage` (MANAGER+).
+
+**`AlertDTO`.** Campos:
+
+- `id`, `type`, `status`, `occurredAt`, `detectedAt`, `resolvedAt`, `resolutionReason`;
+- `dismissal{at,reason,by{id,name}|null}|null`;
+- `limitations[]`;
+- `subject{type,id,code,title,available,githubUrl}`.
+
+O sujeito excluído vem com `available=false` e `id=null`, e `code`/`title` saem do snapshot
+gravado na detecção. `limitations` traz `COMPLETION_TIME_UNAVAILABLE` quando a tarefa foi concluída
+antes do histórico de status. O DTO nunca expõe e-mail, `dedupeKey`, `activeKey` nem campos crus do
+GitHub.
+
+**`context` do detalhe.** Depende do tipo:
+
+- **Tarefa:** `status`, `requirement{id,code}`, `responsible{id,name}`,
+  `pullRequest{id,number,title,githubUrl}`, `issueCount` e `pendingCommitSuggestions`.
+- **PR:** `number`, `title`, `sourceBranch`, `targetBranch`, `mergedAt` e `githubUrl`.
+- **Issue:** `number`, `title`, `state`, `closedAt` e `githubUrl`.
+
+**Dispensa.** Repetir a dispensa de um alerta `DISMISSED` responde 200 com `changed=false` e mantém
+a justificativa original. A auditoria `TRACEABILITY_ALERT_DISMISSED` guarda só `alertType`.
+
+**Reprocessamento.** É idempotente: repetido sem mudança de dado, devolve `created=0`. A auditoria
+`TRACEABILITY_ALERTS_RECONCILED` guarda `created` e `resolved`.
+
+**RF58.** Lista tarefas sem `TaskCommit`, sem `pullRequestId` e sem `TaskIssue`, em ordem
+`updatedAt DESC, id DESC`. DTO:
+`{id,code,title,status,responsible{id,name}|null,requirement{id,code}|null,updatedAt}`.
+
+### Códigos de erro do S2-01
+
+| Código                         | Status | Quando                                                        |
+| ------------------------------ | ------ | ------------------------------------------------------------- |
+| `TRACEABILITY_ALERT_NOT_FOUND` | 404    | alerta inexistente ou de outro projeto                        |
+| `TRACEABILITY_ALERT_NOT_OPEN`  | 409    | dispensa de alerta já resolvido                               |
+| `FORBIDDEN`                    | 403    | dispensa ou reprocessamento por papel abaixo de MANAGER       |

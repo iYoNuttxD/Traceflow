@@ -63,6 +63,8 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | S1-09: `GET .../traceability/requirements`, `.../:requirementId/current`, `.../:requirementId/history`         |     401 |      L |           L |       L |     L | membership ativa; mesmo projeto; IDOR 404 opaco; cursor scoped; sem API de escrita de situation                |
 | `GET .../traceability/commit-suggestions`                                                                      |     401 |      L |           L |       L |     L | DTO minimizado; mesmo projeto                                                                                  |
 | `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject`                                                |     401 |    403 |           E |       E |     E | CSRF, membership ativa e relações no mesmo projeto                                                             |
+| S2-01: `GET .../traceability/alerts`, `.../alerts/summary`, `.../alerts/:alertId`, `.../tasks-without-technical-links` |     401 |      L |           L |       L |     L | membership ativa; alerta de outro projeto 404 opaco; DTO mínimo, sem e-mail                                   |
+| S2-01: `POST .../traceability/alerts/:alertId/dismiss`, `POST .../traceability/alerts/reconcile`               |     401 |    403 |         403 |       E |     E | MANAGER+, CSRF, revalidação no service; reprocessamento com limitador próprio; auditoria sem texto livre        |
 | `/api/settings/account`, `/security`, `/privacy`, `/integrations`                                              |     401 |      E |           E |       E |     E | titular; middleware de estado restringe operações e mutations exigem CSRF                                      |
 | `POST /api/auth/github/reauth/start`                                                                           |     401 |      E |           E |       E |     E | somente GitHub-only; identidade vinculada, sessão e state; também permite `DELETION_PENDING` para cancelamento |
 | `GET /api/account/audit-events`                                                                                |     401 |      L |           L |       L |     L | somente eventos cujo ator é o titular                                                                          |
@@ -88,6 +90,11 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 - As rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas
   canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
+- Alertas de rastreabilidade (S2-01, ADR-015) são do projeto: todo membro ativo os lê. Dispensar um
+  alerta esconde uma violação de processo e por isso exige MANAGER+, com justificativa; o mesmo vale
+  para o reprocessamento manual, que varre o projeto inteiro. Detecção e resolução não têm rota de
+  escrita: acontecem no servidor, na mesma transação das mutações de tarefa e vínculo, e ao fim do
+  sync. Vincular uma PR ou issue a partir do alerta usa as rotas de tarefa existentes (MEMBER+).
 - `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e
   não pode ser controlada pelo body.
 - A resolução project-scoped também cobre `/sprints/:id` e `/milestones/:id`; ausência de recurso e
