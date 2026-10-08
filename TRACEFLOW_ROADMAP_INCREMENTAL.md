@@ -413,11 +413,19 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 
 **Checklist técnico:**
 
-- [ ] definir eventos, estados e chave de deduplicação;
-- [ ] modelar persistência e migration;
-- [ ] implementar processamento idempotente e consultas;
-- [ ] implementar interface de alertas;
-- [ ] testar detecção, concorrência, autorização e resolução.
+- [x] definir eventos, estados e chave de deduplicação;
+- [x] modelar persistência e migration;
+- [x] implementar processamento idempotente e consultas;
+- [x] implementar interface de alertas;
+- [x] testar detecção, concorrência, autorização e resolução.
+
+**Estado atual (2026-10-07): implementado localmente; aberto em homologação.** Detecção,
+resolução e dispensa dos alertas seguem o
+[ADR-015](docs/architecture/ADR-015-TRACEABILITY-ALERTS.md) e o
+[modelo técnico](docs/data/TRACEABILITY_ALERTS.md). Pendentes: publicação da branch e execução
+da CI; aprovação visual das telas de alertas e de tarefas sem vínculo técnico; homologação com
+GitHub real, porque os alertas de PR mesclada e de issue fechada só surgem ao fim de uma
+sincronização. As limitações conhecidas estão em `S201-F01..F06` no backlog técnico.
 
 ### S2-02 - Notificar mudança de status e vencimento de tarefa
 
