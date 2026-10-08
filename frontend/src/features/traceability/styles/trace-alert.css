@@ -82,6 +82,12 @@
   gap: var(--space-2);
 }
 
+.trace-alert-actions a.button,
+a.button.trace-alert-link {
+  text-decoration: none;
+}
+
 .trace-alert-load-more {
-  justify-self: center;
+  display: block;
+  margin: var(--space-6) auto 0;
 }

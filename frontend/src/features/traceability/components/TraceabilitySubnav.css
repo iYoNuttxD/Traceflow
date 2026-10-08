@@ -1,0 +1,9 @@
+.traceability-subnav {
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: calc(3rem + var(--border-width-default));
+}
+
+.traceability-subnav .internal-tab--active::after {
+  bottom: 0;
+}

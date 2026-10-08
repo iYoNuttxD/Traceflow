@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import '../../../shared/styles/internal-tabs.css';
+import './TraceabilitySubnav.css';
 
 const sections = [
   { key: 'requirements', label: 'Requisitos', path: '' },
@@ -9,7 +10,7 @@ const sections = [
 
 export function TraceabilitySubnav({ projectId, active, openAlerts }) {
   return (
-    <nav className="internal-tabs" aria-label="Seções da rastreabilidade">
+    <nav className="internal-tabs traceability-subnav" aria-label="Seções da rastreabilidade">
       {sections.map((section) => {
         const current = section.key === active;
         return (

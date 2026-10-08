@@ -86,7 +86,7 @@ function ProjectUnlinkedTasks({ projectId }) {
                   </p>
                 </div>
                 <Link
-                  className="button button-secondary"
+                  className="button button-secondary trace-alert-link"
                   to={`/projects/${projectId}/kanban?task=${task.id}`}
                   aria-label={`Abrir ${task.code} no Kanban`}
                 >

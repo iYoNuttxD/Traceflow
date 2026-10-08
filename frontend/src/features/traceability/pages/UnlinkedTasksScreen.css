@@ -1,9 +1,10 @@
-.unlinked-tasks__toolbar {
+.sprints-summary.unlinked-tasks__toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
   justify-content: space-between;
   gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
 }
 
 .unlinked-tasks__count {
@@ -20,8 +21,11 @@
   list-style: none;
 }
 
-.unlinked-tasks__item {
+.sprint-card.unlinked-tasks__item {
+  height: auto;
+  min-height: 0;
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;

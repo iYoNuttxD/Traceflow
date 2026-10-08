@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import {
   ContextualErrorPage,
@@ -91,6 +91,7 @@ function ProjectAlerts({ projectId }) {
   const [feedback, setFeedback] = useState({});
   const [reconciling, setReconciling] = useState(false);
   const returnFocusRef = useRef(null);
+  const listHeadingRef = useRef(null);
   const reloadAlerts = alerts.reload;
   const permissions = alerts.data?.permissions || summary?.permissions || {};
   const refresh = useCallback(() => {
@@ -98,6 +99,11 @@ function ProjectAlerts({ projectId }) {
     void reloadSummary();
   }, [reloadAlerts, reloadSummary]);
   const closeDetails = useCallback(() => setSelected(null), []);
+  useEffect(() => {
+    if (selected || !returnFocusRef.current) return;
+    if (!returnFocusRef.current.isConnected) listHeadingRef.current?.focus();
+    returnFocusRef.current = null;
+  }, [selected]);
 
   async function reconcile() {
     setReconciling(true);
@@ -181,7 +187,9 @@ function ProjectAlerts({ projectId }) {
         />
         <section className="sprint-grid-section" aria-label="Alertas">
           <header className="sprint-grid-section__heading">
-            <h2>Alertas</h2>
+            <h2 ref={listHeadingRef} tabIndex={-1}>
+              Alertas
+            </h2>
           </header>
           <div className="sprint-grid" role="list">
             {alerts.data?.alerts.map((alert) => (

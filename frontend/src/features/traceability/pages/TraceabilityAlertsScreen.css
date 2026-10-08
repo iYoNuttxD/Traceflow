@@ -1,6 +1,7 @@
-.trace-alert-summary {
+.sprints-summary.trace-alert-summary {
   display: grid;
   gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
 }
 
 .trace-alert-summary__sentence {

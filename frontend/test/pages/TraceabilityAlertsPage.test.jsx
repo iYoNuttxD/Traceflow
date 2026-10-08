@@ -477,6 +477,29 @@ describe('S2-01 tela de alertas: permissões e ações', () => {
     await waitFor(() => expect(api.getTraceabilityAlertSummary).toHaveBeenCalledTimes(2));
   });
 
+  it('F16 alerta que saiu da lista leva o foco ao título da lista ao fechar', async () => {
+    const alert = taskAlert(1);
+    api.getTraceabilityAlerts
+      .mockResolvedValueOnce(listing([alert]))
+      .mockResolvedValue(listing([]));
+    api.getTraceabilityAlert.mockResolvedValue(detail(alert));
+    api.dismissTraceabilityAlert.mockResolvedValue({ alert, changed: true });
+    const user = userEvent.setup();
+    renderPage();
+    const dialog = await openDetails(user, 'TASK-101');
+
+    await user.click(await within(dialog).findByRole('button', { name: 'Dispensar alerta' }));
+    await user.type(within(dialog).getByLabelText('Justificativa'), 'Justificativa suficiente.');
+    await user.click(within(dialog).getByRole('button', { name: 'Dispensar alerta' }));
+    await within(dialog).findByText('Alerta dispensado.');
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Ver detalhes do alerta TASK-101' })).toBeNull()
+    );
+    await user.click(within(dialog).getByRole('button', { name: /^Fechar/ }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Alertas' })).toHaveFocus());
+  });
+
   it('F16 fechar o detalhe devolve o foco ao botão de origem', async () => {
     api.getTraceabilityAlerts.mockResolvedValue(listing([taskAlert(1)]));
     api.getTraceabilityAlert.mockResolvedValue(detail(taskAlert(1)));
