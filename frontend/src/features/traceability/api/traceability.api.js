@@ -96,6 +96,36 @@ export const traceabilityApi = {
         {}
       )
     );
+  },
+  alerts(projectId, params = {}, options = {}) {
+    return data(
+      httpClient.get(`/projects/${projectId}/traceability/alerts`, {
+        ...options,
+        params: compactParams(params)
+      })
+    );
+  },
+  alertSummary(projectId, options = {}) {
+    return data(httpClient.get(`/projects/${projectId}/traceability/alerts/summary`, options));
+  },
+  alert(projectId, alertId, options = {}) {
+    return data(httpClient.get(`/projects/${projectId}/traceability/alerts/${alertId}`, options));
+  },
+  dismissAlert(projectId, alertId, reason) {
+    return data(
+      httpClient.post(`/projects/${projectId}/traceability/alerts/${alertId}/dismiss`, { reason })
+    );
+  },
+  reconcileAlerts(projectId) {
+    return data(httpClient.post(`/projects/${projectId}/traceability/alerts/reconcile`, {}));
+  },
+  unlinkedTasks(projectId, params = {}, options = {}) {
+    return data(
+      httpClient.get(`/projects/${projectId}/traceability/tasks-without-technical-links`, {
+        ...options,
+        params: compactParams(params)
+      })
+    );
   }
 };
 
@@ -127,3 +157,16 @@ export const getRequirementsTraceability = (projectId, params, options) =>
   traceabilityApi.requirements(projectId, params, options);
 export const getRequirementSituationHistory = (projectId, requirementId, params, options) =>
   traceabilityApi.history(projectId, requirementId, params, options);
+
+export const getTraceabilityAlerts = (projectId, params, options) =>
+  traceabilityApi.alerts(projectId, params, options);
+export const getTraceabilityAlertSummary = (projectId, options) =>
+  traceabilityApi.alertSummary(projectId, options);
+export const getTraceabilityAlert = (projectId, alertId, options) =>
+  traceabilityApi.alert(projectId, alertId, options);
+export const dismissTraceabilityAlert = (projectId, alertId, reason) =>
+  traceabilityApi.dismissAlert(projectId, alertId, reason);
+export const reconcileTraceabilityAlerts = (projectId) =>
+  traceabilityApi.reconcileAlerts(projectId);
+export const getTasksWithoutTechnicalLinks = (projectId, params, options) =>
+  traceabilityApi.unlinkedTasks(projectId, params, options);

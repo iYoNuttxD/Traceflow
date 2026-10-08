@@ -15,7 +15,8 @@ import {
 const api = vi.hoisted(() => ({
   getRequirementsTraceability: vi.fn(),
   getRequirementTraceability: vi.fn(),
-  getRequirementSituationHistory: vi.fn()
+  getRequirementSituationHistory: vi.fn(),
+  getTraceabilityAlertSummary: vi.fn()
 }));
 vi.mock('../../src/features/traceability/api/traceability.api.js', () => api);
 vi.mock('../../src/features/traceability/components/TraceabilityFlow.jsx', () => ({
@@ -93,6 +94,45 @@ beforeEach(() => {
   api.getRequirementsTraceability.mockResolvedValue(result());
   api.getRequirementTraceability.mockResolvedValue(graph('Grafo atual'));
   api.getRequirementSituationHistory.mockResolvedValue({ items: [], nextCursor: null });
+  api.getTraceabilityAlertSummary.mockResolvedValue({
+    projectId: 9,
+    open: { total: 0, byType: {} },
+    dismissed: { total: 0 },
+    rules: { taskWithoutCommitActive: true },
+    permissions: { canLink: true, canManage: false }
+  });
+});
+describe('S2-01 sub-navegação da rastreabilidade', () => {
+  it('mostra as três seções com Requisitos atual e a contagem de alertas abertos', async () => {
+    api.getTraceabilityAlertSummary.mockResolvedValue({
+      projectId: 9,
+      open: { total: 3, byType: {} },
+      dismissed: { total: 0 },
+      rules: { taskWithoutCommitActive: true },
+      permissions: { canLink: true, canManage: false }
+    });
+    renderPage();
+    const nav = await screen.findByRole('navigation', { name: 'Seções da rastreabilidade' });
+    expect(within(nav).getByRole('link', { name: 'Requisitos' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(await within(nav).findByRole('link', { name: 'Alertas (3)' })).toHaveAttribute(
+      'href',
+      '/projects/9/traceability/alerts'
+    );
+    expect(within(nav).getByRole('link', { name: 'Tarefas sem vínculo técnico' })).toHaveAttribute(
+      'href',
+      '/projects/9/traceability/unlinked-tasks'
+    );
+  });
+
+  it('falha no resumo de alertas não derruba a tela de requisitos', async () => {
+    api.getTraceabilityAlertSummary.mockRejectedValue(new Error('indisponível'));
+    renderPage();
+    expect(await screen.findByRole('link', { name: 'Alertas' })).toBeInTheDocument();
+    expect(await screen.findByText('Requisito 10')).toBeInTheDocument();
+  });
 });
 describe('Requirement projections and cards', () => {
   it('represents reached phases independently from progress and follows a current regression', () => {

@@ -1,0 +1,37 @@
+.unlinked-tasks__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.unlinked-tasks__count {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+
+.unlinked-tasks__list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unlinked-tasks__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.unlinked-tasks__body {
+  display: grid;
+  flex: 1 1 18rem;
+  gap: var(--space-1);
+  min-width: 0;
+}

@@ -60,6 +60,14 @@ const TraceabilityPage = lazyNamed(
   () => import('../../pages/TraceabilityPage.jsx'),
   'TraceabilityPage'
 );
+const TraceabilityAlertsPage = lazyNamed(
+  () => import('../../pages/TraceabilityAlertsPage.jsx'),
+  'TraceabilityAlertsPage'
+);
+const UnlinkedTasksPage = lazyNamed(
+  () => import('../../pages/UnlinkedTasksPage.jsx'),
+  'UnlinkedTasksPage'
+);
 const ProjectAuditPage = lazyNamed(
   () => import('../../pages/ProjectAuditPage.jsx'),
   'ProjectAuditPage'
@@ -172,6 +180,14 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/schedule" element={<SchedulePage />} />
           <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
           <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
+          <Route
+            path="/projects/:projectId/traceability/alerts"
+            element={<TraceabilityAlertsPage />}
+          />
+          <Route
+            path="/projects/:projectId/traceability/unlinked-tasks"
+            element={<UnlinkedTasksPage />}
+          />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="account" replace />} />
             <Route path="account" element={<AccountSettingsPage />} />

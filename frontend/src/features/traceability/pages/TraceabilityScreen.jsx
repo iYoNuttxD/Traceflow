@@ -19,6 +19,8 @@ import {
   RequirementSummary
 } from '../components/RequirementCatalog.jsx';
 import { RequirementHistory } from '../components/RequirementHistory.jsx';
+import { TraceabilitySubnav } from '../components/TraceabilitySubnav.jsx';
+import { useAlertSummary } from '../hooks/useAlertSummary.js';
 import { useRequirementCatalog } from '../hooks/useRequirementCatalog.js';
 import './TraceabilityScreen.css';
 
@@ -34,6 +36,7 @@ export function TraceabilityScreen() {
 }
 function ProjectTraceability({ projectId }) {
   const catalog = useRequirementCatalog(projectId);
+  const alertSummary = useAlertSummary(projectId);
   const scope = useTestCaseScope(projectId);
   const [selected, setSelected] = useState(null);
   const [graph, setGraph] = useState({ data: null, error: null, loading: false });
@@ -101,6 +104,11 @@ function ProjectTraceability({ projectId }) {
           </div>
           <ProjectSectionNav projectId={projectId} activeSection="traceability" />
         </header>
+        <TraceabilitySubnav
+          projectId={projectId}
+          active="requirements"
+          openAlerts={alertSummary.summary?.open.total}
+        />
         <RequirementSummary summary={catalog.data?.summary} />
         <RequirementFilters
           filters={catalog.filters}
