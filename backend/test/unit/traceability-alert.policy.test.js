@@ -198,7 +198,7 @@ describe('S2-01 política de alertas: chave, snapshot e datas', () => {
     );
   });
 
-  it('trunca o título em 191 caracteres sem partir caracteres compostos', () => {
+  it('trunca o título no limite do snapshot sem partir pares substitutos', () => {
     const emoji = '😀'.repeat(SUBJECT_TITLE_MAX_LENGTH + 5);
     expect(Array.from(truncateTitle(emoji))).toHaveLength(SUBJECT_TITLE_MAX_LENGTH);
     expect(truncateTitle('a'.repeat(300))).toHaveLength(SUBJECT_TITLE_MAX_LENGTH);

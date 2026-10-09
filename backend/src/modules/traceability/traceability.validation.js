@@ -94,12 +94,15 @@ export const traceabilityAlertQuerySchema = strictObject({
 });
 
 const dismissalReasonMessage = 'A justificativa deve ter entre 10 e 500 caracteres.';
+const characterCount = (value) => Array.from(value).length;
 export const traceabilityAlertDismissBodySchema = strictObject({
   reason: z
     .string({ error: dismissalReasonMessage })
     .trim()
-    .min(10, dismissalReasonMessage)
-    .max(500, dismissalReasonMessage)
+    .refine(
+      (value) => characterCount(value) >= 10 && characterCount(value) <= 500,
+      dismissalReasonMessage
+    )
 });
 
 export const unlinkedTasksQuerySchema = strictObject({

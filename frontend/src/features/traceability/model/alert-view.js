@@ -97,8 +97,10 @@ export function unlinkedCountLabel(total) {
   return counted(total, 'tarefa sem vínculo técnico', 'tarefas sem vínculo técnico');
 }
 
+export const dismissReasonLength = (reason) => Array.from(String(reason ?? '').trim()).length;
+
 export function validateDismissReason(reason) {
-  const length = String(reason ?? '').trim().length;
+  const length = dismissReasonLength(reason);
   if (length < DISMISS_REASON_MIN || length > DISMISS_REASON_MAX)
     return `A justificativa deve ter entre ${DISMISS_REASON_MIN} e ${DISMISS_REASON_MAX} caracteres.`;
   return '';

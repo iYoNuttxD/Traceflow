@@ -1,9 +1,13 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
-import { formatInstant } from '../../src/features/traceability/model/alert-view.js';
+import {
+  formatInstant,
+  validateDismissReason
+} from '../../src/features/traceability/model/alert-view.js';
+import { AlertDismissForm } from '../../src/features/traceability/components/AlertDismissForm.jsx';
 
 const api = vi.hoisted(() => ({
   getTraceabilityAlerts: vi.fn(),
@@ -482,5 +486,37 @@ describe('Correções S2-01 frontend — resumo com falha e alertas desatualizad
       await screen.findByText('Nenhuma inconsistência pendente neste projeto.')
     ).toBeInTheDocument();
     expect(screen.queryByText(/podem estar desatualizados/)).toBeNull();
+  });
+});
+
+describe('Correções S2-01 frontend — justificativa em caracteres (S201-A02)', () => {
+  const emoji = '\u{1F600}';
+
+  it('C5-02 o contador e a validação contam caracteres, e o campo não corta em unidades UTF-16', () => {
+    const onSubmit = vi.fn();
+    render(<AlertDismissForm busy={false} onSubmit={onSubmit} onCancel={() => {}} />);
+    const field = screen.getByLabelText('Justificativa');
+
+    fireEvent.change(field, { target: { value: emoji.repeat(5) } });
+    expect(screen.getByText('5 de 500 caracteres · mínimo 10')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Dispensar/ }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'A justificativa deve ter entre 10 e 500 caracteres.'
+    );
+
+    fireEvent.change(field, { target: { value: emoji.repeat(500) } });
+    expect(screen.getByText('500 de 500 caracteres · mínimo 10')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Dispensar/ }));
+    expect(onSubmit).toHaveBeenCalledWith(emoji.repeat(500));
+    expect(field).not.toHaveAttribute('maxlength');
+  });
+
+  it('C5-03 a regra do formulário é a mesma do servidor', () => {
+    expect(validateDismissReason(emoji.repeat(9))).not.toBe('');
+    expect(validateDismissReason(emoji.repeat(10))).toBe('');
+    expect(validateDismissReason(emoji.repeat(500))).toBe('');
+    expect(validateDismissReason(emoji.repeat(501))).not.toBe('');
+    expect(validateDismissReason(`  ${'a'.repeat(10)}  `)).toBe('');
   });
 });

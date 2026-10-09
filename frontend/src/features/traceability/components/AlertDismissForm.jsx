@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import {
   DISMISS_REASON_MAX,
   DISMISS_REASON_MIN,
+  dismissReasonLength,
   validateDismissReason
 } from '../model/alert-view.js';
 
@@ -9,7 +10,7 @@ export function AlertDismissForm({ busy, onSubmit, onCancel }) {
   const id = useId();
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
-  const length = reason.trim().length;
+  const length = dismissReasonLength(reason);
   function submit(event) {
     event.preventDefault();
     const message = validateDismissReason(reason);
@@ -28,7 +29,6 @@ export function AlertDismissForm({ busy, onSubmit, onCancel }) {
           id={`${id}-reason`}
           rows={4}
           value={reason}
-          maxLength={DISMISS_REASON_MAX}
           aria-invalid={error ? 'true' : undefined}
           aria-describedby={`${id}-count${error ? ` ${id}-error` : ''}`}
           onChange={(event) => {

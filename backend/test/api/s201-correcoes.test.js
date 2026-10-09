@@ -6,7 +6,7 @@ import {
   configureTestDatabaseEnvironment,
   deployTestMigrations
 } from '../helpers/test-database.js';
-import { createProject } from '../fixtures/factories.js';
+import { createIssue, createProject } from '../fixtures/factories.js';
 
 const githubBoundary = vi.hoisted(() => ({ client: null }));
 vi.mock('../../src/modules/github/github.client.js', () => ({
@@ -270,5 +270,51 @@ describe('Correções S2-01 — reconciliar ao conectar o repositório (S201-A01
     expect(recovered.body.result.created).toBe(1);
     const healed = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
     expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', stale: false });
+  });
+});
+
+describe('Correções S2-01 — justificativa contada em caracteres (S201-A02)', () => {
+  it('C5-01 os limites de 10 e 500 valem para caracteres Unicode, com emojis e com ASCII (AT-D-04)', async () => {
+    const project = await createProject(prisma, {
+      githubOwner: 'traceflow',
+      githubRepo: `justificativa-${(sequence += 1)}`
+    });
+    const manager = await register('MANAGER', project.id);
+    for (let index = 0; index < 8; index += 1)
+      await createIssue(prisma, project.id, {
+        state: 'closed',
+        closedAtGithub: new Date('2099-01-10T09:30:00.000Z')
+      });
+    const reconciled = await manager
+      .mutate('post', `/api/projects/${project.id}/traceability/alerts/reconcile`)
+      .send({});
+    expect(reconciled.status).toBe(200);
+    const alerts = (
+      await manager.agent.get(`/api/projects/${project.id}/traceability/alerts?limit=20`)
+    ).body.alerts;
+    const emoji = '\u{1F600}';
+    const attempt = (alert, reason) =>
+      manager
+        .mutate('post', `/api/projects/${project.id}/traceability/alerts/${alert.id}/dismiss`)
+        .send({ reason });
+
+    const statuses = [];
+    for (const [index, reason] of [
+      emoji.repeat(5),
+      `${emoji.repeat(8)}a`,
+      emoji.repeat(500),
+      emoji.repeat(501),
+      'a'.repeat(9),
+      `  ${'b'.repeat(10)}  `,
+      'c'.repeat(500),
+      'd'.repeat(501)
+    ].entries())
+      statuses.push((await attempt(alerts[index], reason)).status);
+
+    expect(statuses).toEqual([400, 400, 200, 400, 400, 200, 200, 400]);
+    const stored = await prisma.traceabilityAlert.findFirst({
+      where: { projectId: project.id, dismissalReason: { startsWith: emoji } }
+    });
+    expect(Array.from(stored.dismissalReason)).toHaveLength(500);
   });
 });
