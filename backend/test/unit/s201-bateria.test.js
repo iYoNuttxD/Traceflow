@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { authorizationService } from '../../src/modules/authorization/authorization.service.js';
+import { toAlertDetailDTO } from '../../src/modules/traceability/traceability-alert.mapper.js';
 import {
   COMPLETION_TIME_UNAVAILABLE,
   ISSUE_ALERT,
@@ -184,6 +186,8 @@ describe('Bateria S2-01 unidade — instante do fato (AT-T-07)', () => {
     expect(alertOccurredAt(ISSUE_ALERT, subject)).toEqual(at(2));
     expect(alertOccurredAt(TASK_ALERT, subject)).toBeNull();
     expect(alertOccurredAt(TASK_ALERT, subject, at(4))).toEqual(at(4));
+    expect(alertOccurredAt(PULL_REQUEST_ALERT, {})).toBeNull();
+    expect(alertOccurredAt(ISSUE_ALERT, {})).toBeNull();
   });
 
   it('só alerta de tarefa sem data declara a limitação', () => {
@@ -249,5 +253,99 @@ describe('Bateria S2-01 unidade — snapshot do título (AT-T-11)', () => {
       expect(LONE_SURROGATE.test(result)).toBe(false);
       expect(sample.startsWith(result)).toBe(true);
     }
+  });
+});
+
+describe('Bateria S2-01 unidade — papel exigido no middleware (M18)', () => {
+  it('dispensa e reprocessamento exigem MANAGER já no middleware; leituras, VIEWER', () => {
+    const role = (method, path) => authorizationService.requiredRole({ method, path });
+    expect(role('POST', '/projects/3/traceability/alerts/41/dismiss')).toBe('MANAGER');
+    expect(role('POST', '/projects/3/traceability/alerts/reconcile')).toBe('MANAGER');
+    for (const path of [
+      '/projects/3/traceability/alerts',
+      '/projects/3/traceability/alerts/summary',
+      '/projects/3/traceability/alerts/41',
+      '/projects/3/traceability/tasks-without-technical-links'
+    ])
+      expect(role('GET', path), path).toBe('VIEWER');
+  });
+});
+
+describe('Bateria S2-01 unidade — DTO de detalhe conforme o contrato (AT-Q-08, AT-Q-09)', () => {
+  const row = (overrides) => ({
+    id: 1,
+    status: 'OPEN',
+    occurredAt: null,
+    detectedAt: at(0),
+    resolvedAt: null,
+    resolutionReason: null,
+    dismissedAt: null,
+    dismissalReason: null,
+    dismissedBy: null,
+    subjectCode: 'SNAPSHOT',
+    subjectTitle: 'Título do snapshot',
+    task: null,
+    pullRequest: null,
+    issue: null,
+    ...overrides
+  });
+
+  it('tarefa com requisito e PR sem URL', () => {
+    const dto = toAlertDetailDTO(
+      row({
+        type: TASK_ALERT,
+        task: {
+          id: 5,
+          title: 'Tarefa',
+          status: 'CONCLUIDO',
+          requirementId: 8,
+          responsibleUser: null,
+          pullRequest: { id: 3, number: 12, title: 'PR', githubUrl: undefined },
+          _count: { issueLinks: 2, commitSuggestions: 0 }
+        }
+      })
+    );
+    expect(dto.context.requirement).toEqual({ id: 8, code: 'REQ-8' });
+    expect(dto.context.pullRequest).toEqual({ id: 3, number: 12, title: 'PR', githubUrl: null });
+    expect(dto.context.issueCount).toBe(2);
+  });
+
+  it('sujeito excluído de qualquer tipo: snapshot, available=false e contexto nulo', () => {
+    for (const type of [TASK_ALERT, PULL_REQUEST_ALERT, ISSUE_ALERT]) {
+      const dto = toAlertDetailDTO(row({ type }));
+      expect(dto.subject).toMatchObject({
+        id: null,
+        code: 'SNAPSHOT',
+        title: 'Título do snapshot',
+        available: false,
+        githubUrl: null
+      });
+      expect(dto.context).toBeNull();
+    }
+  });
+
+  it('PR e issue sem branches nem URL viram nulos, nunca undefined', () => {
+    const pullRequest = toAlertDetailDTO(
+      row({
+        type: PULL_REQUEST_ALERT,
+        pullRequest: { id: 9, number: 4, title: 'PR', mergedAtGithub: at(1) }
+      })
+    );
+    const issue = toAlertDetailDTO(
+      row({
+        type: ISSUE_ALERT,
+        issue: { id: 7, number: 2, title: 'Issue', state: 'closed', closedAtGithub: at(2) }
+      })
+    );
+    expect(pullRequest.context).toEqual({
+      number: 4,
+      title: 'PR',
+      sourceBranch: null,
+      targetBranch: null,
+      mergedAt: at(1),
+      githubUrl: null
+    });
+    expect(issue.context.githubUrl).toBeNull();
+    expect(issue.subject.githubUrl).toBeNull();
   });
 });

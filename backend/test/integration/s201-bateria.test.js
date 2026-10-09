@@ -631,6 +631,21 @@ describe('Bateria S2-01 integração — ciclo de vida (bloco V) e script', () =
     expect(JSON.stringify(detail)).not.toContain(user.email);
   });
 
+  it('AT-R-06 a varredura de todos os projetos inclui só os ativos', async () => {
+    const { project: active } = await scenario();
+    const { project: deleted } = await scenario();
+    await createIssue(prisma, active.id, closed(AFTER));
+    await createIssue(prisma, deleted.id, closed(AFTER));
+    await prisma.project.update({ where: { id: deleted.id }, data: { deletedAt: new Date() } });
+
+    const projects = await alertService.reconcileAllProjects({ dryRun: true });
+
+    expect(projects.map((row) => row.projectId)).toContain(active.id);
+    expect(projects.map((row) => row.projectId)).not.toContain(deleted.id);
+    expect(projects.find((row) => row.projectId === active.id)).toMatchObject({ created: 1 });
+    expect(await alertsOf(active.id)).toEqual([]);
+  });
+
   it('AT-R-06 o script recusa aplicar em banco de produção sem --confirm-production', () => {
     const result = spawnSync(
       process.execPath,

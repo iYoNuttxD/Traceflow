@@ -642,6 +642,33 @@ describe('Bateria S2-01 — consultas, filtros e paginação (bloco Q)', () => {
     expect(summary.dismissed.total).toBe(dismissed.pagination.total);
   });
 
+  it('AT-Q-06 o resumo de um projeto não conta alertas de outro (M11)', async () => {
+    const projectA = await integrated();
+    const projectB = await integrated();
+    const managerA = await register('MANAGER', projectA.id);
+    const managerB = await register('MANAGER', projectB.id);
+    for (let index = 0; index < 3; index += 1)
+      await createIssue(prisma, projectB.id, { state: 'closed', closedAtGithub: FUTURE });
+    await createTask(prisma, projectB.id, { status: 'CONCLUIDO' });
+    await expectStatus(reconcile(managerB, projectB.id), 200);
+    const foreign = await openAlerts(managerB, projectB.id);
+    await expectStatus(dismiss(managerB, projectB.id, foreign[0].id), 200);
+    const own = await issueAlert(projectA.id, managerA);
+
+    const summary = (await managerA.agent.get(`${base(projectA.id)}/alerts/summary`)).body;
+
+    expect(own.type).toBe('ISSUE_CLOSED_WITHOUT_TASK');
+    expect(summary.open).toEqual({
+      total: 1,
+      byType: {
+        TASK_CONCLUDED_WITHOUT_COMMIT: 0,
+        PULL_REQUEST_MERGED_WITHOUT_TASK: 0,
+        ISSUE_CLOSED_WITHOUT_TASK: 1
+      }
+    });
+    expect(summary.dismissed.total).toBe(0);
+  });
+
   it('AT-Q-10 alerta de outro projeto e id inexistente produzem a mesma resposta', async () => {
     const projectA = await integrated();
     const projectB = await integrated();

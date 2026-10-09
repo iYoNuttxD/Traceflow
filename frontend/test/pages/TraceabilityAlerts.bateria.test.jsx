@@ -9,15 +9,22 @@ const api = vi.hoisted(() => ({
   getTraceabilityAlertSummary: vi.fn(),
   getTraceabilityAlert: vi.fn(),
   dismissTraceabilityAlert: vi.fn(),
-  reconcileTraceabilityAlerts: vi.fn()
+  reconcileTraceabilityAlerts: vi.fn(),
+  getTasksWithoutTechnicalLinks: vi.fn()
 }));
+const tasks = vi.hoisted(() => ({ list: vi.fn(), linkPullRequest: vi.fn(), linkIssue: vi.fn() }));
 vi.mock('../../src/features/traceability/api/traceability.api.js', () => api);
+vi.mock('../../src/features/tasks/index.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  tasksApi: tasks
+}));
 vi.mock('../../src/features/projects/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   ProjectSectionNav: () => <nav aria-label="Navegação do projeto" />
 }));
 
 import { TraceabilityAlertsPage } from '../../src/pages/TraceabilityAlertsPage.jsx';
+import { UnlinkedTasksPage } from '../../src/pages/UnlinkedTasksPage.jsx';
 
 const manager = { canLink: true, canManage: true };
 const TASK = 'TASK_CONCLUDED_WITHOUT_COMMIT';
@@ -268,5 +275,140 @@ describe('Bateria S2-01 frontend — conteúdo vindo do GitHub (AT-U-09)', () =>
     const link = within(dialog).getByRole('link', { name: /Abrir no GitHub/ });
     expect(link.getAttribute('href')).not.toMatch(/^javascript:window/);
     expect(window.__s201).toBeUndefined();
+  });
+});
+
+function prDetail(alert) {
+  return {
+    alert: {
+      ...alert,
+      context: {
+        number: 45,
+        title: 'Ajusta CI',
+        sourceBranch: 'ci',
+        targetBranch: 'main',
+        mergedAt: '2026-10-05T17:32:00.000Z',
+        githubUrl: null
+      }
+    },
+    permissions: manager
+  };
+}
+
+const prAlert = () =>
+  alertOf(PULL_REQUEST, { type: 'PULL_REQUEST', id: 70, code: 'PR #45', title: 'Ajusta CI' });
+
+describe('Bateria S2-01 frontend — falhas e estados residuais (AT-U-02, AT-U-05, AT-U-06)', () => {
+  it('alerta resolvido e dispensado por conta removida mostra motivo e "pessoa removida"', async () => {
+    api.getTraceabilityAlerts.mockResolvedValue(
+      listing([
+        alertOf(
+          TASK,
+          { type: 'TASK', id: null, code: 'TASK-5', title: 'Snapshot', available: false },
+          {
+            status: 'RESOLVED',
+            resolvedAt: '2026-10-06T10:00:00.000Z',
+            resolutionReason: 'TASK_DELETED',
+            dismissal: { at: '2026-10-05T10:00:00.000Z', reason: 'Sem código.', by: null }
+          }
+        )
+      ])
+    );
+    renderPage();
+
+    expect(await screen.findByText(/Dispensado por pessoa removida/)).toBeInTheDocument();
+    expect(screen.getByText(/Resolvido em/)).toBeInTheDocument();
+  });
+
+  it('vincular sem escolher tarefa pede a tarefa; falha do servidor aparece no formulário', async () => {
+    api.getTraceabilityAlerts.mockResolvedValue(listing([prAlert()]));
+    api.getTraceabilityAlert.mockResolvedValue(prDetail(prAlert()));
+    tasks.list.mockResolvedValue({
+      data: { tasks: [{ id: 7, title: 'Login', pullRequest: null }] }
+    });
+    tasks.linkPullRequest.mockRejectedValue({
+      response: { status: 409, data: { code: 'TASK_SPRINT_LOCKED', message: 'Tarefa congelada.' } }
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const dialog = await openDetails(user, 'PR #45');
+    await user.click(await within(dialog).findByRole('button', { name: 'Vincular a uma tarefa' }));
+
+    await user.click(within(dialog).getByRole('button', { name: 'Vincular à tarefa' }));
+    expect(
+      await within(dialog).findByText('Escolha a tarefa que deve receber o vínculo.')
+    ).toBeInTheDocument();
+    await user.type(within(dialog).getByRole('combobox', { name: 'Tarefa' }), 'Log');
+    await user.click(await screen.findByRole('option', { name: 'TASK-7 · Login' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Vincular à tarefa' }));
+
+    expect(await within(dialog).findByText('Tarefa congelada.')).toBeInTheDocument();
+  });
+
+  it('dispensa recusada pelo servidor mostra a mensagem dele e mantém o alerta', async () => {
+    api.getTraceabilityAlerts.mockResolvedValue(listing([prAlert()]));
+    api.getTraceabilityAlert.mockResolvedValue(prDetail(prAlert()));
+    api.dismissTraceabilityAlert.mockRejectedValue({
+      response: { status: 403, data: { code: 'FORBIDDEN', message: 'Perfil sem permissão.' } }
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const dialog = await openDetails(user, 'PR #45');
+
+    await user.click(await within(dialog).findByRole('button', { name: 'Dispensar alerta' }));
+    await user.type(within(dialog).getByLabelText('Justificativa'), 'Justificativa suficiente.');
+    await user.click(within(dialog).getByRole('button', { name: /^Dispensar/ }));
+
+    expect(await within(dialog).findByText('Perfil sem permissão.')).toBeInTheDocument();
+    expect(api.getTraceabilityAlert).toHaveBeenCalledTimes(1);
+  });
+
+  it('falha ao carregar a página seguinte do RF58 oferece tentar de novo a mesma página', async () => {
+    const unlinked = (id) => ({
+      id,
+      code: `TASK-${id}`,
+      title: `Tarefa ${id}`,
+      status: 'CONCLUIDO',
+      responsible: null,
+      requirement: null,
+      updatedAt: '2026-10-05T17:32:00.000Z'
+    });
+    const result = (items, page, totalPages) => ({
+      projectId: 9,
+      status: null,
+      tasks: items,
+      pagination: { page, limit: 20, total: 21, totalPages }
+    });
+    api.getTasksWithoutTechnicalLinks
+      .mockResolvedValueOnce(
+        result(
+          Array.from({ length: 20 }, (_, i) => unlinked(i + 1)),
+          1,
+          2
+        )
+      )
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValueOnce(result([unlinked(21)], 2, 2));
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/projects/9/traceability/unlinked-tasks']}>
+        <Routes>
+          <Route
+            path="/projects/:projectId/traceability/unlinked-tasks"
+            element={<UnlinkedTasksPage />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Carregar mais tarefas' }));
+    await user.click(await screen.findByRole('button', { name: /Tentar novamente/ }));
+
+    expect(await screen.findByText('Tarefa 21')).toBeInTheDocument();
+    expect(api.getTasksWithoutTechnicalLinks).toHaveBeenLastCalledWith(
+      '9',
+      expect.objectContaining({ page: 2 }),
+      expect.anything()
+    );
   });
 });
