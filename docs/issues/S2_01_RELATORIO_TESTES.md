@@ -463,3 +463,52 @@ lido depois de cada passo, mais capturas.
 - **E2E de navegador:** não existe (S201-A07).
 - **Limitador sob carga real e em mais de uma instância:** o contador fica em memória local.
 - **Headers do documento HTML da SPA:** pertencem ao host de implantação (S2-09), não à API.
+
+## 15. Correções (09/10/2026)
+
+O enunciado está em [S2_01_PROMPT_CORRECOES.md](S2_01_PROMPT_CORRECOES.md). O João aprovou as oito
+decisões com as recomendações ("pode corrigir"). Cada correção nasceu com o teste de regressão
+vermelho pelo motivo do achado; os três casos vermelhos da campanha (AT-T-09, AT-D-04 e o resumo com
+falha) são agora C2-01, C5-01 e C4-01, verdes.
+
+| Achado | Correção | Commit | Testes de regressão |
+|---|---|---|---|
+| — | ADR-015 revisada (gatilho de conexão, registro, unidade, módulo, textos), `TRACEABILITY_ALERTS.md`, runbook do GitHub | `5a90459` | — |
+| S201-A03 | migrations `20261009010000_github_field_limits` (títulos 256; branches, `defaultBranch` e URLs 512; `milestone`, `authorName` e `authorEmail` 255; snapshot 256) e `20261009010100_github_sync_run_branch_limit` (`GitHubSyncRun.currentBranch` 512); mapper corta por caractere e valida a URL | `3f42f0e` | C1-01 (sync com textos no limite), C1-02 (branch de 512, `utf8mb4_bin`), C1-03 (URL), C1-04 (corte) |
+| S201-A01 | gatilho `GITHUB_INTEGRATION` depois de conectar o repositório, em transação própria | `be79ee1` | C2-01 (AT-T-09), C2-02 (falha não desfaz a conexão), C2-03..05 (serviço) |
+| S201-A05 | modelo `TraceabilityAlertReconciliation` (migration `20261009020000`), registro de sucesso e falha das reconciliações do projeto, `reconciliation` no resumo | `d6cfefe` | C3-01..08; AT-S-03 atualizado para a regra nova |
+| S201-A06, S201-A05 | `ErrorState` com nova tentativa no resumo; aviso de alertas desatualizados por papel | `5ff2d8a` | C4-01..04 |
+| S201-A02 | justificativa contada em caracteres Unicode no servidor, no formulário e no contador; sem `maxLength` nativo | `058ada9` | C5-01 (AT-D-04), C5-02, C5-03 |
+| O-1 | teste do truncamento renomeado para o que prova | `058ada9` | — |
+| O-2, S201-A04 | regra MANAGER com barra final; contrato (erros, `reconciliation`, unidade), baseline ASVS, inventário, matriz RF, backlog e roadmap | `2a49a3b` | papel exigido no middleware (variantes com barra) |
+
+**Desvios do enunciado, todos técnicos e sem mudança de regra:**
+
+- **Branches em 512, não em 255.** O GitHub limita cada trecho do nome a 255 bytes, mas o nome
+  completo (`feature/a/b/…`) pode passar disso. O índice único de `GitBranch` continua dentro do
+  limite do InnoDB.
+- **A classe era maior que o previsto.** O C1-01 mostrou que `GitHubSyncRun.currentBranch` também
+  recebia o nome da branch. Como a primeira migration já tinha sido aplicada no banco de teste, ela
+  não foi editada: a coluna entrou numa migration própria.
+- **Datas das migrations:** 09/10, não 08/10.
+- **Nome da relação em `Project`:** `alertReconciliation`, para não realinhar o modelo inteiro.
+- **Títulos acima de 256:** cortados por caractere como defesa, além de caberem no limite do GitHub.
+- **Dublê do teste de unidade do serviço:** ganhou o colaborador `recordReconciliation`, o contrato
+  novo do repositório.
+- **O-10:** registrado como `S201-F13`.
+
+**Verificação (Fase 7):**
+
+| Item | Resultado |
+|---|---|
+| Suíte completa do backend, duas vezes | 1682 verdes e a mesma falha de ambiente nas duas (`storage.test.js`, `EPERM` de symlink no Windows) |
+| Gates do backend | `lint`, `format:check`, `architecture:check` e `security:secrets` verdes |
+| Auditoria de schema (`db:lr5:audit -- --test`) | `SCHEMA_CONSISTENT` |
+| Cadeia de migrations em banco vazio | 61 migrations aplicadas num banco temporário do servidor de teste, removido depois; `GitBranch.name` `varchar(512)`/`utf8mb4_bin`. O script `db:test:validate-empty` não roda no Windows (`EINVAL` ao chamar `prisma.cmd` sem shell, defeito anterior registrado como `S201-F14`); a CI roda em Linux |
+| Suítes do S2-01 | 344 no backend e 45 no frontend, todas verdes, inclusive as baterias da campanha |
+| Gates do frontend | `lint`, `format:check` e `build` verdes |
+| Mutação dirigida | 15 de 15 mortos: M27 (conexão sem reconciliação), M28 (autor sem corte), M29 (URL sem validação), M30 e M31 (justificativa em `.length` no servidor e no frontend), M32 (`stale` invertido), M33 (registro no dry-run), M34 (erro do resumo ignorado), M35 (regex sem barra), M36 (snapshot em 191), M37 (código de erro sem limite), e M11, M13, M14 e M18 da campanha |
+
+**Pendente no ambiente do João:**
+- aplicar as três migrations no banco de desenvolvimento (`cd backend` e `npx prisma migrate deploy`);
+- conferir na tela a dispensa com emojis e o aviso de desatualização.
