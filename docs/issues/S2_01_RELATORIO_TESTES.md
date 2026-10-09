@@ -11,7 +11,7 @@ de casos em [S2_01_MAPA_TESTES.md](S2_01_MAPA_TESTES.md).
 | Commits | `63ce765` (Fase 1), `5a1b0e0` (2), `2184f4e` (3), `405413c` (4), `2026817` (5), `412590a` (6) e o deste relatório (8) |
 | Aval dos ⚑ (08/10, "pode seguir") | 1 registrar sem corrigir; 2 roteiro manual em vez de E2E; 3 GitHub real se houver repositório de teste; 4 esta campanha antes da de conformidade; 5 medir o desempenho sem reprovar |
 | Código de produção | intocado: `git diff --exit-code -- backend/src frontend/src` limpo depois de cada fase e da mutação |
-| Fase 7 (roteiro manual) | **pendente**: depende do ambiente do João (seção 13) |
+| Fase 7 (roteiro manual) | executada em 08/10 no ambiente do João (seção 13): 7 aprovados, 2 parciais, 1 não verificável |
 
 ## 1. Resumo
 
@@ -29,8 +29,9 @@ isolamento resistiram a 242 casos novos e a 26 mutantes:
 se cumpre enquanto faltarem:
 - E2E;
 - CI;
-- o roteiro manual;
 - a homologação com GitHub real.
+
+**O roteiro manual (Fase 7) confirmou o fluxo central na tela real** e reproduziu o S201-A02 de ponta a ponta.
 
 | Números | Valor |
 |---|---|
@@ -55,7 +56,7 @@ se cumpre enquanto faltarem:
 | K1 eventos, estados e chave de deduplicação | **ATENDE** | ADR-015, `TRACEABILITY_ALERTS.md`, I16, I18 |
 | K2 persistência e migration | **ATENDE** | coluna gerada `STORED` (I18) e FKs com `onDelete` explícito; a migration ainda não passou pela CI |
 | K3 processamento idempotente e consultas | **ATENDE** | AT-R-01, AT-S-05, AT-Q |
-| K4 interface de alertas | **ATENDE COM RESSALVA** | F1–F16 e a bateria de frontend. Ressalvas: falha só no resumo deixa a tela "carregando" para sempre (S201-A06); roteiro manual e aprovação visual pendentes |
+| K4 interface de alertas | **ATENDE COM RESSALVA** | F1–F16 e a bateria de frontend. Roteiro manual M-01..M-08 aprovado. Ressalvas: falha só no resumo deixa a tela "carregando" para sempre (S201-A06); aprovação visual pendente |
 | K5 detecção, concorrência, autorização e resolução testadas | **ATENDE** | blocos T, G, C, D, E e X |
 
 ## 3. Achados
@@ -210,6 +211,7 @@ A Sprint 1 não está formalmente concluída:
 | O-6 | A regra do RF13 considera a existência de `ProjectGitHubIntegration`, qualquer que seja o status da integração, como documentado |
 | O-7 | A justificativa da dispensa é preservada na anonimização de quem dispensou e não entra na exportação do titular. Está documentado no inventário de dados pessoais, com o risco de PII de terceiros: decisão a validar com o responsável jurídico (§14 do anexo) |
 | O-8 | Todo erro HTTP é registrado com `requestId`, método, rota e código, mas no nível `error`, inclusive 4xx, e sem o ator na linha |
+| O-10 | O filtro "Com evidência técnica" do catálogo de requisitos (S1-09) não explica que issue não conta como evidência, embora conte como vínculo técnico no RF58 (M-09) |
 | O-9 | `githubUrl` vem do GitHub e é exibido sem validação de esquema. Um `javascript:` é neutralizado pelo React 19 (AT-U-09), não pelo TraceFlow; o §13.2 do anexo pede validar o que vem do GitHub antes de persistir ou exibir |
 
 ## 4. Hipóteses H1–H10
@@ -224,7 +226,7 @@ A Sprint 1 não está formalmente concluída:
 | H6 sem E2E | **confirmada** | S201-A07 |
 | H7 versões do cartão divergem | **confirmada** | S201-A08 |
 | H8 C1 sem data para tarefa antiga | **confirmada** como ressalva documentada (ADR-015), sem achado | C1 |
-| H9 "vínculo técnico" ambíguo | **refutada**: a tela RF58 define o termo ("sem commit, pull request ou issue"), e o catálogo de requisitos usa outro nome ("evidência técnica"). A Fase 7 confere se a diferença é perceptível | — |
+| H9 "vínculo técnico" ambíguo | **parcialmente confirmada**: a tela RF58 define o termo, mas o filtro "Com evidência técnica" do catálogo de requisitos não explica que issue não conta (M-09). Superfície do S1-09 | O-10 |
 | H10 módulo fora do §9 | **confirmada** | S201-A09 |
 
 ## 5. Casos executados
@@ -422,33 +424,39 @@ concluídas sem commit, 200 tarefas abertas, 200 PRs mescladas e 200 issues fech
 
 Nada foi reprovado (⚑5).
 
-## 13. Fase 7 — roteiro manual (pendente)
+## 13. Fase 7 — roteiro manual
 
-O roteiro depende do ambiente do João: backend na 3001, frontend na 5173 e o banco de
-desenvolvimento com os projetos `[S2-01]` 3 (Mínimo), 4 (Escala) e 5 (Sem integração). Os comandos
-são propostos, e o aval é aguardado.
+Executada em 08/10/2026 no ambiente do João:
+- backend na 3001 e frontend na 5173, servidores subidos por ele;
+- Chrome dele, sessão OWNER;
+- projetos sintéticos `[S2-01]` 3 (Mínimo), 4 (Escala) e 5 (Sem integração).
 
-A homologação com GitHub real (⚑3) precisa de um repositório de teste com a GitHub App instalada,
-com uma PR mesclada e uma issue fechada depois da criação do projeto.
+Os cliques físicos não chegavam à página, como em 07/10. Os passos foram disparados por eventos no
+próprio DOM, e as teclas (Tab, Enter, Esc) foram físicas. A evidência é o texto da página e da API,
+lido depois de cada passo, mais capturas.
 
-Casos, no formato do RF42 (título; pré-condições; passos; resultado esperado; status):
+| Caso | Status | Observado |
+|---|---|---|
+| M-01 conclusão sem commit → alerta → atalho para o Kanban → vincular commit | **APROVADO** | o alerta da TASK-78 leva a `/projects/4/kanban?task=78` com o detalhe aberto. Commit vinculado em "Editar tarefa" e salvo ("Tarefa atualizada com sucesso."); o alerta sai dos abertos e fica `RESOLVED`/`COMMIT_LINKED` |
+| M-02 PR mesclada → vincular a uma tarefa que já tem PR | **APROVADO** | PR #8 vinculada à TASK-91, que tinha a PR #2. A confirmação diz "A tarefa TASK-91 já está vinculada à PR #2… A PR #2 ficará sem tarefa e poderá gerar um novo alerta". Depois de confirmar: PR #8 `PULL_REQUEST_LINKED` e PR #2 com ocorrência nova `OPEN` |
+| M-03 dispensa da Issue #106 | **APROVADO**, com o S201-A02 confirmado de ponta a ponta | 9 caracteres: "A justificativa deve ter entre 10 e 500 caracteres.". 5 emojis: o contador mostra "10 de 500 caracteres · mínimo 10", o envio é aceito, e o servidor grava a dispensa ("Dispensado por João Vitor Hernandes … “😀😀😀😀😀”"). Depois da dispensa, "Dispensar alerta" some e "Vincular a uma tarefa" continua |
+| M-04 reprocessar duas vezes | **APROVADO** | as duas rodadas: "Reprocessamento concluído: 0 novos, 0 resolvidos, 24 mantidos." (21 abertos + 3 dispensados) |
+| M-05 tela RF58 | **APROVADO** | "24 tarefas sem vínculo técnico"; 20 na primeira página e 24 únicas depois de "Carregar mais"; o filtro "Concluído" mostra 9; TASK-78 (commit) e TASK-91 (PR) fora da lista; "Abrir no Kanban" por item |
+| M-06 botões por papel | **PARCIAL** | o ambiente só tem a conta OWNER do João; VIEWER e MEMBER estão cobertos por F6/F7 (jsdom) e pela matriz da API (AT-D-01, AT-R-03) |
+| M-07 projeto sem integração | **APROVADO** | "Nenhum alerta aberto." e o aviso "O alerta de tarefa concluída sem commit fica ativo quando o projeto tem um repositório GitHub integrado." |
+| M-08 teclado, temas e larguras | **APROVADO**, com um ponto não verificável | Tab a partir do título "Alertas" chega ao alerta mais recente (PR #2); Enter abre o diálogo com o fundo `inert`; Tab entra em "Fechar"; Esc fecha e devolve o foco ao botão. Sem rolagem horizontal da página em 390, 768 e 1024 px (iframe da mesma origem), nos temas claro e escuro, nas telas de alertas (projetos 3, 4 e 5) e RF58; em 390 px só a faixa de abas internas rola, como projetado. **Foco inicial do diálogo não verificável**: a aba automatizada fica `visibilityState: hidden`, e o `requestAnimationFrame` que move o foco não dispara; conferir com teclado real numa janela em primeiro plano |
+| M-09 "vínculo técnico" × "evidência técnica" | **PARCIAL** (O-10) | a tela RF58 define o termo; o filtro "Com evidência técnica" do catálogo de requisitos não tem texto de ajuda nem `aria-describedby` que diga que issue não conta |
+| M-10 GitHub real | **NÃO VERIFICÁVEL LOCALMENTE** | não há repositório de teste com a GitHub App instalada (⚑3) |
 
-| Caso | Status |
-|---|---|
-| M-01 conclusão sem commit → alerta → vincular pelo alerta → resolve (MEMBER) | PENDENTE |
-| M-02 PR mesclada sem tarefa → vincular a uma tarefa já com PR (confirmação de substituição) | PENDENTE |
-| M-03 issue fechada → dispensa por MANAGER, com justificativa de 9, 10 e 500 caracteres e com emoji (S201-A02) | PENDENTE |
-| M-04 reprocessar duas vezes: contagens e mensagem | PENDENTE |
-| M-05 tela RF58: filtro, "Carregar mais" e atalho para o Kanban | PENDENTE |
-| M-06 VIEWER, MEMBER e MANAGER: botões visíveis por papel | PENDENTE |
-| M-07 projeto Sem integração: aviso de regra inativa | PENDENTE |
-| M-08 teclado do início ao fim, temas claro e escuro, larguras de 390, 768, 1024 e 1440 px, nos três projetos | PENDENTE |
-| M-09 "vínculo técnico" (RF58) × "evidência técnica" (catálogo de requisitos): a diferença é perceptível? (H9) | PENDENTE |
-| M-10 GitHub real: sync, alertas de PR e issue, vínculo e resolução (⚑3) | PENDENTE, sem repositório de teste |
+**Alterações feitas nos dados sintéticos do projeto 4 pelo roteiro:**
+- Issue #106 dispensada com a justificativa "😀😀😀😀😀";
+- PR #8 vinculada à TASK-91, que deixou a PR #2;
+- commit "Commit de verificação 2" vinculado à TASK-78.
 
 ## 14. O que não pôde ser validado
 
-- **Roteiro manual e aprovação visual (Fase 7):** dependem do ambiente do João.
+- **Papéis VIEWER e MEMBER na tela real (M-06) e foco inicial do diálogo (M-08):** o primeiro exige outra conta; o segundo, uma janela em primeiro plano.
+- **Aprovação visual (VISUALLY APPROVED):** é decisão do João.
 - **Homologação com GitHub real (⚑3):** não há repositório de teste disponível.
 - **CI:** os commits do S2-01 e da campanha não foram publicados. O risco S201-F06 (timeouts de
   cobertura no frontend) continua sem prova na CI.
