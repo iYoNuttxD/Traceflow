@@ -104,7 +104,15 @@ export async function executeGithubSyncRun(runId) {
 
   try {
     const result = await syncProjectGithubData(run.projectId, {
-      onProgress: (progress) => githubSyncRunRepository.updateProgress(run.id, progress)
+      onProgress: async (progress) => {
+        if (!(await githubSyncRunRepository.updateProgress(run.id, progress))) {
+          throw new ProjectServiceError(
+            'A execução não está mais ativa.',
+            409,
+            'GITHUB_SYNC_LEASE_LOST'
+          );
+        }
+      }
     });
     const finishedAt = new Date();
     const completed = await githubSyncRunRepository.succeed(
@@ -113,6 +121,7 @@ export async function executeGithubSyncRun(runId) {
       finishedAt,
       finishedAt.getTime() - startedAtMs
     );
+    if (!completed) return publicRun(await githubSyncRunRepository.findById(run.id));
     await recordRunAudit(run, 'GITHUB_SYNC_SUCCEEDED');
     logger.info('Execução persistida de sincronização GitHub concluída.', {
       event: 'github_sync_run_completed',
@@ -133,6 +142,7 @@ export async function executeGithubSyncRun(runId) {
       finishedAt,
       durationMs: finishedAt.getTime() - startedAtMs
     });
+    if (!failed) return publicRun(await githubSyncRunRepository.findById(run.id));
     await recordRunAudit(run, 'GITHUB_SYNC_FAILED', 'FAILURE', errorCode);
     logger.warn('Execução persistida de sincronização GitHub falhou.', {
       event: 'github_sync_run_failed',

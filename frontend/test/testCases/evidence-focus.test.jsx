@@ -33,13 +33,17 @@ describe('private evidence lifecycle', () => {
     const button = screen.getByRole('button', { name: 'Baixar resultado.json' });
     await user.click(button);
     expect(button).toBeDisabled();
-    await act(async () => pending.resolve({ data: new Blob(['{}']) }));
+    const blob = new Blob(['approved'], { type: 'application/json' });
+    await act(async () => pending.resolve({ data: blob }));
+    expect(create).toHaveBeenCalledWith(blob);
     expect(content).toHaveBeenCalledTimes(1);
     expect(content).toHaveBeenCalledWith(
       1,
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
     expect(anchor).toHaveBeenCalledOnce();
+    expect(anchor.mock.instances[0]).toHaveAttribute('href', 'blob:download-test');
+    expect(anchor.mock.instances[0]).toHaveAttribute('download', 'resultado.json');
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:download-test'));
     expect(screen.getByText(/34 bytes/)).toBeInTheDocument();
   });

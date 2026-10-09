@@ -239,7 +239,7 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Macros atuais:
 | GET          | `/tasks/:id`                                                             | `id` positivo                                                                                                        | `200`, `{task}`                                                                 |
 | PUT          | `/tasks/:id`                                                             | `id`; subconjunto dos campos editáveis                                                                               | `200`, `{message,task}`                                                         |
 | DELETE       | `/tasks/:id`                                                             | `id` positivo                                                                                                        | `200`, `{message}`                                                              |
-| PATCH        | `/tasks/:id/status`                                                      | `status`                                                                                                             | `200`, `{message,task}`; delega à transição canônica e cria movimento/histórico |
+| PATCH        | `/tasks/:id/status`                                                      | `status`; `responsibleUserId?`                                                                                        | `200`, `{message,task}`; delega à transição canônica e cria movimento/histórico |
 | PATCH/DELETE | `/tasks/:id/requirement`                                                 | `requirementId` no PATCH                                                                                             | `200`, `{message,task}`                                                         |
 | PATCH/DELETE | `/tasks/:id/pull-request`                                                | `pullRequestId` no PATCH; `null` continua aceito                                                                     | `200`, `{message,task}`                                                         |
 | GET          | `/tasks/:id/commits`                                                     | `id`                                                                                                                 | `200`, `{total,commits}`                                                        |
@@ -249,7 +249,7 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Macros atuais:
 | POST         | `/tasks/:id/issues`                                                      | `issueId`                                                                                                            | `201`, `{message,issues}`                                                       |
 | DELETE       | `/tasks/:id/issues/:issueId`                                             | ambos positivos                                                                                                      | `200`, `{message,issues}`                                                       |
 | GET          | `/projects/:projectId/kanban`                                            | `projectId`                                                                                                          | `200`, quadro atual                                                             |
-| PATCH        | `/tasks/:id/move`                                                        | somente `toStatus`; o ator é obtido da sessão                                                                        | `200`, `{message,task,movement}`; `409` em concorrência otimista                |
+| PATCH        | `/tasks/:id/move`                                                        | `toStatus`; `responsibleUserId?`; o ator é obtido da sessão                                                           | `200`, `{message,task,movement}`; `409` em concorrência otimista                |
 | GET          | `/projects/:projectId/kanban/movements`                                  | datas, `taskId?`, `actorUserId?`, `movedBy?`, `page?`, `limit?`                                                      | `200`, `{projectId,total,movements,pagination}`                                 |
 | GET          | `/projects/:projectId/tasks/history`                                     | `taskId?`, `actorUserId?`, `field?`, datas, `page?`, `limit?`                                                        | `200`, `{projectId,total,items,pagination}`                                     |
 | GET          | `/projects/:projectId/kanban/metrics`                                    | mesmos filtros atuais                                                                                                | `200`, métricas atuais                                                          |
@@ -267,6 +267,8 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Macros atuais:
 | DELETE       | `/tasks/:id/time-entries/:entryId`                                       | ambos positivos                                                                                                      | `200`, `{message,entry,effort}`                                                 |
 
 Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. `estimatedEffort` é um número de horas maior ou igual a zero em passos de meia hora (1, 1.5, 2…); `actualEffort` é derivado das sessões de tempo (S1-06) em horas decimais e qualquer tentativa de informá-lo no body recebe `400`. `responsibleUserId` deve identificar usuário com membership ativa no projeto; respostas expõem apenas `{id,name}` em `responsibleUser`. `Task.responsible` e `TaskMovement.movedBy` permanecem somente como snapshots históricos de leitura; `projectMemberId` foi removido. O histórico funcional usa `STATUS`, `DEADLINE`, `RESPONSIBLE`, `PRIORITY` e `SPRINT` (este último desde o RF10); mudanças sem efeito não geram entrada. O enum aceito em `field` espelha `TaskHistoryField` do Prisma — todo valor novo no schema precisa entrar também em `taskHistoryQuerySchema`, sob pena de o campo ficar gravável e não filtrável.
+
+Desde S2 P1, as duas rotas de transição de status aceitam `responsibleUserId` opcional para alteração atômica com o status. O movimento persiste internamente `responsibleUserIdSnapshot` do estado resultante e cria histórico `RESPONSIBLE` quando o valor muda. Movimentos antigos continuam sem snapshot (`null`); o DTO público de Kanban não expõe esse campo nesta etapa.
 
 ## Atualização S1-05 — comentários das tarefas (RF29/RF31)
 
@@ -649,12 +651,17 @@ estimatedEffort,responsibleUserId,sprintId`) e `isFrozen=false`.
   `{id,number,title,state,labels,githubUrl}`. Arrays vazios indicam ausência de vínculos.
   Datas históricas são ISO UTC. O nome de exibição não inclui e-mail ou dados de perfil.
   URLs capturadas permitem ações externas; nenhum artefato atual é consultado para renderizar.
-- Snapshot v3 (novos encerramentos): acrescenta `estimatedEffort` ao próprio snapshot. `pointsAtClose`
-  representa ausência de estimativa e estimativa zero com o mesmo `0`, então o card congelado passa a
+- Snapshot v3: acrescenta `estimatedEffort` ao próprio snapshot. `pointsAtClose` legado
+  podia representar ausência e zero com o mesmo `0`, então o card congelado passa a
   ler a estimativa do snapshot, preservando `null`. Sem isso, tarefa encerrada sem planejamento
   aparecia como limite de zero hora e o detalhe acusava estouro de um teto nunca definido.
   Em v1/v2 a estimativa continua vindo de `pointsAtClose`, com `0` publicado como `null` e a
   limitação `LEGACY_CLOSING_TASK_ESTIMATE_UNAVAILABLE` declarada na sprint.
+- Snapshot v4 (novos encerramentos, PR23-FIX-01): preserva estimativa nullable e acrescenta
+  `outgoingCarryOver:{toSprintId,at}|null`. `pointsAtClose` novo também preserva `null`.
+  O fato de saída é persistido na mesma transação de fechamento, sem depender de memberships
+  vivos do destino. Snapshot anterior não prova quantidade/destino de saída: I43 publica
+  `outgoing:null`, `PARTIAL` e `UNKNOWN_LEGACY_CARRY_OVER`. Não há backfill inferido.
 - V1 permanece parcial: `snapshotVersion=1`, sem os novos campos, e limitação
   `LEGACY_CLOSING_TASK_DETAILS_PARTIAL`. JSON ausente usa `snapshotVersion=null`.
   Comments não integram nenhuma versão. O snapshot é capturado atomicamente antes do carry-over;
@@ -752,18 +759,30 @@ ao que aconteceu. `remaining` são os pontos que ainda faltavam ao **fim** daque
 nos dias posteriores ao corte: zero diria "nada restante" onde o certo é "esse dia ainda não
 chegou".
 
-Enquanto aberta, o denominador soma `estimatedEffort` das participações não removidas. Depois
-do encerramento usa exclusivamente `SprintTask.pointsAtClose`; tarefa sem estimativa não pesa. Sem pontos ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio.
+Para Sprint sem cobertura do diário P5.1, o cálculo legado aberto soma `estimatedEffort` das
+participações não removidas; encerrado usa `SprintTask.pointsAtClose`. Nesse caminho, sem pontos
+ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio. Para Sprint coberta,
+`remaining` vem da projeção histórica de eventos, inclusive nos dias anteriores a uma remoção;
+estimativa ausente deixa o bucket `null`. A série inicia na âncora se a cobertura for parcial.
+No diário, `totalPoints`/`idealBaseline` são o escopo do baseline integral capturado, não o
+último escopo. A linha ideal segue os dias nominais (`startDate` até `endDate` exclusivo),
+mesmo com início real tardio. Sem escopo inicial conhecido, `ideal=null` e
+`BURNDOWN_BASELINE_UNAVAILABLE`; não se reinicia a referência no começo da cobertura.
+`chartMax` abrange o maior escopo, remanescente e ideal finitos do histórico exibido.
+`hasData=true` exige `chartMax>0` e ao menos uma curva numericamente válida. Sem estimativa
+no caminho legado, `totalPoints=null`, `hasData=false` e estado parcial. A UI nunca divide
+por zero; Sprint iniciada com dados desconhecidos não é apresentada como não iniciada.
 A série tem teto de **180 dias**: uma janela maior é truncada em silêncio no 180º ponto — teto de
 segurança para payload e tela, não uma regra de domínio (limite documentado pela bateria RF10/RF35
 de 25/08/2026, que congelou o comportamento em teste; ASVS 2.1.3).
 
-Enquanto aberta, o instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
+No caminho legado aberto, o instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
 `field: STATUS` para `CONCLUIDO`, **interseccionada com o intervalo da participação** — uma
 conclusão ocorrida enquanto a tarefa estava em outra sprint não queima escopo desta. Tarefa que
 entra já concluída queima na entrada, e não no início da sprint. No encerramento, esse instante
 é persistido em `completedAtClose`, junto com pontos/status; a série terminal independe de
-editar ou excluir a Task e seu histórico. Os pontos do planejamento ficam separados em
+editar ou excluir a Task e seu histórico. Na Sprint coberta, conclusão, reabertura e reconclusão
+seguem o estado de `SprintBurnupEvent` ao fim de cada dia, inclusive após exclusão da Task. Os pontos do planejamento ficam separados em
 `pointsAtPlanning`, capturados apenas para membership presente no start.
 
 Vem embutido no `progress`, e não em endpoint próprio: o painel do Kanban exibe os dois juntos.
@@ -825,8 +844,13 @@ cortes persistidos, incluindo participações cuja Task foi excluída:
 `percentage` preserva a fórmula visual de progresso por pontos: arredondamento inteiro de
 `completedPoints / totalPoints * 100`; sem pontos é `null`. Os blocos `planned`/`current`
 do RF35 continuam contando Tasks e arredondando a duas casas; são métricas distintas.
-`plannedPoints` usa `pointsAtPlanning`; `totalPoints`/`completedPoints` usam `pointsAtClose`
-e `exitStatus`. A listagem lê participações em lote, sem uma consulta `/progress` por Sprint.
+`plannedPoints` usa o baseline durável `BASELINE_TASK` quando integral, ou pontos positivos
+de `pointsAtPlanning` no legado limitado; `totalPoints`/`completedPoints` usam a estimativa
+nullable do snapshot v3+ (pontos positivos legados) e `exitStatus`. `estimateCoverage` publica
+`planned/current/delivered`, cada qual com `{value,tasks,knownEstimateCount,unknownEstimateCount}`;
+`planned` inclui `legacyUnknown`. O valor é subtotal conhecido; todo universo não vazio sem
+estimativas conhecidas fica `null`. Porcentagem com cobertura incompleta fica `null`.
+A listagem lê participações e eventos de baseline em lote, sem `/progress` por Sprint.
 
 Campo histórico desconhecido é `null`, acompanhado pelos códigos de `historicalLimitations`
 já documentados. Nenhum campo usa Task atual como fallback. A UI mostra `—` e a limitação;
@@ -1238,3 +1262,587 @@ histórico. `Requirement.status` é o macro derivado de situation pela mesma pol
 a cadeia técnica/qualidade completa e independe do status anterior; novas pendências reabrem a cadeia automaticamente.
 Política, exemplo JSON, hooks, migração, inicialização e limite de escala do
 agregado em memória: [Requirement Traceability History](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).
+
+## S2 P2 — Indicator Engine inicial
+
+`GET /api/projects/:projectId/indicators/progress` retorna I01/RF15, sem query de período.
+`GET /api/projects/:projectId/indicators/activity?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,period,indicators:[I02,I03,I05]}`. As três entradas compartilham
+o mesmo corte. Datas civis inicial/final são inclusivas no fuso IANA explícito;
+`period.startInclusive` e `period.endExclusive` são instantes UTC, com fim exclusivo.
+RF16 usa `Commit.date`; RF17 usa `TaskMovement.movedAt`; RF15 é estado atual e rejeita
+filtro temporal. Datas inexistentes, início maior que fim e fuso inválido retornam 400.
+
+Cada `IndicatorResult` expõe `projectId`, `metricId`, `rf`, `definitionVersion:1`,
+`eventClock`, `value`, `unit`, `numerator`, `denominator`, `period`, `scope`, `state`,
+`asOf`, `sourceUpdatedAt`, `sourceSyncStatus`, `formula`, `sources[]` e
+`limitations[]`. Os estados são `AVAILABLE`, `NO_DATA`, `PARTIAL`, `STALE` e
+`UNAVAILABLE`. Sem `githubIntegration`, fontes exclusivamente GitHub retornam
+`UNAVAILABLE`, `GITHUB_NOT_CONFIGURED`, valor e `sourceUpdatedAt:null`; ausência de configuração
+não é STALE nem zero. I03 permanece local; I05 preserva Tasks e marca seu componente de commits
+indisponível. Com integração existente, a policy mantém falha de sync, integração inativa e
+divergência de main como razões de frescor; idade isolada não define STALE.
+I01 com zero Tasks retorna `value:null, numerator:0,
+denominator:0, state:NO_DATA`; Tasks existentes com zero concluídas retornam
+`value:0, state:AVAILABLE`. Percentuais têm até duas casas decimais.
+
+I02 e I03 acrescentam `distribution:{total,associated,unassociated,
+unassignedHistoricalCount,people[]}`; cada pessoa é `{userId,displayName,count}`.
+I03 acrescenta `unassignedCount` para conclusões explicitamente sem responsável;
+`unassignedHistoricalCount` conta ausência legada do snapshot. Não são sinônimos. I05 expõe `value` como
+vetor `{completedTasks,commits}`, `people[]` com as duas contagens e
+`unassociated` por dimensão, além de `components` com o estado de cada fonte.
+Se não há fotografia confirmada da `main`, o número de commits é `null`, inclusive
+nas linhas de pessoa. Somente pessoas com fatos aparecem; membership histórica
+não é inferida. As contagens por pessoa exigem membership atual ativa e conta
+resolvível. Nenhum e-mail, login ou GitHub user ID é exposto.
+
+RF16 usa apenas a branch literal `main` e os links da generation confirmada.
+Branch ausente ou sem varredura P1 completa produz `UNAVAILABLE`; sync falho,
+integração desconectada ou head divergente com fotografia anterior produzem
+`STALE`, com último valor conhecido e limitações. Autores não associados geram
+`PARTIAL` quando a fonte está atual; se também há falha de sync, o estado primário
+é `STALE` e a lacuna de associação permanece em `limitations[]`/`distribution`.
+RF17 considera a última movimentação de cada Task antes do fim do período:
+somente uma conclusão nesse intervalo ainda vigente no corte é contada. Snapshot
+de responsável ausente ou pessoa não resolvível gera `PARTIAL`; responsável atual
+da Task nunca substitui o snapshot. Hard delete pode remover histórico anterior.
+
+Leitura requer sessão e membership ativa (`VIEWER` ou superior). Projeto excluído
+ou alheio retorna 404 opaco; ausência de sessão retorna 401. Atividade medida
+não constitui avaliação individual, nota ou ranking. Não há cache persistido,
+dashboard ou indicador de RF18/RF54 nesta etapa.
+
+## S2 P3 — GitHub Analytics e qualidade de PR
+
+`GET /api/projects/:projectId/indicators/github?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,period,indicators:[I04,I06,I09,I10,I11,I12,I13,I14,I15,I16,I17,I18,I73,I74]}`.
+O período usa a política P2 de datas civis inclusivas e instantes UTC `[startInclusive,endExclusive)`;
+datas/fuso inválidos retornam 400. I10/I13/I17/I73 são fotografia atual: cada `period` individual é `null`,
+mesmo quando a query contém período para as outras métricas. Todos os itens mantêm `IndicatorResult`
+e os estados `AVAILABLE`, `NO_DATA`, `PARTIAL`, `STALE`, `UNAVAILABLE`.
+
+I04/RF18: coorte de PRs distintas com `CLOSED.occurredAt` no período; numerador de PRs dessa
+coorte com `REOPENED` posterior ao primeiro CLOSED elegível e anterior a `endExclusive`.
+I06/RF54 reutiliza exatamente I04 e acrescenta `mergedRate` = PRs distintas da mesma coorte
+com merge comprovado / PRs distintas fechadas. `value` de I06 é
+`{reworkRate,mergedRate}`, com `components:{rework,merged}` e N/D da taxa de merge.
+Com denominador zero, taxas `null` e `NO_DATA`; com denominador positivo e numerador zero,
+taxas `0` válidas. Desde PR23-FIX-03, I04/I06/I11 cortam a coorte em
+`min(endExclusive solicitado, pullRequestLifecycleSyncedAt)` e publicam esse intervalo no
+`period` individual, com `PR_COHORT_CUT_AT_LAST_SYNC` quando houver corte. Cobertura completa
+exige `pullRequestLifecycleCoverageFrom <= startInclusive solicitado` e intervalo positivo.
+Um sync recente anterior ao `asOf` não torna a coorte parcial por si só. O `period` do envelope
+continua sendo o solicitado; fatos de fechamento, reabertura e merge posteriores ao corte não
+entram. Se o início não for coberto, taxas ficam `null` e PARTIAL; marcadores ausentes são
+UNAVAILABLE. `coverage:{from,through}` e `PR_LIFECYCLE_PERIOD_NOT_COVERED` explicam o limite.
+O marcador inicial da P3 é prospectivo; eventos legados não tornam a história completa por suposição.
+
+I09 usa `Commit.date` sem restringir branch; I11 usa CLOSED distinto; I12 usa
+`PullRequest.mergedAtGithub`. I15/I16 usam PRs mescladas no período e a mesma amostra
+de `mergedAtGithub-createdAtGithub` em horas. I14 conta Issues atualmente fechadas com
+`closedAtGithub` no período; I18/I74 usam a mesma coorte e a duração
+`closedAtGithub-createdAtGithub` em dias. Esses três itens trazem
+`ISSUE_LIFECYCLE_NOT_COLLECTED`: reaberturas anteriores não são reconstruídas.
+Datas ausentes/invertidas não viram zero; I15/I16/I18/I74 expõem `eligibleCount` e
+`excludedCount` e, quando necessário, `INVALID_OR_MISSING_TIMESTAMPS_EXCLUDED`.
+
+I17 é `kind:LIST`, `unit:PULL_REQUESTS`, `value` = número de PRs abertas com idade válida, `items` = top 10
+mais antigas, cada item `{pullRequestId,number,title,age,githubUrl,createdAtGithub}`.
+I73 é a idade média em dias de todas as PRs abertas com data válida; ambos incluem
+contagens de elegíveis/excluídas. Sem fotografia GitHub, valores ficam `null` e
+`UNAVAILABLE`; falha de sync após fotografia preserva valor conhecido com `STALE`
+quando não há limite de cobertura mais forte. `sourceUpdatedAt`, `sourceSyncStatus`,
+`limitations[]` e `asOf` permitem interpretar o corte. Limitações específicas da métrica se somam
+às razões de fotografia indisponível, integração inativa ou falha de sync; não as substituem. Não há eventos brutos,
+autoria, e-mail, token, ranking de pessoas ou cache neste endpoint.
+
+Requer sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio,
+inexistente ou excluído → 404 opaco. S2-04/S2-05 ainda dependem das próximas
+etapas e da visualização; I19/Reviews permanece fora deste contrato.
+
+## S2 P4 — Flow + Task Analytics
+
+`GET /api/projects/:projectId/indicators/tasks?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,period,indicators:[I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35]}`.
+O período é obrigatório, usa datas civis inclusivas e intervalo UTC `[startInclusive,endExclusive)` da policy P2;
+máximo de 366 dias civis. Datas, fuso ou filtros adicionais inválidos retornam 400. `sprintId` e
+`responsibleUserId` não são aceitos nesta rota: usar vínculo corrente em métricas históricas
+atribuiria fatos a outra Sprint/pessoa. Indicadores de fotografia atual I23–I24 e I26–I35 trazem
+`period:null`; os históricos I20–I22/I25 trazem o período normalizado.
+
+I20 é a mediana em dias de `Task.createdAt` até a **primeira** conclusão observável no período;
+I21 usa a primeira entrada em `EM_ANDAMENTO` anterior a essa conclusão. Reentradas posteriores
+não mudam essas durações. Task sem prova da primeira conclusão ou sem início de ciclo não recebe
+zero artificial: `eligibleCount`, `excludedCount`, estado e `limitations[]` mostram a cobertura.
+I22 conta cada Task uma vez quando a última transição anterior ao corte do período a deixa
+`CONCLUIDO` e essa transição ocorreu no período; sua série diária `kind:SERIES` tem pontos
+`{date,value}` no fuso solicitado, inclusive o dia corrente para eventos já observados.
+
+I23 conta `EM_ANDAMENTO` atual. I24 é `kind:LIST`: `value:null` pois não há duração agregada
+definida; `eligibleCount` é o número de Tasks com idade verificável e `items` contém até dez
+Tasks, ordenadas por `agingDuration` decrescente. Cada item expõe `taskId`, `title`,
+`enteredInProgressAt`, `agingDuration` em dias, `deadline` e responsável ativo mínimo quando
+existente. A idade usa a última entrada em andamento ainda vigente. I25 é `kind:SERIES` com
+`{date,todo,inProgress,done}` ao fim de cada dia civil **concluído**, apenas da coorte de Tasks
+sobreviventes com cadeia de movimentos internamente consistente. Seu `value` é `null` e estado
+`PARTIAL` ou `UNAVAILABLE`, nunca estoque histórico integral afirmado; hard delete e baseline
+anterior não são recuperáveis. Sem coorte verificável, `points:[]`.
+Se o fim do período ainda não ocorreu em `asOf`, I20–I22 não afirmam conclusão do intervalo:
+estado `PARTIAL` e `PERIOD_NOT_COMPLETE`; I25 já é parcial ou indisponível.
+
+I26–I30 são contagens atuais: total existente, distribuição canônica, atrasadas (prazo civil
+anterior ao dia atual no fuso aplicado e status não concluído), sem `responsibleUserId` e sem
+estimativa (`null`, diferente de zero). I28 publica o fuso em `scope.timeZone` e é
+`kind:LIST` com até dez atrasadas mais antigas, embora `value` conte todas. I31 soma estimativas
+conhecidas; I32 soma somente o derivado canônico `Task.actualEffort` de S1-06, sem adicionar
+sessões outra vez. I33 soma `actualEffort-estimatedEffort` apenas nas Tasks comparáveis. I34
+conta/lista até dez Tasks acima da estimativa; I35 conta/lista até dez **concluídas** abaixo da
+estimativa. I31–I35 expõem `coverage` e estado `PARTIAL`/`NO_DATA` conforme ausências de dados.
+Em I31, Tasks existentes sem qualquer estimativa produzem `PARTIAL`, `value:null` e
+`TASK_ESTIMATE_MISSING`; `NO_DATA` é reservado à coleção vazia. Subtotal conhecido nunca
+finge que as estimativas desconhecidas representam zero.
+Listas de esforço usam `taskId`, título, status, esforço conhecido, diferença e responsável ativo
+mínimo; não são avaliação individual.
+
+`Task.deadline` representa `YYYY-MM-DD`, não um instante de vencimento. A parte UTC de data
+persistida representa esse dia civil; a comparação usa o dia de `asOf` no fuso IANA da
+requisição, sem depender do fuso do servidor/SQL. Prazo de hoje não está atrasado; somente
+`dia local > prazo`. A serialização ISO existente é preservada para compatibilidade; não há
+normalização artificial para 23:59:59. Kanban e resumo de Tasks usam o mesmo contrato civil no
+fuso do navegador, inclusive a referência histórica do snapshot para cards congelados.
+
+Os resultados seguem `IndicatorResult` com `definitionVersion`, `asOf`, `formula`, `sources`,
+`state`, `limitations` e `scope`. Valores zero conhecidos permanecem zero. Consulta requer
+sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio, inexistente ou excluído →
+404 opaco. Não há painel, cache ou persistência de snapshots nesta etapa. S2-04/S2-05 seguem abertos.
+
+## S2 P5 — Sprint Analytics
+
+`GET /api/projects/:projectId/indicators/sprints?sprintId=ID&limit=20` retorna
+`{projectId,generatedAt,sprint,indicators:[I36,I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I71,I72,I47]}`.
+`sprintId` é opcional e deve pertencer ao projeto autorizado; se omitido, somente a única Sprint
+`EM_ANDAMENTO` é selecionada. Nenhuma Sprint ativa produz `sprint:null` e `NO_DATA` nas métricas
+selecionadas; múltiplas ativas produzem `UNAVAILABLE`/`MULTIPLE_ACTIVE_SPRINTS`, sem escolha
+arbitrária. I47 continua sendo histórico **do projeto** nesses casos. Sprint alheia/inexistente,
+projeto alheio/inexistente/excluído → 404 opaco; sem sessão → 401. Leitura VIEWER+.
+
+`limit` controla somente I47, padrão 20, intervalo 1–50. Query é estrita: período externo,
+timezone e demais parâmetros não são aceitos. Cada item usa `IndicatorResult` com `period:null`,
+`scope:{projectId,sprintId}` para a Sprint selecionada e `asOf`/`sourceUpdatedAt`.
+I47 usa `scope:{projectId,cohort:"COMPLETED_SPRINTS"}`; o seu histórico não é filtrado pelo
+`sprintId` selecionado.
+`sourceUpdatedAt` da seleção aberta é `null`, pois `Sprint.updatedAt` não acompanha toda edição
+de Task; `asOf` informa a leitura. Na Sprint terminal, `sourceUpdatedAt` usa o corte congelado.
+
+I36/I39 usam `plannedAtStart` e `pointsAtPlanning` do baseline congelado; Sprint ainda não
+iniciada retorna `NO_DATA`, e baseline legado ausente retorna `UNAVAILABLE`. I37/I38/I40 usam
+participações e status vivos enquanto a Sprint está aberta; terminal usam exclusivamente
+`historicalSummary`/`pointsAtClose`/`exitStatus`. Os valores de pontos são **horas de estimativa**,
+não story points. I36–I38 expõem cobertura de estimativas e subtotal conhecido, com
+`PARTIAL`/`TASK_ESTIMATE_MISSING` quando incompleto. Zero legado sem prova é desconhecido
+(`LEGACY_PLANNING_ESTIMATE_UNKNOWN`); não é reinterpretado como zero explícito.
+I41/I42 e I71 adaptam `scopeChange.added/removed` do domínio de Sprint:
+contam inclusão corrente pós-início e remoção corrente do baseline; reentrada pode colapsar
+eventos intermediários (`SCOPE_REENTRY_EVENTS_COLLAPSED`). I43 expõe
+`value:{incoming,outgoing}` e itens de entrada com `fromSprintId` e de saída com `toSprintId`.
+Na terminal, saída e instante vêm de `closingTaskSnapshot` v4, inclusive o ID capturado
+após exclusão da Task. Movimentos S→D→E→D não alteram I43(S). Legado sem v4 tem
+`outgoing:null`, `PARTIAL` e `UNKNOWN_LEGACY_CARRY_OVER`; nenhum destino vivo serve de fallback.
+I72 conta apenas carry-over no escopo corrente de Sprint não terminal; na terminal é `NO_DATA`.
+
+I44 adapta `progress.effort` de S1-06 com `value:{estimatedHours,actualHours,differenceHours}`,
+`coverage` e `components:{status,incomplete,differencePercent,usagePercent}`. Snapshot terminal
+incompleto mantém `PARTIAL` e suas limitações; isso inclui estimativa ausente tanto viva
+como congelada. Comparações que exigem total completo ficam nulas; não há nova soma de sessões. I45 adapta os `days`
+do owner canônico de Burndown, com pontos `{date,ideal,remaining}` e eixo **UTC** do
+domínio de Sprint, limitado por ele a 180 dias; no contrato P5, corte pelo teto expõe
+`PARTIAL`/`BURNDOWN_MAX_180_DAYS` e `coverage.truncated`. Sprint planejada não publica série real.
+I45 `coverage` inclui `totalPoints`, `idealBaseline` e `chartMax`; os dois primeiros podem
+ser nulos. Buckets desconhecidos permanecem na resposta mesmo quando `hasData=false`.
+
+Desde P5.1, I46 tem `definitionVersion:2`, `kind:SERIES`, `value:null` e pontos
+`{date,scope,completed}` em horas, agrupados pelo dia **UTC**. `scope` soma as estimativas das
+Tasks presentes ao fim do dia; `completed` soma as estimativas das presentes cujo status ao fim
+do dia é `CONCLUIDO`. Reabertura reduz `completed`; reconclusão volta a somar uma vez. Alterar a
+estimativa de uma Task concluída ainda presente atualiza ambas as linhas. Remover uma Task
+concluída reduz ambas. `null` de estimativa não vira zero; dias com universo incompleto têm
+`scope:null` e `completed:null`. Dias futuros após o corte têm ambos `null`.
+
+I46 retorna `coverage:{startedAt,complete,truncated}` e `limitations[]`. `AVAILABLE` exige
+captura desde `Sprint.startedAt`, cadeia consistente e estimativas conhecidas em todos os dias
+medidos. `PARTIAL` indica âncora iniciada no meio da Sprint, estimativa ausente em algum dia ou
+teto de 180 dias (`BURNUP_COVERAGE_STARTED_MID_SPRINT`, `BURNUP_ESTIMATE_UNKNOWN`,
+`BURNUP_MAX_180_DAYS`). Nesse caso a série começa em `coverage.startedAt`; não há pontos
+retroativos. `UNAVAILABLE` mantém `points:[]` para Sprint antiga sem captura, corte terminal
+ausente ou eventos contraditórios. `NO_DATA` cobre Sprint não iniciada ou universo capturado
+sem Task alguma. O relógio de evento é `SprintBurnupEvent.occurredAt`; empate usa `id`.
+O histórico sobrevive à exclusão física da Task e congela no fechamento da Sprint. A migration
+P5.1 cria âncora corrente para Sprints ativas na implantação; Sprints já encerradas não recebem
+backfill inferido. Desde P5.2, I45 tem `definitionVersion:2` e seu owner canônico consome a
+mesma projeção histórica de I46 nas Sprints cobertas. Para cada dia com estimativas conhecidas,
+`I45.remaining + I46.completed = I46.scope`; conclusão, reabertura, reconclusão, revisões de
+estimativa e entradas/saídas de escopo respeitam o estado ao fim do dia UTC. I45 preserva
+`{date,ideal,remaining}`, `coverage` e `limitations`; sua série começa na âncora quando a
+cobertura é parcial e propaga as limitações do diário. Sprints sem cobertura continuam com
+Burndown legado; I46 permanece `UNAVAILABLE`, sem comparação histórica artificial. A linha
+ideal de I45 conserva o baseline inicial integral, distribuído nos dias nominais. A escala
+usa todo o histórico; cobertura tardia/baseline desconhecido não recebe linha ideal inventada.
+
+I47 usa somente Sprints `CONCLUIDA` com snapshot terminal íntegro; exclui `CANCELADA`, atual e
+legado incompleto ou qualquer cobertura planejada/terminal de estimativas incompleta.
+Não usa entrega desconhecida como zero; quantidade conhecida de Tasks não torna esforço conhecido.
+Sem Sprints concluídas é `NO_DATA`; somente excluídas é `UNAVAILABLE`; elegíveis junto a
+excluídas é `PARTIAL`. Seus pontos `{sprintId,sprintName,closedAt,completedPoints}` vêm de
+`buildSprintHistoricalSummary`, ordenados cronologicamente. A resposta informa
+`eligibleCount`, `excludedCount`, `coverage:{completedSprints,returnedSprints,truncatedCount,limit}`
+e `VELOCITY_LIMIT_APPLIED` quando mostra apenas as últimas N Sprints. Não há ranking de pessoas,
+PII nova, cache ou gráfico frontend. S2-04/S2-05 seguem abertos.
+
+## S2 P6 — Quality e Traceability Analytics
+
+`GET /api/projects/:projectId/indicators/quality?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,generatedAt,period,indicators:[I48,…,I60]}`. Os três parâmetros são
+obrigatórios; o intervalo usa dias civis inclusivos e limites UTC `[startInclusive,endExclusive)`
+da policy P2 (máximo 366 dias). I48–I51 e I55–I58 usam esse período e incluem `period` em cada
+indicador. I52–I54 e I59–I60 são fotografias atuais e incluem `period:null`, mesmo quando o
+endpoint recebe período. Query adicional ou inválida retorna 400.
+
+I48 conta **execuções**, uma vez cada, por PASS/FAIL/BLOCKED; I49–I51 compartilham essa mesma
+coorte, com `value:null`/`NO_DATA` quando o denominador é zero. I52 considera somente TestCases
+ativos e não excluídos, pela última execução da versão atual (`executedAt DESC,id DESC`), além de
+`NEVER_EXECUTED`. I53 agrupa Defects não excluídos por status e expõe `components.activeDefects`
+para ABERTO+EM_CORRECAO+AGUARDANDO_RETESTE; I54 agrupa por severidade. I55 conta Defects criados
+pelo `createdAt`; I56 conta Defects distintos com evento `VALIDATED` por `occurredAt`. I57 retorna
+mediana em dias de criação até o **primeiro** `VALIDATED`, na coorte desse primeiro evento. I58
+usa somente tentativas `DefectRetest`, pelo `TestExecution.executedAt`, com BLOCKED no denominador.
+I59 e I60 retornam `kind:LIST`, `items` top 10, ordenados por quantidade decrescente e ID crescente:
+I59 deduplica Defect por Requirement direto ou via Task ORIGIN, I60 usa só Task ORIGIN. A soma de
+I59 pode superar o total de Defects do projeto porque um Defect pode pertencer a mais de um
+Requirement.
+
+Defects logicamente excluídos não reaparecem no agregado histórico: I55–I58 trazem `excludedCount`,
+`PARTIAL` ou `UNAVAILABLE` e `limitations` quando a exclusão afeta a cobertura. I56/I57 não
+inventam data de validação para registros `VALIDADO` sem evento: esses registros são excluídos da
+amostra, sinalizados por `LEGACY_VALIDATION_WITHOUT_EVENT_UNDATED` em I56 e pela limitação de
+histórico em I57. Essa exclusão legada não tem coorte temporal verificável. Período futuro ainda
+aberto adiciona `PERIOD_NOT_COMPLETE` aos indicadores históricos.
+
+`GET /api/projects/:projectId/indicators/traceability` retorna
+`{projectId,generatedAt,indicators:[I61,…,I67]}`. Não aceita query e todos os indicadores são
+fotografias atuais (`period:null`). Denominador é o total de Requirements do projeto; vazio resulta
+em `NO_DATA`, e zero numerador com denominador positivo resulta em 0% `AVAILABLE` quando a fonte
+está fresca. I61 mede Requirements com Tasks; I62, evidência técnica via PR/commit; I63, TestCase
+ativo relevante direto ou via Task; I64, Defect ativo direto ou via Task ORIGIN; I65, situação
+canônica `CONCLUIDO`; I66, estágio técnico `implementation.implemented` independentemente de
+falha/Defect atual; I67, média do progresso por Requirement da matriz S1-09, incluindo zero para
+Requirement sem Task. I62/I65/I66 propagam `STALE`, `sourceUpdatedAt`, `sourceSyncStatus` e
+`limitations` de frescor GitHub. I61/I63/I64/I67 permanecem locais.
+
+Sem integração GitHub, I62/I65/I66 são `UNAVAILABLE`, `value:null`, `numerator:null`,
+`GITHUB_NOT_CONFIGURED`, relógio externo nulo e denominador local conhecido. I61/I63/I64/I67
+continuam calculáveis: I63 depende dos Casos de teste locais, não do provider. Seu assessment
+de Health, porém, exige a referência técnica I66 e não se aplica nesse cenário.
+
+Ambos exigem sessão e membership ativa VIEWER+; sem sessão retorna 401; projeto alheio,
+inexistente ou excluído retorna 404. O payload não inclui responsável, e-mail, autoria GitHub nem
+ranking de pessoas. I68 não é implementado, por decisão `NOT_RECOMMENDED`. P6 não entrega painel;
+S2-04/S2-05 permanecem abertos.
+
+## S2 P7 — Dashboard Aggregate API e catálogo (RF56 backend)
+
+`GET /api/projects/:projectId/indicators/dashboard` aceita `view` (`GENERAL` por padrão;
+`GITHUB`, `FLOW`, `SPRINT`, `TASK`, `QUALITY`, `TRACEABILITY`), o trio opcional
+`startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=IANA`, `sprintId` e
+`responsibleUserId`. Desde PR23-FIX-03, `timeZone=IANA` também pode ser informado **sem datas**
+para o dia civil de I28/Health; não cria filtro de evento. Datas inicial/final continuam pareadas
+e exigem fuso. Sem datas e sem fuso, a API usa UTC; o cliente TraceFlow envia o fuso do navegador.
+Query desconhecida, view/fuso/data inválidos ou período incompleto retornam
+400. FLOW, TASK, QUALITY e CUSTOM limitam o período a 366 dias civis. O período solicitado é normalizado **uma vez** pela
+policy P2 para `[startInclusive,endExclusive)`; os services temporais recebem esse mesmo corte e
+preservam o `eventClock` de cada indicador. Sem período solicitado, indicadores de evento em fontes configuradas trazem
+`UNAVAILABLE`, `value:null`, `PERIOD_REQUIRED`; não há default público de 30 dias. Indicadores
+atuais continuam disponíveis e trazem `period:null` mesmo quando um período foi solicitado.
+Fontes exclusivamente GitHub sem integração priorizam `GITHUB_NOT_CONFIGURED`, pois informar
+período não torna essa fonte aplicável.
+
+O response contém `dashboardContractVersion:1`, `view`, `viewState`, `generatedAt`,
+`requestedFilters:{period,sprintId,responsibleUserId}`, `context:{project,sprint,responsible}`,
+`freshness:{local,github}`, `sections:[{id,indicators:IndicatorResult[]}]` e `warnings[]`.
+Cada indicador preserva `metricId`, `definitionVersion`, `state`, `asOf`, fórmula, fontes,
+`sourceUpdatedAt`, `sourceSyncStatus`, distribuição/série/lista e limitações do service de origem.
+Acrescenta `filterCompatibility:{period,sprint,responsible}` com `SUPPORTED`, `NOT_APPLICABLE`
+ou `UNSAFE`, e `appliedFilters` booleano para os três filtros. `requestedFilters` nunca implica
+aplicação universal. Filtro `UNSAFE` não altera o cálculo e acrescenta limitação explícita; quando
+nenhum indicador da view usa um filtro solicitado, há warning da view. Desde P8.4, a janela de
+Project Health também conta como aplicação do período na GENERAL; os widgets atuais continuam
+com `appliedFilters.period:false` e sua explicação individual.
+
+As seções são definidas no catálogo de views: GENERAL tem oito indicadores desde P8.4 (I01, I23,
+I28, I61, I66, I53, I45, I46; P7 tinha sete); GITHUB agrega I02, I04, I06, I09–I18 e I73–I74; FLOW I20–I25;
+SPRINT I36–I47/I71–I72; TASK I26–I35; QUALITY separa I06 e I48–I60 entre PRs,
+testes, Defects e concentração; TRACEABILITY I61–I67. I19 e I68 não entram nas views.
+I03/I05 permanecem no catálogo público para uma seleção futura, sem widget padrão. Não há
+`PERSONALIZED` ou layout persistido.
+
+`sprintId` precisa apontar para Sprint não excluída do projeto autorizado; uma Sprint alheia
+retorna 404. Sem `sprintId`, o service de Sprint escolhe a única Sprint ativa, se houver; nenhuma
+ou múltiplas preservam os estados/limitações canônicos. I47 é histórico do projeto e não recebe
+`sprintId`. `responsibleUserId` é validado por vínculo de projeto, inclusive inativo para
+referência histórica; sem vínculo retorna 404. O catálogo P0 marca alguns filtros por responsável
+ou Sprint como semanticamente candidatos, mas os services atuais não executam esse recorte de
+forma íntegra. O Dashboard os marca `UNSAFE`/não aplicado em vez de reatribuir história por estado
+atual. RF56 backend cobre o filtro temporal; a experiência visual e filtros adicionais seguros
+continuam para P8/etapas futuras.
+
+Desde PR23-FIX-04, os IDs solicitados e os sinais aplicáveis de Health determinam as leituras.
+Indicadores atuais de Tasks usam agregados e listas limitadas; não materializam Tasks nem
+TaskMovement quando o histórico não é necessário. Indicadores `PERIOD_REQUIRED` não provocam
+leitura temporal de widgets sem período. Aging WIP continua sendo um indicador atual dependente
+de histórico; Health mantém sua janela própria de avaliação, sem criar um período público.
+Uma janela UTC interna de um dia ainda pode fornecer o contrato dos services de indicadores
+atuais, mas não autoriza leitura dos indicadores de evento não solicitados.
+
+O contexto pertence a uma única request: compartilha Promises de leitura, inclusive rejeições,
+e cálculos intermediários equivalentes entre widgets e Health. Não há cache global nem retry.
+Há no máximo dois loaders de fontes simultâneos por request. Cada capability conserva o snapshot
+`RepeatableRead` necessário; não se promete um snapshot transacional único entre todas as fontes.
+Quality/I59 e Traceability compartilham a projeção de Requirements; falha dessa projeção não
+indisponibiliza os dados independentes de execuções e Defects.
+Quality/I52 compartilha o mesmo estado atual dos Casos de teste com Health, inclusive quando
+os períodos de execuções/retests diferem. A união de IDs temporais só é usada com limites de
+período equivalentes; sem período público, não se consultam execuções da janela de fallback
+para depois descartá-las. Falha posterior na leitura temporal não invalida I52 já conhecido.
+
+O snapshot GitHub já lido pela view pode fornecer coorte/merge samples de período equivalente
+e idade de PRs no mesmo asOf ao Health; janelas diferentes continuam exigindo fatos distintos.
+O snapshot da janela anterior não é substituído pelo da janela atual.
+
+Ausência de dados, `PARTIAL`, `STALE` e `UNAVAILABLE` permanecem estados individuais; `viewState`
+resume os widgets da view (`AVAILABLE`, `PARTIAL`, `NO_DATA`, `UNAVAILABLE`). Falha operacional
+`ExternalServiceError`, erro Prisma real `P2024`/`P2034`, ou `P2028` de aquisição/expiração/timeout
+de transação, degrada somente seus consumidores com `UNAVAILABLE`, `value:null`, limitação
+`SOURCE_UNAVAILABLE` e warning `{code:'SOURCE_UNAVAILABLE',source}`. O log interno inclui fonte,
+código e requestId, sem publicar detalhes de infraestrutura. `P2028` de uso inválido da API de
+transação, `TypeError`, erros de validação/domínio e erros desconhecidos continuam observáveis
+como erro global. Falhas isoláveis no read path de Health deixam sinais não avaliados e reduzem
+coverage conforme o modelo vigente; nunca fabricam score zero. Leituras rejeitadas não são
+reexecutadas dentro da request.
+
+`healthOnly=true` é opcional e exclusivo de `view=GENERAL`; outras views retornam 400. Mantém
+autorização, filtros, janela e regras de `projectHealth`, com `sections:[]`, sem calcular widgets
+extras da GENERAL. `viewState:NO_DATA` resume essa coleção vazia, não o estado de Health; a
+Visão Geral consome `projectHealth`. Não há novo endpoint. `freshness.github` continua derivado
+dos widgets presentes e não é substituído por `generatedAt`. A avaliação de freshness dentro de
+Health permanece independente dessa apresentação. Listas e séries conservam os limites dos
+endpoints de origem.
+
+`GET /api/projects/:projectId/indicators/catalog` não aceita query. Retorna metadados públicos
+de cada `metricId` implementado: categoria, título, descrição, unidade, temporalidade, relógio,
+filtros executáveis, compatibilidade, candidatos visuais, RF, versão de definição, fonte
+conceitual e views padrão. Não expõe SQL, tokens, identidades GitHub ou I68. Ambos os endpoints
+exigem sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio/excluído → 404.
+
+Desde P8.4, o catálogo acrescenta `views:[{view,periodIncludesProjectHealth,filterCompatibility}]`.
+Cada compatibilidade de visão usa os mesmos valores `SUPPORTED`, `UNSAFE`, `NOT_APPLICABLE`:
+há suporte se algum widget aplica o filtro, ou se o período define a janela de Health na GENERAL.
+Caso contrário, a presença de um indicador inseguro resulta em `UNSAFE`; os demais casos são
+`NOT_APPLICABLE`. Essa capacidade controla o formulário, sem substituir a aplicação individual.
+Sprint está habilitada em GENERAL/SPRINT; responsável continua sem recorte executável nas visões
+padrão. Seleções históricas na URL permanecem visíveis com explicação e podem ser limpas.
+O acréscimo é compatível com `dashboardContractVersion:1`; fórmulas e Health Model v1 não mudam.
+Em I17, `value` é a contagem de PRs abertas elegíveis; `items[].age` é a idade em dias.
+O presenter deve distinguir essas unidades no resumo e na lista.
+
+## S2 P8.3 — Indicator Health e Project Health Model v1
+
+O agregado P7 conserva `dashboardContractVersion:1` e todos os campos originais. Cada resultado em `sections[].indicators[]` acrescenta `assessment`:
+
+```json
+{
+  "healthModelVersion": 1,
+  "healthRole": "SCORING_SIGNAL",
+  "dimension": "PLANNING",
+  "weight": 40,
+  "status": "ATTENTION",
+  "score": 70,
+  "reasonCode": "TASK_SHARE",
+  "basis": { "count": 3, "totalTasks": 10 }
+}
+```
+
+`healthRole` é `SCORING_SIGNAL`, `CONTEXT_ONLY`, `REDUNDANT`, `UNIMPLEMENTED` ou `NOT_RECOMMENDED` no registry; apenas os três primeiros aparecem em indicadores executáveis. `status` é `HEALTHY`, `ATTENTION`, `CRITICAL`, `NEUTRAL` ou `UNASSESSED`. `score:null` significa que a avaliação não pôde ser feita, não zero. `basis` contém fatos numéricos, IDs de métricas e limites temporais da coorte, sem texto pessoal; I04 acrescenta `cohortStartInclusive`, `cohortEndExclusive`, `closedPullRequests`, `reopenedPullRequests`. `reasonCode` é uma chave sem texto pessoal. O estado de dados (`AVAILABLE`, `PARTIAL`, `STALE`, `NO_DATA`, `UNAVAILABLE`) permanece independente de `assessment.status`. Metadados do catálogo acrescentam `healthRole`, `healthDimension` (ou `null`) e `healthModelVersion`.
+
+Na versão vigente, `view=GENERAL` e `view=CUSTOM` sempre acrescentam `projectHealth`;
+as demais views o incluem quando `includeProjectHealth=true` (extensões P8.5/P9).
+O objeto contém `healthModelVersion`, `status`, `score`, `coverage` percentual ponderada, `assessedDimensions`, `applicableDimensions`, `assessedSignals`, `applicableSignals`, `dimensions[]`, `drivers:{negative[],positive[]}`, `assessments` por ID, `calculatedAt` e `window:{timeZone,current,previous}` com instantes UTC inclusivo/exclusivo. Cada dimensão publica `id`, `weight`, `applicable`, `coverage`, `score`, `status`, `assessedSignals[]`, `unassessedSignals[]`. Cada driver publica `metricId`, `dimension`, `status`, `score`, `impact`, `reasonCode`, `basis`; máximo três por polaridade. `score:null,status:UNASSESSED` resulta de cobertura <60% ou menos de quatro dimensões avaliadas; não há persistência. Sprint sem seleção ativa e integração GitHub ausente podem ser `NOT_APPLICABLE` e saem do denominador. Sem inclusão de Health, as demais views apresentam apenas assessments individuais.
+
+Ausência de integração também exclui I04/I15/I73/I62/I63/I65/I66 do denominador de sinais
+aplicáveis; seus assessments são `UNASSESSED`, `score:null`, `GITHUB_NOT_CONFIGURED`.
+As métricas locais continuam disponíveis. Pesos, thresholds e mínimo de quatro dimensões não
+mudam. I04 usa o mesmo corte confirmado de lifecycle do endpoint GitHub, inclusive na janela
+interna de 30 dias: sync cinco minutos antes de `generatedAt` permite avaliação com coorte
+completa e denominador positivo. Freshness é independente; fonte STALE não pontua mesmo com
+valor historicamente calculável. Idade isolada do sync não define STALE nesta policy.
+
+Eventos da saúde usam o período solicitado recortado em `generatedAt`, ou janela interna dos últimos 30 dias; baseline compara a janela anterior de mesma duração. Para I20/I21, o histórico observado inclui movimentos anteriores a `generatedAt`, inclusive conclusões posteriores ao fim da janela histórica: essas conclusões conhecidas não viram exclusões por histórico ausente. Somente conclusões dentro de cada janela entram na respectiva amostra; movimentos em ou após `generatedAt` não entram. O resumo de durações da saúde não materializa séries diárias, preservando o contrato de período da GENERAL sem impor um novo limite. Esse default **não** muda a regra P7 dos widgets de evento sem filtro em fontes configuradas: eles continuam com `PERIOD_REQUIRED`. A nota permanece do projeto; `responsibleUserId` não recorta Project Health. Regras, pesos, exclusões e limitações estão em [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
+
+## S2 P8.5 — Workspace de Indicadores e referências
+
+Decisão P8.5: `/projects/:projectId` apresenta somente saúde compacta; a análise completa pertence
+à rota autenticada `/projects/:projectId/indicators`. O contexto de filtros é único e persiste na
+query ao trocar categoria. A aplicação individual continua descrita por `appliedFilters`.
+
+O agregado aceita a categoria adicional `PLANNING` (I26/I28/I29/I30/I31/I32/I33/I34) e o parâmetro
+opcional `includeProjectHealth=true|false` (false por padrão). O workspace solicita true para
+receber resumo de saúde e indicadores na mesma resposta/contexto; GENERAL continua incluindo
+saúde sem exigir o parâmetro. Fontes auxiliares são agrupadas e reutilizadas na request, sem
+consulta por widget. Nenhuma fórmula, peso, persistência ou regra de autorização muda.
+
+Assessments avaliáveis podem acrescentar `reference:{type,label,value,unit}` e
+`delta:{value,unit}`. Referências vêm exclusivamente das bases do modelo v1: janela anterior
+comparável, esforço estimado, linha ideal do Burndown, estágio anterior de rastreabilidade ou
+tempo mediano de merge da fila. Delta é assinado; variação relativa usa PERCENT, diferença de
+cobertura usa PERCENTAGE_POINTS, esforço usa HOURS. Sem base segura ambos são null. Esses valores
+não são metas configuradas nem novos thresholds. Estados não avaliáveis não recebem referências.
+Metadados internos permanecem na API e documentação. A camada principal da ajuda apresenta
+significado, valor, referência e interpretação. Desde PR23-FIX-02, “Detalhes do cálculo”, fechado
+por padrão, apresenta `formula` em linguagem de domínio fornecida pelo catálogo backend (auditada
+na PR23-FIX-02.1), sem tradução ou registry paralelo de fórmulas no frontend, `sources[]`
+com nomes de uso e horário por indicador: `sourceUpdatedAt` para fontes GitHub, `asOf` para fontes
+locais. `generatedAt` nunca substitui frescor externo. Sem clock válido ou fonte `UNAVAILABLE`,
+o detalhe informa indisponibilidade; `NO_DATA` não cria valor e pode identificar o corte da
+consulta local efetivamente realizada. `formula` é metadata de apresentação da regra efetiva,
+não expressão executável: sua redação foi normalizada na PR23-FIX-02.1 sem alterar algoritmos,
+N/D, unidades, clocks, estados, `definitionVersion`, schema do contrato ou Health.
+
+
+A coerência P8.5 é por projeto, filtros e geração da requisição agregada; não
+representa uma transação SQL única. `generatedAt`/`projectHealth.calculatedAt`
+identificam a composição, enquanto cada indicador preserva o `asOf` da sua fonte.
+Os testes com período fixo conferem dimensões e janela idênticas entre categorias.
+
+
+### P8.6B — séries diárias de duração
+
+I20 (Lead Time) e I21 (Cycle Time) preservam `value` como mediana de todas as amostras
+elegíveis do período e acrescentam `kind: "SERIES"` e
+`points: [{date, value, eligibleCount}]`. Cada ponto usa a primeira conclusão verificável,
+agrupada pela data civil no `timeZone` solicitado. `value` do ponto é a mediana diária;
+dias sem amostra retornam `null` e contagem zero. Reconclusão não cria uma segunda
+amostra de duração. Não se calcula a mediana do período a partir das medianas diárias.
+
+A referência permanece em `assessment.reference` no contrato existente:
+`{type: "PROJECT_BASELINE", label: "Referência recente", value, unit: "DAYS"}`,
+com `assessment.delta` calculado pelo servidor. O frontend apenas desenha essa linha
+para a mesma unidade e tipo. Referência ausente, amostra insuficiente ou assessment
+parcial não produz linha substituta nem meta. A janela ainda em andamento preserva
+as regras de PARTIAL; uma janela encerrada pode oferecer referência elegível.
+Fórmula, versão da definição, RF, filtros e exclusões anteriores permanecem válidos.
+
+## P9 — preferências pessoais de Indicadores
+
+Esta extensão acrescenta persistência de apresentação ao contrato agregado anterior.
+Não permite alterar fórmulas, referências, Health ou filtros por widget.
+
+### Preferência por usuário e projeto
+
+| Método e rota | Comportamento | Resposta |
+| --- | --- | --- |
+| `GET /api/projects/:projectId/indicator-preference` | Lê a preferência da sessão; ausência não cria registro | 200 com configuração persistida ou default |
+| `PUT /api/projects/:projectId/indicator-preference` | Valida e faz upsert do par projeto/usuário | 200 com configuração confirmada |
+| `DELETE /api/projects/:projectId/indicator-preference` | Remove somente a preferência do ator; idempotente | 200 com default |
+
+Body PUT estrito:
+
+```json
+{
+  "configurationVersion": 1,
+  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"]
+}
+```
+
+Resposta sem configuração persistida (GET ou DELETE):
+
+```json
+{
+  "configurationVersion": 1,
+  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"],
+  "isDefault": true,
+  "updatedAt": null
+}
+```
+
+Uma row persistida utilizável retorna `isDefault: false` e `updatedAt` ISO-8601. A posição no
+array determina a ordem; não existem propriedades de dimensão/posição livre.
+Desde PR23-FIX-05, GET sanitiza somente a apresentação: remove IDs ausentes/não personalizáveis,
+duplicatas e excesso acima do limite, preservando a ordem relativa dos válidos. Se nenhum restar,
+usa o default canônico com `isDefault: true`. Nesses casos a resposta acrescenta
+`configurationAdjusted: true`, permitindo aviso discreto na UI; `updatedAt` continua indicando
+a última escrita persistida. GET não escreve nem migra a configuração original.
+`configurationVersion` identifica o formato aceito no PUT, não um mecanismo de migração automática.
+Uma seleção legada utilizável conserva a versão armazenada na apresentação; o fallback utiliza
+a versão do default. Apenas save/reset explícito altera a persistência.
+Mínimo 1, máximo 12, IDs únicos, conhecidos e elegíveis. Versão diferente de 1,
+ID proibido, campos extras (inclusive `userId`), shape inválido ou query inesperada
+são rejeitados no PUT com 400 pelo envelope de validação existente. DELETE aceita body
+vazio; GET/PUT/DELETE não possuem query de usuário.
+
+Autorização usa sessão e membership ativa: VIEWER, MEMBER, MANAGER e OWNER podem
+ler/escrever somente a própria preferência. `userId` é derivado de `req.auth`.
+401 sem autenticação; 404 opaco para projeto alheio, excluído ou membership inativa.
+PUT/DELETE exigem o CSRF canônico. A transação revalida projeto, membership e conta
+ativa sob locks de projeto/membership, protegendo a concorrência com exclusão.
+
+Soft delete torna a preferência inacessível; restore a preserva; hard purge e
+exclusão física de User usam FK cascade. Anonimização da conta remove preferências
+após desativar memberships. O export pessoal de privacidade inclui
+`indicator-preferences.json` apenas com rows do ator em projetos ainda acessíveis.
+Isso não constitui exportação analítica do painel.
+
+### Catálogo e agregado CUSTOM
+
+`GET /api/projects/:projectId/indicators/catalog` mantém as oito views estáticas e
+acrescenta `personalization: {defaultPreference, minWidgets: 1, maxWidgets: 12}`.
+Cada indicador ganha `customization` com `customizable`, `reason`, `defaultSelected`,
+`sizeClass`, `description`, `defaultVisualization` e `categories`. As categorias
+incluem a original e os agrupamentos canônicos Planejamento/Qualidade aplicáveis.
+Não confundir elegibilidade com `healthRole`; `CONTEXT_ONLY` pode ser selecionável.
+
+Exemplo de agregado:
+
+```http
+GET /api/projects/2/indicators/dashboard?view=CUSTOM&widgets=I23,I21,I45&startDate=2026-09-01&endDate=2026-09-30&timeZone=America%2FSao_Paulo&sprintId=16
+```
+
+`widgets` é obrigatório e exclusivo de `view=CUSTOM`: lista de IDs separados por
+vírgula, validada pelas mesmas regras do PUT. Sem espaços, duplicatas ou IDs extras.
+Período usa o trio startDate/endDate/timeZone e limite de 366 dias em CUSTOM.
+Filtros inválidos continuam retornando 400; Sprint deve pertencer ao projeto.
+
+Resposta mantém o envelope do dashboard, `view: "CUSTOM"` e uma seção `custom`,
+com indicadores exatamente na ordem solicitada. Os source services são invocados
+por grupo, sem HTTP interno. Health completo sempre acompanha CUSTOM, inclusive
+quando `includeProjectHealth=false` é enviado: seleção pessoal nunca reduz seus
+sinais. Resultados preservam assessments, references, Data State, limitações e
+`appliedFilters`/`filterCompatibility` originais. WIP conserva estado atual, Cycle
+Time usa período e Burndown usa Sprint. Ausência de período ou Sprint conserva a
+indisponibilidade canônica em vez de fabricar dados.
+
+A query informa a seleção para este agregado; GET do dashboard não altera a
+preferência persistida. O frontend obtém a preferência, solicita um agregado e
+refaz esse agregado após Save/reset. Não há endpoint nem request por widget.
+
+Matriz completa e decisões: [Painel pessoal v1](../indicators/PERSONALIZED_DASHBOARD_V1.md).
+
+
+### PR23-FIX-07 — refinamentos de integridade
+
+- `GET /projects/:projectId/commits` não publica `authorGithubUserId`. O ID permanece na
+  persistência e nas correlações internas exatas; o frontend continua recebendo os campos de autoria já utilizados.
+- Eventos de lifecycle sem PR local são ignorados com log de contagem. Eventos associáveis
+  persistem, mas essa varredura não avança `pullRequestLifecycleSyncedAt`/coverage; não certifica completude.
+- Branch secundária sem SHA preserva associações anteriores e gera warning interno. `main`
+  ou default sem SHA continua interrompendo explicitamente o estágio, sem confirmar uma varredura incompleta.
+- Velocity exige fechamento conhecido (cutoff, status e estimativas); ausência de baseline
+  planejada, isoladamente, não invalida esse fechamento. Estimativas desconhecidas continuam excluídas.

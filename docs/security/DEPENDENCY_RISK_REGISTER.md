@@ -1,5 +1,50 @@
 # Registro de risco de dependências
 
+## PR23-FIX-04 — patches transitivos do gate final — 06/10/2026
+
+O audit corrente encontrou advisories publicados após a baseline anterior. Foram aplicados
+somente os patches compatíveis das transitivas afetadas; manifests, dependências diretas e
+policy de exceções não mudaram.
+
+| Origem | Advisory | Patch validado |
+| --- | --- | --- |
+| Express → `proxy-addr@2.0.7`, backend | [GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h), CRITICAL | `2.0.8` |
+| `source-map-js@1.2.1`, backend/frontend | [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q), HIGH | `1.2.2` |
+
+**CORRIGIDO:** `npm audit --json` completo e gate canônico confirmaram **0 vulnerabilidades**
+nos dois projetos, incluindo desenvolvimento, sem nova exceção, override, downgrade ou
+`--omit=dev`. A regressão final e o impacto mínimo dos lockfiles constam no
+[relatório PR23-FIX-04](../deliveries/PR23_FIX_04_DASHBOARD_PERFORMANCE_FAILURE_ISOLATION_REPORT.md).
+
+## P10 — encerramento dos moderates remanescentes — 04/10/2026
+
+**CORRIGIDO e revalidado:** o audit completo final de backend e frontend, incluindo
+desenvolvimento, retornou **0 vulnerabilidades em todas as severidades**. O gate
+canônico passou sem exceções. Os números das seções anteriores são históricos.
+
+| Cadeia afetada na baseline | Advisory | Correção validada |
+| --- | --- | --- |
+| Vitest / coverage / mocker `4.1.10`, nos dois projetos | [GHSA-82fw-gwwq-j7x9](https://github.com/advisories/GHSA-82fw-gwwq-j7x9) | Família Vitest `4.1.11` |
+| Multer `2.3.0` | [GHSA-3pph-fpjx-jg34](https://github.com/advisories/GHSA-3pph-fpjx-jg34) | Multer `2.4.0` |
+| Express / body-parser / qs `6.15.2` | [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) | Express `4.22.3`, body-parser `1.20.8`, qs `6.16.0` |
+| ip-address `10.5.0` | [GHSA-rpw4-54j3-4h4q](https://github.com/advisories/GHSA-rpw4-54j3-4h4q), [GHSA-2vr4-cq9g-pvrc](https://github.com/advisories/GHSA-2vr4-cq9g-pvrc), [GHSA-j6r3-76f7-8jcv](https://github.com/advisories/GHSA-j6r3-76f7-8jcv), [GHSA-h3mg-xc3c-68pw](https://github.com/advisories/GHSA-h3mg-xc3c-68pw) | ip-address `10.7.3` |
+
+Atualizações limitadas às cadeias afetadas, com remoção de cinco transitivas
+exclusivas do Multer antigo. Sem downgrade, override, waiver ou mudança da policy.
+`npm ci` reproduziu ambos os lockfiles com Node 22 e npm 10.9.9; as suítes completas
+e o build foram reexecutados. Evidências e limites da revisão constam no
+[relatório P10](../deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+
+## P8.6E — fechamento da cadeia nodemon — 04/10/2026
+
+**CORRIGIDO por remoção da cadeia:** [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), HIGH, anteriormente em `nodemon@3.1.14 → chokidar@3.6.0 → braces@3.0.3`. O backend passou a usar `node --watch src/server.js` no script `dev`, com Node 22.23.3. Startup, restart após mudança em módulo importado, readiness com Prisma e shutdown por Ctrl+C foram verificados no comando final `npm run dev`.
+
+`npm ci --offline --no-audit` reproduziu a instalação. O audit completo posterior, incluindo desenvolvimento, confirmou a ausência do advisory e **0 high / 0 critical**. `npm ls nodemon chokidar braces --all` não encontrou nenhum dos três pacotes. O lockfile perdeu 22 entradas exclusivas da cadeia; nenhuma versão mantida foi atualizada. Não houve downgrade, nova dependência, override ou exceção; a política existente permanece intacta.
+
+O `npm audit --json` bruto ainda retorna código 1 por **8 entradas moderate preexistentes**, idênticas ao baseline: `@vitest/coverage-v8@4.1.10`, `@vitest/mocker@4.1.10`, `vitest@4.1.10`, `body-parser@1.20.6`, `express@4.22.2`, `qs@6.15.2`, `ip-address@10.5.0` e `multer@2.3.0`. Não são novos blockers HIGH/CRITICAL e não foram corrigidas nesta rodada restrita. O gate canônico de backend e frontend aprovou sem exceções. Isto não representa audit com zero vulnerabilidades em todas as severidades.
+
+Os blockers de segurança dos relatórios P8.6C/P8.6D estão encerrados. Evidências, limites e gates: [relatório P8.6E](../deliveries/S2_P8_6E_SECURITY_DEPENDENCY_CLOSURE_REPORT.md). Os registros anteriores abaixo preservam os resultados de suas respectivas datas.
+
 ## Revalidação Nodemailer — 09/09/2026
 
 A E6 adotou `nodemailer@9.0.3` conforme os advisories conhecidos naquela etapa. Os quatro advisories abaixo foram publicados posteriormente; esta atualização preserva aquele registro histórico e corrige a dependência para `9.1.1`.
@@ -86,3 +131,14 @@ Resultado final frontend após a correção pós-E14 e a revalidação E15: **0 
 - nenhuma major automática sem análise de API, testes e plano de rollback;
 - lockfiles são obrigatórios; fontes esperadas são o registry npm e o repositório oficial do pacote;
 - Dependency review é obrigatório em pull requests desde a E14. SBOM automatizada permanece como evolução futura.
+
+
+## Nodemailer 10 — smoke real PR23-FIX-07 (09/10/2026)
+
+O registro de setembro acima é histórico. O lockfile atual usa **10.0.9**; a versão registrada
+anteriormente era **9.1.1**. Nenhuma dependência foi atualizada no FIX-07. Risco do salto de major:
+compatibilidade de `createTransport`/`sendMail`, serialização, templates e controles de acesso a
+arquivo/URL. `backend/test/unit/nodemailer-real-smoke.test.js` usa a biblioteca instalada real com
+`jsonTransport:true` (sem mock do transporte) para reset de senha, verificação de e-mail e convite.
+Valida subject/text/html, escape, envelope e messageId, sem envio externo. Gate de audit completo
+é executado separadamente; esse smoke não prova entrega SMTP/TLS, que depende do ambiente operacional.

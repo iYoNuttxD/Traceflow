@@ -47,7 +47,11 @@ export function filterKanbanBoard(board, filters) {
   });
 }
 
-export function getKanbanSummary(board, now = new Date()) {
+export function getKanbanSummary(
+  board,
+  now = new Date(),
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+) {
   const tasks = getBoardTasks(board);
   const counts = Object.fromEntries(
     KANBAN_COLUMNS.map((column) => [column.status, board?.columns?.[column.status]?.length || 0])
@@ -55,7 +59,7 @@ export function getKanbanSummary(board, now = new Date()) {
   return {
     total: tasks.length,
     criticalPriority: tasks.filter((task) => task.priority === 'CRITICA').length,
-    overdue: tasks.filter((task) => isTaskOverdue(task, now)).length,
+    overdue: tasks.filter((task) => isTaskOverdue(task, now, timeZone)).length,
     untraced: tasks.filter((task) => !hasTaskTraceability(task)).length,
     ...counts
   };
@@ -65,15 +69,28 @@ export function countActiveKanbanFilters(filters) {
   return Object.values(filters).filter(Boolean).length;
 }
 
-export function isTaskOverdue(task, now = new Date()) {
+export function isTaskOverdue(
+  task,
+  now = new Date(),
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+) {
   if (!task?.deadline || task.status === 'CONCLUIDO') return false;
   if (task.isFrozen) now = new Date(task.snapshotAt);
   const deadline = String(task.deadline).slice(0, 10);
-  const today = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0')
-  ].join('-');
+  if (!Number.isFinite(now.getTime())) return false;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      calendar: 'gregory',
+      numberingSystem: 'latn'
+    })
+      .formatToParts(now)
+      .map(({ type, value }) => [type, value])
+  );
+  const today = `${parts.year.padStart(4, '0')}-${parts.month}-${parts.day}`;
   return deadline < today;
 }
 

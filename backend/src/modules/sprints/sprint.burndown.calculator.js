@@ -1,3 +1,4 @@
+import { summarizeSprintEstimates } from './sprint.estimate.calculator.js';
 const MS_PER_DAY = 86400000;
 const CONCLUIDO = 'CONCLUIDO';
 const TERMINAL = ['CONCLUIDA', 'CANCELADA'];
@@ -38,7 +39,58 @@ function burnInstant(participation) {
   return null;
 }
 
-export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
+export function buildSprintBurndown({ sprint, participations = [], cutoff, projection }) {
+  if (sprint.burnupCoverageStartedAt) {
+    const historical = projection ?? {
+      state: 'UNAVAILABLE',
+      points: [],
+      limitations: ['BURNUP_HISTORY_NOT_LOADED'],
+      coverage: { truncated: false }
+    };
+    const points = historical.points;
+    const baseline = historical.baseline?.scope ?? null;
+    const firstNominal = toUtcDay(sprint.startDate ?? sprint.startedAt);
+    const nominalEnd = toInstant(sprint.endDate);
+    const lastNominal = nominalEnd === null ? null : toUtcDay(nominalEnd - 1);
+    const idealAt = (date) =>
+      baseline === null || firstNominal == null || lastNominal == null
+        ? null
+        : Math.round(
+            baseline *
+              (firstNominal === lastNominal
+                ? 1
+                : Math.max(
+                    0,
+                    Math.min(1, 1 - (toUtcDay(date) - firstNominal) / (lastNominal - firstNominal))
+                  )) *
+              10
+          ) / 10;
+    const days = points.map(({ date, remaining }) => ({ date, ideal: idealAt(date), remaining }));
+    const chartMax = Math.max(
+      0,
+      ...points.flatMap((point) => [point.scope, point.remaining]).filter(Number.isFinite),
+      ...days.map((day) => day.ideal).filter(Number.isFinite)
+    );
+    const hasData =
+      chartMax > 0 &&
+      days.some((day) => Number.isFinite(day.remaining) || Number.isFinite(day.ideal));
+    return {
+      hasData,
+      totalPoints: baseline,
+      idealBaseline: baseline,
+      chartMax,
+      frozen: TERMINAL.includes(sprint.status),
+      cutoffDate: points.findLast((point) => Number.isFinite(point.remaining))?.date ?? null,
+      days,
+      historicalState:
+        historical.state === 'AVAILABLE' && baseline === null ? 'PARTIAL' : historical.state,
+      historicalLimitations: [
+        ...historical.limitations,
+        ...(points.length && baseline === null ? ['BURNDOWN_BASELINE_UNAVAILABLE'] : [])
+      ],
+      truncated: historical.coverage.truncated
+    };
+  }
   const vazio = {
     hasData: false,
     totalPoints: 0,
@@ -59,10 +111,16 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
   if (days.length === 0 || (days.length < 2 && startedAt === null)) return vazio;
 
   const dentro = participations.filter((participation) => participation.removedAt === null);
-  const totalPoints = dentro.reduce(
-    (soma, participation) => soma + (Number(participation.points) || 0),
-    0
-  );
+  const estimates = summarizeSprintEstimates(dentro.map((participation) => participation.points));
+  if (estimates.unknownEstimateCount)
+    return {
+      ...vazio,
+      totalPoints: null,
+      chartMax: 0,
+      historicalState: 'PARTIAL',
+      historicalLimitations: ['TASK_ESTIMATE_MISSING']
+    };
+  const totalPoints = estimates.value;
   if (totalPoints <= 0) return vazio;
 
   const frozen = TERMINAL.includes(sprint.status);
@@ -79,7 +137,7 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
   const queimas = dentro
     .map((participation) => ({
       at: burnInstant(participation),
-      points: Number(participation.points) || 0
+      points: participation.points
     }))
     .filter((queima) => queima.at !== null);
 
@@ -87,6 +145,8 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
   return {
     hasData: true,
     totalPoints,
+    idealBaseline: totalPoints,
+    chartMax: totalPoints,
     frozen,
     cutoffDate:
       diaDoCorte !== null && diaDoCorte >= days[0] && diaDoCorte <= days[ultimo]

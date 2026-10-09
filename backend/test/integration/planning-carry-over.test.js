@@ -1,3 +1,4 @@
+import { concurrentTransactions } from '../helpers/transaction-arrival-barrier.js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
@@ -84,8 +85,7 @@ async function prepare(f) {
 
 async function historical(sprint) {
   const progress = await sprints.getSprintProgress(sprint.id);
-  // Continuity metadata may describe later work; every frozen metric remains in the comparison.
-  delete progress.carryOver;
+  // Continuity is now part of the frozen metric comparison as well.
   return {
     progress,
     summary: (await sprints.getSprintById(sprint.id)).historicalSummary,
@@ -97,6 +97,39 @@ async function historical(sprint) {
 }
 
 describe('Planning FIX-02 core carry-over and terminal presentation', () => {
+  it('keeps I43 frozen through D → E → D and Task deletion', async () => {
+    const f = await fixture();
+    await scope(f.first, [f.items[0]]);
+    await status(f.first, 'EM_ANDAMENTO');
+    await status(f.first, 'CONCLUIDA');
+    const { sprintAnalyticsService } =
+      await import('../../src/modules/indicators/sprint-analytics.service.js');
+    const read = async () => {
+      const result = await sprintAnalyticsService.read(f.project.id, { sprintId: f.first.id });
+      const metric = result.indicators.find((item) => item.metricId === 'I43');
+      const { asOf, ...frozen } = metric;
+      expect(asOf).toEqual(expect.any(String));
+      return frozen;
+    };
+    const before = await read();
+    expect(before).toMatchObject({
+      value: { incoming: 0, outgoing: 1 },
+      state: 'AVAILABLE',
+      items: [{ taskId: f.items[0].id, toSprintId: f.next.id }]
+    });
+    const later = await createSprint(prisma, f.project.id, {
+      name: 'Sprint 3',
+      startDate: f.next.endDate,
+      endDate: new Date(f.next.endDate.getTime() + 7 * 86400000)
+    });
+    await scope(later, [f.items[0]]);
+    expect(await read()).toEqual(before);
+    await scope(f.next, [f.items[0]]);
+    expect(await read()).toEqual(before);
+    await tasks.deleteTask(f.items[0].id, context());
+    expect(await read()).toEqual(before);
+  });
+
   it('moves only current pending Tasks to the contiguous next Sprint and freezes S1 after S2 work', async () => {
     const f = await fixture();
     const [t1, t2, t3, t4] = f.items;
@@ -144,7 +177,7 @@ describe('Planning FIX-02 core carry-over and terminal presentation', () => {
       historicalLimitations: []
     });
     expect(before.progress.scopeChange).toMatchObject({ added: [{ taskId: t4.id }], removed: [] });
-    expect(before.progress.burndown.totalPoints).toBe(21);
+    expect(before.progress.burndown).toMatchObject({ totalPoints: 8, chartMax: 21 });
     expect(
       await prisma.sprintTask.findMany({
         where: { sprintId: f.next.id },
@@ -211,6 +244,14 @@ describe('Planning FIX-02 core carry-over and terminal presentation', () => {
 
   it('selects the earliest future planned Sprint, ignoring earlier and other-project Sprints', async () => {
     const f = await fixture();
+    f.next = await prisma.sprint.update({
+      where: { id: f.next.id },
+      data: { startDate: new Date(f.first.endDate.getTime() + 86400000) }
+    });
+    const tie = await createSprint(prisma, f.project.id, {
+      startDate: f.next.startDate,
+      endDate: f.next.endDate
+    });
     const later = await createSprint(prisma, f.project.id, {
       startDate: f.next.endDate,
       endDate: new Date(f.next.endDate.getTime() + 86400000)
@@ -224,6 +265,7 @@ describe('Planning FIX-02 core carry-over and terminal presentation', () => {
     await prepare(f);
     expect((await status(f.first, 'CONCLUIDA')).carryOver.destinationSprintId).toBe(f.next.id);
     expect(await prisma.task.count({ where: { sprintId: later.id } })).toBe(0);
+    expect(await prisma.task.count({ where: { sprintId: tie.id } })).toBe(0);
   });
 
   it.each(['CANCELADA', 'CONCLUIDA', 'EM_ANDAMENTO'])(
@@ -309,10 +351,11 @@ describe('Planning FIX-02 core carry-over and terminal presentation', () => {
   it('serializes concurrent closes and refuses a repeated close without duplicated history or membership', async () => {
     const f = await fixture();
     await prepare(f);
-    const results = await Promise.allSettled([
-      status(f.first, 'CONCLUIDA'),
-      status(f.first, 'CONCLUIDA')
-    ]);
+    const results = await concurrentTransactions(
+      prisma,
+      [() => status(f.first, 'CONCLUIDA'), () => status(f.first, 'CONCLUIDA')],
+      { settled: true }
+    );
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.find((result) => result.status === 'rejected').reason).toMatchObject({
       code: 'SPRINT_INVALID_TRANSITION'

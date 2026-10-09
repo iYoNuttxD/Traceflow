@@ -63,6 +63,9 @@ jobs:
           ../scripts/*.mjs
           ../docs/security/npm-audit-exceptions.json
 
+      - name: Validate canonical UI inventory
+        run: node --test scripts/check-ui-inventory.test.mjs
+
       - name: Validate workflow policy
         run: node --test scripts/validate-ci.test.mjs
 
@@ -143,6 +146,36 @@ jobs:
           TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
         run: npm run db:test:validate-lr9
 
+      - name: Validate S2 P1 indicator data upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-s2-p1
+
+      - name: Validate S2 P3 lifecycle coverage upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-s2-p3
+
+      - name: Validate S2 P5.1 burnup history upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-s2-p5-1
+
+      - name: Validate dashboard preference upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-dashboard-preference
+
+      - name: Validate task responsibility snapshot upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-task-responsibility
+
       - name: Validate destructive migration contract guards
         working-directory: backend
         env:
@@ -161,15 +194,8 @@ jobs:
         # All subsequent test commands use unique, owned children of the runner temp directory.
         run: printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
-      - name: Run unit tests
-        working-directory: backend
-        run: npm run test:unit
-
-      - name: Run integration tests
-        working-directory: backend
-        run: npm run test:integration
-
-      - name: Enforce backend coverage
+      # Coverage runs the complete unit, API and integration suites once.
+      - name: Run all backend tests and enforce coverage
         working-directory: backend
         run: npm run test:coverage
 

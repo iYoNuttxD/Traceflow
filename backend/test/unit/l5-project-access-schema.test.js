@@ -8,7 +8,7 @@ const migration = readFileSync(
 );
 
 describe('migration L5.1 de código de acesso', () => {
-  it('rotaciona capacidades legadas com 128 bits, aplica default e preserva dados', () => {
+  it('mantém declarações estáticas; execução e preservação são verificadas na integração L5', () => {
     expect(migration).toContain('RANDOM_BYTES(16)');
     expect(migration).toContain("DEFAULT 'MEMBER'");
     expect(migration).toContain("IN ('MEMBER', 'VIEWER')");

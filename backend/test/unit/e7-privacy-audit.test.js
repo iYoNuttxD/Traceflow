@@ -1,9 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildAuditEvent, minimizeAuditMetadata } from '../../src/modules/audit/audit.service.js';
 import { privacyService } from '../../src/modules/privacy/privacy.service.js';
 import { privacyRepository } from '../../src/modules/privacy/privacy.repository.js';
 import { runPrivacyRetention } from '../../src/shared/maintenance/privacy-retention.js';
 import { createEnvironment } from '../../src/config/env.js';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe('E7 auditoria, privacidade e retenção', () => {
   it('minimiza metadata e aplica retenção sem PII ou segredo', () => {
@@ -15,6 +20,8 @@ describe('E7 auditoria, privacidade e retenção', () => {
         token: 'secret'
       })
     ).toEqual({ scope: 'account', count: 2 });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
     const event = buildAuditEvent(
       { actorUserId: 3, action: 'TEST', resourceType: 'User' },
       { auditRetentionDays: 30 }
@@ -25,7 +32,11 @@ describe('E7 auditoria, privacidade e retenção', () => {
       action: 'TEST',
       result: 'SUCCESS'
     });
-    expect(event.retentionUntil.getTime()).toBeGreaterThan(Date.now());
+    try {
+      expect(event.retentionUntil).toEqual(new Date('2030-01-31T00:00:00.000Z'));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('valida configuração de governança', () => {
@@ -47,7 +58,8 @@ describe('E7 auditoria, privacidade e retenção', () => {
     ).toThrow(/AUDIT_RETENTION_DAYS/);
   });
 
-  it('faz dry-run sem apagar e apply idempotente com evento técnico', async () => {
+  it('faz dry-run sem apagar e apply com filtros de retenção e evento técnico', async () => {
+    const now = new Date('2030-02-01T00:00:00.000Z');
     const tx = {
       auditEvent: { deleteMany: vi.fn(), create: vi.fn() },
       privacyRequest: { deleteMany: vi.fn() },
@@ -62,6 +74,7 @@ describe('E7 auditoria, privacidade e retenção', () => {
     expect(
       await runPrivacyRetention({
         client,
+        now,
         apply: false,
         configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
       })
@@ -70,10 +83,23 @@ describe('E7 auditoria, privacidade e retenção', () => {
     expect(
       await runPrivacyRetention({
         client,
+        now,
         apply: true,
         configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
       })
     ).toMatchObject({ mode: 'apply' });
+    expect(tx.privacyRequest.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        status: { in: ['COMPLETED', 'CANCELLED', 'REJECTED'] },
+        updatedAt: { lt: new Date('2030-01-02T00:00:00.000Z') }
+      }
+    });
+    expect(tx.auditEvent.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { retentionUntil: { lt: now } }
+    });
+    expect(tx.personalDataExport.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { expiresAt: { lt: now } }
+    });
     expect(tx.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: 'RETENTION_CLEANUP_EXECUTED' })
@@ -94,6 +120,7 @@ describe('E7 auditoria, privacidade e retenção', () => {
       mode: 'dry-run',
       count: 2
     });
+    expect(anonymize).not.toHaveBeenCalled();
     expect(await privacyService.processDueDeletions({ dryRun: false })).toEqual({
       mode: 'apply',
       count: 2,
@@ -102,6 +129,24 @@ describe('E7 auditoria, privacidade e retenção', () => {
       failed: 0
     });
     expect(anonymize).toHaveBeenCalledTimes(2);
+    for (const [index, requestId, userId] of [
+      [1, 1, 4],
+      [2, 2, 5]
+    ]) {
+      expect(anonymize).toHaveBeenNthCalledWith(
+        index,
+        requestId,
+        expect.objectContaining({ name: 'Usuário excluído', githubUserFingerprint: null }),
+        expect.objectContaining({
+          completedAuditData: expect.objectContaining({
+            actorUserId: userId,
+            resourceId: String(userId),
+            action: 'ACCOUNT_ANONYMIZED'
+          })
+        }),
+        expect.any(Date)
+      );
+    }
     vi.restoreAllMocks();
   });
 

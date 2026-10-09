@@ -1,3 +1,4 @@
+import { closingSprintEstimate } from '../sprint.estimate.calculator.js';
 import { buildClosingTaskSnapshot } from '../sprint-task.projection.js';
 import { isTerminalSprintStatus } from '../sprint.schema.js';
 import { Prisma } from '@prisma/client';
@@ -5,6 +6,7 @@ import { prisma } from '../../../database/prismaClient.js';
 import { lockMilestone } from '../../../database/locks.js';
 import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
+import { captureBurnupBaseline, captureBurnupScope } from '../sprint-burnup.events.js';
 
 export const sprintSelect = {
   id: true,
@@ -17,6 +19,7 @@ export const sprintSelect = {
   startedAt: true,
   completedAt: true,
   planningSnapshotAt: true,
+  burnupCoverageStartedAt: true,
   closedAt: true,
   milestoneId: true,
   deletedAt: true,
@@ -62,12 +65,12 @@ async function capturePlanning(tx, sprintId, tasks) {
   for (const task of tasks) {
     await tx.sprintTask.updateMany({
       where: { sprintId, taskId: task.id, removedAt: null },
-      data: { plannedAtStart: true, pointsAtPlanning: task.estimatedEffort ?? 0 }
+      data: { plannedAtStart: true, pointsAtPlanning: task.estimatedEffort }
     });
   }
 }
 
-async function freezeParticipations(tx, sprint, closedAt) {
+async function freezeParticipations(tx, sprint, closedAt, continuation) {
   const tasks = await tx.task.findMany({
     where: { sprintId: sprint.id },
     select: {
@@ -128,13 +131,18 @@ async function freezeParticipations(tx, sprint, closedAt) {
         exitStatus: participation.currentStatus,
         pointsAtClose: participation.points,
         completedAtClose: participation.completedAt,
-        closingTaskSnapshot: buildClosingTaskSnapshot(byId.get(participation.taskId))
+        closingTaskSnapshot: buildClosingTaskSnapshot(
+          byId.get(participation.taskId),
+          continuation && participation.currentStatus !== 'CONCLUIDO'
+            ? { toSprintId: continuation.destination.id, at: closedAt.toISOString() }
+            : null
+        )
       }
     });
   }
 }
 
-async function findBurndownData(client, sprint) {
+async function findBurndownData(client, sprint, includeCompletions = true) {
   const frozen = ['CONCLUIDA', 'CANCELADA'].includes(sprint.status);
   const participations = await client.sprintTask.findMany({
     where: { sprintId: sprint.id },
@@ -145,7 +153,7 @@ async function findBurndownData(client, sprint) {
     orderBy: [{ id: 'asc' }]
   });
   const taskIds = participations
-    .filter((p) => !frozen && p.closedAt === null)
+    .filter((p) => !frozen && includeCompletions && p.closedAt === null)
     .map((p) => p.taskId)
     .filter(Boolean);
   const completions = taskIds.length
@@ -172,7 +180,10 @@ async function findBurndownData(client, sprint) {
     return {
       id: p.id,
       taskId: p.taskId,
-      points: frozen || p.closedAt !== null ? p.pointsAtClose : (p.task?.estimatedEffort ?? 0),
+      points:
+        frozen || p.closedAt !== null
+          ? closingSprintEstimate(p)
+          : (p.task?.estimatedEffort ?? null),
       addedAt: p.addedAt,
       removedAt: p.removedAt,
       closedAt: p.closedAt,
@@ -185,6 +196,7 @@ async function findBurndownData(client, sprint) {
 
 async function applyScopePlan(tx, sprint, plan) {
   const sprintId = sprint.id;
+  await captureBurnupScope(tx, sprint, plan);
   for (const saida of plan.close) {
     await tx.sprintTask.update({
       where: { id: saida.id },
@@ -275,6 +287,13 @@ export const sprintRepository = {
     return prisma.sprintTask.findMany({
       where: { sprintId: { in: sprintIds } },
       select: sprintTaskSelect
+    });
+  },
+
+  findBaselineEventsBySprints(sprintIds) {
+    return prisma.sprintBurnupEvent.findMany({
+      where: { sprintId: { in: sprintIds }, type: 'BASELINE_TASK' },
+      select: { sprintId: true, type: true, newPoints: true, occurredAt: true }
     });
   },
 
@@ -383,10 +402,12 @@ export const sprintRepository = {
 
         if (data.startedAt) {
           await capturePlanning(tx, id, tasks);
+          await captureBurnupBaseline(tx, atual, tasks, data.startedAt);
           data.planningSnapshotAt = data.startedAt;
+          data.burnupCoverageStartedAt = data.startedAt;
         }
         if (freezeAt) {
-          await freezeParticipations(tx, atual, freezeAt);
+          await freezeParticipations(tx, atual, freezeAt, continuation);
           data.closedAt = freezeAt;
         }
         const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
@@ -534,7 +555,14 @@ export const sprintRepository = {
       const tasks = taskIdsParaTravar.length
         ? await tx.task.findMany({
             where: { id: { in: taskIdsParaTravar } },
-            select: { id: true, projectId: true, sprintId: true, status: true, title: true }
+            select: {
+              id: true,
+              projectId: true,
+              sprintId: true,
+              status: true,
+              title: true,
+              estimatedEffort: true
+            }
           })
         : [];
 
@@ -570,18 +598,23 @@ export const sprintRepository = {
         select: { ...sprintTaskSelect, ...(frozen ? {} : { task: { select: { status: true } } }) },
         orderBy: [{ taskId: 'asc' }]
       }),
-      prisma.sprintTask.findMany({
-        where: { carriedFromSprintId: sprintId },
-        select: { taskId: true, sprintId: true }
-      })
+      ...(frozen
+        ? []
+        : [
+            prisma.sprintTask.findMany({
+              where: { carriedFromSprintId: sprintId },
+              select: { taskId: true, sprintId: true }
+            })
+          ])
     ]);
 
     const movedTo = new Map(
-      continuations.map((continuation) => [continuation.taskId, continuation.sprintId])
+      (continuations ?? []).map((continuation) => [continuation.taskId, continuation.sprintId])
     );
     return participations.map((participation) => ({
       pointsAtPlanning: participation.pointsAtPlanning,
       pointsAtClose: participation.pointsAtClose,
+      closingTaskSnapshot: participation.closingTaskSnapshot,
       taskId: participation.taskId,
       taskTitleSnapshot: participation.taskTitleSnapshot,
       addedAt: participation.addedAt,
@@ -592,12 +625,36 @@ export const sprintRepository = {
       removalReason: participation.removalReason,
       exitStatus: participation.exitStatus,
       currentStatus: frozen || participation.closedAt ? null : (participation.task?.status ?? null),
-      movedToSprintId: movedTo.get(participation.taskId) ?? null
+      carryOverKnown:
+        !frozen ||
+        (participation.closingTaskSnapshot?.version === 4 &&
+          Object.hasOwn(participation.closingTaskSnapshot, 'outgoingCarryOver')),
+      movedToSprintId: frozen
+        ? (participation.closingTaskSnapshot?.outgoingCarryOver?.toSprintId ?? null)
+        : (movedTo.get(participation.taskId) ?? null),
+      carriedAt: frozen ? (participation.closingTaskSnapshot?.outgoingCarryOver?.at ?? null) : null
     }));
   },
 
   async findBurndownDataBySprint(sprint) {
-    return findBurndownData(prisma, sprint);
+    return findBurndownData(prisma, sprint, !sprint.burnupCoverageStartedAt);
+  },
+
+  findHistoricalEventsBySprint(sprintId) {
+    return prisma.sprintBurnupEvent.findMany({
+      where: { sprintId },
+      select: {
+        id: true,
+        taskKey: true,
+        type: true,
+        previousPoints: true,
+        newPoints: true,
+        fromStatus: true,
+        toStatus: true,
+        occurredAt: true
+      },
+      orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }]
+    });
   },
 
   // Linhas de esforço por tarefa (S1-06). Sprint aberta lê a tarefa viva; sprint
@@ -654,7 +711,13 @@ export const sprintRepository = {
         },
         orderBy: [{ id: 'asc' }]
       });
-      return { sprint, participations };
+      const events = frozen
+        ? await tx.sprintBurnupEvent.findMany({
+            where: { sprintId, type: 'BASELINE_TASK' },
+            select: { type: true, newPoints: true, occurredAt: true }
+          })
+        : [];
+      return { sprint, participations, events };
     });
   },
 

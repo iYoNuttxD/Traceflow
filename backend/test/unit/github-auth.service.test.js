@@ -328,6 +328,8 @@ describe('autenticação GitHub L1.1', () => {
     await expect(githubAuthService.completeCallback(state.input)).rejects.toMatchObject({
       code: 'GITHUB_VERIFIED_EMAIL_REQUIRED'
     });
+    expect(mocks.repository.createGithubAccount).not.toHaveBeenCalled();
+    expect(mocks.auth.issueSession).not.toHaveBeenCalled();
   });
 
   it('inicia reautenticação sensível para conta GitHub-only inclusive em exclusão pendente', async () => {

@@ -77,6 +77,9 @@ export function createGithubAppCredentialProvider({
       if (codeVerifier) body.set('code_verifier', codeVerifier);
       const response = await fetchImpl('https://github.com/login/oauth/access_token', {
         method: 'POST',
+        signal: AbortSignal.timeout(
+          environment.githubRequestTimeoutMs ?? env.githubRequestTimeoutMs
+        ),
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded'

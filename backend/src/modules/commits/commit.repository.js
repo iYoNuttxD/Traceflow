@@ -30,7 +30,7 @@ export const commitRepository = {
     if (!hashes.length) return [];
     return prisma.commit.findMany({
       where: { projectId, hash: { in: hashes } },
-      select: { id: true, projectId: true, hash: true, message: true }
+      select: { id: true, projectId: true, hash: true, message: true, authorGithubUserId: true }
     });
   },
 
@@ -46,6 +46,19 @@ export const commitRepository = {
     return withActiveProjectWrite(data[0].projectId, (tx) =>
       tx.commit.createMany({ data, skipDuplicates: true })
     );
+  },
+
+  async fillGithubAuthorIds(projectId, commits) {
+    const identified = commits.filter(({ authorGithubUserId }) => authorGithubUserId != null);
+    if (!identified.length) return;
+    await withActiveProjectWrite(projectId, async (tx) => {
+      for (const commit of identified) {
+        await tx.commit.updateMany({
+          where: { projectId, hash: commit.hash, authorGithubUserId: null },
+          data: { authorGithubUserId: commit.authorGithubUserId }
+        });
+      }
+    });
   },
 
   async createBranchLinks(projectId, data) {

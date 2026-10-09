@@ -37,6 +37,10 @@ describe('formulários de identidade acessíveis', () => {
       'Campo obrigatório.'
     );
     expect(auth.login).not.toHaveBeenCalled();
+    expect(screen.getByText('Acesse com seu nome de usuário ou e-mail.')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(
+      /Acesso seguro|Identidade TRACEFLOW|ambiente seguro|aviso de privacidade/i
+    );
   });
 
   it('mapeia fieldErrors seguros do backend e reabilita o submit', async () => {
@@ -55,6 +59,10 @@ describe('formulários de identidade acessíveis', () => {
         <RegisterPage />
       </MemoryRouter>
     );
+    expect(screen.getByText('Preencha os campos para criar sua conta.')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(
+      /Acesso seguro|Identidade TRACEFLOW|ambiente seguro|aviso de privacidade|GitHub App|repositório|instalação/i
+    );
     expect(screen.queryByLabelText(/CPF/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/telefone/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/token GitHub/i)).not.toBeInTheDocument();
@@ -70,7 +78,7 @@ describe('formulários de identidade acessíveis', () => {
     expect(screen.getByRole('button', { name: 'Criar conta' })).toBeEnabled();
   });
 
-  it('oferece sessão persistente, visualização de senha e login GitHub funcional', async () => {
+  it('oferece sessão persistente, visualização de senha e ação de login GitHub', async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -143,30 +151,6 @@ describe('formulários de identidade acessíveis', () => {
       password: 'Frase longa segura 123',
       rememberMe: true
     });
-  });
-
-  it('mantém a copy pública funcional e não reintroduz conteúdo institucional', () => {
-    const { unmount } = render(
-      <MemoryRouter>
-        <LoginPage />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByText('Acesse com seu nome de usuário ou e-mail.')).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent(/Acesso seguro|Identidade TRACEFLOW/i);
-    expect(document.body).not.toHaveTextContent(/ambiente seguro|aviso de privacidade/i);
-
-    unmount();
-    render(
-      <MemoryRouter>
-        <RegisterPage />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByText('Preencha os campos para criar sua conta.')).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent(/Acesso seguro|Identidade TRACEFLOW/i);
-    expect(document.body).not.toHaveTextContent(/ambiente seguro|aviso de privacidade/i);
-    expect(document.body).not.toHaveTextContent(/GitHub App|repositório|instalação/i);
   });
 
   it('preserva a resposta genérica de recuperação e usa retorno determinístico', async () => {

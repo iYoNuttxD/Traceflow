@@ -1,6 +1,6 @@
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-router';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { DefectCard } from '../../src/features/defects/DefectsScreen.jsx';
 import { DefectFlow } from '../../src/features/defects/components/DefectFlow.jsx';
@@ -12,6 +12,16 @@ vi.mock('../../src/features/defects/api/defects.api.js', () => ({ defectsApi: ap
 vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({
   testCasesApi: { list: api.cases }
 }));
+function TaskRouteProbe() {
+  const location = useLocation(),
+    navigate = useNavigate();
+  return (
+    <>
+      <output>{location.pathname + location.search + location.hash}</output>
+      <button onClick={() => navigate(-1)}>Voltar ao defeito</button>
+    </>
+  );
+}
 const wrap = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 beforeEach(() => {
   vi.resetAllMocks();
@@ -130,20 +140,33 @@ it('keeps a correction task as a route link without closing away the defect retu
     correctionCycles: [{ cycle: 1, tasks: [{ ...task, id: 17 }] }]
   });
   const close = vi.fn();
-  wrap(
-    <DefectFlow
-      projectId={1}
-      initialId={1}
-      initialSection="correction"
-      options={options}
-      onClose={close}
-    />
+  render(
+    <MemoryRouter initialEntries={['/projects/1/defects?defect=1']}>
+      <Routes>
+        <Route
+          path="/projects/1/defects"
+          element={
+            <DefectFlow
+              projectId={1}
+              initialId={1}
+              initialSection="correction"
+              options={options}
+              onClose={close}
+            />
+          }
+        />
+        <Route path="/projects/1/kanban" element={<TaskRouteProbe />} />
+      </Routes>
+    </MemoryRouter>
   );
   const region = await screen.findByRole('region', { name: 'Correção' });
   const link = within(region).getByRole('link', { name: /TASK-17/ });
   expect(link).toHaveAttribute('href', '/projects/1/kanban?task=17');
   await userEvent.setup().click(link);
   expect(close).not.toHaveBeenCalled();
+  expect(screen.getByText('/projects/1/kanban?task=17')).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Voltar ao defeito' }));
+  expect(await screen.findByRole('region', { name: 'Correção' })).toBeInTheDocument();
 });
 it.each([false, true])(
   'shares six shells and keeps the create action in the footer (populated=%s)',
@@ -178,6 +201,15 @@ it.each([false, true])(
     const action = screen.getByRole('button', { name: 'Criar caso de teste' });
     expect(action.closest('footer')).toHaveClass('task-detail-artifact-footer');
     expect(action.closest('.task-detail-artifact-body')).toBeNull();
+    if (populated)
+      expect(screen.getByRole('link', { name: /TC-5/ })).toHaveAttribute(
+        'href',
+        '/projects/1/test-cases?case=5'
+      );
+    expect(screen.getByRole('link', { name: /DEF-1/ })).toHaveAttribute(
+      'href',
+      '/projects/1/defects?defect=1'
+    );
     const quality = screen.getByRole('region', { name: 'Qualidade' });
     expect(quality.querySelectorAll('.task-detail-relation-list')).toHaveLength(populated ? 2 : 1);
     const rows = quality.querySelectorAll('.entity-row');

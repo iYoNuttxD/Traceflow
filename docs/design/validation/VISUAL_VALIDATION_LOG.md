@@ -1,5 +1,131 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-27 — S2 P8.3 Project Health (API real + fixtures sintéticas)
+
+No Chrome local, `projects/2` autenticado consumiu a API real após o P8.3. A visão Geral exibiu
+`73/100 · Atenção`, cobertura ponderada `69%`, `16 de 20` sinais, cinco dimensões avaliadas e
+Fluxo sem base suficiente. Qualidade e Integração técnica apareceram como críticas; os três
+drivers negativos e positivos foram apresentados com títulos do catálogo e bases numéricas.
+I28 mostrou `Saudável` no próprio card sem esconder o valor bruto `3` nem o estado independente
+do Burndown parcial. Desktop 1440 px Dark não teve overflow horizontal (`scrollWidth=1440`).
+
+A fixture local `frontend/test/visual/p8.html?health=...&theme=...` usa respostas sintéticas,
+sem banco ou rede. HEALTHY (86), ATTENTION (68), CRITICAL (43) e UNASSESSED (`—`, cobertura 42%)
+foram renderizados em **1440 e 390 px, Light e Dark**: 16 combinações verificadas no DOM após
+carga completa, todas com seis linhas dimensionais e `scrollWidth=innerWidth`. Capturas visuais
+foram inspecionadas para HEALTHY 1440/390 Dark, CRITICAL 390 Light, UNASSESSED 390 Dark e ATTENTION
+768 Dark; no tablet, `scrollWidth=768`. Em 390 px, dimensões e drivers empilham, nota/status/
+cobertura permanecem no topo e não há tabela larga. O help do modelo foi aberto visualmente na
+API real e mostrou propósito, limite de cobertura, versão e risco de interpretar a nota como
+desempenho humano. Teste de componente confirma texto, pesos, janela e badge individual.
+
+Esta é validação visual local de composição e responsive, não auditoria WCAG instrumental,
+homologação cross-browser ou prova externa de frescor GitHub. A fixture não valida fórmulas;
+backend unit/API as validam separadamente. Tema original Escuro e viewport temporário foram
+restaurados ao concluir a inspeção.
+
+## 2026-09-27 — S2 P8.2 Dashboard visual e UX (API local real)
+
+Chrome autenticado em `localhost:5173/projects/2`, consumindo catálogo e agregado P7 reais do
+Project persistido. Antes da edição, a inspeção em 1710 px Dark mostrou filtros permanentemente
+abertos, IDs e badges `Disponível` em todos os cards, seis cards grandes no Panorama, WIP `2` com
+a mesma altura da lista de três Tasks atrasadas, Burndown de um ponto com data repetida nos dois
+extremos do eixo, rodapés/timestamps por card e grandes vazios. O frontend já expunha contagens do
+I58 como percentuais por herdar a unidade do indicador.
+
+Após o redesign, GENERAL foi inspecionada em Dark 1710/390 e Light 1440. GITHUB com período
+01–27/09 mostrou `127` commits observados, `93` na main (`67` associados e `26` não associados),
+limitação de histórico de PR no cabeçalho da seção e filtros recolhíveis com resumo na URL. FLOW
+mostrou I22 (27 pontos) e I25 (26 pontos), crosshair/seleção, resumo do ponto e tabela. SPRINT
+mostrou I45/I46 de um ponto como resumo e I47 de uma Sprint como snapshot. QUALITY em Light 390
+mostrou I58 `33,33%` e distribuição `1/1/1` sem `%`; concentração usa singular/plural de defeito.
+TRACEABILITY em Light 1440/390 mostrou sete dimensões e uma mensagem comum de recorte não aplicado.
+
+| Largura | Dark | Light | Observação |
+| ---: | --- | --- | --- |
+| 1440 px | Sete visões com 7/15/6/14/10/14/7 widgets | Mesmas sete visões | Sem overflow horizontal; seções e toolbar alinhadas |
+| 1280 px | Sete visões | Sete visões | Fluxo cumulativo e listas com larguras distintas; sem overflow horizontal |
+| 768 px | Sete visões | Sete visões | Histórico da Sprint empilhado; tabelas/ajuda acessíveis; sem overflow horizontal |
+| 390 px | Sete visões | Sete visões | Cards em coluna, toolbar rolável, filtros em disclosure; sem overflow horizontal |
+
+Em cada largura, `document.documentElement.scrollWidth` igualou `window.innerWidth` após a resposta
+da visão. Nenhuma das chaves `associated`, `unassociated`, `unassignedHistoricalCount`,
+`unknownCount`, `people` ou `Defects` apareceu no texto visível comum. `AVAILABLE`, `PARTIAL`,
+`NO_DATA` e `UNAVAILABLE` foram vistos na API real; `STALE` permaneceu coberto por teste de
+componente, sem fonte GitHub desatualizada criada artificialmente no banco de desenvolvimento.
+Ajuda, filtro, foco e tabela foram examinados via controles nativos; o refresh local continua
+distinto de Sincronizar. Em 390 px Light, a ajuda de WIP abriu com cálculo em linguagem de uso,
+e “Detalhes técnicos” revelou a fórmula somente após nova ação; o painel permaneceu dentro da
+largura da tela. O tema Escuro original e o override temporário de viewport foram restaurados.
+Uma amostra de contraste calculada sobre cores efetivas do Chrome mediu 5,76:1–18,06:1 em Light
+e 7,26:1–17,61:1 em Dark para cabeçalhos, texto secundário, aviso de período e controle de filtro.
+Não houve auditoria WCAG integral nem validação cross-browser.
+
+## 2026-09-25 — S2 P8.1 Dashboard com API real e sync GitHub externa (PASS LOCAL)
+
+Chrome autenticado em `localhost:5173/projects/2`, Project persistido de homologação local,
+backend P7 e banco de desenvolvimento reais. Entrada por `/projects` → Project → Visão geral.
+GENERAL, GITHUB, FLOW, SPRINT, TASK, QUALITY e TRACEABILITY foram abertas com respostas do
+agregado real. GENERAL mostrou I01 `46,67%`, WIP `2`, Tasks atrasadas `2`, I61 `100%`, I66 `25%`,
+quatro Defects e I45 parcial, comparados com o service no mesmo banco. Sprint concluída legada
+mostrou I45 com lacunas e I46 indisponível sem gráfico; Sprint em andamento mostrou I45/I46
+parciais. Período de um dia mudou I09 de `298` para `7`; responsável sem recorte seguro mostrou
+aviso e marca por card, sem alterar WIP.
+
+| Largura real | Tema | Visões com dados reais | Observação | Resultado |
+| ---: | --- | --- | --- | --- |
+| 1710 px | Dark | GENERAL, GITHUB, FLOW, SPRINT, TASK, QUALITY, TRACEABILITY | Cards, séries, listas, ajuda e filtros; sem overflow horizontal observado | PASS local |
+| 1710 px | Light | GENERAL, SPRINT, QUALITY, TRACEABILITY | Dados persistidos e estados visíveis; sem overflow horizontal observado | PASS local |
+| 1440/1280 px | Light/Dark | SPRINT | I46 disponível por eventos reais do banco de teste; 14 cards, sem overflow horizontal | PASS local |
+| 768 px | Light/Dark | GENERAL, SPRINT, QUALITY, TRACEABILITY | Respostas reais com 7/14/14/7 cards; sem overflow horizontal | PASS local |
+| 390 px | Light/Dark | GENERAL, SPRINT, QUALITY, TRACEABILITY | Cards com 358 px, sem overflow horizontal; gráfico/tabela I46 real em ambos os temas | PASS local |
+| 390 px | Dark | QUALITY e TRACEABILITY no Project de desenvolvimento | 14 cards Quality com dados persistidos; sete valores não vazios de Traceability; ajuda/foco legíveis | PASS local |
+
+Sync GitHub externa acionada pela UI: run `17` `SUCCEEDED`, um commit novo persistido, freshness
+GitHub `17:55` → `18:54` e nova montagem do Dashboard `18:53` → `18:54`. Hash do histórico
+congelado da Sprint `13` permaneceu igual antes/depois. No banco de teste, login/API reais criaram
+Project, Sprint e Tasks; o domínio capturou seis eventos de Burnup. O frontend autenticado exibiu
+I46 `AVAILABLE`, com 25/09 `7 h` de escopo e `5 h` concluídos, e lacunas `—` nos dias futuros,
+iguais à resposta P7. A fixture foi removida e o banco de teste retornou a zero usuários/Projects/
+eventos de Burnup.
+
+Foram inspecionados screenshots de Light/Dark no desktop e no mobile, incluindo I46 com tabela.
+Uma primeira tentativa de resize atuou na aba errada e foi descartada; a matriz acima foi medida
+após ativar a aba correta. ArrowRight moveu seleção/foco visível de Qualidade para Rastreabilidade;
+o help I61 permaneceu legível em 390 px. O tema Dark original e o override de viewport foram
+restaurados. Não houve auditoria WCAG completa, medição de contraste instrumental, contagem de
+rede pelo DevTools nem validação cross-browser. A evidência da fixture P8 abaixo continua separada
+da API real. A surface foi promovida a `VISUALLY APPROVED` localmente; detalhes no
+[relatório P8.1](../../deliveries/S2_P8_1_REAL_DASHBOARD_HOMOLOGATION_REPORT.md).
+
+## 2026-09-25 — S2 P8 Dashboard na Visão Geral (fixture local)
+
+Chrome em `127.0.0.1:5179/test/visual/p8.html`, renderizando o
+`ProjectDetailsScreen` e a feature `DashboardPanel` reais. O adapter HTTP da fixture entrega
+respostas sintéticas no formato P7 em memória; nenhum banco, conta, GitHub ou API backend real foi
+consultado. Os dados e o shell mínimo da fixture não representam uma sessão autenticada completa.
+
+| Visão/estado | Largura | Tema | Observação renderizada | Resultado |
+| --- | ---: | --- | --- | --- |
+| GENERAL: AVAILABLE, STALE | 1440, 390 | Light/Dark | Contexto, sete widgets, fonte por card, Burndown e filtro visíveis; contexto recolhível em 390 | Sem clipping ou dado falso observado |
+| SPRINT: I45/I46 AVAILABLE | 390 | Light/Dark | Linhas separadas, linha ideal tracejada, legenda e tabela; cards empilhados | Legível; labels do SVG pequenos em 390, tabela textual disponível |
+| SPRINT: I46 PARTIAL | 390 | Dark | Dois pontos históricos `null` não desenhados; aviso de cobertura no card | Sem zero histórico inventado |
+| SPRINT: I46 UNAVAILABLE | 390 | Dark | Mensagem da limitação e nenhum gráfico Burnup | Estado distinto de zero |
+| QUALITY: execuções, saúde atual e concentração | 390 Light; 768 Dark | Light/Dark | Seções separadas e aviso de Defect que aparece em mais de um Requirement | Legível |
+| TRACEABILITY: I61–I67 e I64 NO_DATA | 390 | Light/Dark | Métricas independentes; NO_DATA sem barra de 0% | Legível |
+| GITHUB, FLOW, TASK: AVAILABLE/PARTIAL | 1280 | Dark | Cards, série I22, área I25 e listas inspecionados | Sem clipping ou overflow observado |
+| Help do card e contexto expandido | 390 | Dark | Help absoluto dentro dos 390px; toggle revela Projeto/GitHub/Equipe e metadata | Ações e detalhes preservados |
+
+Matriz de largura após o ajuste de contexto: 1440/1280/768/390 px em Light e Dark;
+`scrollWidth` do documento igual à largura da viewport nas oito células. Grid analítico de
+3/3/2/1 colunas; em 768/390 o contexto começa recolhido e pode ser expandido. O modo Sistema foi
+aberto na fixture com `ThemeProvider` e resolveu para Dark, acompanhando a preferência do sistema
+observada no navegador. Navegação das tabs, ajuda e expansão do contexto foram operadas.
+
+Evidência **local e parcial**: dados sintéticos, sem fluxo autenticado/API P7 real, GitHub externo,
+cross-browser, medição WCAG completa ou todos os estados de erro por viewport. A surface modificada
+permanece `TECHNICALLY VERIFIED` no inventário; esta rodada não a promove a `VISUALLY APPROVED`.
+
 ## 2026-09-23 — PR #21 targeted corrections (inspeção parcial)
 
 Chrome real autenticado em `localhost:5173`, projeto local 2, sem mutation de negócio.
@@ -670,3 +796,607 @@ comprovam apresentação/responsividade, enquanto autorização e mutations são
 cobertas pela suíte API. Abas auxiliares e servidores temporários foram encerrados.
 Não substitui CI remoto, dispositivo físico ou certificação WCAG integral. Ver o
 [relatório de implementação](../../deliveries/PROJECT_DELETION_RETENTION_IMPLEMENTATION_REPORT.md).
+
+## 2026-09-28 — P8.5 Indicators Workspace
+
+**CHANGES REQUIRED — matriz visual incompleta.** Indicadores/Geral, Overview
+compacta, Casos de teste e Defeitos foram observados no Chrome nativo desktop Dark,
+com sessão/API reais e dados persistidos do projeto local 2. A leitura observada
+foi 73/100, cobertura 69%. Ajustados espaçamento da Overview, barra de saúde,
+colunas de tabelas e container responsivo da nova página.
+
+O browser integrado não estava disponível. O fallback nativo apresentou foco e
+valores inconsistentes nos controles de emulação e conteúdo antigo após mudança
+de URL; essas capturas não homologam a matriz. Falta concluir Light/Dark em
+1440/1280/1024/768/430/390/360 para Overview e Geral/Fluxo/Sprint/Qualidade/
+Rastreabilidade, com comparação de Tarefas/Requisitos e verificação de gráficos,
+ajuda, filtros, acessibilidade e overflow. Automação alternativa depende da
+autorização solicitada conforme as instruções da ferramenta de interface.
+
+Os gates automatizados passaram, mas não substituem a inspeção visual. Detalhes:
+[relatório P8.5](../../deliveries/S2_P8_5_INDICATORS_WORKSPACE_COMMERCIAL_UX_REPORT.md).
+
+
+## 2026-09-28 — P8.6A UI Consistency & Commercial UX Recovery
+
+**PASS LOCAL.** Overview e Geral/Planejamento/GitHub/Fluxo/Sprint/Tarefas/Qualidade/Rastreabilidade renderizados com frontend e API reais, projeto artificial persistido em `traceflow_test`. Chrome via CDP autorizado explicitamente após falhas no controle nativo. Matriz de 126 capturas: Light/Dark × 1440/1280/1024/768/430/390/360 × nove superfícies, sem overflow horizontal ou alertas de erro. Inspeção visual direta das categorias em amostras distribuídas entre as larguras e temas; comparação renderizada com as seis páginas maduras.
+
+Correções após renderização: padding/ícone do Health no mesmo container, regra que sobrescrevia a fonte das abas, largura da barra versus marker e remoção de texto informativo redundante. SummaryPanel de Casos de teste e Indicadores apresentou estilos computados idênticos de fonte, tamanho, peso, letter spacing e padding. Filtro expandido mobile com alvos de 44px; somente datas/Sprint, contexto preservado entre categorias. Ajuda dentro do viewport, Escape e retorno de foco confirmados. Refresh único incluindo Health. CTA da Overview navega para Indicadores.
+
+Burndown/Burnup: cinco pontos reais na Sprint atual e snapshots de um ponto em Sprint encerrada (aproximadamente 194px, sem “Ver dados”). Velocity com duas Sprints; CFD com SVG 352px/área útil aproximada 283px. Referências percentuais com marker e texto; tabela de PR com título longo legível no mobile. Estados vazios e limitações usam apresentação compacta e hierarquia de mensagens.
+
+Matriz automática não equivale à leitura manual de cada pixel das 126 capturas. A inspeção direta é amostral e complementar aos testes; não cobre dispositivo físico, leitor de tela ou sincronização externa GitHub. Registros de origem GitHub são artificiais no banco isolado. O projeto/conta de teste foram removidos após validar o ambiente e conferir ausência de mudança em registros congelados preexistentes. Gates e evidência transitória em `/private/tmp/traceflow-p86-evidence/`, detalhados no [relatório P8.6A](../../deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md).
+
+
+Conferência final adicional do projeto local 2, somente leitura no Chrome conectado: Health 73/100, Atenção, cobertura 69%, principal área Qualidade e barra/CTA integrados ao container de Overview. Aba auxiliar fechada; aba original de Defeitos e serviços do usuário preservados. Navegador isolado e servidores temporários encerrados.
+
+
+## 2026-09-28 — S2 P8.6B: dataset representativo e séries
+
+Chrome autenticado, frontend local em 5173 e API real em 3001; projeto artificial 2.
+Todas as categorias em 1440px/dark: Geral, Planejamento, GitHub, Fluxo, Sprint,
+Tarefas, Qualidade, Rastreabilidade. Visão Geral em 1440px/light. Amostras adicionais:
+Tarefas 1280/light e 390/dark; Qualidade 1024/light; Fluxo 768/light e 360/light;
+Sprint 430/light. Não houve overflow horizontal do documento nas amostras estreitas.
+Rolagem horizontal de tabelas permanece contida na região. Legendas de Velocity,
+referências de duração, lacunas e área útil de CFD foram examinadas.
+
+Dados maiores revelaram rankings excessivamente altos e seleção inicial vazia em
+séries esparsas. Corrigidos com altura máxima da região, cabeçalho fixo, indicação de
+ranking parcial e seleção inicial da primeira amostra. Reinspeção após alterações.
+Capturas integrais podem posicionar elementos fixed conforme o offset do viewport;
+a avaliação da composição do conteúdo foi complementada por leitura DOM e captura
+de viewport, sem atribuir esse efeito da captura ao layout da aplicação.
+Evidências locais transitórias: `/private/tmp/traceflow-p86b-evidence/`.
+Fluxo também inspecionado com janela de 30 dias (30 pontos e 30 linhas de dados),
+com lacunas preservadas. Rolagem de ranking por PageDown e header fixo confirmados.
+Detalhes e limites no [relatório](../../deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md).
+
+## 2026-09-28 — S2 P8.6C: auditoria final independente
+
+Chrome autenticado, API real 3001/frontend 5173, projeto artificial 2. Matriz nova com
+90 capturas finais: Overview e oito categorias, 1440/1280/1024/768/430/390/360 Light,
+mais 1440/768/390 Dark. Sem overflow horizontal do documento. Inspeção visual direta
+amostral, DOM, teclado e dados complementares; não se afirma revisão de cada pixel.
+
+Encontrada divergência no h1: Indicadores 40px, páginas maduras 48px no mesmo viewport.
+Removida exceção de IndicatorsScreen.css para herdar a tipografia global. Nova leitura
+48px desktop/32px mobile e matriz renderizada após a correção. Summary e filtro usam
+primitives canônicas. 83 tooltips abertos/fechados por teclado em 390px, sem conteúdo
+técnico ou extravasamento; foco restaurado. Tabelas com rolagem horizontal por teclado,
+referências de Flow, Burndown/Burnup de oito pontos e Velocity de quatro Sprints conferidos.
+
+Sync GitHub real SUCCEEDED (run 18); atualização refletida no Summary. Conferência
+independente de Planning/Flow/Sprint/Quality/Traceability e snapshot original preservado.
+Frontend 1280 testes; backend 1459, com cinco skips legados; demais gates aprovados.
+
+**CHANGES REQUIRED:** o Chrome encerrou inesperadamente nas tentativas de zoom nativo.
+125/150/200% não foram comprovados; viewport não substitui zoom. Falta também timeline
+HTTP e medição de render no navegador. Medição de serviço local não foi apresentada
+como latência HTTP. A versão ainda não recebe INDICATORS STABLE BASELINE.
+
+Evidência transitória: `/private/tmp/traceflow-p86c-evidence/`. Capturas full-page possuem
+possíveis deslocamentos de elementos fixed, diferenciados das telas reais por captura
+de viewport. Detalhes, matriz e pendências no
+[relatório P8.6C](../../deliveries/S2_P8_6C_FINAL_INDICATORS_VALIDATION_REPORT.md).
+
+## 2026-10-03 — S2 P8.6C: correção visual, dados e interações
+
+Rodada nova, posterior à auditoria acima. Chrome autenticado, API local 3001,
+frontend 5173 e projeto artificial 2 do banco de desenvolvimento existente. Sem seed
+ou alteração de fatos nesta rodada. Baseline `938be91ff575b07887ed68b93d7b04a75c6fe761`.
+
+Corrigidos: conteúdo/tipografia do Health na Overview, refetch ao recuperar foco,
+header de indicador, ajuda 16px/target 44px, fluxo do Panorama e atividade GitHub,
+listas com limite de altura e contagem explícita, estados vazios, I73 sem PR aberta,
+limitações de esforço compartilhadas e distinção entre mediana diária/do período.
+Lead/Cycle com um dia amostrado usam resumo compacto; lacunas e outliers preservados.
+
+Após todas as alterações de código e remoção da instrumentação temporária, matriz
+nova de **90 capturas**: Overview e oito categorias em 1440/1280/1024/768/430/390/360
+Light, e 1440/768/390 Dark. Sem overflow horizontal do documento, sem alertas de erro
+ou snapshots de carregamento nessa matriz. Inspeção visual direta de todas as nove
+superfícies em amostras desktop e adicionais mobile/tablet; não se afirma leitura
+manual de cada pixel das 90 capturas. Casos de teste, Rastreabilidade, Defeitos,
+Tarefas, Requisitos e Sprints também renderizados para comparação canônica.
+
+Evidência adicional: tabela mobile rolada 300px por PageDown, cabeçalho de coluna
+sticky e outline visível; tooltip de Lead Time dentro de 390px, Escape e retorno de
+foco; sidebar expandida/recolhida e drawer mobile; snapshot real em 24/09 sem gráfico
+ou “Ver dados” redundante. Contraste textual amostral de Rastreabilidade: mínimo
+5,67:1 Light e 7,13:1 Dark. Não houve teste com leitor de tela/dispositivo físico.
+
+Auditoria independente reconstruiu 40 Tasks/73 movimentos: Lead 6 dias, Cycle 1 dia,
+Throughput 16 e CFD com coorte de 32 Tasks/30 buckets. As 120 linhas das quatro
+tabelas de Flow correspondem à API. Sem modificação das fórmulas ou dos fatos.
+Rede: 199,7s ocioso, sete requests iniciais e nenhum adicional; o usuário informou
+que o refresh não ocorria mais ao retornar. O controle nativo não produziu sequência
+observável blur/focus; essa evidência é composta por relato, contagem e testes, sem
+alegar captura instrumental dessa sequência. Console final: zero warn/error.
+
+Frontend: 1.297 testes; backend: 1.495 aprovados e cinco skips legados. Coverage,
+lint, format, build, Prisma, arquitetura, segredos e política de CI local passaram.
+**CHANGES REQUIRED — HIGH / SECURITY:** audit do backend bloqueado pelo advisory
+`GHSA-vfj7-8cjw-p6xm`, cadeia de desenvolvimento nodemon/chokidar/braces, sem versão
+corrigida publicada na consulta. Não foi criada exceção nem aplicado downgrade.
+Esta rodada não concede INDICATORS STABLE BASELINE.
+
+Evidências transitórias: `/private/tmp/traceflow-p86c-hardening-20261003/`, arquivos
+`final-*.png`, `final-visual-matrix.json`, `data-audit.json`, `facts-api-ui-check.json`
+e logs de gates. Capturas full-page podem deslocar elementos fixed; inspeções de
+viewport foram usadas para distinguir esse efeito de defeitos do layout.
+Relatório: [P8.6C visual/data hardening](../../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).
+
+
+## 2026-10-03 — S2 P8.6D: polimento final e auditoria de Flow
+
+Baseline limpa `daniel-dev`, HEAD `f6d9e2946993f9fc852d87e897719bebe7aa8976`.
+Chrome autenticado, frontend 5173/API 3001, Project 2 artificial existente. Leitura
+readonly de 40 Tasks/73 movimentos; nenhuma alteração de fatos, schema ou seed.
+
+Causas corrigidas: Data State fora do header, Flow com 45px de desalinhamento,
+seleção de gaps, associação/pessoas misturadas, escopo/esforço agrupados por tipo
+visual e effect de Sprint que descartava draft inválido. Correções adicionais de
+traço em PARTIAL vazio e parágrafos sem conteúdo, após revisão renderizada.
+
+Nova matriz final pós-correções/reload: **80 capturas**, oito categorias em
+1440/1280/1024/768/430/390/360 Light e 1440/768/390 Dark. Sem overflow horizontal
+do documento ou alertas de erro. Inspeção direta amostral das oito views desktop e
+mobile, mais breakpoints intermediários/Dark. Não equivale a inspeção manual de
+cada pixel, leitor de tela físico ou certificação de acessibilidade.
+
+Lead/Cycle: top dos SVGs em 1107,98px para ambos em 1440/1280; stack em larguras
+menores. CFD mantém SVG 352px. Task 3 outlier preservado; Task 9 sem início excluída
+do Cycle. Medianas 6/1 dias, coortes 15/14, série diária com 9/8 dias úteis. Sessenta
+linhas de tabela correspondem ao HTTP e ao cálculo independente. End no Cycle
+seleciona 25/09, duas Tasks, 3,15 dias; nenhum gap gera tooltip com amostra zero.
+
+Commits: 133 total compacto, 93 na main; associação e responsáveis separados.
+Sprint: escopo 1/0/1 saída, esforço 24/20/−4h, Burndown/Burnup oito pontos e Velocity
+quatro Sprints. Tabelas limitadas a 320px, total 10 de 11 preservado; teclado moveu
+scroll mobile até 895px, com foco visível. Ajuda mobile 358px dentro de viewport
+390px, Enter/Escape e retorno de foco. Filtro inválido manteve 0 ativos/URL sem
+período/nenhum request; erro junto às datas e Clear no fim do painel.
+
+Rede instrumentada temporariamente: uma consulta agregada por categoria, nenhuma
+por widget, nove respostas mantidas na observação ociosa posterior. HTTP aquecido
+11–17ms / 25.031–33.872 bytes; não é benchmark de produção. Console sem warn/error.
+Focus/visibility e races reexecutados por testes, sem alegar novo Alt+Tab nativo.
+
+Frontend **1.312 testes**; backend **1.495** e cinco skips legados; coverage, lint,
+format, build, Prisma, arquitetura, segredos e política de CI local passaram.
+**CHANGES REQUIRED — HIGH / REGRESSION (gate de segurança)**: advisory herdado
+GHSA-vfj7-8cjw-p6xm na cadeia dev nodemon/chokidar/braces, sem versão corrigida
+listada. Audit frontend passou; backend falhou. Sem exceção/downgrade/P9/commit/push.
+
+Evidência transitória: `/private/tmp/traceflow-p86d-20261003/`, `final-*.png`,
+`visual-matrix.json`, `data-audit.json`, `http-flow.json`, `http-all-views.json`,
+`flow-dom-tables.json`, `filter-http.json`, logs e resultados dos gates.
+[Relatório P8.6D](../../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).
+
+
+## 2026-10-04 — P8.6F final visual consistency sweep
+
+Baseline: `daniel-dev`, HEAD `9d3e9dfb65475a21a7ef063a48c2f6567216b470`, árvore
+inicialmente limpa. API real local, Project 2 artificial, 01–30/09/2026 e Sprint A (16).
+Registro inicial de F01–F08 criado antes das edições; ciclo de inspeção/correção
+adicionou F09–F12. Todos encerrados e reinspecionados.
+
+Filtro: superfície/ações centralizadas em `CollapsibleFilterPanel`/`FilterActions`.
+Dez áreas reais e diálogos de histórico/sessões renderizados. Clear ghost no footer,
+Filtrar primary só nos formulários manuais. Draft parcial conservou período, URL,
+contador e Sprint; Clear, colapso, troca de categoria, Back/Forward e refresh reais
+exercitados. Responsável segue ausente em Indicadores; grupo Período só acessível.
+
+ProjectSectionNav: 12 links visíveis, 48px de target, sem scroll em 1440/1280
+(client/scroll 1104/1104 e 944/944). Oito tabs analíticas cabem nos dois desktops.
+Header inline com até dois badges, Health primeiro; ajuda separada de 44px.
+KPIs alinham valores quando título quebra; última linha preenche a seção.
+
+Fluxo: WIP 4 / Throughput 16 em strip; tendência própria; Lead 6 dias / referência 4,5 dias / +33,33%
+e Cycle 1 dia sem referência. Diferença vertical 0px entre valores, plots e Ver dados.
+CFD 352px, seleção por End até 30/09; Aging independente. Sprint: divisores completos
+entre 1 Task adicionada, 0 removidas e 1 saída; gráficos reais de oito buckets e Velocity
+com quatro Sprints. Quality: divisores completos entre distribuições equivalentes.
+GitHub NO_DATA compacto e limitações deduplicadas; referências de Rastreabilidade
+com marker e valores textuais. Tabela mobile rolável por teclado: 951px em 320px,
+End até 630,5px, ArrowRight até 18,5px; nomes longos mantidos.
+
+Sete larguras: 1440/1280/1024/768/430/390/360; amostras Light/Dark obrigatórias em
+1440/768/390. Todas as categorias capturadas em 1440/1280/1024/430, inspeção direta
+amostral dos breakpoints e das primitives. Sidebar expandida/recolhida e drawer.
+Tooltip mobile, Escape/foco, filtro inválido em 360px e tabela de dados do gráfico.
+Nenhum overflow do documento observado. Overview compacto integrado preservado
+conforme a decisão vigente do hardening P8.6C (sem reintroduzir o CTA removido).
+
+Frontend **1.322 PASS**; backend **1.495 PASS**, cinco skips legados. Coverage,
+lint, format, build, Prisma, arquitetura, segredos, política/testes de CI local,
+dependency/security e diffcheck PASS. Segurança: 0 HIGH/CRITICAL, 0 exceções utilizadas,
+sem mudança de política; não equivale a zero achados moderate. Focus/visibility,
+loops e stale responses validados por regressão; não se alega novo Alt+Tab nativo.
+Console final sem novos warnings/erros; erro temporário de HMR corrigido antes da
+reinspeção. Sem certificação WCAG, teste touch físico ou CI hospedada nesta rodada.
+
+**S2 P8.6F FINAL VISUAL CONSISTENCY SWEEP — PASS LOCAL**.
+**INDICATORS FINAL STABLE BASELINE**, limitado à evidência local descrita.
+Sem commit/push, backend, banco, schema, dependências ou P9.
+
+Evidências transitórias: `/private/tmp/traceflow-p86f-20261004/`, capturas
+`before-*`, `final-*`, `proof-flow-desktop.jpg`, matriz, console e logs dos gates.
+[Relatório completo P8.6F](../../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).
+
+## 2026-10-04 — P9 Meu painel
+
+Baseline `daniel-dev`, HEAD `ad7d01ce0ae689176b6a64dc06a7044c97f708d9`, árvore limpa.
+Chrome autenticado, API real, Project 2 artificial existente. Período 01–30/09/2026,
+America/Sao_Paulo, Sprint A (16). P9 adiciona seleção/ordem com persistência própria;
+summary, filtros, Health, métricas e presenters canônicos são reutilizados.
+
+Inspeção: padrão com seis widgets, painel com um e 12, editor desktop/mobile,
+busca, resultado vazio, categoria, máximo, add/remove/reorder, Save/Cancel/reset.
+Padrão restaurado e reload conferido ao encerrar. Editor não abre automaticamente.
+Teclado real: foco inicial, reorder até extremidade, Enter no disclosure Ver dados,
+Escape/Cancel com retorno de foco e confirmação de reset. Cenários de erro/races
+complementados por testes automatizados, sem simular falhas como evidência real.
+
+Achados corrigidos: chart isolado com meia largura, desalinhamento de KPIs,
+foco em controle que se tornava disabled, nona tab disputando espaço com ações e
+overflow mobile após Save. Layout final usa grupos adjacentes por tamanho semântico
+e toolbar contida por grid; ordem DOM acompanha ordem salva. Matriz repetida após
+a última correção: 1440/1280/1024/768/430/390/360, sem overflow do documento.
+Tabs 1104/1104px e 944/944px em desktop; abaixo disso, scroll interno acessível.
+
+Light/Dark em 1440 e 390, amostras tablet 768 e modo System inspecionados. Editor
+com 12 selecionados permanece utilizável em mobile; labels e ações não se cortam.
+Tema Escuro restaurado e override de viewport removido ao final.
+
+Dados reais: Progresso 70%, WIP 4, Pass Rate 36,67%, cobertura de implementação
+25% com referência 70% e delta −45 p.p.; Health 70/100 e cobertura 81% iguais em
+Geral/Meu painel. Cycle com oito dias observados; Burndown/Burnup oito pontos,
+Velocity quatro Sprints, Throughput/CFD 30 pontos. CFD conserva 352px; tabela
+Burndown mobile aberta por teclado; Tasks atrasadas com nomes longos; PRs abertas
+mais antigas NO_DATA compacto; Cycle/CFD PARTIAL sem substituir ausência por zero.
+
+Rede real: preferência 17,93ms/167B; catálogo 14,16ms/51.594B; agregado 12 widgets
+46,21ms/36.169B. Aproximadamente 203s sem novos requests analíticos durante
+interações que não alteram filtros/dados. Save um PUT + um agregado; reset um
+DELETE + um agregado; sem request por widget ou por reorder. HMR durante edição
+foi separado da observação. Retorno à view com chart pronto: 131ms incluindo
+automação/rede/DOM, não paint isolado. Instrumentação temporária removida.
+Focus/visibility sem refetch comprovado por regressão, sem alegar Alt+Tab nativo.
+Console final sem warnings/erros.
+
+Backend 1.522 PASS (cinco skips legados), frontend 1.333 PASS. Coverage, lint,
+format, build, Prisma, migrations dev/test, arquitetura, segredos, política/testes
+de CI local e audit canônico passaram. Zero HIGH/CRITICAL, zero exceções usadas;
+nenhuma dependência adicionada. Gates locais não equivalem a CI hospedada.
+
+**S2 P9 PERSONALIZED INDICATORS DASHBOARD — PASS LOCAL**.
+Sem commit/push ou P10. Sem certificação WCAG, leitor de tela dedicado ou touch físico.
+
+Evidências transitórias: `/private/tmp/traceflow-p9-20261004/`, `final-*.jpg`,
+`editor-*.jpg`, `one-widget-390-light.jpg`, `proof-default-desktop.jpg`, matrizes,
+console, métricas HTTP e logs de gates.
+[Relatório P9](../../deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).
+
+## 2026-10-04 — P9.1 Toolbar e reorder do Meu painel
+
+Baseline `daniel-dev`, HEAD `88c6ef85c9851ad88fe926e9e9c0014a8ebec407`, árvore limpa.
+Node 22.23.3 nos gates. Chrome autenticado, API real, Project 2, período
+01–30/09/2026, Sprint A (16). Escopo limitado à apresentação da toolbar e lista
+selecionada; sem dependências novas ou mudanças de backend/contrato/dados.
+
+Toolbar inspecionada em 1440/1280/1024/768/430/390/360. Em 1440 e 1280, nove tabs
+e ações ficam na mesma linha, sem scroll nas tabs (879/879px e 727/727px).
+Targets 48px/44px. Tablet/mobile mantêm scroll interno das tabs e wrap controlado
+das ações; nenhum overflow do documento. Dark nas sete larguras; Light em
+1440/1280/768/390. Capturas 430/390 repetidas após estabilizar a sidebar.
+
+Nas nove views, Personalizar aparece somente em Meu painel; refresh permanece
+disponível e período/Sprint são preservados. Refresh real atualizou a metadata.
+Editor padrão em desktop/tablet/mobile, Light/Dark; 12 itens em desktop Light e
+mobile Dark. Controles, limite e rodapé rolável utilizáveis. Teclado real na alça
+e botões Mover; foco acompanha reorder, trap Tab/Shift+Tab e retorno ao fechar.
+
+Drag nativo mudou WIP da segunda para primeira posição e Progresso da primeira
+para quarta. Cancelar/reabrir restaurou a ordem inicial. Drafts visuais descartados;
+Save e ausência de requests intermediários comprovados por testes automatizados.
+**MEDIUM / DND:** feedback durante o gesto ainda carece de inspeção verificável.
+Capturas da ferramenta não conseguiram congelar a linha de destino; confirmação
+manual solicitada e ainda pendente. Não se confunde o teste dos atributos CSS com
+evidência visual desse estado. Não há bug confirmado nesse item.
+
+Frontend 1.338 PASS; backend 1.522 PASS e cinco skips legados. Coverage, lint,
+format, build, Prisma, arquitetura, política/testes locais CI e security PASS.
+Zero HIGH/CRITICAL, zero exceções usadas. Console da aba auxiliar sem novos
+warnings/erros. Sem certificação WCAG, touch físico ou novo Alt+Tab nativo.
+
+**S2 P9.1 PERSONALIZED DASHBOARD VISUAL POLISH — CHANGES REQUIRED**.
+Pendência única: inspeção visual do marcador durante drag. Sem commit/push/P10.
+Override removido; aba auxiliar fechada e aba original mantida para verificação.
+Evidências transitórias: `/private/tmp/traceflow-p91-20261004/`.
+[Relatório P9.1](../../deliveries/S2_P9_1_PERSONALIZED_DASHBOARD_VISUAL_POLISH_REPORT.md).
+
+## 2026-10-04 — P9.1.1 Feedback de salvamento
+
+Baseline: `daniel-dev`, HEAD `74065e6ede9cd82c35739a7787d20987b178e739`, árvore
+limpa e diffcheck PASS. Node 22.23.3. Auditoria encontrou `FeedbackRegion` como
+primitive canônica inline, sem toast/timing existente. Reutilizada com opção
+transitória de 4s, portal fixo no canto inferior direito, tokens semânticos,
+`role=status`/`aria-live=polite` e timer cancelado no unmount. Sem dependência nova.
+
+Removido o texto permanente de sucesso. Salvar/restaurar exibem um único feedback;
+falha do PUT mantém draft e erro canônico no editor. PUT confirmado seguido de
+falha do GET usa aviso de atualização, conservando a preferência e o retry,
+sem alerta inline duplicado. Contexto antigo não reaparece em outro Project.
+
+Chrome autenticado, API real, Project 2, Meu painel: ordem alterada e salva,
+editor fechado, widgets atualizados, foco devolvido a Personalizar, toast visível
+e desaparecimento automático confirmado. Repetido com restauração ao padrão.
+1440 Dark/Light e 390 Light/Dark inspecionados. Em desktop, toolbar top 589,09px,
+altura 53px e início dos widgets 666,09px antes/durante/depois: deslocamento pelo
+feedback **0px**. Em 390px, toast x=16px, largura 358px, direita=374px; dentro da
+viewport e sem cobrir Personalizar/refresh. Contraste e ícone seguem a primitive.
+Configuração padrão inicial e tema Escuro restaurados; override removido.
+
+86 testes focados PASS, incluindo expiração, cleanup, erro/retry, refresh falho,
+restauração e troca de projeto. Falhas de rede foram verificadas em testes, sem
+alegar reprodução visual de falha real. Frontend full/coverage **1.356 PASS**;
+backend canônico full/coverage **1.549 PASS**, cinco skips legados. Lint/format,
+build, arquitetura, segredos, política/testes de CI local e audit canônico PASS.
+Audit: zero HIGH/CRITICAL e zero exceções utilizadas. Sandbox inicialmente bloqueou
+MySQL/registro npm; gates repetidos com acesso autorizado e aprovados. Diffcheck
+PASS; console da inspeção sem warnings/erros novos. CI hospedada não executada.
+
+Evidências: `/private/tmp/traceflow-p911-20261004/`, `save-1440-dark.jpg`,
+`restore-1440-light.jpg`, `save-390-light.jpg`, `restore-390-dark.jpg`,
+`layout-stability.json`, `browser-evidence.json` e logs/JSON dos gates.
+
+**S2 P9.1.1 SAVE FEEDBACK POLISH — PASS LOCAL**.
+Sem alterações em DnD, layout dos widgets, persistência/API/autorização, filtros,
+Health ou backend. Sem commit/push/P10. Este aceite é restrito ao feedback de
+salvamento; não promove a pendência de inspeção de drag registrada no P9.1.
+
+## 2026-10-04 — IND-P10 revisão interna final (API e banco reais)
+
+Baseline `daniel-dev` @ `279e17fbeadabb1cfbc3885bb49a4fe1cc746c60`, árvore inicialmente
+limpa. A inspeção desta rodada utilizou Chrome autenticado, Project 2 artificial,
+MySQL de desenvolvimento e servidores QA Node 22 nas portas 5174/3002. Nenhuma
+aprovação visual anterior foi reutilizada como evidência do estado final.
+
+Correções visuais comprovadas: Casos de teste e Defeitos receberam o landmark
+`main` ausente (dois testes vermelhos antes, verdes depois); estados GitHub brutos
+foram traduzidos no grafo/inspector, Task e repositório, sem inferir merge. As telas
+foram recarregadas após essas alterações. Não houve redesign nem mudança de Health.
+
+| Largura | Amostra visual real | Tema |
+| ---: | --- | --- |
+| 1440 | Projects, Overview, Requirements, Sprints, Marcos, Cronograma, Tasks/Kanban, TestCases, Defects, Repository, Traceability, nove views de Indicadores e editor | Dark; Overview, Geral e toast também Light |
+| 1280 | Fluxo: séries, listas e tabela | Light |
+| 1024 | Fluxo e composição responsiva | Dark |
+| 768 | Sprint: Burndown, Burnup e Velocity com histórico real | Light / Dark |
+| 430 | Tasks e detalhe com título longo | Light |
+| 390 | TestCases/Defects após correção, editor e toast; drawer/foco | Dark; amostra Light de navegação |
+| 360 | Indicadores / Requirements | Dark / Light |
+
+Sem overflow horizontal global nas amostras medidas. Tabelas/grafo mantêm rolagem
+interna intencional. Sidebar expandida/recolhida e drawer foram exercidos; System
+acompanhou o tema do sistema. Zoom nativo Chrome confirmado em **100%, 125%, 150%
+e 200%** (1710/1368/1140/855 CSS px, DPR 2/2,5/3/4). A 200%, ações do editor ficaram
+entre y=324,95 e 369,95 na viewport de 411 px, acessíveis por teclado; filtros
+continuaram utilizáveis. Zoom 100%, tema Escuro e viewport sem override restaurados.
+
+Fluxos reais: navegação a partir de sessão autenticada; Requirement/Task/Sprint;
+movimento no Kanban por teclado; sync GitHub run 19 concluída; TestCase → FAIL →
+Defect → Task de correção → reteste PASS/VALIDADO; cadeia de 16 entidades do REQ-4;
+filtros e categorias de indicadores; personalização/salvamento/reload; exclusão
+lógica/404/recuperação do Project 13 artificial e vazio. O projeto foi deixado
+restaurado. Fatos artificiais de QA foram preservados no banco de desenvolvimento.
+
+Meu painel: draft, adicionar/remover, reorder por teclado, Cancelar, Salvar,
+persistência após reload e toast transitório foram inspecionados. Ordem inicial
+restabelecida. O usuário confirmou nesta rodada **“Sim, marcador e reordenação
+corretos”** para o gesto de arraste, sem sobreposição; essa confirmação fecha a
+pendência visual do marcador registrada no P9.1. Não é uma captura automatizada
+do gesto. Touch físico não foi testado; os botões mantêm a alternativa sem drag.
+
+Rede final: **635,09 s ocioso sem novos requests**, e ida/volta entre abas nativas
+sem refetch de indicadores/preferência. Não se confunde esse teste com novo Cmd+Tab
+entre aplicativos. Console da sessão final: zero warnings/errors. Medições locais,
+oracles de dados, limites de escala e gates estão no
+[relatório P10](../../deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+
+Evidências locais em `/private/tmp/traceflow-p10-20261004/`: `native-zoom.json`,
+`idle-result.json`, `focus-result.json`, `console-final.json`, `http-observed.jsonl`
+e capturas em `visual/`, incluindo `custom-toast-1440-light.png`,
+`testcases-390-dark.png`, `defects-390-dark.png`, `flow-1280-light.png`,
+`sprint-768-light.png`, `requirements-360-light.png`, `editor-native-200-light.png`,
+`traceability-chain-final-dark.png` e `project-restored-1440-dark.png`.
+
+**S2 P10 FINAL CODE REVIEW & RELEASE READINESS — PASS LOCAL.** Backend 1.562 PASS
+e cinco skips legados; frontend 1.366 PASS; audit completo zero nos dois pacotes.
+Sem certificação WCAG, leitor de tela dedicado, touch físico, cross-browser, CI
+remota ou deploy. Risco MEDIUM de escala em Tasks documentado; nenhum HIGH/BLOCKING
+remanescente conhecido. Sem commit/push; próxima etapa depende de revisão humana.
+
+## 2026-10-05 — Hotfix: cards de criação nas coleções vazias
+
+Baseline `daniel-dev` @ `e8a8efd1177f3cf45ad9e93fc7ccb5645e2b82f5`, árvore limpa,
+Node 22.23.3. Requisitos e Tarefas reutilizam `NewRequirementCard`/`NewTaskCard` e
+a grid atual mesmo com zero itens, quando a membership permite criar. VIEWER e
+permissão desconhecida recebem somente o estado de consulta. Avisos de filtros
+sem resultado permanecem; nenhum card, CSS ou fluxo de criação foi redesenhado.
+
+Chrome autenticado em `localhost:5173`, API real existente: Project 13 possui
+zero Requirements/Tasks; Project 2 possui 13 Requirements e 42 Tasks. Um resultado
+real foi isolado por busca (`REQ-13` / `TASK-47`); a resposta com exatamente um
+registro sem filtro também está coberta nos testes de página. Nenhum dado de
+domínio foi criado/alterado para esta inspeção.
+
+| Estado inspecionado nas duas páginas | Viewports | Temas | Resultado |
+| --- | --- | --- | --- |
+| Coleção vazia real | 1440, 768, 390 | Light / Dark | Um único card de criação no primeiro slot; sem empty alternativo |
+| Um resultado real filtrado | 1440 | Light | Card de criação + um card de registro |
+| Coleção preenchida real | 1440 | Light | Card de criação + 13 Requirements / 42 Tasks |
+
+Sem overflow horizontal nas amostras: `scrollWidth = innerWidth`. Gap canônico
+20px; card vazio com 185,5px de altura intrínseca e grid responsiva original.
+Abrir/fechar os dois dialogs de criação funcionou sem salvar. Uma captura mobile
+feita durante a transição da sidebar foi descartada e refeita após estabilização.
+Console final sem warnings/errors; tema Escuro e viewport original restaurados.
+
+26 testes focados PASS, com oito novos casos (zero/um item e VIEWER/permissão
+desconhecida nas duas páginas); seis falharam antes da correção. Frontend full e
+coverage: **1.374 PASS / 112 arquivos**, lint, format e build PASS. Coverage:
+85,77% statements / 80,29% branches / 81,57% functions / 88,24% lines. Backend não
+alterado; policy frontend de CONTRIBUTING executada. Diffcheck PASS.
+
+Evidências locais: `/private/tmp/traceflow-empty-cards-20261005/`, capturas
+`requirements-empty-{1440,768,390}-{light,dark}.png` e equivalentes `tasks-empty-*`,
+`requirements-one-1440-light.png`, `tasks-one-1440-light.png`, `visual-observations.json`,
+`focused-before.log`, `focused-after.log`, logs dos gates e `console.json`.
+**EMPTY STATE CREATION CARD CONSISTENCY — PASS LOCAL**. Sem commit/push.
+
+
+## 2026-10-05 — PR23-FIX-01: integridade de Sprint Analytics
+
+Baseline `daniel-dev` @ `62690ecc355e6221050b09f400384600a86e1a67`, árvore inicial
+limpa, Node 22.23.3. Sem redesign. Estimativa ausente é desconhecida; subtotal e
+cobertura são explícitos. Linha ideal coberta usa baseline integral inicial e dias
+nominais; escala contém valores históricos. I43 terminal novo lê saída congelada
+no JSON v4, sem depender de memberships vivos.
+
+Chrome autenticado, API real de desenvolvimento (QA 5174/3002), Project 2 artificial,
+nenhuma escrita de domínio no desenvolvimento. Desktop **1440×1000 Light/Dark**:
+
+| Superfície / cenário | Verificação pós-correção |
+| --- | --- |
+| Sprints — summary/cards/evolução da Sprint 15 ativa | Estimativa ausente: `—`, Dados parciais; sem `null pts`, zero fabricado ou “a Sprint ainda não começou” no Burndown |
+| Sprints — evolução da Sprint 17 concluída | 28h no encerramento, baseline ideal 24h, escala 28h, curva/legenda legíveis e congeladas |
+| Indicadores/Sprint — Sprint 15 | I36 37h parcial/I37 39h parcial; I45/I46 desconhecidos com copy parcial, sem falsa ausência de amostras |
+| Indicadores/Sprint — Sprint 17 | Burndown/Burnup de oito buckets, Velocity com três elegíveis e uma exclusão; ideal não cresce para escopo final |
+| Carry-over legado | Desconhecimento explícito, sem inventar destino a partir de dados vivos |
+
+Teclado no Burndown agregado: dia 25/08 com restante 24h e ideal 20,6h; escala 28h.
+Inspeção DOM sem atributos SVG NaN/Infinity e sem overflow horizontal. Console final
+zero warnings/errors. Uma captura escura obtida ainda em loading foi descartada e
+refeita após aguardar o conteúdo. Tema Escuro e viewport original restaurados;
+servidores de QA encerrados, servidores existentes preservados.
+
+Evidências locais: `/private/tmp/traceflow-pr23-fix01-20261005/`,
+`sprint-partial-{light,dark}.jpg`, `sprint-closed-{light,dark}.jpg`,
+`indicators-partial-{light,dark}.jpg`, `indicators-closed-{light,dark}.jpg`,
+`console-final.json` e `runtime-data.json`. Snapshot v4/carry-over após S→D→E→D
+foi comprovado por API/integration no schema isolado, sem reescrever snapshots
+legados do projeto de desenvolvimento.
+
+336 testes focados backend e 54 frontend PASS. Full: **1.574 backend PASS**
+(cinco skips legados pré-LR.2), **1.386 frontend PASS**; coverage, lint, format,
+build, Prisma, architecture, local CI e audits completos PASS. Zero HIGH/CRITICAL.
+[Relatório e limites](../../deliveries/PR23_FIX_01_SPRINT_ANALYTICS_INTEGRITY_REPORT.md).
+**PR23-FIX-01 SPRINT ANALYTICS INTEGRITY — PASS LOCAL**. Sem commit/push.
+Não promove achados de outros clusters da PR23 nem certifica CI remota.
+
+## 2026-10-05 — Retificação histórica da P8.4 (PR23-FIX-02)
+
+A P8.4 declarou validação visual na época, porém o pacote binário citado em
+`evidence/s2-p8-4` não foi versionado. Na baseline FIX-02, `git ls-files
+docs/design/validation` listava somente este log; a pasta citada não existia e
+`git log --all -- <pasta>` não retornava histórico. A busca por nomes P8.4 em
+`/private/tmp` não encontrou originais de origem comprovável.
+
+Sem recuperação confiável, o status canônico histórico permanece **TECHNICALLY
+VERIFIED**, sem promoção visual. `VISUALLY APPROVED LOCAL` foi removido das duas
+linhas afetadas do inventário por não pertencer à taxonomia. O relatório original
+foi preservado com nota de retificação; suas declarações anteriores não são
+aprovação vigente. P8.6F/P10 mantêm observações próprias, que não provam a P8.4.
+As imagens FIX-02 abaixo são atuais e não substituem evidência original ausente.
+
+## 2026-10-05 — PR23-FIX-02: ajuda RF55 em duas camadas
+
+Baseline `daniel-dev` @ `3cc88159339008fc5cdfc0dfe19e5b01b6b60d85`, árvore inicial
+limpa. UI comercial preservada; `Detalhes do cálculo` fechado por padrão revela
+fórmula recebida da API, fonte em linguagem de uso e corte/frescor por indicador.
+IDs, versões, raw fields e pesos internos não foram restaurados na experiência.
+
+Chrome autenticado com API real local, Project 2 existente, período 01–30/09/2026,
+America/Sao_Paulo e Sprint ativa automática. Sem mock do produto, seed, escrita de
+domínio ou sync externa. Inspeção pós-correção:
+
+| Superfície / ajuda | 1440×900 Light/Dark | 390×844 Light/Dark | Dados observados |
+| --- | --- | --- | --- |
+| Geral / Progresso | PASS | PASS | 69,05%, cálculo local |
+| GitHub / Commits | PASS | PASS | 152, fonte atualizada em 04/10/2026, 23:39 |
+| Fluxo / Cycle Time | PASS | PASS | 1 dia, PARTIAL e histórico local |
+| Sprint / Burndown | PASS | PASS | PARTIAL, fatos históricos preservados |
+| Qualidade / Taxa de sucesso | PASS | PASS | 36,67%, execuções dos casos de teste |
+| Rastreabilidade / Implementação | PASS | PASS | Fonte de evidência técnica e clock GitHub |
+
+Tablet 768×1024 Light: GitHub e Fluxo; NO_DATA no Project 13 existente consultado
+somente para leitura; UNAVAILABLE no GitHub sem período. Sem zero fabricado ou
+timestamp global usado como atualização de fonte indisponível. STALE somente em
+teste, com data anterior e label próprio; não se envelheceu artificialmente o banco.
+
+Help de 400px desktop/tablet e 358px mobile, margens ≥16px, disclosure com target
+44px e rolagem interna até a data. Texto legível, camada comercial simples e
+fechamento acessível. Enter/Space cobertos por teste; Enter/Escape e retorno de foco
+também conferidos no runtime. Clique em viewport móvel funciona sem hover; não
+equivale a touch físico. Sem overflow horizontal observado. Capturas prematuras
+de rolagem foram substituídas por frames finais. Console capturado: zero warnings/errors.
+Tema Escuro, sidebar expandida e viewport original restaurados; aba temporária fechada.
+
+Status canônico **VISUALLY APPROVED**, restrito à ajuda atual na matriz acima.
+Pacote próprio no repositório: capturas e observações (referência histórica não disponível neste checkout: `evidence/pr23-fix-02/README.md`).
+Não promove o estado histórico P8.4 ou outras superfícies por inferência.
+
+84 testes focados PASS; frontend full/coverage **1.398 PASS**, backend regressão
+canônica **1.574 PASS** e cinco skips legados. Lint, format, build, Prisma,
+architecture, local CI, secrets, audits e diffcheck PASS; zero HIGH/CRITICAL.
+[Relatório e limites](../../deliveries/PR23_FIX_02_RF55_TRANSPARENCY_EVIDENCE_ALIGNMENT_REPORT.md).
+Sem certificação WCAG, leitor de tela, touch físico ou CI remota. Artefatos no
+working tree para revisão/versionamento, sem commit/push.
+
+## 2026-10-05 — PR23-FIX-02.1 auditoria e apresentação das regras
+
+Regras conferidas contra persistência/service/calculator/policy, não apenas textos
+anteriores: **68 auditadas, 66 expostas e 66 personalizáveis**. Autoridade de cálculo
+apresentada no catálogo backend; frontend não traduz fórmulas nem mantém registry
+paralelo. Label única **Como é calculado**, linguagem de domínio, `÷`/`×`, bloco com
+tokens e wrap natural; grupos pequenos impedem `× 100` órfão. I66 não alega marcação
+manual; I17 distingue total/lista; I72 inclui recebidas já concluídas no escopo.
+
+API real do Project 2, Chrome autenticado, setembro/2026. Inspecionados Geral,
+GitHub, Fluxo, Sprint, Tarefas, Qualidade e Rastreabilidade, mais Meu painel. 1440
+Light/Dark, 390 Light/Dark e tablet 768×1024, em amostras identificadas na
+matriz de capturas próprias (referência histórica não disponível neste checkout: `evidence/pr23-fix-02-1/README.md`). Fórmulas percentuais,
+contagens, somas, diferenças, medianas/tempos e regras históricas legíveis; grupos
+matemáticos e popover sem overflow horizontal nas amostras. Regras curtas não usam
+largura excessiva; I45/I66 longas continuam acessíveis por scroll. Clock local `asOf`
+e GitHub `sourceUpdatedAt` preservados; zero warn/error no console capturado.
+
+Disclosure fechado por padrão, clique sem hover na viewport móvel, Space/Enter,
+Escape e retorno de foco conferidos. Sem reflow de widgets. AVAILABLE/PARTIAL reais;
+STALE/NO_DATA/UNAVAILABLE testados em componente/mapper, sem manipulação do banco.
+Não prova touch físico, leitor de tela ou conformidade WCAG completa.
+
+Status canônico **VISUALLY APPROVED**, restrito à ajuda/regras e matriz desta rodada.
+Algoritmos, Health, persistência e filtros intactos. Nenhuma aprovação retroativa
+P8.4. Tema Escuro, sidebar expandida e viewport original restaurados; aba temporária
+fechada. Artefatos novos no working tree, sem commit/push.
+
+83 testes focados frontend, 71 unit focados backend (incluem quatro novos), 76 APIs
+focadas; frontend full/coverage **1.400 PASS**, backend full/coverage **1.578 PASS**
+(cinco skips legados). Lint/format/build, Prisma, architecture, local CI, secrets,
+security/audits e diffcheck PASS; zero vulnerabilidades. A divergência acadêmica RF54
+já registrada continua explícita, com a regra executável P3 preservada.
+[Relatório e limites](../../deliveries/PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md).
+
+## 2026-10-08 — PR23-FIX-06: coerência documental, sem inspeção visual
+
+Nenhuma captura ou homologação nova. O censo foi reconciliado com as linhas canônicas.
+IND-P10 passa a ser descrito como revisão interna final. Os caminhos de pacotes FIX-02/FIX-02.1
+citados anteriormente não existem no checkout/índice desta rodada: as observações textuais
+originais foram preservadas, mas não se afirma disponibilidade dos arquivos. As entradas de
+ajuda correspondentes no inventário ficam TECHNICALLY VERIFIED, sem rebaixar RF55 funcional.
+A retificação P8.4 continua válida; caminhos ausentes foram mantidos como referências históricas
+textuais, não links de evidência disponível. Não foi fabricada evidência retroativa.

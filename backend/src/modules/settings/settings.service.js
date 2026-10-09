@@ -99,6 +99,10 @@ async function buildExportArchive(userId, now) {
     );
   }
   const data = await settingsRepository.exportData(userId);
+  const githubAuthoredCommits = await settingsRepository.exportGithubAuthoredCommits(
+    userId,
+    data.githubIdentity?.githubUserId
+  );
   const projects = data.memberships.map(({ project }) => ({
     id: project.id,
     name: project.name,
@@ -122,6 +126,7 @@ async function buildExportArchive(userId, now) {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     },
+    'indicator-preferences.json': data.dashboardPreferences || [],
     'memberships.json': data.memberships.map(({ project, ...membership }) => ({
       ...membership,
       project: { id: project.id, name: project.name, status: project.status }
@@ -135,6 +140,8 @@ async function buildExportArchive(userId, now) {
     'defect-history.json': data.defectHistory || [],
     'task-effort-history.json': data.effortHistory || [],
     'tasks.json': data.responsibleTasks,
+    'task-responsibility-movements.json': data.responsibleMovementSnapshots || [],
+    'github-authored-commits.json': githubAuthoredCommits,
     'task-comments.json': data.taskComments || [],
     'task-time-entries.json': data.startedTimeEntries || [],
     'sessions.json': data.sessions,
@@ -373,13 +380,20 @@ export const settingsService = {
     }
     const policyErrors = passwordPolicyErrors(input.newPassword, user);
     if (policyErrors.length) throw error(policyErrors[0], 400, ERROR_CODES.VALIDATION_ERROR);
-    await settingsRepository.changePassword(
+    const changed = await settingsRepository.changePassword(
       userId,
       sessionId,
       await authService.hashPassword(input.newPassword),
       now,
-      audit(userId, requestId, 'PASSWORD_CHANGED')
+      audit(userId, requestId, 'PASSWORD_CHANGED'),
+      { passwordHash: user.passwordHash }
     );
+    if (!changed)
+      throw error(
+        'A senha foi alterada durante a solicitação. Entre novamente.',
+        403,
+        ERROR_CODES.CURRENT_PASSWORD_INVALID
+      );
     projectEventPublisher.disconnectUser(userId, { exceptSessionId: sessionId });
     await emailService.sendPasswordChangedNotice({ to: user.email, userId, name: user.name });
   },

@@ -13,15 +13,15 @@ inclusive quando a Task é excluída. O histórico de entradas/saídas continua 
 
 | Campo | Significado e momento de captura |
 | --- | --- |
-| `Sprint.startedAt` | início da execução e baseline temporal do burndown; datas nominais anteriores não entram na série real |
+| `Sprint.startedAt` | início da execução/captura; datas nominais anteriores não entram na série real; a referência ideal usa a janela nominal |
 | `Sprint.planningSnapshotAt` | captura bem-sucedida do planejamento; igual a `startedAt` para novos starts |
 | `Sprint.closedAt` | corte terminal persistido, inclusive cancelamento e escopo vazio |
 | `SprintTask.plannedAtStart` | membership no start: `true` presente, `false` ausente, `null` sem snapshot confiável |
-| `SprintTask.pointsAtPlanning` | esforço no start da Task presente; zero quando sem estimativa; `null` se não planejada ou desconhecido |
-| `SprintTask.pointsAtClose` | esforço da participação ativa no encerramento; zero quando sem estimativa; `null` indica ausência de snapshot |
+| `SprintTask.pointsAtPlanning` | estimativa no start da Task presente; `null` quando ausente/não planejada; zero legado é ambíguo sem evento de baseline |
+| `SprintTask.pointsAtClose` | estimativa nullable da participação ativa no encerramento; v3+ distingue ausência de zero via snapshot; zero anterior é ambíguo |
 | `SprintTask.completedAtClose` | primeira conclusão dentro do intervalo da participação, capturada no encerramento; `null` quando não houve evento |
 | `SprintTask.exitStatus`, `closedAt` | status observado e instante de congelamento da participação, já existentes |
-| `SprintTask.closingTaskSnapshot` | JSON nullable v1 do card no encerramento: ID, título, prioridade, responsável ID, deadline e contagens de rastreabilidade; sem descrição, nome, e-mail ou conteúdo de artefato |
+| `SprintTask.closingTaskSnapshot` | JSON versionado do encerramento; v3 preserva estimativa nullable; v4 congela também `outgoingCarryOver`; detalhes v2+ descritos abaixo |
 | `Sprint.deletedAt/deletedById`, `Milestone.deletedAt/deletedById` | tombstone e ator da exclusão lógica; não são evento de conclusão |
 | `SprintTask.addedAt` | entrada do intervalo atual; reentrada atualiza este instante |
 | `SprintTask.addedAfterStart` | projeção compatível da classificação; não é autoridade do baseline |
@@ -40,8 +40,8 @@ snapshot. Não há lógica de snapshot no controller.
 Enquanto aberta, a Sprint mantém métricas operacionais calculadas com esforço/status corrente.
 O planejamento permanece separado. Depois do encerramento, a evolução não consulta esforço ou
 status da Task nem seu histórico de conclusão; usa os campos persistidos da participação.
-Exclusão posterior da Task não apaga a série nem os pontos. A informação de continuidade para
-outra Sprint pode continuar aparecendo em `carryOver`, sem mudar os números congelados.
+Exclusão posterior da Task não apaga a série nem os pontos. A continuidade de saída em `carryOver` também é congelada no snapshot v4; movimentos
+posteriores entre destinos não alteram quantidade, destino, ID capturado ou instante da origem.
 
 ## Continuidade operacional e apresentação terminal — FIX-02
 
@@ -97,9 +97,9 @@ antigas reutilizavam o primeiro `addedAt` e apagavam `removedAt`.
 - Sem snapshot de baseline, a compatibilidade usa a participação antiga e a saída conhecida
   (remoção anterior ao start não conta), acompanhadas de
   `LEGACY_PLANNING_SNAPSHOT_UNAVAILABLE`. É aproximação explicitamente limitada.
-- Sem pontos de encerramento, o burndown terminal retorna `hasData=false`, `days=[]` e
-  `LEGACY_CLOSING_POINTS_UNAVAILABLE`; `totalPoints=0` é o valor neutro do bloco sem dados,
-  não prova de esforço histórico zero. Não utiliza esforço atual como fallback.
+- Sem estimativas de encerramento conhecidas, o Burndown legado retorna `hasData=false`,
+  `days=[]`, `totalPoints=null` e limitação de estimativa/legado. Não utiliza esforço atual
+  como fallback. A série coberta preserva buckets desconhecidos como `null`.
 - Status terminal ausente não usa status atual; é sinalizado por
   `LEGACY_CLOSING_STATUS_UNAVAILABLE`. Contagens que dependem desses dados não constituem
   reconstrução histórica completa.
@@ -233,3 +233,141 @@ se não existe vínculo atual, a ação é omitida e a indisponibilidade é exib
 de estar acessível entre leitura e clique, HTTP 404 desabilita a ação e mantém o snapshot.
 O cabeçalho prioriza ID/título e informa o estado no encerramento e seu timestamp. A frase
 sobre visualização individual de Sprints congeladas foi removida, sem texto substituto.
+
+## Fundação histórica do Burnup — P5.1
+
+`SprintTask` continua autoridade do baseline e do fechamento para Planning/RF35. A reentrada
+sobrescreve `addedAt` e `removedAt`, então ela não prova todos os ciclos intermediários. A
+migration `20260925120000_s2_p5_1_sprint_burnup_history` acrescenta somente a fonte de I46:
+`Sprint.burnupCoverageStartedAt` e `SprintBurnupEvent` com `BASELINE_TASK`, `TASK_ADDED`,
+`TASK_REMOVED`, `ESTIMATE_CHANGED` e `STATUS_CHANGED`. Cada evento guarda `taskKey` numérico,
+estimativa anterior/nova quando aplicável, status anterior/novo e `occurredAt`; `(sprintId,
+occurredAt,id)` dá leitura e desempate estáveis. O evento de status é necessário porque a
+exclusão física da Task elimina seus `TaskMovement`. Não altera a autoridade de Kanban nem I45.
+
+Sprint iniciada após a migration fixa cobertura no próprio `startedAt` e registra cada Task
+presente, inclusive estimativa `null` distinta de zero. Entradas/saídas, mudança de estimativa e
+status são acrescentados na transação da mutação, sob lock de Project e Sprint/Task quando
+pertinente. Transferências não reescrevem a origem. Fechamento congela o corte; alterações
+posteriores na Task não acrescentam eventos à Sprint terminal. O evento não tem FK para Task,
+portanto sobrevive à exclusão física; FKs de Sprint e Project com `Cascade` o removem no hard
+purge. Exclusão lógica/restauração do Project preservam o diário.
+`20260925123000_s2_p5_1_burnup_project_scope` acrescenta FK composta
+`(sprintId,projectId) → Sprint(id,projectId)`, impedindo evento cross-project no banco.
+
+Na instalação da migration, uma Sprint já ativa recebe somente uma âncora do estado corrente
+das participações ainda presentes, com `burnupCoverageStartedAt` igual ao instante de captura.
+Isso é `PARTIAL` se `startedAt` precede a âncora. Sprint terminal anterior não recebe eventos
+inferidos nem cobertura; permanece `UNAVAILABLE`. A implantação precisa manter as escritas
+operacionais pausadas durante a migration para que âncora e estado corrente sejam coesos.
+
+## Projeção histórica compartilhada — P5.2
+
+Em Sprints com cobertura `SprintBurnupEvent`, Burndown I45 e Burnup I46 usam uma única projeção
+diária do domínio de Sprint. A ordem interna é `occurredAt ASC, id ASC`; cada ponto representa
+o estado no fim do dia UTC. `scope` soma a estimativa das Tasks presentes, `completed` soma a
+estimativa das presentes em `CONCLUIDO`, e `remaining = scope - completed`. O cálculo rejeita
+cadeia contraditória e não clampa valores negativos. Estimativa ausente produz `null` nos três
+valores do bucket, nunca zero presumido.
+
+Concluir transfere a estimativa vigente de `remaining` para `completed`; reabrir faz o inverso;
+reconcluir volta a contar a Task uma única vez. Revisar a estimativa de uma Task aberta altera
+`scope` e `remaining`; se concluída, altera `scope` e `completed`. Entrada/saída de escopo muda
+os três valores conforme estimativa e status no evento. Transferência usa a saída da Sprint de
+origem e a entrada na Sprint de destino; eventos posteriores no destino não alteram a origem.
+Carry-over é contexto da participação, não uma fórmula de pontos diferente.
+
+O corte terminal ignora eventos posteriores e a exclusão física da Task não remove o diário.
+Cobertura iniciada no meio da Sprint só publica pontos a partir da âncora (`PARTIAL`); Sprints
+anteriores sem diário mantêm o Burndown legado e Burnup `UNAVAILABLE`. A linha ideal de I45
+usa somente o escopo do baseline integral capturado; cobertura tardia não fornece essa referência.
+
+
+## Integridade de estimativas, linha ideal e carry-over — PR23-FIX-01
+
+Decisão canônica [D-B do ADR-010](../architecture/ADR-010-SPRINT-DOMAIN-CORRECTIONS.md#d-b--estimativa-ausente--desconhecida-pr23-fix-01):
+`null ≠ 0`. Para estimativas `8h + 4h + null`, o subtotal conhecido é `12h`, com uma
+estimativa desconhecida e estado `PARTIAL`. Nenhuma estimativa conhecida em universo não
+vazio resulta em `null`, não em zero. I31/I36–I38/I44 seguem essa semântica; porcentagens de
+esforço que exigem total completo ficam indisponíveis. I47 exclui amostras terminais com
+estimativas incompletas, sem transformar entrega desconhecida em velocity zero.
+
+`BASELINE_TASK.newPoints` conserva o valor original nullable. Baseline integral exige
+`burnupCoverageStartedAt=startedAt`; o subtotal planejado nas leituras terminal/listagem/
+cronograma/velocity usa esses eventos em lote. Sem prova integral, zero legado não é
+interpretado como zero explícito. Snapshots v3+ conservam `estimatedEffort=null`; novos
+`pointsAtPlanning` e `pointsAtClose` também preservam `null`. Não há backfill neste fix.
+
+A linha ideal coberta usa o escopo inicial conhecido, não o último escopo. A janela nominal
+vem de `startDate` até o último dia de `endDate` exclusivo. Início real tardio não reinicia
+esse relógio e truncar a série em 180 dias não antecipa seu final ideal. Cobertura iniciada
+no meio ou baseline com estimativa ausente deixa `ideal=null` e publica
+`BURNDOWN_BASELINE_UNAVAILABLE`. O passado não recebe pontos interpolados.
+
+`chartMax` considera todos os valores finitos de escopo, remanescente e ideal no histórico.
+Assim, adicionar escopo não reescreve a referência anterior e remover escopo não corta os
+valores antigos. `hasData=true` exige `chartMax>0` e pelo menos uma curva finita; buckets
+nulos continuam explícitos. As duas UIs são defensivas contra `NaN`/`Infinity`.
+O caminho sem diário continua uma aproximação legada, sem reconstrução de mudanças de
+escopo; não possui a precisão de I45/I46 cobertos.
+
+`closingTaskSnapshot.version=4` acrescenta `outgoingCarryOver:{toSprintId,at}|null` no
+mesmo fechamento transacional. Sem destino (backlog), concluída ou cancelamento sem
+transferência, o fato é `null`. I43 terminal ignora memberships vivos; após S→D→E→D e
+exclusão física da Task, seus itens mantêm o ID capturado e o instante de fechamento.
+Snapshots antigos não recebem destino inferido: I43 publica `outgoing:null`, `PARTIAL` e
+`UNKNOWN_LEGACY_CARRY_OVER`. Nenhum DDL/migration foi necessário; o owner é o JSON existente.
+
+
+## Operação do backfill Burnup — retificação PR23-FIX-07 / M09 / L11
+
+A migration histórica `20260925120000_s2_p5_1_sprint_burnup_history` permanece inalterada.
+Seu baseline é um retrato no instante da implantação, não reconstrução de todo o passado.
+`CURRENT_TIMESTAMP(3)` depende do timezone da sessão MySQL; verificar timezone atual não prova
+qual timezone foi usado naquela execução. Não corrigir âncoras existentes por suposição.
+
+Para um ambiente que ainda não aplicou esse backfill:
+
+1. Preservar backup recuperável e identificar explicitamente banco/ambiente.
+2. Pausar API, sync workers e outros escritores antes de `migrate deploy`; manter a pausa
+   até terminar deploy e a conferência. O schema não oferece bloqueio distribuído automático.
+3. Garantir sessão/servidor de implantação em UTC e conferir `@@session.time_zone`,
+   `@@system_time_zone`, `NOW(3)` e `UTC_TIMESTAMP(3)` na conexão operacional.
+4. Aplicar migrations incrementais com o procedimento canônico do ambiente.
+5. Conferir baseline das Sprints ativas e executar a consulta somente leitura abaixo.
+6. Investigar qualquer divergência; não inventar eventos/estimativas. Retomar escritores
+   somente depois da conferência e do runtime atualizado.
+
+Exemplo de diagnóstico de STATUS sem evento Burnup correspondente, para participações
+cobertas no instante do fato (não é uma prova completa de escopo/estimativas):
+
+```sql
+SELECT h.projectId, h.taskId, h.id AS historyId, st.sprintId, h.occurredAt
+FROM TaskHistoryEntry h
+JOIN SprintTask st ON st.taskId = h.taskId AND st.projectId = h.projectId
+JOIN Sprint s ON s.id = st.sprintId AND s.projectId = h.projectId
+WHERE h.field = 'STATUS'
+  AND h.occurredAt >= s.burnupCoverageStartedAt
+  AND h.occurredAt >= st.addedAt
+  AND (st.removedAt IS NULL OR h.occurredAt < st.removedAt)
+  AND (s.closedAt IS NULL OR h.occurredAt <= s.closedAt)
+  AND NOT EXISTS (
+    SELECT 1 FROM SprintBurnupEvent e
+    WHERE e.projectId = h.projectId AND e.sprintId = st.sprintId
+      AND e.taskKey = h.taskId AND e.type = 'STATUS_CHANGED'
+      AND e.occurredAt = h.occurredAt
+      AND e.toStatus = h.toValue
+  );
+```
+
+**Limitação aceita M09:** pausa operacional continua obrigatória; não há detector automático
+completo de escritas concorrentes ao backfill. A consulta aponta candidatos, sujeitos à revisão
+(e.g. fronteiras legadas), e não repara dados. Falhas de disciplina operacional podem deixar
+histórico incompleto sem aviso específico. Backlog: auditor de completude do backfill e protocolo
+operacional de implantação; exige rodada própria, sem alterar projeção/semântica silenciosamente.
+**L11:** não existe evidência confiável do timezone de sessões históricas para normalização retroativa;
+ambientes externos precisam da própria auditoria. Nenhuma migration aplicada foi reescrita.
+
+Velocity (I47) depende do snapshot de fechamento. Ausência isolada de planning snapshot não
+exclui Sprint com cutoff, status e estimativas de fechamento íntegros. Essa seleção não muda
+I36/planejamento nem torna estimativas desconhecidas em zero.

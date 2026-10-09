@@ -176,12 +176,14 @@ export const settingsRepository = {
       orderBy: { lastSeenAt: 'desc' }
     });
   },
-  async changePassword(userId, currentSessionId, passwordHash, now, auditData) {
+  async changePassword(userId, currentSessionId, passwordHash, now, auditData, expectedCredential) {
     return prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({
-        where: { id: userId },
+      const changed = await tx.user.updateMany({
+        where: { id: userId, ...expectedCredential },
         data: { passwordHash, sessionVersion: { increment: 1 } }
       });
+      if (changed.count !== 1) return null;
+      const user = await tx.user.findUnique({ where: { id: userId } });
       await tx.session.updateMany({
         where: { userId, id: { not: currentSessionId }, revokedAt: null },
         data: { revokedAt: now }
@@ -430,6 +432,18 @@ export const settingsRepository = {
       select: {
         ...accountSelect,
         lastLoginAt: true,
+        dashboardPreferences: {
+          where: {
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            projectId: true,
+            configurationVersion: true,
+            configuration: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
         githubIdentity: {
           select: {
             githubUserId: true,
@@ -579,6 +593,19 @@ export const settingsRepository = {
             updatedAt: true
           }
         },
+        responsibleMovementSnapshots: {
+          where: {
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            taskId: true,
+            fromStatus: true,
+            toStatus: true,
+            movedAt: true
+          }
+        },
         // Comentário excluído fica fora da exportação: o conteúdo permanece apenas na
         // trilha de auditoria e não é devolvido ao titular como dado corrente.
         taskComments: {
@@ -700,6 +727,17 @@ export const settingsRepository = {
           }
         }
       }
+    });
+  },
+  exportGithubAuthoredCommits(userId, githubUserId) {
+    if (!githubUserId) return [];
+    return prisma.commit.findMany({
+      where: {
+        authorGithubUserId: String(githubUserId),
+        project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+      },
+      select: { id: true, projectId: true, hash: true, date: true, githubUrl: true },
+      orderBy: [{ projectId: 'asc' }, { date: 'desc' }]
     });
   },
   async recordExport(userId, now, expiresAt, auditData) {

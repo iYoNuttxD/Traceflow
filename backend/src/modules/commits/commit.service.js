@@ -15,7 +15,7 @@ export const commitService = {
       search: query.search,
       branch: query.branch
     });
-    return commits.map(({ branchLinks, ...commit }) => ({
+    return commits.map(({ branchLinks, authorGithubUserId: _authorGithubUserId, ...commit }) => ({
       ...commit,
       branches: (branchLinks || []).map(({ branch }) => branch.name)
     }));

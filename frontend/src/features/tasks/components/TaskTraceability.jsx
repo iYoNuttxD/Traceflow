@@ -1,4 +1,4 @@
-import { EntityRow } from '../../../shared/index.js';
+import { EntityRow, githubStateLabel } from '../../../shared/index.js';
 import {
   formatCommitLabel,
   formatDateTime,
@@ -46,7 +46,7 @@ export function TaskTraceability({ task, projectId, onNavigate }) {
             <strong>
               #{task.pullRequest.number} — {task.pullRequest.title}
             </strong>
-            <p>{task.pullRequest.state || 'Status não informado'}</p>
+            <p>{githubStateLabel(task.pullRequest.state)}</p>
             {task.pullRequest.githubUrl && (
               <GithubExternalAction href={task.pullRequest.githubUrl} />
             )}
@@ -82,7 +82,7 @@ export function TaskTraceability({ task, projectId, onNavigate }) {
               <div key={issue.id}>
                 <strong>{formatIssueLabel(issue)}</strong>
                 <p>
-                  {issue.state || 'Status não informado'} · {formatIssueLabels(issue.labels)}
+                  {githubStateLabel(issue.state)} · {formatIssueLabels(issue.labels)}
                 </p>
                 {issue.githubUrl && <GithubExternalAction href={issue.githubUrl} />}
               </div>

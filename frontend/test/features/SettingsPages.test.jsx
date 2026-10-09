@@ -39,45 +39,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../src/features/auth/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   useAuth: () => mocks.auth,
-  authApi: mocks.authApi,
-  PasswordField: ({ id, label, value, onChange, disabled, error }) => (
-    <div>
-      <label htmlFor={id}>
-        {label}
-        <input id={id} value={value} onChange={onChange} disabled={disabled} type="password" />
-      </label>
-      {error && <span role="alert">{error}</span>}
-    </div>
-  )
+  authApi: mocks.authApi
 }));
 vi.mock('../../src/features/settings/settings.api.js', () => ({ settingsApi: mocks.api }));
-vi.mock('../../src/shared/index.js', () => ({
-  normalizeApiError: (value) => ({ message: value?.message || 'Falha' }),
-  classifyPageError: (value) => (value?.status === 404 ? 'NOT_FOUND' : 'SERVER'),
-  getErrorRequestId: (value) => value?.requestId,
-  ContextualErrorPage: ({ type, onRetry }) => (
-    <section data-testid="contextual-error-page" data-error-type={type}>
-      <h1>O TRACEFLOW encontrou um problema.</h1>
-      <button type="button" onClick={onRetry}>
-        Tentar novamente
-      </button>
-      <a href="/projects">Ir para projetos</a>
-    </section>
-  ),
+vi.mock('../../src/shared/index.js', async (importOriginal) => ({
+  ...(await importOriginal()),
   useConfirm: () => mocks.confirm,
-  useCountdown: (seconds) => seconds,
-  LoadingState: ({ message }) => <p>{message}</p>,
-  TraceFlowIcon: ({ name }) => <svg data-icon={name} />,
-  FeedbackRegion: ({ error, success }) => <div>{error || success}</div>,
-  PublicPageShell: ({ children }) => <main>{children}</main>,
-  StatusSurface: ({ title, description, actions, children, role }) => (
-    <section role={role}>
-      <h1>{title}</h1>
-      <p>{description}</p>
-      {children}
-      {actions}
-    </section>
-  )
+  useCountdown: (seconds) => seconds
 }));
 
 const { RestrictedAccountPage } =
@@ -120,6 +88,8 @@ describe('configurações e estados restritos L2', () => {
       {
         sessionId: 'b6360643-0216-4cb7-873b-4e851250f524',
         current: true,
+        tokenHash: 'secret-session-hash',
+        csrfToken: 'secret-csrf-value',
         lastSeenAt: '2030-01-01T00:00:00.000Z'
       }
     ]);
@@ -203,19 +173,23 @@ describe('configurações e estados restritos L2', () => {
   });
 
   it('usa a página contextual quando a conta falha de forma fatal', async () => {
-    mocks.api.account.mockRejectedValueOnce({ message: 'Falha interna', status: 500 });
+    mocks.api.account.mockRejectedValueOnce({
+      response: { status: 500, data: { message: 'SQL internal private-token' } }
+    });
     render(
       <MemoryRouter initialEntries={['/settings/account']}>
         <AccountSettingsPage />
       </MemoryRouter>
     );
 
-    expect(await screen.findByTestId('contextual-error-page')).toHaveAttribute(
-      'data-error-type',
-      'SERVER'
-    );
+    expect(
+      await screen.findByRole('heading', { name: 'O TRACEFLOW encontrou um problema.' })
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/SQL|private-token/);
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ir para projetos' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByLabelText('Nome')).toHaveValue('Daniel');
   });
 
   it('lista sessão atual sem token e apresenta formulário de senha', async () => {
@@ -225,20 +199,26 @@ describe('configurações e estados restritos L2', () => {
       </MemoryRouter>
     );
     expect(await screen.findByText('Este dispositivo')).toBeInTheDocument();
-    expect(screen.getByLabelText('Nova senha')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/tokenHash|csrfToken/);
+    expect(screen.getByLabelText(/^Nova senha/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(
+      /tokenHash|csrfToken|secret-session-hash|secret-csrf-value/
+    );
   });
 
   it('recupera a tela de segurança de uma falha fatal somente após retry explícito', async () => {
     const user = userEvent.setup();
-    mocks.api.account.mockRejectedValueOnce({ message: 'Falha interna', status: 500 });
+    mocks.api.account.mockRejectedValueOnce({
+      response: { status: 500, data: { message: 'SQL internal private-token' } }
+    });
     render(
       <MemoryRouter initialEntries={['/settings/security']}>
         <SecuritySettingsPage />
       </MemoryRouter>
     );
 
-    expect(await screen.findByTestId('contextual-error-page')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'O TRACEFLOW encontrou um problema.' })
+    ).toBeInTheDocument();
     expect(screen.queryByText('Carregando segurança...')).not.toBeInTheDocument();
     expect(mocks.api.account).toHaveBeenCalledOnce();
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
@@ -261,7 +241,7 @@ describe('configurações e estados restritos L2', () => {
     expect(
       await screen.findByRole('button', { name: 'Confirmar identidade com GitHub' })
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText('Nova senha')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Nova senha/)).not.toBeInTheDocument();
   });
 
   it('cria a primeira senha somente depois de reautenticação recente', async () => {
@@ -277,9 +257,9 @@ describe('configurações e estados restritos L2', () => {
       </MemoryRouter>
     );
     await screen.findByRole('heading', { name: 'Senha' });
-    const password = await screen.findByLabelText('Nova senha');
+    const password = await screen.findByLabelText(/^Nova senha/);
     await user.type(password, 'SenhaNovaSegura123!');
-    await user.type(screen.getByLabelText('Confirmar nova senha'), 'SenhaNovaSegura123!');
+    await user.type(screen.getByLabelText(/^Confirmar nova senha/), 'SenhaNovaSegura123!');
     await user.click(screen.getByRole('button', { name: 'Criar senha' }));
     await waitFor(() =>
       expect(mocks.api.initializePassword).toHaveBeenCalledWith({
@@ -287,6 +267,10 @@ describe('configurações e estados restritos L2', () => {
         confirmation: 'SenhaNovaSegura123!'
       })
     );
+    await waitFor(() => expect(mocks.auth.refresh).toHaveBeenCalledOnce());
+    expect(mocks.api.account).toHaveBeenCalledTimes(2);
+    expect(mocks.api.sessions).toHaveBeenCalledTimes(2);
+    expect(password).toHaveValue('');
   });
 
   it('envia uma única alteração de senha enquanto a mutação está pendente', async () => {
@@ -303,9 +287,9 @@ describe('configurações e estados restritos L2', () => {
         <SecuritySettingsPage />
       </MemoryRouter>
     );
-    await user.type(await screen.findByLabelText('Senha atual'), 'Senha antiga segura 123');
-    await user.type(screen.getByLabelText('Nova senha'), 'Senha nova segura 456');
-    await user.type(screen.getByLabelText('Confirmar nova senha'), 'Senha nova segura 456');
+    await user.type(await screen.findByLabelText(/^Senha atual/), 'Senha antiga segura 123');
+    await user.type(screen.getByLabelText(/^Nova senha/), 'Senha nova segura 456');
+    await user.type(screen.getByLabelText(/^Confirmar nova senha/), 'Senha nova segura 456');
     const button = screen.getByRole('button', { name: 'Alterar senha' });
 
     await user.click(button);
@@ -328,8 +312,8 @@ describe('configurações e estados restritos L2', () => {
         <SecuritySettingsPage />
       </MemoryRouter>
     );
-    await user.type(await screen.findByLabelText('Nova senha'), 'SenhaNovaSegura123!');
-    const confirmation = screen.getByLabelText('Confirmar nova senha');
+    await user.type(await screen.findByLabelText(/^Nova senha/), 'SenhaNovaSegura123!');
+    const confirmation = screen.getByLabelText(/^Confirmar nova senha/);
     await user.type(confirmation, 'Divergente123!');
     await user.click(screen.getByRole('button', { name: 'Criar senha' }));
     expect(screen.getByRole('alert')).toHaveTextContent('As senhas não coincidem.');
@@ -348,6 +332,27 @@ describe('configurações e estados restritos L2', () => {
     expect(screen.getByRole('button', { name: 'Solicitar exclusão' }).parentElement).toHaveClass(
       'settings-actions'
     );
+    const blob = new Blob(['archive'], { type: 'application/zip' });
+    mocks.api.exportData.mockResolvedValue(blob);
+    const createUrl = vi.fn(() => 'blob:settings-export');
+    const revokeUrl = vi.fn();
+    const originalCreate = URL.createObjectURL,
+      originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createUrl;
+    URL.revokeObjectURL = revokeUrl;
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Exportar meus dados' }));
+      await waitFor(() => expect(click).toHaveBeenCalledOnce());
+      expect(createUrl).toHaveBeenCalledExactlyOnceWith(blob);
+      expect(click.mock.instances[0].download).toMatch(/^traceflow-export-\d{4}-\d{2}-\d{2}\.zip$/);
+      expect(click.mock.instances[0].href).toBe('blob:settings-export');
+      expect(revokeUrl).toHaveBeenCalledExactlyOnceWith('blob:settings-export');
+    } finally {
+      click.mockRestore();
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
     unmount();
     render(
       <MemoryRouter>
@@ -458,7 +463,7 @@ describe('configurações e estados restritos L2', () => {
         <PrivacySettingsPage />
       </MemoryRouter>
     );
-    await user.type(await screen.findByLabelText('Senha atual'), 'Senha local segura 123');
+    await user.type(await screen.findByLabelText(/^Senha atual/), 'Senha local segura 123');
     const button = screen.getByRole('button', { name: 'Solicitar exclusão' });
 
     await user.click(button);
@@ -474,14 +479,26 @@ describe('configurações e estados restritos L2', () => {
     ['privacidade', PrivacySettingsPage, 'deletion'],
     ['integrações', IntegrationsSettingsPage, 'github']
   ])('usa a página contextual quando a carga inicial de %s falha', async (_name, Page, method) => {
-    mocks.api[method].mockRejectedValueOnce({ message: 'Falha interna', status: 500 });
+    mocks.api[method].mockRejectedValueOnce({
+      response: { status: 500, data: { message: 'SQL internal private-token' } }
+    });
     render(
       <MemoryRouter>
         <Page />
       </MemoryRouter>
     );
 
-    expect(await screen.findByTestId('contextual-error-page')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'O TRACEFLOW encontrou um problema.' })
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/SQL|private-token/);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(
+      await screen.findByRole('button', {
+        name: method === 'deletion' ? 'Exportar meus dados' : 'Instalar ou autorizar GitHub App'
+      })
+    ).toBeInTheDocument();
+    expect(mocks.api[method]).toHaveBeenCalledTimes(2);
   });
 
   it('mantém a senha fora do estado normal e desconecta a App em um único dialog', async () => {
@@ -506,7 +523,7 @@ describe('configurações e estados restritos L2', () => {
     );
 
     expect(await screen.findByText('traceflow-org')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Senha atual')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Senha atual/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Gerenciar acesso no GitHub' })).toHaveAttribute(
       'href',
       'https://github.com/settings/installations/12'
@@ -515,7 +532,7 @@ describe('configurações e estados restritos L2', () => {
     const dialog = screen.getByRole('dialog', { name: 'Desconectar GitHub App?' });
     expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toHaveFocus();
     expect(dialog).toHaveTextContent('O login com GitHub não será afetado.');
-    await user.type(within(dialog).getByLabelText('Senha atual'), 'senha local segura');
+    await user.type(within(dialog).getByLabelText(/^Senha atual/), 'senha local segura');
     const confirmDisconnect = within(dialog).getByRole('button', { name: 'Desconectar' });
     expect(confirmDisconnect).toBeEnabled();
     await user.click(confirmDisconnect);
@@ -569,7 +586,7 @@ describe('configurações e estados restritos L2', () => {
     expect(screen.getByText('@octocat').parentElement).toHaveClass('integration-box-compact');
     await user.click(screen.getByRole('button', { name: 'Desvincular' }));
     const dialog = screen.getByRole('dialog', { name: 'Crie uma senha antes de desvincular' });
-    expect(within(dialog).queryByLabelText('Senha atual')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Senha atual/)).not.toBeInTheDocument();
     expect(within(dialog).getByRole('link', { name: 'Ir para Segurança' })).toHaveAttribute(
       'href',
       '/settings/security'

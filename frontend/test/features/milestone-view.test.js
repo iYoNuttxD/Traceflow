@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 import {
   buildMilestoneSummary,
@@ -111,10 +113,38 @@ describe('progresso e periodo coberto', () => {
     expect(milestoneCoveredPeriod(9, [])).toBeNull();
   });
 
-  it('soma somente pontos ja presentes no DTO do cronograma', () => {
-    const result = summarizeMilestoneSprints(5, [sprint(1, 5)], {
-      1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: 5 }] }
+  it('não transforma estimativa ausente em um total completo de pontos', () => {
+    const result = summarizeMilestoneSprints(5, [sprint(1, 5, 'PLANEJADA')], {
+      1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: null }] }
     });
+    expect(result.points).toBeNull();
+  });
+
+  it('não apresenta subtotal congelado parcial como esforço total completo do marco', () => {
+    const result = summarizeMilestoneSprints(5, [
+      sprint(1, 5, 'CONCLUIDA', {
+        historicalSummary: {
+          totalTasks: 2,
+          completedTasks: 1,
+          totalPoints: 4,
+          completedPoints: 4,
+          percentage: null,
+          estimateCoverage: { current: { unknownEstimateCount: 1 } }
+        }
+      })
+    ]);
+    expect(result.points).toBeNull();
+  });
+
+  it('soma somente pontos ja presentes no DTO do cronograma', () => {
+    const result = summarizeMilestoneSprints(
+      5,
+      [sprint(1, 5, 'PLANEJADA', { tasks: [{ estimatedEffort: 999 }], points: 888 }), sprint(2, 6)],
+      {
+        1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: 5 }] },
+        2: { tasks: [{ estimatedEffort: 777 }] }
+      }
+    );
     expect(result.points).toBe(8);
   });
 });
@@ -152,6 +182,15 @@ describe('filterMilestones', () => {
       sprintId: 2
     };
     expect(filterMilestones(milestones, filters, sprints, now).map((item) => item.id)).toEqual([2]);
+    for (const conflict of [
+      { status: 'CONCLUIDO' },
+      { deadlineHealth: 'ATRASADO' },
+      { sprintId: 1 },
+      { dueFrom: '2026-09-11' },
+      { dueTo: '2026-09-08' }
+    ]) {
+      expect(filterMilestones(milestones, { ...filters, ...conflict }, sprints, now)).toEqual([]);
+    }
     expect(hasMilestoneFilters(filters)).toBe(true);
     expect(hasMilestoneFilters(MILESTONE_FILTER_DEFAULTS)).toBe(false);
   });

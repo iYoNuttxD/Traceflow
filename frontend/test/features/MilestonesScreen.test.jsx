@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -66,10 +66,11 @@ function setData({ milestones = [], sprints = [], scheduleSprints = sprints } = 
   });
 }
 
-function renderScreen() {
+function renderScreen({ navigation = null } = {}) {
   return render(
     <ConfirmProvider>
       <MemoryRouter initialEntries={['/projects/1/milestones']}>
+        {navigation}
         <Routes>
           <Route path="/projects/:projectId/milestones" element={<MilestonesScreen />} />
         </Routes>
@@ -118,6 +119,8 @@ describe('estrutura e estados da página', () => {
     mocks.projects.get.mockReturnValueOnce(new Promise(() => {}));
     const first = renderScreen();
     expect(screen.getByText('Carregando marcos...')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo marco' })).not.toBeInTheDocument();
+    expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
     first.unmount();
 
     mocks.projects.get.mockRejectedValueOnce({ response: { status: 403, data: {} } });
@@ -127,7 +130,9 @@ describe('estrutura e estados da página', () => {
 
     mocks.projects.get.mockRejectedValueOnce({ response: { status: 500, data: {} } });
     renderScreen();
-    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByRole('list', { name: 'Marcos do projeto' })).toBeInTheDocument();
+    expect(mocks.projects.get).toHaveBeenCalledTimes(4);
   });
 
   it('remove o formulario permanente e mantém Novo marco como primeiro item do empty state', async () => {
@@ -268,6 +273,28 @@ describe('busca e filtros', () => {
       screen.queryByRole('heading', { name: 'Fundação do produto', level: 3 })
     ).not.toBeInTheDocument();
     expect(screen.getByText('1 de 2 marcos')).toBeInTheDocument();
+    for (const [label, conflict, restored] of [
+      ['Status', 'PENDENTE', 'CONCLUIDO'],
+      ['Situação do prazo', 'ATRASADO', 'CONCLUIDO']
+    ]) {
+      await user.selectOptions(screen.getByLabelText(label), conflict);
+      expect(
+        screen.queryByRole('heading', { name: 'Release final', level: 3 })
+      ).not.toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText(label), restored);
+      expect(screen.getByRole('heading', { name: 'Release final', level: 3 })).toBeInTheDocument();
+    }
+    for (const [label, conflict, restored] of [
+      ['Prazo inicial', '2099-11-01', '2099-10-01'],
+      ['Prazo final', '2099-09-01', '2099-10-31']
+    ]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value: conflict } });
+      expect(
+        screen.queryByRole('heading', { name: 'Release final', level: 3 })
+      ).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(label), { target: { value: restored } });
+      expect(screen.getByRole('heading', { name: 'Release final', level: 3 })).toBeInTheDocument();
+    }
   });
 });
 
@@ -289,8 +316,11 @@ describe('criação e edição em modal', () => {
     const user = userEvent.setup();
     const sprints = [
       sprint(1, 'Sprint Login', 'PLANEJADA', null),
-      sprint(2, 'Sprint API', 'EM_ANDAMENTO', null)
+      sprint(2, 'Sprint API', 'EM_ANDAMENTO', null),
+      sprint(3, 'Sprint não selecionada', 'PLANEJADA', null)
     ];
+    const created = marco({ id: 19, title: 'Entrega conjunta', description: 'Login e API' });
+    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: created } });
     setData({ sprints });
     renderScreen();
     await user.click(await screen.findByRole('button', { name: 'Novo marco' }));
@@ -300,6 +330,8 @@ describe('criação e edição em modal', () => {
     expect(within(dialog).getByText('Informe o título do marco.')).toBeInTheDocument();
     expect(within(dialog).getByText('Informe a data prevista.')).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Título/)).toHaveFocus();
+    expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
+    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
 
     const search = within(dialog).getByRole('combobox', { name: 'Pesquisar Sprints' });
     await user.type(search, 'Sprint');
@@ -308,6 +340,44 @@ describe('criação e edição em modal', () => {
     await user.click(await within(dialog).findByRole('option', { name: /Sprint API/ }));
     expect(within(dialog).getByText('Sprints selecionadas (2)')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Remover Sprint Login' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Remover Sprint API' })).toBeEnabled();
+
+    await user.type(within(dialog).getByLabelText(/Título/), '  Entrega conjunta  ');
+    await user.type(within(dialog).getByLabelText('Descrição'), '  Login e API  ');
+    fireEvent.change(within(dialog).getByLabelText(/Prazo/), {
+      target: { value: '2099-09-30T18:00' }
+    });
+    setData({
+      milestones: [created],
+      sprints: [
+        { ...sprints[0], milestoneId: created.id },
+        { ...sprints[1], milestoneId: created.id },
+        sprints[2]
+      ]
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Criar marco' }));
+
+    expect(await screen.findByText('Marco criado com sucesso.')).toBeInTheDocument();
+    expect(mocks.schedule.createMilestone.mock.calls).toEqual([
+      [
+        '1',
+        {
+          title: 'Entrega conjunta',
+          description: 'Login e API',
+          dueDate: new Date('2099-09-30T18:00').toISOString()
+        }
+      ]
+    ]);
+    expect(mocks.schedule.updateSprint.mock.calls).toEqual([
+      [1, { milestoneId: 19 }],
+      [2, { milestoneId: 19 }]
+    ]);
+    expect(screen.queryByRole('dialog', { name: 'Criar marco' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sprints' }));
+    const linked = await screen.findByRole('dialog', { name: 'Sprints de Entrega conjunta' });
+    expect(within(linked).getByText('Sprint Login')).toBeInTheDocument();
+    expect(within(linked).getByText('Sprint API')).toBeInTheDocument();
+    expect(within(linked).queryByText('Sprint não selecionada')).not.toBeInTheDocument();
   });
 
   it('desabilita Sprint congelada e avisa sobre movimento entre marcos', async () => {
@@ -331,6 +401,11 @@ describe('criação e edição em modal', () => {
       'aria-disabled',
       'true'
     );
+    await user.click(within(dialog).getByRole('option', { name: /Sprint congelada/ }));
+    expect(
+      within(dialog).queryByRole('button', { name: /Remover Sprint congelada/ })
+    ).not.toBeInTheDocument();
+    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
   });
 
   it('cria, move a Sprint, fecha o modal e atualiza o grid sem reload manual', async () => {
@@ -491,21 +566,81 @@ describe('menu, autorização e lifecycle', () => {
       data: { milestone: marco({ status: 'PENDENTE' }) }
     });
     renderScreen();
-    const { user, menu } = await openMenu();
+    mocks.schedule.updateMilestoneStatus.mockRejectedValueOnce({
+      response: { status: 400, data: { message: 'Reabertura temporariamente indisponível.' } }
+    });
+    let { user, menu } = await openMenu();
+    await user.click(within(menu).getByRole('menuitem', { name: /Reabrir o marco/ }));
+    expect(await screen.findByText('Reabertura temporariamente indisponível.')).toBeInTheDocument();
+    ({ user, menu } = await openMenu());
     await user.click(within(menu).getByRole('menuitem', { name: /Reabrir o marco/ }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledWith(5, 'PENDENTE')
     );
+    const reopened = await openMenu();
+    expect(screen.getByText('Marco reaberto com sucesso.')).toBeInTheDocument();
+    expect(
+      within(reopened.menu).queryByRole('menuitem', { name: /Reabrir o marco/ })
+    ).not.toBeInTheDocument();
   });
 
   it('permite exclusão lógica no menu com Sprints e explica a preservação', async () => {
-    setData({ milestones: [marco()], sprints: [sprint(1, 'Sprint 1')] });
+    const linked = [sprint(1, 'Sprint aberta'), sprint(2, 'Sprint encerrada', 'CONCLUIDA')];
+    setData({ milestones: [marco()], sprints: linked });
     renderScreen();
-    const { menu } = await openMenu();
+    const { user, menu } = await openMenu();
     const remove = within(menu).getByRole('menuitem', { name: /Excluir o marco/ });
     expect(remove).toBeEnabled();
     expect(remove).toHaveAttribute('title', expect.stringContaining('preservando Sprints'));
+
+    await user.click(remove);
+    let dialog = await screen.findByRole('dialog', { name: 'Excluir marco?' });
+    expect(dialog).toHaveTextContent(
+      'As Sprints vinculadas, Tasks e seu histórico serão preservados.'
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Fundação do produto', level: 3 })
+    ).toBeInTheDocument();
+    expect(mocks.schedule.removeMilestone).not.toHaveBeenCalled();
+    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
+    expect(mocks.schedule.listSprints).toHaveBeenCalledTimes(1);
+
+    const reopened = await openMenu();
+    await user.click(within(reopened.menu).getByRole('menuitem', { name: /Excluir o marco/ }));
+    dialog = await screen.findByRole('dialog', { name: 'Excluir marco?' });
+    setData({
+      sprints: linked.map((item) => ({
+        ...item,
+        milestone: { id: 5, title: 'Fundação do produto', deletedAt: '2026-09-04T12:00:00.000Z' }
+      }))
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Excluir marco' }));
+
+    expect(await screen.findByText('Marco excluído com sucesso.')).toBeInTheDocument();
+    expect(mocks.schedule.removeMilestone.mock.calls).toEqual([[5]]);
+    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
+    expect(mocks.schedule.getSchedule).toHaveBeenCalledTimes(2);
+    expect(mocks.schedule.listSprints).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByRole('heading', { name: 'Fundação do produto', level: 3 })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Novo marco' }));
+    const createDialog = await screen.findByRole('dialog', { name: 'Criar marco' });
+    await user.type(
+      within(createDialog).getByRole('combobox', { name: 'Pesquisar Sprints' }),
+      'Sprint'
+    );
+    expect(
+      await within(createDialog).findByRole('option', { name: /Sprint aberta/ })
+    ).toHaveTextContent('Pertence ao Marco Fundação do produto · Excluído — será movida.');
+    expect(within(createDialog).getByRole('option', { name: /Sprint encerrada/ })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
   });
 
   it('fecha o menu no Escape e devolve foco ao trigger', async () => {
@@ -517,13 +652,40 @@ describe('menu, autorização e lifecycle', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('VIEWER consulta Sprints, mas não recebe criação nem mutations', async () => {
-    mocks.schedule.getMembership.mockResolvedValue({
-      data: { currentMembership: { role: 'VIEWER' } }
-    });
+  it('VIEWER consulta Sprints, mas não recebe criação nem mutations após trocar de projeto', async () => {
+    const user = userEvent.setup();
     setData({ milestones: [marco()] });
-    renderScreen();
+    renderScreen({ navigation: <Link to="/projects/2/milestones">Abrir projeto B</Link> });
     await screen.findByRole('heading', { name: 'Fundação do produto', level: 3 });
+    expect(screen.getByRole('button', { name: 'Novo marco' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mais ações do marco/ })).toBeInTheDocument();
+
+    let resolveMembership;
+    mocks.schedule.getMembership.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveMembership = resolve;
+      })
+    );
+    mocks.projects.get.mockResolvedValue({ data: { project: { id: 2, name: 'Projeto B' } } });
+    setData({ milestones: [marco({ id: 6, title: 'Marco do projeto B' })] });
+    await user.click(screen.getByRole('link', { name: 'Abrir projeto B' }));
+
+    expect(await screen.findByText('Carregando marcos...')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo marco' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mais ações do marco/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Fundação do produto')).not.toBeInTheDocument();
+    expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
+    expect(mocks.schedule.updateMilestone).not.toHaveBeenCalled();
+    expect(mocks.schedule.updateMilestoneStatus).not.toHaveBeenCalled();
+    expect(mocks.schedule.removeMilestone).not.toHaveBeenCalled();
+    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveMembership({ data: { currentMembership: { role: 'VIEWER' } } });
+    });
+    expect(
+      await screen.findByRole('heading', { name: 'Marco do projeto B', level: 3 })
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Novo marco' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mais ações do marco/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sprints' })).toBeInTheDocument();

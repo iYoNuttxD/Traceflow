@@ -250,9 +250,11 @@ describe('AppShell', () => {
     await interaction.click(
       screen.getByRole('button', { name: 'Tema atual: Sistema. Alterar para Claro.' })
     );
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light');
     await interaction.click(
       screen.getByRole('button', { name: 'Tema atual: Claro. Alterar para Escuro.' })
     );
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
     await interaction.click(
       screen.getByRole('button', { name: 'Tema atual: Escuro. Alterar para Sistema.' })
     );
@@ -261,5 +263,6 @@ describe('AppShell', () => {
       screen.getByRole('button', { name: 'Tema atual: Sistema. Alterar para Claro.' })
     ).toHaveAttribute('data-tooltip', 'Tema: Sistema');
     expect(window.localStorage.getItem('traceflow.theme')).toBe('system');
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light');
   });
 });

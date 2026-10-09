@@ -8,6 +8,15 @@
 - Em testes, `TEST_DATABASE_URL` deve conter `test` e ser diferente de `DATABASE_URL`.
 - Faça backup verificado antes de alteração destrutiva.
 
+Testes e benchmarks não podem limpar o banco de desenvolvimento. Com `NODE_ENV=test`,
+o cliente Prisma exige um datasource explícito de testes na construção. A limpeza global de
+fixtures verifica o schema da conexão dentro da mesma transação das exclusões; alterar somente
+variáveis de ambiente não é prova de que um cliente já inicializado mudou de banco.
+Em uma máquina com dados de desenvolvimento, executar os gates com credencial exclusiva do
+schema de testes, sem permissões sobre desenvolvimento; não usar `root` nas suítes. Verificar
+o schema efetivo e a recusa de acesso a desenvolvimento antes da execução. Configurações de
+teste não devem herdar uma `DATABASE_URL` com credenciais privilegiadas.
+
 ## Desenvolvimento e teste
 
 ```bash
@@ -201,3 +210,22 @@ Scripts E8 são dry-run/auditoria ou exigem confirmação explícita. As fontes 
 etapas históricas de backfill/reconciliação; isoladamente elas não removem todo o legado bloqueante
 da LR.2. O fechamento operacional suportado é `lr2:recovery:*`. Nenhum script substitui backup nem
 autoriza associação de dados por nome.
+
+
+## S2 — backfill histórico de Burnup (PR23-FIX-07)
+
+Para aplicar `20260925120000_s2_p5_1_sprint_burnup_history` pela primeira vez, **parar API,
+workers de sync e todos os escritores antes do migrate deploy**. Manter a pausa até o código
+atualizado estar pronto e a conferência pós-migration terminar. Não executar a API antiga entre
+migration e restart: ela não escreve os eventos necessários ao diário. Garantir UTC na sessão
+MySQL da implantação; não inferir timezone histórico a partir da configuração atual.
+
+Checklist, consulta somente leitura de divergência STATUS e limitações de reconciliação:
+[Planning History — operação do backfill](../data/PLANNING_HISTORY.md#operação-do-backfill-burnup--retificação-pr23-fix-07--m09--l11).
+A consulta detecta candidatos, não recupera automaticamente escopo/estimativas ausentes.
+Não reescrever migrations aplicadas nem âncoras antigas por suposição.
+
+Validação local exige TEST_DATABASE_URL isolado. Além dos validators P1/P3/P5.1, executar
+`npm run db:test:validate-dashboard-preference` e `npm run db:test:validate-task-responsibility`.
+Cada validator cria schema próprio, recusa nome preexistente e remove apenas o schema criado
+pela própria execução. A nova migration de responsabilidade é aditiva e não infere legado.

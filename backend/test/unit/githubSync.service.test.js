@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   forInstallation: vi.fn(),
-  githubBranchRepository: { syncObserved: vi.fn(), markSuccessfullySynced: vi.fn() },
+  githubBranchRepository: { syncObserved: vi.fn(), reconcileMembership: vi.fn() },
   projectRepository: {
     findById: vi.fn(),
     isActive: vi.fn(),
@@ -15,11 +15,12 @@ const mocks = vi.hoisted(() => ({
     findHashesByProjectId: vi.fn(),
     findByProjectIdAndHashes: vi.fn(),
     createMany: vi.fn(),
+    fillGithubAuthorIds: vi.fn(),
     createBranchLinks: vi.fn(),
     findByBranchId: vi.fn()
   },
   commitSuggestionService: { detectForCommits: vi.fn() },
-  pullRequestRepository: { upsertMany: vi.fn() },
+  pullRequestRepository: { upsertMany: vi.fn(), appendLifecycleEvents: vi.fn() },
   issueRepository: { upsertMany: vi.fn() }
 }));
 
@@ -86,6 +87,7 @@ function buildGithubDouble({
     listBranchPages: vi.fn(() => pages(...branches)),
     listCommitPages: vi.fn(() => pages(...commits)),
     listPullRequestPages: vi.fn(() => pages(...pullRequests)),
+    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(...issues))
   };
 }
@@ -132,16 +134,17 @@ describe('githubSyncService com client e persistência substituídos', () => {
     mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (_projectId, hashes) =>
       hashes.map((hash) => storedCommits.get(hash)).filter(Boolean)
     );
-    mocks.commitRepository.createBranchLinks.mockImplementation(async (_projectId, items) => ({
-      count: items.length
-    }));
+    mocks.githubBranchRepository.reconcileMembership.mockImplementation(
+      async (_projectId, _branchId, _headSha, ids) => ({ count: ids.length })
+    );
+    mocks.commitRepository.fillGithubAuthorIds.mockResolvedValue();
     mocks.commitRepository.findByBranchId.mockResolvedValue([]);
-    mocks.githubBranchRepository.markSuccessfullySynced.mockResolvedValue(null);
     mocks.commitSuggestionService.detectForCommits.mockResolvedValue({ createdSuggestions: 0 });
     mocks.pullRequestRepository.upsertMany.mockImplementation(async (items) => ({
       created: items.length,
       updated: 0
     }));
+    mocks.pullRequestRepository.appendLifecycleEvents.mockResolvedValue({ count: 0 });
     mocks.issueRepository.upsertMany.mockImplementation(async (items) => ({
       created: 0,
       updated: items.length
@@ -164,7 +167,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
       expect.objectContaining({ owner: repository.owner, repo: repository.name })
     );
     expect(github.listCommitPages).toHaveBeenCalledWith(
-      expect.objectContaining({ branch: 'main' })
+      expect.objectContaining({ branch: 'head-main' })
     );
     expect(github.listPullRequestPages).toHaveBeenCalledWith({
       owner: repository.owner,
@@ -189,7 +192,13 @@ describe('githubSyncService com client e persistência substituídos', () => {
         pages: 2,
         branchesSkipped: 0
       },
-      pullRequests: { found: 1, created: 1, updated: 0 },
+      pullRequests: {
+        found: 1,
+        created: 1,
+        updated: 0,
+        lifecycleEventsObserved: 0,
+        lifecycleEventsCreated: 0
+      },
       issues: { found: 1, created: 0, updated: 1 }
     });
     expect(mocks.projectRepository.markGithubSyncSucceeded).toHaveBeenCalledOnce();
@@ -257,6 +266,10 @@ describe('githubSyncService com client e persistência substituídos', () => {
     await expect(first).resolves.toMatchObject({
       summary: { commits: { foundAcrossBranches: 0 } }
     });
+    github.getRepository.mockResolvedValue(repository);
+    await expect(githubSyncService.syncProjectGithubData(project.id)).resolves.toMatchObject({
+      summary: { commits: { foundAcrossBranches: 0 } }
+    });
   });
 
   it('deduplica commits encontrados em várias branches e cria todos os vínculos', async () => {
@@ -279,10 +292,12 @@ describe('githubSyncService com client e persistência substituídos', () => {
         .map((hash) => ({ id: ids.get(hash), projectId, hash, message: `[${hash}]` }))
     );
     const links = [];
-    mocks.commitRepository.createBranchLinks.mockImplementation(async (_projectId, items) => {
-      links.push(...items);
-      return { count: items.length };
-    });
+    mocks.githubBranchRepository.reconcileMembership.mockImplementation(
+      async (_projectId, branchId, _headSha, ids) => {
+        links.push(...ids.map((commitId) => ({ commitId, branchId })));
+        return { count: ids.length };
+      }
+    );
     const github = buildGithubDouble({
       branches: [
         [
@@ -293,7 +308,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
     });
     github.listCommitPages.mockImplementation(({ branch }) =>
       pages(
-        branch === 'main'
+        branch === 'C'
           ? [{ hash: 'A' }, { hash: 'B' }, { hash: 'C' }]
           : [{ hash: 'B' }, { hash: 'C' }, { hash: 'D' }]
       )
@@ -303,7 +318,15 @@ describe('githubSyncService com client e persistência substituídos', () => {
     const result = await githubSyncService.syncProjectGithubData(project.id);
 
     expect(stored).toEqual(new Set(['A', 'B', 'C', 'D']));
-    expect(links).toHaveLength(6);
+    expect(links).toEqual([
+      { branchId: 10, commitId: 1 },
+      { branchId: 10, commitId: 2 },
+      { branchId: 10, commitId: 3 },
+      { branchId: 11, commitId: 2 },
+      { branchId: 11, commitId: 3 },
+      { branchId: 11, commitId: 4 }
+    ]);
+    expect(new Set(links.map(({ branchId, commitId }) => `${branchId}:${commitId}`)).size).toBe(6);
     expect(result.summary.commits).toMatchObject({
       foundAcrossBranches: 6,
       unique: 4,

@@ -138,6 +138,15 @@ describe('current-context-wins na troca de projeto', () => {
     const { rerender } = render(<Harness projectId={1} />);
     await act(async () => {});
     expect(screen.getByTestId('somenteLeitura')).toHaveTextContent('false');
+    const contextA = api.captureContext();
+    const lateOwner = deferred();
+    segurarCargaCom(lateOwner);
+    let oldLoad;
+    act(() => {
+      oldLoad = api.loadAll();
+    });
+    const oldMembershipSignal = mocks.schedule.getMembership.mock.calls.at(-1)[1].signal;
+    expect(oldMembershipSignal.aborted).toBe(false);
 
     const b = deferred();
     segurarCargaCom(b);
@@ -145,8 +154,21 @@ describe('current-context-wins na troca de projeto', () => {
     await act(async () => {});
 
     expect(screen.getByTestId('loading')).toHaveTextContent('true');
+    expect(screen.getByTestId('project')).toBeEmptyDOMElement();
+    expect(oldMembershipSignal.aborted).toBe(true);
+    expect(api.isCurrentContext(contextA)).toBe(false);
 
     await liberar(b, respostasDoProjeto('Projeto B', { role: 'VIEWER' }));
+    expect(screen.getByTestId('project')).toHaveTextContent('Projeto B');
+    expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    expect(screen.getByTestId('somenteLeitura')).toHaveTextContent('true');
+
+    await act(async () => {
+      lateOwner.resolve(respostasDoProjeto('Projeto A obsoleto', { role: 'OWNER' }));
+      await oldLoad;
+    });
+    expect(screen.getByTestId('project')).toHaveTextContent('Projeto B');
+    expect(screen.getByTestId('loading')).toHaveTextContent('false');
     expect(screen.getByTestId('somenteLeitura')).toHaveTextContent('true');
   });
 });

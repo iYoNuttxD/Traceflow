@@ -86,12 +86,19 @@ describe('ProjectDeletionService', () => {
     await expect(service.requestDeletion(12, 7)).rejects.toMatchObject({ statusCode, code });
   });
 
-  it('restores only a historical OWNER before expiry', async () => {
+  it('forwards restore actor and clock and translates repository outcomes', async () => {
     repository.restore.mockResolvedValue({
       outcome: 'RESTORED',
       project: { id: 12, name: 'TraceFlow' }
     });
-    await expect(service.restore(12, 7)).resolves.toMatchObject({ id: 12, name: 'TraceFlow' });
+    const now = new Date('2026-10-01T00:00:00.000Z');
+    await expect(service.restore(12, 7, { now })).resolves.toMatchObject({
+      id: 12,
+      name: 'TraceFlow'
+    });
+    expect(repository.restore).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ projectId: 12, userId: 7, now })
+    );
     repository.restore.mockResolvedValue({ outcome: 'FORBIDDEN' });
     await expect(service.restore(12, 8)).rejects.toMatchObject({
       statusCode: 403,
@@ -101,7 +108,7 @@ describe('ProjectDeletionService', () => {
     await expect(service.restore(12, 7)).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('requires exact project-name confirmation before claiming permanent deletion', async () => {
+  it('forwards name confirmation and stops when the repository rejects it', async () => {
     repository.claimPurge.mockResolvedValue({ outcome: 'INVALID_CONFIRMATION' });
     await expect(service.purge(12, 7, 'traceflow')).rejects.toMatchObject({
       code: 'PROJECT_DELETION_CONFIRMATION_INVALID'
@@ -111,6 +118,9 @@ describe('ProjectDeletionService', () => {
       expect.any(Date),
       expect.objectContaining({ userId: 7, confirmationName: 'traceflow' })
     );
+    expect(repository.prepareStorageCleanup).not.toHaveBeenCalled();
+    expect(repository.deleteProjectGraph).not.toHaveBeenCalled();
+    expect(storage.stageForPurge).not.toHaveBeenCalled();
   });
 
   it('stages evidence, deletes the graph and keeps failed filesystem cleanup for retry', async () => {
@@ -149,10 +159,13 @@ describe('ProjectDeletionService', () => {
     expect(repository.releasePurge).toHaveBeenCalledWith(12, 'claim-lost');
   });
 
-  it('uses explicit time for due purge and never sleeps', async () => {
+  it('uses explicit time for due purge, preserves dry-run and skips lost claims', async () => {
     const now = new Date('2026-10-22T00:00:00.000Z');
     repository.dueProjects.mockResolvedValue([{ id: 12 }]);
     repository.claimPurge.mockResolvedValue({ outcome: 'CLAIMED', token: 'claim-due' });
+    expect(await service.processDue({ now })).toEqual({ mode: 'dry-run', count: 1 });
+    expect(repository.claimPurge).not.toHaveBeenCalled();
+    expect(repository.deleteProjectGraph).not.toHaveBeenCalled();
     const result = await service.processDue({ now, dryRun: false });
     expect(result).toMatchObject({ count: 1, processed: 1, failed: 0 });
     expect(repository.claimPurge).toHaveBeenCalledWith(
@@ -160,5 +173,13 @@ describe('ProjectDeletionService', () => {
       now,
       expect.objectContaining({ dueOnly: true })
     );
+    repository.claimPurge.mockResolvedValue({ outcome: 'CONFLICT' });
+    repository.deleteProjectGraph.mockClear();
+    expect(await service.processDue({ now, dryRun: false })).toMatchObject({
+      count: 1,
+      processed: 0,
+      failed: 0
+    });
+    expect(repository.deleteProjectGraph).not.toHaveBeenCalled();
   });
 });

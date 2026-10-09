@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
 import { readFile, mkdtemp, readdir, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -191,14 +192,24 @@ describe('S1-07 persisted definitions', () => {
         status: 'ATIVO'
       });
       const version = await prisma.testCaseVersion.findFirst();
-      expect(version.snapshotJson).toMatchObject({
+      expect(version.snapshotJson).toEqual({
         schemaVersion: 1,
         title: 'Case',
+        description: 'Description',
+        preconditions: 'Ready',
+        expectedResult: 'Works',
+        requirement: { id: f.requirement.id, title: 'Original requirement' },
+        tasks: links ? [{ id: f.task.id, title: 'Original task' }] : [],
         steps: [
           { position: 1, action: 'First', expectedResult: 'First result' },
           { position: 2, action: 'Second', expectedResult: 'Second result' }
         ]
       });
+      expect(
+        (await prisma.testCaseTask.findMany({ where: { testCaseId: row.id } })).map(
+          ({ taskId }) => taskId
+        )
+      ).toEqual(links ? [f.task.id] : []);
       expect(await prisma.testCaseHistoryEntry.count()).toBe(1);
       const audit = await prisma.auditEvent.findFirst({ where: { action: 'TEST_CASE_CREATED' } });
       expect(audit.metadataJson).toEqual({
@@ -212,8 +223,22 @@ describe('S1-07 persisted definitions', () => {
   );
   it('accepts requirement-only and tasks-only definitions', async () => {
     const f = await fixture();
-    expect((await f.create({ taskIds: [] })).taskCount).toBe(0);
-    expect((await f.create({ requirementId: null })).requirement).toBeNull();
+    const requirementOnly = await f.create({ taskIds: [] });
+    const tasksOnly = await f.create({ requirementId: null });
+    expect(requirementOnly).toMatchObject({ taskCount: 0, requirement: { id: f.requirement.id } });
+    expect(tasksOnly).toMatchObject({ requirement: null, taskCount: 1 });
+    expect(
+      (await prisma.testCaseTask.findMany({ where: { testCaseId: tasksOnly.id } })).map(
+        ({ taskId }) => taskId
+      )
+    ).toEqual([f.task.id]);
+    expect(
+      (await prisma.testCaseVersion.findFirst({ where: { testCaseId: requirementOnly.id } }))
+        .snapshotJson
+    ).toMatchObject({ requirement: { id: f.requirement.id }, tasks: [] });
+    expect(
+      (await prisma.testCaseVersion.findFirst({ where: { testCaseId: tasksOnly.id } })).snapshotJson
+    ).toMatchObject({ requirement: null, tasks: [{ id: f.task.id }] });
   });
   it('rejects missing, foreign and inactive responsible, requirement/task mismatch without partial rows', async () => {
     const f = await fixture();
@@ -243,6 +268,8 @@ describe('S1-07 persisted definitions', () => {
     expect((await edit({ title: ' Case ', taskIds: [t2.id, f.task.id] }, 1)).currentVersion).toBe(
       1
     );
+    expect(await prisma.testCaseHistoryEntry.count()).toBe(1);
+    expect(await prisma.auditEvent.count()).toBe(1);
     expect((await edit({ title: 'Changed' }, 1)).currentVersion).toBe(2);
     expect((await edit({ steps: [...f.input.steps].reverse() }, 2)).currentVersion).toBe(3);
     expect((await cases.versions(row.id, page, f.context)).items.map((v) => v.version)).toEqual([
@@ -251,6 +278,20 @@ describe('S1-07 persisted definitions', () => {
     expect((await cases.versions(row.id, { page: 2, limit: 1 }, f.context)).items[0].version).toBe(
       2
     );
+    const versions = await prisma.testCaseVersion.findMany({
+      where: { testCaseId: row.id },
+      orderBy: { version: 'asc' }
+    });
+    expect(
+      versions.map(({ snapshotJson }) => ({ title: snapshotJson.title, steps: snapshotJson.steps }))
+    ).toEqual([
+      { title: 'Case', steps: f.input.steps.map((step, i) => ({ ...step, position: i + 1 })) },
+      { title: 'Changed', steps: f.input.steps.map((step, i) => ({ ...step, position: i + 1 })) },
+      {
+        title: 'Changed',
+        steps: [...f.input.steps].reverse().map((step, i) => ({ ...step, position: i + 1 }))
+      }
+    ]);
     await expect(edit({ title: 'Stale' }, 1)).rejects.toMatchObject({
       statusCode: 409,
       code: 'TEST_CASE_VERSION_CONFLICT'
@@ -259,6 +300,9 @@ describe('S1-07 persisted definitions', () => {
   it('status/responsible-only changes never create versions or reset optional fields', async () => {
     const f = await fixture();
     const row = await f.create();
+    const snapshotBefore = await prisma.testCaseVersion.findFirst({
+      where: { testCaseId: row.id }
+    });
     const updated = await cases.update(
       row.id,
       { expectedVersion: 1, status: 'INATIVO', responsibleUserId: f.user.id },
@@ -267,10 +311,16 @@ describe('S1-07 persisted definitions', () => {
     expect(updated).toMatchObject({
       currentVersion: 1,
       status: 'INATIVO',
+      responsible: { id: f.user.id },
+      preconditions: 'Ready',
+      expectedResult: 'Works',
       description: 'Description',
       requirementId: f.requirement.id,
       taskCount: 1
     });
+    expect(await prisma.testCaseVersion.findFirst({ where: { testCaseId: row.id } })).toEqual(
+      snapshotBefore
+    );
     expect(await prisma.testCaseVersion.count()).toBe(1);
     expect(
       (await cases.history(row.id, { limit: 30 }, f.context)).items.map((i) => i.action)
@@ -362,7 +412,7 @@ describe('S1-07 immutable execution', () => {
     const foreign = await prisma.commit.create({
       data: { projectId: f.otherProject.id, hash: 'foreign' }
     });
-    for (const payload of [
+    for (const [index, payload] of [
       { ...f.payload, testCaseVersion: 2 },
       { ...f.payload, testedReference: { type: 'COMMIT', id: foreign.id } },
       { ...f.payload, steps: [{ position: 1, result: 'PASS' }] },
@@ -373,13 +423,22 @@ describe('S1-07 immutable execution', () => {
           { position: 1, result: 'PASS' }
         ]
       }
-    ])
-      await expect(executions.record(row.id, payload, null, f.context)).rejects.toBeDefined();
+    ].entries())
+      await expect(executions.record(row.id, payload, null, f.context)).rejects.toMatchObject(
+        index === 0
+          ? { statusCode: 409, code: 'TEST_CASE_VERSION_CONFLICT' }
+          : index === 1
+            ? { statusCode: 404, code: 'RESOURCE_NOT_FOUND' }
+            : { statusCode: 400, code: 'VALIDATION_ERROR' }
+      );
     await cases.update(row.id, { expectedVersion: 1, status: 'INATIVO' }, f.context);
     await expect(executions.record(row.id, f.payload, null, f.context)).rejects.toMatchObject({
       code: 'TEST_CASE_INACTIVE'
     });
     expect(await prisma.testExecution.count()).toBe(0);
+    expect(await prisma.testExecutionStep.count()).toBe(0);
+    expect(await prisma.testEvidence.count()).toBe(0);
+    expect(await prisma.auditEvent.count({ where: { action: 'TEST_EXECUTION_RECORDED' } })).toBe(0);
   });
   it('serves only historical definition, PR and executor display after current changes', async () => {
     const f = await fixture();
@@ -420,8 +479,30 @@ describe('S1-07 immutable execution', () => {
       data: { projectId: f.project.id, githubId: 'unrelated', number: 77, title: 'Unrelated PR' }
     });
     const related = await executions.references(row.id, { search: '', limit: 20 }, f.context);
-    expect(related.items).toHaveLength(2);
-    expect(related.items[0].relatedTaskIds.sort()).toEqual([f.task.id, t2.id].sort());
+    expect(
+      related.items
+        .map(({ type, id, relatedTaskIds }) => ({
+          type,
+          id,
+          relatedTaskIds: [...relatedTaskIds].sort((a, b) => a - b)
+        }))
+        .sort((a, b) => a.type.localeCompare(b.type))
+    ).toEqual([
+      { type: 'COMMIT', id: f.commit.id, relatedTaskIds: [f.task.id, t2.id].sort((a, b) => a - b) },
+      {
+        type: 'PULL_REQUEST',
+        id: f.pr.id,
+        relatedTaskIds: [f.task.id, t2.id].sort((a, b) => a - b)
+      }
+    ]);
+    await prisma.pullRequest.create({
+      data: {
+        projectId: f.otherProject.id,
+        githubId: 'foreign-77',
+        number: 77,
+        title: 'Foreign PR'
+      }
+    });
     expect(
       (await executions.references(row.id, { search: '77', limit: 20 }, f.context)).items[0]
     ).toMatchObject({ number: 77, relatedTaskIds: [] });
@@ -436,12 +517,13 @@ describe('S1-07 immutable execution', () => {
     const f = await fixture();
     const row = await f.create();
     const result = await executions.record(row.id, f.payload, null, f.context);
+    const before = await prisma.testExecution.findUnique({ where: { id: result.id } });
     await expect(
       prisma.testExecution.update({
         where: { id: result.id },
         data: { testedCommitId: f.commit.id }
       })
-    ).rejects.toBeDefined();
+    ).rejects.toThrow(/TestExecution_primary_reference_check/);
     await expect(
       prisma.testEvidence.create({
         data: {
@@ -456,7 +538,32 @@ describe('S1-07 immutable execution', () => {
           storageKey: 'x'
         }
       })
-    ).rejects.toBeDefined();
+    ).rejects.toThrow(/TestEvidence_scope_check/);
+
+    for (const data of [{ testedPullRequestId: null }, { testedReferenceType: 'COMMIT' }]) {
+      await expect(prisma.testExecution.update({ where: { id: result.id }, data })).rejects.toThrow(
+        /TestExecution_primary_reference_check/
+      );
+    }
+    const step = await prisma.testExecutionStep.findFirst({ where: { executionId: result.id } });
+    await expect(
+      prisma.testEvidence.create({
+        data: {
+          projectId: f.project.id,
+          executionId: result.id,
+          executionStepId: step.id,
+          scope: 'EXECUTION',
+          kind: 'TEXT',
+          originalName: 'x',
+          mimeType: 'text/plain',
+          sizeBytes: 1,
+          sha256: 'a'.repeat(64),
+          storageKey: 'scope-negative-control'
+        }
+      })
+    ).rejects.toThrow(/TestEvidence_scope_check/);
+    expect(await prisma.testExecution.findUnique({ where: { id: result.id } })).toEqual(before);
+    expect(await prisma.testEvidence.count()).toBe(0);
   });
 });
 describe('S1-07 list aggregation, history and privacy', () => {
@@ -524,21 +631,40 @@ describe('S1-07 list aggregation, history and privacy', () => {
     const ids = [];
     do {
       const result = await executions.list(row.id, { limit: 1, cursor }, f.context);
+      expect(result.items).toHaveLength(1);
       ids.push(...result.items.map((i) => i.id));
+      expect(result.nextCursor === null || result.nextCursor !== cursor).toBe(true);
       cursor = result.nextCursor;
     } while (cursor);
-    expect(new Set(ids).size).toBe(3);
-    expect(ids).toEqual([...ids].sort((a, b) => b - a));
+    expect(ids).toEqual(
+      (
+        await prisma.testExecution.findMany({
+          where: { testCaseId: row.id },
+          orderBy: { id: 'desc' },
+          select: { id: true }
+        })
+      ).map(({ id }) => id)
+    );
     await cases.update(row.id, { expectedVersion: 1, title: 'v2', status: 'INATIVO' }, f.context);
     await prisma.testCaseHistoryEntry.updateMany({ data: { occurredAt: stamp } });
     const h = [];
     cursor = undefined;
     do {
       const result = await cases.history(row.id, { limit: 1, cursor }, f.context);
+      expect(result.items).toHaveLength(1);
       h.push(...result.items.map((i) => i.id));
+      expect(result.nextCursor === null || result.nextCursor !== cursor).toBe(true);
       cursor = result.nextCursor;
     } while (cursor);
-    expect(new Set(h).size).toBe(3);
+    expect(h).toEqual(
+      (
+        await prisma.testCaseHistoryEntry.findMany({
+          where: { testCaseId: row.id },
+          orderBy: { id: 'desc' },
+          select: { id: true }
+        })
+      ).map(({ id }) => id)
+    );
   });
   it('isolates all own-only quality, defect and effort exports from peers and null actors', async () => {
     const f = await fixture();
@@ -675,6 +801,10 @@ describe('S1-07 list aggregation, history and privacy', () => {
       where: { id: peer.id },
       data: { executedByUserId: null, executedByDisplayNameSnapshot: f.user.name }
     });
+    const peerExport = await settings.exportData(f.second.id);
+    expect(peerExport.testExecutions).toEqual([]);
+    expect(peerExport.testEvidence.map(({ id }) => id)).toEqual([peerEvidence.id]);
+    expect(peerExport.testEvidence.map(({ id }) => id)).not.toContain(ownEvidence.id);
     const historical = await settings.exportData(f.user.id);
     expect(historical.testExecutions.map((row) => row.id)).toEqual([own.id]);
     expect(historical.responsibleTestCases.map((row) => row.id)).toEqual([a.id]);
@@ -691,33 +821,6 @@ describe('S1-07 list aggregation, history and privacy', () => {
     expect(inactive.responsibleDefects).toEqual([]);
     expect(inactive.defectHistory).toEqual([]);
     expect(inactive.effortHistory).toEqual([]);
-  });
-  it('exports own active-project collaboration metadata without storage keys or other users', async () => {
-    const f = await fixture();
-    const row = await f.create({ responsibleUserId: f.user.id });
-    const files = await storedEvidence();
-    await executionFactory({ storage: files.storage }).record(
-      row.id,
-      f.payload,
-      files.attempt,
-      f.context
-    );
-    const data = await settings.exportData(f.user.id);
-    expect(data.responsibleTestCases).toHaveLength(1);
-    expect(data.testExecutions).toHaveLength(1);
-    expect(data.testEvidence).toHaveLength(1);
-    expect(JSON.stringify(data.testEvidence)).not.toContain('storageKey');
-    const other = await settings.exportData(f.second.id);
-    expect(other.testExecutions).toEqual([]);
-    expect(other.testEvidence).toEqual([]);
-    await prisma.projectMembership.updateMany({
-      where: { userId: f.user.id },
-      data: { isActive: false }
-    });
-    const inactive = await settings.exportData(f.user.id);
-    expect(inactive.responsibleTestCases).toEqual([]);
-    expect(inactive.testExecutions).toEqual([]);
-    expect(inactive.testEvidence).toEqual([]);
   });
 });
 describe('S1-07 final auditable invariant', () => {
@@ -766,7 +869,39 @@ describe('S1-07 final auditable invariant', () => {
       result: 'PASS',
       testedReferenceSnapshot: { number: 91 }
     });
-    expect(execution.steps).toHaveLength(5);
+    expect(execution.steps).toMatchObject(
+      steps.map((step, index) => ({
+        position: index + 1,
+        actionSnapshot: step.action,
+        expectedResultSnapshot: step.expectedResult,
+        result: 'PASS'
+      }))
+    );
+    for (const [name, bytes, position, mimeType] of [
+      ['response.json', Buffer.from('{"response":"ok"}'), null, 'application/json'],
+      ['screenshot-step3.png', png, 3, 'image/png'],
+      ['video-step5.mp4', mp4, 5, 'video/mp4']
+    ]) {
+      const stored = await prisma.testEvidence.findFirst({
+        where: { executionId: execution.id, originalName: name }
+      });
+      expect(stored).toMatchObject({
+        scope: position ? 'STEP' : 'EXECUTION',
+        executionStepId: position
+          ? execution.steps.find((step) => step.position === position).id
+          : null,
+        mimeType,
+        sizeBytes: bytes.length,
+        sha256: createHash('sha256').update(bytes).digest('hex')
+      });
+      const content = await service.content(stored.id, f.context);
+      const chunks = [];
+      for await (const chunk of content.stream) chunks.push(chunk);
+      expect(Buffer.concat(chunks)).toEqual(bytes);
+      await expect(service.content(stored.id, { actorUserId: 999999 })).rejects.toMatchObject({
+        statusCode: 404
+      });
+    }
     expect(execution.evidence.map((e) => e.originalName)).toEqual([
       'response.json',
       'screenshot-step3.png',
@@ -788,6 +923,7 @@ describe('S1-07 account anonymization policy', () => {
     const f = await fixture();
     const row = await f.create();
     await cases.update(row.id, { expectedVersion: 1, responsibleUserId: f.user.id }, f.context);
+    await cases.update(row.id, { expectedVersion: 1, responsibleUserId: f.second.id }, f.context);
     const files = await storedEvidence();
     const execution = await executionFactory({ storage: files.storage }).record(
       row.id,
@@ -805,19 +941,34 @@ describe('S1-07 account anonymization policy', () => {
     });
     const user = await prisma.user.findUnique({ where: { id: f.user.id } });
     expect(user.accountStatus).toBe('ANONYMIZED');
+    expect(user.name).not.toBe(f.user.name);
+    expect(await prisma.testCase.findUnique({ where: { id: row.id } })).not.toBeNull();
     const persisted = await prisma.testExecution.findUnique({ where: { id: execution.id } });
     expect(persisted.executedByDisplayNameSnapshot).toBe(user.name);
     expect(
       (await prisma.testCaseHistoryEntry.findFirst({ where: { action: 'RESPONSIBLE_CHANGED' } }))
         .metadataJson.to.name
     ).toBe(user.name);
+    const history = await prisma.testCaseHistoryEntry.findMany({
+      where: { testCaseId: row.id, action: 'RESPONSIBLE_CHANGED' }
+    });
+    expect(history.some(({ metadataJson }) => metadataJson.from?.name === user.name)).toBe(true);
+    expect(history.some(({ metadataJson }) => metadataJson.to?.name === user.name)).toBe(true);
+    expect(JSON.stringify(history)).not.toContain(f.user.name);
     expect(await prisma.testCaseVersion.count()).toBe(1);
     expect(await prisma.testEvidence.count()).toBe(1);
     expect(await readdir(files.directory)).toHaveLength(1);
+    const preservedEvidence = await prisma.testEvidence.findFirst({
+      where: { executionId: execution.id }
+    });
+    expect(await readFile(join(files.directory, preservedEvidence.storageKey))).toEqual(
+      Buffer.from('{"ok":true}')
+    );
+    expect(preservedEvidence.sha256).toBe(createHash('sha256').update('{"ok":true}').digest('hex'));
   });
 });
 describe('S1-07 storage/database compensation', () => {
-  it('stores general JSON with private metadata, rejects foreign readers and compensates DB audit failure', async () => {
+  it('compensates prepared JSON bytes and every execution row after an audit failure', async () => {
     const f = await fixture();
     const row = await f.create();
     const files = await storedEvidence();
@@ -840,6 +991,8 @@ describe('S1-07 storage/database compensation', () => {
     ).rejects.toThrow('injected');
     expect(await prisma.testExecution.count()).toBe(0);
     expect(await prisma.testExecutionStep.count()).toBe(0);
+    expect(await prisma.testEvidence.count()).toBe(0);
+    expect(await prisma.auditEvent.count({ where: { action: 'TEST_EXECUTION_RECORDED' } })).toBe(0);
     expect(await readdir(files.directory)).toEqual([]);
   });
   it('storage failure rejects before locking/persisting execution', async () => {
@@ -965,6 +1118,19 @@ describe('S1-07 deterministic row-lock races (no sleeps)', () => {
         (await executions.detail(result[0].value.id, f.context)).caseVersionSnapshot.title
       ).toBe('Case');
       expect(await prisma.testExecution.count()).toBe(1);
+      const current = await prisma.testCase.findUnique({ where: { id: row.id } });
+      expect(current).toMatchObject(
+        operation === 'delete'
+          ? { deletedAt: expect.any(Date) }
+          : operation === 'status'
+            ? { status: 'INATIVO', currentVersion: 1 }
+            : { title: 'New version', currentVersion: 2 }
+      );
+      const historical = await executions.detail(result[0].value.id, f.context);
+      expect(historical.testCaseVersion).toBe(1);
+      expect(historical.caseVersionSnapshot.steps).toEqual(
+        f.input.steps.map((step, index) => ({ ...step, position: index + 1 }))
+      );
     }
   );
 });

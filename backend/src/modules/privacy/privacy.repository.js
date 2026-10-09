@@ -163,6 +163,8 @@ export const privacyRepository = {
           where: { userId: request.userId },
           data: { isActive: false }
         });
+        // Membership lock serializes in-flight preference writes before removal.
+        await tx.projectDashboardPreference.deleteMany({ where: { userId: request.userId } });
         // Privacy neutralization is the explicit exception to immutable display snapshots.
         // Definitions, outcomes and evidence bytes remain historical project records.
         await tx.testExecution.updateMany({

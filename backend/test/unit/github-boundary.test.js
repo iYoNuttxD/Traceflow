@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, verify } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createGithubAppCredentialProvider } from '../../src/modules/github/github-credential.provider.js';
 import { createGithubClient } from '../../src/modules/github/github.client.js';
@@ -11,8 +11,8 @@ import {
 import { collectGithubPages, paginateGithub } from '../../src/modules/github/github-pagination.js';
 
 describe('fronteira GitHub App da L1', () => {
-  it('gera credencial curta por instalação sem expor ou persistir tokens', async () => {
-    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  it('assina JWT curto e solicita token para a instalação correta', async () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
     const calls = [];
     const OctokitClass = vi.fn(function OctokitDouble(options) {
       calls.push(options);
@@ -45,7 +45,24 @@ describe('fronteira GitHub App da L1', () => {
       baseUrl: 'https://api.github.com',
       request: { timeout: 15000 }
     });
-    expect(calls[0].auth.split('.')).toHaveLength(3);
+    const [header, payload, signature] = calls[0].auth.split('.');
+    expect(JSON.parse(Buffer.from(header, 'base64url'))).toEqual({ alg: 'RS256', typ: 'JWT' });
+    const claims = JSON.parse(Buffer.from(payload, 'base64url'));
+    expect(claims.iss).toBe('123');
+    expect(claims.exp - claims.iat).toBe(600);
+    expect(claims.exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
+    expect(claims.exp).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 540);
+    expect(
+      verify(
+        'RSA-SHA256',
+        Buffer.from(`${header}.${payload}`),
+        publicKey,
+        Buffer.from(signature, 'base64url')
+      )
+    ).toBe(true);
+    expect(
+      OctokitClass.mock.instances[0].rest.apps.createInstallationAccessToken
+    ).toHaveBeenCalledWith({ installation_id: 99 });
   });
 
   it('lista uma instalação pelo endpoint do user access token sem depender de username', async () => {
@@ -144,6 +161,43 @@ describe('fronteira GitHub App da L1', () => {
     expect(request).toHaveBeenCalledWith('GET /user/emails', { per_page: 100 });
   });
 
+  it.each(['login', 'installation'])(
+    'encerra troca OAuth %s que não responde no prazo configurado',
+    async (flow) => {
+      let timedOut = false;
+      const provider = createGithubAppCredentialProvider({
+        environment: {
+          githubAppConfigured: true,
+          githubAppClientId: 'client-id',
+          githubAppClientSecret: 'client-secret',
+          githubRequestTimeoutMs: 20
+        },
+        fetchImpl: (_url, { signal }) => {
+          if (!signal) return Promise.reject(new Error('request has no deadline'));
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener(
+              'abort',
+              () => {
+                timedOut = true;
+                reject(signal.reason);
+              },
+              { once: true }
+            );
+          });
+        }
+      });
+      const operation =
+        flow === 'login'
+          ? provider.exchangeLoginUserCode({ code: 'code', codeVerifier: 'verifier' })
+          : provider.exchangeInstallationUserCode('code');
+      await expect(operation).rejects.toMatchObject({
+        code: 'GITHUB_AUTH_FAILED',
+        statusCode: 503
+      });
+      expect(timedOut).toBe(true);
+    }
+  );
+
   it('pagina todas as instalações e encontra dados disponíveis somente em página posterior', async () => {
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
       id: index + 1,
@@ -222,12 +276,22 @@ describe('fronteira GitHub App da L1', () => {
       installedAt: new Date('2030-01-01T00:00:00Z')
     });
     expect(getInstallation).toHaveBeenCalledWith({ installation_id: 77 });
-    expect(JSON.stringify(getInstallation.mock.calls)).not.toContain('permissions');
+    expect(OctokitClass).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: expect.stringMatching(/^[^.]+\.[^.]+\.[^.]+$/),
+        baseUrl: 'https://api.github.com'
+      })
+    );
   });
 
   it('normaliza os DTOs sem payload Octokit', () => {
+    const raw = {
+      token: 'provider-token-sentinel',
+      providerExtra: { email: 'raw-email-sentinel' }
+    };
     expect(
       mapGithubRepository({
+        ...raw,
         id: 1,
         name: 'repo',
         owner: { login: 'owner' },
@@ -236,16 +300,70 @@ describe('fronteira GitHub App da L1', () => {
         default_branch: 'trunk',
         private: true
       })
-    ).toMatchObject({ githubRepositoryId: '1', fullName: 'owner/repo', defaultBranch: 'trunk' });
-    const commit = mapGithubCommit(
-      { sha: 'abc', commit: { author: { date: '2026-01-01T00:00:00Z' } } },
-      'trunk'
-    );
-    expect(commit).toMatchObject({ hash: 'abc', date: expect.any(Date) });
-    expect(commit).not.toHaveProperty('branch');
+    ).toEqual({
+      githubRepositoryId: '1',
+      name: 'repo',
+      owner: 'owner',
+      fullName: 'owner/repo',
+      url: 'https://github.com/owner/repo',
+      defaultBranch: 'trunk',
+      private: true,
+      description: null
+    });
     expect(
-      mapGithubPullRequest({ id: 2, number: 2, title: 'PR', base: { ref: 'trunk' } })
-    ).toMatchObject({ githubId: '2', targetBranch: 'trunk' });
+      mapGithubCommit({
+        ...raw,
+        sha: 'abc',
+        commit: {
+          author: {
+            date: '2026-01-01T00:00:00Z',
+            name: 'Ada',
+            email: 'allowed-author@example.test'
+          }
+        }
+      })
+    ).toEqual({
+      hash: 'abc',
+      message: null,
+      authorName: 'Ada',
+      authorEmail: 'allowed-author@example.test',
+      authorUsername: null,
+      authorGithubUserId: null,
+      date: new Date('2026-01-01'),
+      githubUrl: null
+    });
+    expect(
+      mapGithubPullRequest({ ...raw, id: 2, number: 2, title: 'PR', base: { ref: 'trunk' } })
+    ).toEqual({
+      githubId: '2',
+      number: 2,
+      title: 'PR',
+      description: null,
+      state: null,
+      authorUsername: null,
+      sourceBranch: null,
+      targetBranch: 'trunk',
+      githubUrl: null,
+      createdAtGithub: null,
+      updatedAtGithub: null,
+      closedAtGithub: null,
+      mergedAtGithub: null
+    });
+    expect(mapGithubIssue({ ...raw, id: 3, number: 3, title: 'Issue', labels: [] })).toEqual({
+      githubId: '3',
+      number: 3,
+      title: 'Issue',
+      description: null,
+      state: null,
+      authorUsername: null,
+      assigneeUsername: null,
+      labels: [],
+      milestone: null,
+      githubUrl: null,
+      createdAtGithub: null,
+      updatedAtGithub: null,
+      closedAtGithub: null
+    });
     expect(mapGithubIssue({ id: 4, pull_request: {} })).toBeNull();
   });
 
@@ -430,29 +548,47 @@ describe('fronteira GitHub App da L1', () => {
   });
 
   it('mantém branches, commits, pull requests e issues paginados em arrays', async () => {
-    const listBranches = vi.fn().mockResolvedValue({
-      data: [
-        { name: 'main', commit: { sha: 'abc' } },
-        { name: 'feature', commit: { sha: 'def' } }
-      ],
-      headers: {}
-    });
-    const listCommits = vi.fn().mockResolvedValue({
-      data: [{ sha: 'abc', commit: { message: 'commit', author: { date: '2030-01-01' } } }],
-      headers: {}
-    });
-    const listPullRequests = vi.fn().mockResolvedValue({
-      data: [
-        { id: 2, number: 2, title: 'PR A', head: { ref: 'feature-a' }, base: { ref: 'main' } },
-        { id: 3, number: 3, title: 'PR B', head: { ref: 'feature-b' }, base: { ref: 'develop' } },
-        { id: 4, number: 4, title: 'PR C', head: { ref: 'main' }, base: { ref: 'release' } }
-      ],
-      headers: {}
-    });
-    const listIssues = vi.fn().mockResolvedValue({
-      data: [{ id: 3, number: 3, title: 'Issue', labels: [] }],
-      headers: {}
-    });
+    const listBranches = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [
+          { name: 'main', commit: { sha: 'abc' } },
+          { name: 'feature', commit: { sha: 'def' } }
+        ],
+        headers: { link: '<https://api.github.com/resource?page=2>; rel="next"' }
+      })
+      .mockResolvedValueOnce({ data: [{ name: 'release', commit: { sha: 'xyz' } }], headers: {} });
+    const listCommits = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [{ sha: 'abc', commit: { message: 'commit', author: { date: '2030-01-01' } } }],
+        headers: { link: '<https://api.github.com/resource?page=2>; rel="next"' }
+      })
+      .mockResolvedValueOnce({
+        data: [{ sha: 'xyz', commit: { message: 'page two' } }],
+        headers: {}
+      });
+    const listPullRequests = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [
+          { id: 2, number: 2, title: 'PR A', head: { ref: 'feature-a' }, base: { ref: 'main' } },
+          { id: 3, number: 3, title: 'PR B', head: { ref: 'feature-b' }, base: { ref: 'develop' } },
+          { id: 4, number: 4, title: 'PR C', head: { ref: 'main' }, base: { ref: 'release' } }
+        ],
+        headers: { link: '<https://api.github.com/resource?page=2>; rel="next"' }
+      })
+      .mockResolvedValueOnce({ data: [{ id: 5, number: 5, title: 'Page two' }], headers: {} });
+    const listIssues = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [{ id: 3, number: 3, title: 'Issue', labels: [] }],
+        headers: { link: '<https://api.github.com/resource?page=2>; rel="next"' }
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 6, number: 6, title: 'Page two', labels: [] }],
+        headers: {}
+      });
     const OctokitClass = vi.fn(function OctokitDouble() {
       this.rest = {
         repos: { listBranches, listCommits },
@@ -470,13 +606,14 @@ describe('fronteira GitHub App da L1', () => {
       collectGithubPages(client.listBranchPages({ owner: 'traceflow', repo: 'repo' }))
     ).resolves.toEqual([
       { name: 'main', headSha: 'abc' },
-      { name: 'feature', headSha: 'def' }
+      { name: 'feature', headSha: 'def' },
+      { name: 'release', headSha: 'xyz' }
     ]);
 
     const commits = await collectGithubPages(
       client.listCommitPages({ owner: 'traceflow', repo: 'repo', branch: 'main' })
     );
-    expect(commits).toEqual([expect.objectContaining({ hash: 'abc' })]);
+    expect(commits.map(({ hash }) => hash)).toEqual(['abc', 'xyz']);
     expect(commits[0]).not.toHaveProperty('branch');
     await expect(
       collectGithubPages(client.listPullRequestPages({ owner: 'traceflow', repo: 'repo' }))
@@ -487,7 +624,8 @@ describe('fronteira GitHub App da L1', () => {
         sourceBranch: 'feature-b',
         targetBranch: 'develop'
       }),
-      expect.objectContaining({ githubId: '4', sourceBranch: 'main', targetBranch: 'release' })
+      expect.objectContaining({ githubId: '4', sourceBranch: 'main', targetBranch: 'release' }),
+      expect.objectContaining({ githubId: '5', title: 'Page two' })
     ]);
     expect(listPullRequests).toHaveBeenCalledWith({
       owner: 'traceflow',
@@ -498,6 +636,16 @@ describe('fronteira GitHub App da L1', () => {
     });
     await expect(
       collectGithubPages(client.listIssuePages({ owner: 'traceflow', repo: 'repo' }))
-    ).resolves.toEqual([expect.objectContaining({ githubId: '3', title: 'Issue' })]);
+    ).resolves.toEqual([
+      expect.objectContaining({ githubId: '3', title: 'Issue' }),
+      expect.objectContaining({ githubId: '6', title: 'Page two' })
+    ]);
+    for (const endpoint of [listBranches, listCommits, listPullRequests, listIssues]) {
+      expect(endpoint).toHaveBeenCalledTimes(2);
+      expect(endpoint).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ owner: 'traceflow', repo: 'repo', page: 2, per_page: 100 })
+      );
+    }
   });
 });

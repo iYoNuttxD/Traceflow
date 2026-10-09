@@ -16,7 +16,7 @@ vi.mock('../../src/config/env.js', () => ({
   env: {
     frontendUrl: 'http://frontend.test',
     githubAppFrontendSuccessUrl: 'http://frontend.test/projects?github=connected',
-    githubAppFrontendErrorUrl: 'http://frontend.test/projects?github=error'
+    githubAppFrontendErrorUrl: 'http://frontend.test/custom-error?github=error'
   }
 }));
 vi.mock('../../src/modules/github/github-app.service.js', () => ({
@@ -62,6 +62,7 @@ describe('controllers da GitHub App L1', () => {
 
     mocks.service.listInstallations.mockResolvedValue([{ id: 1 }]);
     const installations = await invoke(githubAppController.listInstallations, { auth });
+    expect(mocks.service.listInstallations).toHaveBeenCalledWith(7);
     expect(installations.json).toHaveBeenCalledWith({ installations: [{ id: 1 }] });
 
     mocks.service.listRepositories.mockResolvedValue({
@@ -72,6 +73,12 @@ describe('controllers da GitHub App L1', () => {
       params: { installationId: '77' }
     });
     expect(mocks.service.listRepositories).toHaveBeenCalledWith(7, '77', undefined);
+    await invoke(githubAppController.listRepositories, {
+      auth,
+      params: { installationId: '77' },
+      query: { projectId: '9' }
+    });
+    expect(mocks.service.listRepositories).toHaveBeenLastCalledWith(7, '77', '9');
     expect(repositories.json).toHaveBeenCalledWith({
       repositories: [{ id: 2 }]
     });
@@ -109,17 +116,42 @@ describe('controllers da GitHub App L1', () => {
   });
 
   it('redireciona callback inválido com código público e fallback seguro', async () => {
-    mocks.service.completeCallback.mockRejectedValue({ code: 'INVALID_STATE' });
-    const res = await invoke(githubAppController.callback, {
-      query: {}
+    mocks.service.completeCallback.mockRejectedValue({
+      code: 'INVALID_STATE',
+      message: 'private-error-secret'
     });
+    const res = await invoke(githubAppController.callback, {
+      query: { code: 'oauth-code-secret', state: 'oauth-state-secret' }
+    });
+    expect(res.redirect).toHaveBeenCalledWith(
+      302,
+      'http://frontend.test/custom-error?github=error&reason=github_callback_failed'
+    );
     expect(res.redirect.mock.calls[0][0]).toBe(302);
     expect(new URL(res.redirect.mock.calls[0][1]).searchParams.get('reason')).toBe(
       'github_callback_failed'
     );
   });
 
-  it('conecta projeto como OWNER e audita a integração', async () => {
+  it('usa frontendUrl quando a URL de erro não foi configurada', async () => {
+    const { env } = await import('../../src/config/env.js');
+    const configured = env.githubAppFrontendErrorUrl;
+    env.githubAppFrontendErrorUrl = undefined;
+    mocks.service.completeCallback.mockRejectedValue(new Error('private cause'));
+    try {
+      const res = await invoke(githubAppController.callback, {
+        query: { code: 'secret-code', state: 'secret-state' }
+      });
+      expect(res.redirect).toHaveBeenCalledWith(
+        302,
+        'http://frontend.test/projects?github=error&reason=github_callback_failed'
+      );
+    } finally {
+      env.githubAppFrontendErrorUrl = configured;
+    }
+  });
+
+  it('encaminha conexão autorizada e audita ator, projeto e request', async () => {
     mocks.service.connectProject.mockResolvedValue({ id: 14, status: 'ACTIVE' });
     const res = await invoke(githubAppController.connectProject, {
       auth: { user: { id: 7 } },
@@ -136,9 +168,14 @@ describe('controllers da GitHub App L1', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ integration: { id: 14, status: 'ACTIVE' } })
     );
-    expect(mocks.audit.recordOperational).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'GITHUB_PROJECT_CONNECTED', resourceId: 14 })
-    );
+    expect(mocks.audit.recordOperational).toHaveBeenCalledWith({
+      action: 'GITHUB_PROJECT_CONNECTED',
+      resourceId: 14,
+      actorUserId: 7,
+      projectId: '9',
+      requestId: 'request-2',
+      resourceType: 'ProjectGitHubIntegration'
+    });
   });
 
   it('aceita webhook novo com 202 e duplicado com 200', async () => {
@@ -160,6 +197,16 @@ describe('controllers da GitHub App L1', () => {
 
     mocks.service.processWebhook.mockResolvedValueOnce({ duplicate: true });
     const duplicate = await invoke(githubWebhookController.handle, req);
+    expect(mocks.service.processWebhook).toHaveBeenCalledTimes(2);
+    for (const [payload] of mocks.service.processWebhook.mock.calls) {
+      expect(payload).toEqual({
+        rawBody: req.body,
+        signature: 'sha256=signature',
+        deliveryId: 'delivery-1',
+        event: 'installation'
+      });
+      expect(payload.rawBody).toBe(req.body);
+    }
     expect(duplicate.status).toHaveBeenCalledWith(200);
     expect(duplicate.json).toHaveBeenCalledWith({ accepted: true, duplicate: true });
   });

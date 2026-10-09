@@ -69,6 +69,17 @@ export const scheduleService = {
     const [sprintsRaw, unassignedRaw] = await sprintRepository.scheduleData(parsedProjectId);
     const milestonesRaw = await milestoneRepository.findByProject(parsedProjectId);
 
+    const terminalIds = sprintsRaw
+      .filter((sprint) => ['CONCLUIDA', 'CANCELADA'].includes(sprint.status))
+      .map((sprint) => sprint.id);
+    const baselineEvents = terminalIds.length
+      ? await sprintRepository.findBaselineEventsBySprints(terminalIds)
+      : [];
+    const eventsBySprint = new Map();
+    for (const event of baselineEvents) {
+      if (!eventsBySprint.has(event.sprintId)) eventsBySprint.set(event.sprintId, []);
+      eventsBySprint.get(event.sprintId).push(event);
+    }
     const sprints = sprintsRaw
       .filter((sprint) => !hasRange || intersectsRange(sprint.startDate, sprint.endDate, from, to))
       .map((sprint) => ({
@@ -82,7 +93,11 @@ export const scheduleService = {
         completedAt: sprint.completedAt,
         planningSnapshotAt: sprint.planningSnapshotAt,
         closedAt: sprint.closedAt,
-        historicalSummary: buildSprintHistoricalSummary(sprint, sprint.sprintTasks),
+        historicalSummary: buildSprintHistoricalSummary(
+          sprint,
+          sprint.sprintTasks,
+          eventsBySprint.get(sprint.id)
+        ),
         milestoneId: sprint.milestoneId ?? null,
         milestone: sprint.milestone ?? null,
         durationInDays: durationInDays(sprint.startDate, sprint.endDate),

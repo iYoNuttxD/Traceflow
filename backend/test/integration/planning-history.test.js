@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -10,6 +10,7 @@ let prisma;
 let sprintService;
 let taskService;
 let taskKanbanService;
+let taskRepository;
 let actorUserId;
 beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
@@ -18,9 +19,13 @@ beforeAll(async () => {
   ({ taskCrudService: taskService } =
     await import('../../src/modules/tasks/services/task-crud.service.js'));
   ({ taskKanbanService } = await import('../../src/modules/tasks/services/task-kanban.service.js'));
+  ({ taskRepository } = await import('../../src/modules/tasks/task.repository.js'));
   await cleanTestDatabase(prisma);
 });
-afterEach(() => cleanTestDatabase(prisma));
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await cleanTestDatabase(prisma);
+});
 afterAll(async () => {
   await prisma.$disconnect();
 });
@@ -55,6 +60,35 @@ const start = (sprint) => sprintService.updateSprintStatus(sprint.id, 'EM_ANDAME
 const close = (sprint, status = 'CONCLUIDA') =>
   sprintService.updateSprintStatus(sprint.id, status, context());
 const progress = (sprint) => sprintService.getSprintProgress(sprint.id);
+
+describe('Task history under concurrent edits', () => {
+  it.each(['BAIXA', 'MEDIA'])(
+    'records the committed predecessor when changing to %s',
+    async (priority) => {
+      const { a } = await fixture();
+      const findTask = taskRepository.findTaskById.bind(taskRepository);
+      // Another real domain mutation commits after the first editor's preflight.
+      // Only scheduling is controlled; both histories and writes use MySQL.
+      vi.spyOn(taskRepository, 'findTaskById').mockImplementationOnce(async (...args) => {
+        const stale = await findTask(...args);
+        await taskService.updateTask(a.id, { priority: 'ALTA' }, context());
+        return stale;
+      });
+      await taskService.updateTask(a.id, { priority }, context());
+      expect(await prisma.task.findUnique({ where: { id: a.id } })).toMatchObject({ priority });
+      const history = await prisma.taskHistoryEntry.findMany({
+        where: { taskId: a.id, field: 'PRIORITY' },
+        orderBy: { id: 'asc' }
+      });
+      expect(
+        history.map(({ fromValue, toValue, actorUserId: actor }) => ({ fromValue, toValue, actor }))
+      ).toEqual([
+        { fromValue: 'MEDIA', toValue: 'ALTA', actor: actorUserId },
+        { fromValue: 'ALTA', toValue: priority, actor: actorUserId }
+      ]);
+    }
+  );
+});
 
 describe('F1 — evolução encerrada e Task mutável', () => {
   it.each([13, 1])('mantém corte, pontos, série e métricas depois de 5 → %s', async (effort) => {
@@ -102,12 +136,6 @@ describe('F2 — membership no instante do start', () => {
       { taskId: b.id, plannedAtStart: true, pointsAtPlanning: 3 }
     ]);
   });
-  it('B: A e B presentes no start pertencem ao planejamento', async () => {
-    const { sprint, a, b } = await fixture();
-    await scope(sprint, [a, b]);
-    await start(sprint);
-    expect((await progress(sprint)).planned.denominator).toBe(2);
-  });
   it('C: A removida antes e reinserida depois é adição, sem reescrever baseline', async () => {
     const { sprint, a, b } = await fixture();
     await scope(sprint, [a, b]);
@@ -151,6 +179,7 @@ describe('historical snapshot invariants', () => {
     const { sprint, a, b } = await fixture();
     await scope(sprint, [a, b]);
     await start(sprint);
+    expect((await progress(sprint)).planned.denominator).toBe(2);
     const stored = await prisma.sprint.findUnique({ where: { id: sprint.id } });
     expect(stored.planningSnapshotAt).toEqual(stored.startedAt);
     await taskService.updateTask(a.id, { estimatedEffort: 13 }, context());
@@ -161,10 +190,10 @@ describe('historical snapshot invariants', () => {
     );
     const open = await progress(sprint);
     expect(open.current).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
-    expect(open.burndown.totalPoints).toBe(16);
+    expect(open.burndown).toMatchObject({ totalPoints: 8, chartMax: 16 });
     await close(sprint);
     const frozen = await progress(sprint);
-    expect(frozen.burndown.totalPoints).toBe(16);
+    expect(frozen.burndown).toMatchObject({ totalPoints: 8, chartMax: 16 });
     expect(frozen.historicalLimitations).toEqual([]);
     const planned = await prisma.sprintTask.findUnique({
       where: { sprintId_taskId: { sprintId: sprint.id, taskId: a.id } }
@@ -230,7 +259,7 @@ describe('historical snapshot invariants', () => {
         'LEGACY_CLOSING_STATUS_UNAVAILABLE'
       ])
     );
-    expect(legacy.burndown).toMatchObject({ hasData: false, totalPoints: 0, days: [] });
+    expect(legacy.burndown).toMatchObject({ hasData: false, totalPoints: null, days: [] });
     await prisma.task.update({
       where: { id: a.id },
       data: { estimatedEffort: 13, status: 'CONCLUIDO' }

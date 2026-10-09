@@ -131,7 +131,7 @@ function openStream(path, cookie) {
 }
 
 describe('project-scoped SSE para comentários', () => {
-  it('propaga create/edit/delete, é idempotente no payload e isola outro projeto', async () => {
+  it('propaga create/edit/delete, não publica mutação recusada e isola outro projeto', async () => {
     const projectA = await createProject(prisma);
     const projectB = await createProject(prisma);
     const author = await register('sse-author@example.invalid', 'MEMBER', projectA.id);
@@ -169,7 +169,6 @@ describe('project-scoped SSE para comentários', () => {
     });
     expect(JSON.stringify(createdEvent)).not.toContain('email');
     expect(JSON.stringify(createdEvent)).not.toContain('session');
-    expect(streamB.messages).toHaveLength(0);
 
     const edited = await author
       .mutate('patch', `/api/tasks/${task.id}/comments/${created.body.comment.id}`)
@@ -205,12 +204,14 @@ describe('project-scoped SSE para comentários', () => {
           .send({ content: 'Falha.' })
       ).status
     ).toBe(404);
-    expect(streamA.messages).toHaveLength(eventCount);
-
-    streamA.close();
-    streamB.close();
-    await Promise.all([streamA.closed, streamB.closed]);
     const { projectEventPublisher } = await import('../../src/shared/events/index.js');
+    // Server-side end flushes queued frames before the client close event.
+    projectEventPublisher.closeAll('test_delivery_barrier');
+    await Promise.all([streamA.closed, streamB.closed]);
+    expect(streamA.response.complete).toBe(true);
+    expect(streamB.response.complete).toBe(true);
+    expect(streamA.messages).toHaveLength(eventCount);
+    expect(streamB.messages).toHaveLength(0);
     await expect.poll(() => projectEventPublisher.subscriberCount()).toBe(0);
   });
 

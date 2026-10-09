@@ -61,7 +61,16 @@ describe('SearchCombobox', () => {
   });
 
   it('pesquisa novamente quando o contexto muda com a mesma consulta', async () => {
-    const search = vi.fn().mockResolvedValue(options);
+    let resolveOld;
+    const search = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOld = resolve;
+          })
+      )
+      .mockResolvedValue([{ id: 22, title: 'Projeto B' }]);
     const renderCombobox = (searchContextKey) => (
       <SearchCombobox
         label="Requisito"
@@ -79,6 +88,11 @@ describe('SearchCombobox', () => {
     rerender(renderCombobox(2));
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(search).toHaveBeenCalledTimes(2);
+    expect(search.mock.calls[0][1].aborted).toBe(true);
+    expect(screen.getByRole('option', { name: 'Projeto B' })).toBeVisible();
+    await act(async () => resolveOld([{ id: 11, title: 'Projeto A antigo' }]));
+    expect(screen.queryByRole('option', { name: 'Projeto A antigo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Projeto B' })).toBeVisible();
   });
 
   it('seleciona o resultado ativo com teclado', async () => {
@@ -323,7 +337,13 @@ describe('SearchCombobox', () => {
     Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 180 });
     fireEvent.resize(window);
     expect(list).toHaveAttribute('data-placement', 'above');
-    expect(Number.parseFloat(list.style.top)).toBeLessThan(750);
+    const top = Number.parseFloat(list.style.top);
+    const left = Number.parseFloat(list.style.left);
+    const width = Number.parseFloat(list.style.width);
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(top + 180).toBeLessThanOrEqual(750);
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(left + width).toBeLessThanOrEqual(window.innerWidth);
   });
 
   it('keeps a dialog popover in the modal tree without joining form flow', async () => {

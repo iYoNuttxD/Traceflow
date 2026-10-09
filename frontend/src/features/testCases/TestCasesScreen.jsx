@@ -253,7 +253,7 @@ function ProjectTestCases({ project }) {
   if ([403, 404].includes(state.error?.status) || [403, 404].includes(state.memberError?.status))
     return <ContextualErrorPage error={state.error || state.memberError} showRetry={false} />;
   return (
-    <div className="page-container sprints-screen tc-screen">
+    <main className="page-container sprints-screen tc-screen">
       <div inert={dialog || busy ? true : undefined}>
         <header className="page-header sprints-screen__header">
           <div>
@@ -525,6 +525,6 @@ function ProjectTestCases({ project }) {
           </div>
         )}
       </SprintDialog>
-    </div>
+    </main>
   );
 }

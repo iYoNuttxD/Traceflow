@@ -6,7 +6,7 @@ import {
   configureTestDatabaseEnvironment,
   deployTestMigrations
 } from '../helpers/test-database.js';
-import { ERROR_CODES, ExternalServiceError } from '../../src/shared/errors/index.js';
+import { AppError, ERROR_CODES, ExternalServiceError } from '../../src/shared/errors/index.js';
 
 const githubBoundary = vi.hoisted(() => ({
   client: null,
@@ -52,7 +52,7 @@ async function* pages(...values) {
 }
 
 function createGithubDouble({
-  branches = [[{ name: 'trunk', headSha: null }]],
+  branches = [[{ name: 'trunk', headSha: 'trunk-head' }]],
   commits = [[]],
   pullRequests = [[]],
   issues = [[]]
@@ -63,6 +63,7 @@ function createGithubDouble({
     listBranchPages: vi.fn(() => pages(...branches)),
     listCommitPages: vi.fn(() => pages(...commits)),
     listPullRequestPages: vi.fn(() => pages(...pullRequests)),
+    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(...issues))
   };
 }
@@ -172,6 +173,65 @@ afterAll(async () => {
 });
 
 describe('Projetos e integração GitHub E9', () => {
+  it('atualiza o Dashboard P7 após sync interna confirmada e persistida', async () => {
+    const owner = await register('owner-dashboard-p81@example.invalid');
+    const project = await createIntegratedProject(owner);
+    const dashboardUrl = `/api/projects/${project.id}/indicators/dashboard?view=GITHUB&startDate=2026-09-01&endDate=2026-09-25&timeZone=UTC`;
+    const before = await owner.agent.get(dashboardUrl);
+    expect(before.status).toBe(200);
+    const beforeCommit = before.body.sections
+      .flatMap((section) => section.indicators)
+      .find((indicator) => indicator.metricId === 'I09');
+    expect(beforeCommit).toMatchObject({ value: null, state: 'UNAVAILABLE' });
+
+    githubBoundary.client = createGithubDouble({
+      commits: [
+        [
+          {
+            hash: 'p81-commit',
+            message: 'Fato integrado P8.1',
+            branch: 'trunk',
+            date: new Date('2026-09-20T12:00:00Z')
+          }
+        ]
+      ]
+    });
+    const observed = await startAndWaitForSync(owner, project.id);
+    expect(observed.run.status).toBe('SUCCEEDED');
+    expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(1);
+
+    const after = await owner.agent.get(dashboardUrl);
+    expect(after.status).toBe(200);
+    const afterCommit = after.body.sections
+      .flatMap((section) => section.indicators)
+      .find((indicator) => indicator.metricId === 'I09');
+    expect(afterCommit).toMatchObject({ value: 1, state: 'AVAILABLE' });
+    expect(afterCommit.sourceUpdatedAt).toBeTruthy();
+    expect(after.body.freshness.github.sourceUpdatedAt).toBeTruthy();
+    expect(after.body.freshness.github.sourceSyncStatus).toBe('SINCRONIZADO');
+
+    const failure = new ExternalServiceError(
+      'Falha de conexão com o GitHub.',
+      500,
+      ERROR_CODES.EXTERNAL_SERVICE_ERROR
+    );
+    githubBoundary.client = createGithubDouble();
+    githubBoundary.client.listPullRequestPages.mockReturnValue(
+      (async function* fail() {
+        throw failure;
+      })()
+    );
+    expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('FAILED');
+    const stale = await owner.agent.get(dashboardUrl);
+    expect(stale.status).toBe(200);
+    const staleCommit = stale.body.sections
+      .flatMap((section) => section.indicators)
+      .find((indicator) => indicator.metricId === 'I09');
+    expect(staleCommit).toMatchObject({ value: 1, state: 'STALE' });
+    expect(staleCommit.sourceUpdatedAt).toBe(afterCommit.sourceUpdatedAt);
+    expect(stale.body.freshness.github.sourceSyncStatus).toBe('FALHA');
+  });
+
   it('conta local sem GitHubIdentity reutiliza a App e sincroniza três projetos', async () => {
     const owner = await register('owner-multiple@example.invalid');
     expect(await prisma.gitHubIdentity.findUnique({ where: { userId: owner.user.id } })).toBeNull();
@@ -180,14 +240,20 @@ describe('Projetos e integração GitHub E9', () => {
       repositoryFor(9102, 'b'),
       repositoryFor(9103, 'c')
     ];
-    githubBoundary.resolveAuthorizedRepository.mockImplementation(
-      async (_userId, _installationId, repositoryId) => ({
-        installation: githubBoundary.installation,
-        repository: repositories.find(
-          (candidate) => candidate.githubRepositoryId === String(repositoryId)
-        )
-      })
+    const { githubAppService: realService } = await vi.importActual(
+      '../../src/modules/github/github-app.service.js'
     );
+    await prisma.gitHubInstallationAuthorization.create({
+      data: {
+        userId: owner.user.id,
+        installationId: githubBoundary.installation.id,
+        verifiedAt: new Date()
+      }
+    });
+    githubBoundary.resolveAuthorizedRepository.mockImplementation(
+      realService.resolveAuthorizedRepository.bind(realService)
+    );
+    githubBoundary.client.listRepositoryPages.mockImplementation(() => pages(repositories));
 
     const projects = [];
     for (const [index, candidate] of repositories.entries()) {
@@ -240,6 +306,19 @@ describe('Projetos e integração GitHub E9', () => {
       }
     });
 
+    const { githubAppService: realService } = await vi.importActual(
+      '../../src/modules/github/github-app.service.js'
+    );
+    const authorization = await prisma.gitHubInstallationAuthorization.create({
+      data: {
+        userId: owner.user.id,
+        installationId: githubBoundary.installation.id,
+        verifiedAt: new Date()
+      }
+    });
+    githubBoundary.resolveAuthorizedRepository.mockImplementation(
+      realService.resolveAuthorizedRepository.bind(realService)
+    );
     const project = await createIntegratedProject(owner);
     expect(project.githubIntegration.githubRepositoryId).toBe(repository.githubRepositoryId);
 
@@ -249,6 +328,23 @@ describe('Projetos e integração GitHub E9', () => {
     expect(unlinked.status, JSON.stringify(unlinked.body)).toBe(204);
     expect(await prisma.gitHubIdentity.findUnique({ where: { userId: owner.user.id } })).toBeNull();
 
+    const another = repositoryFor(9201, 'after-unlink');
+    githubBoundary.client.listRepositoryPages.mockImplementation(() =>
+      pages([repository, another])
+    );
+    const afterUnlink = await owner.mutate('post', '/api/projects/from-github').send({
+      githubInstallationId: '77',
+      githubRepositoryId: another.githubRepositoryId,
+      name: 'After unlink',
+      responsibleTeam: 'Team'
+    });
+    expect(afterUnlink.status).toBe(201);
+    expect(afterUnlink.body.project.githubIntegration.githubRepositoryId).toBe(
+      another.githubRepositoryId
+    );
+    expect(
+      await prisma.gitHubInstallationAuthorization.findUnique({ where: { id: authorization.id } })
+    ).toEqual(authorization);
     expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
   });
 
@@ -278,7 +374,7 @@ describe('Projetos e integração GitHub E9', () => {
     });
     expect(
       await prisma.projectMembership.findFirst({ where: { projectId: project.id, role: 'OWNER' } })
-    ).not.toBeNull();
+    ).toMatchObject({ userId: owner.user.id });
 
     const repositoryChange = await owner.mutate('put', `/api/projects/${project.id}`).send({
       githubOwner: 'outro',
@@ -293,12 +389,34 @@ describe('Projetos e integração GitHub E9', () => {
       githubRepositoryId: repository.githubRepositoryId
     });
     expect(duplicate.status).toBe(409);
+    const counts = async () => [
+      await prisma.project.count(),
+      await prisma.projectGitHubIntegration.count(),
+      await prisma.projectMembership.count(),
+      await prisma.auditEvent.count()
+    ];
+    const beforeDenial = await counts();
+    for (const [boundary, statusCode] of [
+      [githubBoundary.resolveAuthorizedRepository, 403],
+      [githubBoundary.assertRepositoryAvailable, 409]
+    ]) {
+      boundary.mockRejectedValueOnce(
+        new AppError({ message: 'Denied fixture', statusCode, code: 'BOUNDARY_DENIED' })
+      );
+      const denied = await owner
+        .mutate('post', '/api/projects/from-github')
+        .send({ githubInstallationId: '77', githubRepositoryId: '9555' });
+      expect(denied.status).toBe(statusCode);
+      expect(await counts()).toEqual(beforeDenial);
+    }
   });
 
   it('preserva autenticação, papéis e isolamento por projeto no sync', async () => {
     const owner = await register('owner-roles@example.invalid');
     const project = await createIntegratedProject(owner);
     expect((await request(app).post(`/api/projects/${project.id}/github/sync`)).status).toBe(401);
+    expect(await prisma.gitHubSyncRun.count()).toBe(0);
+    expect(githubBoundary.client.getRepository).not.toHaveBeenCalled();
 
     for (const role of ['VIEWER', 'MEMBER', 'MANAGER']) {
       const auth = await register(`${role.toLowerCase()}@example.invalid`, role);
@@ -309,6 +427,10 @@ describe('Projetos e integração GitHub E9', () => {
         .mutate('post', `/api/projects/${project.id}/github/sync`)
         .send({});
       expect(response.status).toBe(role === 'MANAGER' ? 202 : 403);
+      if (role !== 'MANAGER') {
+        expect(await prisma.gitHubSyncRun.count()).toBe(0);
+        expect(githubBoundary.client.getRepository).not.toHaveBeenCalled();
+      }
       if (role === 'MANAGER') {
         const observed = await waitForSyncRun(auth, project.id, response.body.run.id);
         expect(observed.run.status).toBe('SUCCEEDED');
@@ -317,10 +439,12 @@ describe('Projetos e integração GitHub E9', () => {
     }
 
     const outsider = await register('outsider-e9@example.invalid');
+    const callsBeforeOutsider = githubBoundary.client.getRepository.mock.calls.length;
     expect(
-      (await outsider.mutate('post', `/api/projects/${project.id + 9999}/github/sync`).send({}))
-        .status
+      (await outsider.mutate('post', `/api/projects/${project.id}/github/sync`).send({})).status
     ).toBe(404);
+    expect(await prisma.gitHubSyncRun.count()).toBe(1);
+    expect(githubBoundary.client.getRepository).toHaveBeenCalledTimes(callsBeforeOutsider);
     expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
   }, 30000);
 
@@ -545,6 +669,97 @@ describe('Projetos e integração GitHub E9', () => {
       error: { code: 'GITHUB_SYNC_STALE' }
     });
   });
+
+  it.each(['success', 'failure'])(
+    'não permite que um worker expirado publique artefatos ou status ao retomar (%s)',
+    async (providerResult) => {
+      const owner = await register('owner-expired-worker@example.invalid');
+      const project = await createIntegratedProject(owner);
+      const {
+        executeGithubSyncRun,
+        getProjectGithubSyncStatus,
+        requestProjectGithubSync,
+        GITHUB_SYNC_STALE_AFTER_MS
+      } = await import('../../src/modules/github/services/github-sync-run.service.js');
+      const { githubSyncRunRepository } =
+        await import('../../src/modules/github/github-sync-run.repository.js');
+      const { projectRepository } =
+        await import('../../src/modules/projects/project.repository.js');
+      let providerEntered;
+      let releaseProvider;
+      const entered = new Promise((resolve) => {
+        providerEntered = resolve;
+      });
+      const gate = new Promise((resolve) => {
+        releaseProvider = resolve;
+      });
+      githubBoundary.client = createGithubDouble({ commits: [[{ hash: 'obsolete-worker' }]] });
+      githubBoundary.client.getRepository.mockImplementation(async () => {
+        providerEntered();
+        await gate;
+        if (providerResult === 'failure') throw new Error('delayed provider failure');
+        return repository;
+      });
+      const old = await requestProjectGithubSync(project.id, owner.user.id, { schedule: vi.fn() });
+      const work = executeGithubSyncRun(old.id);
+      try {
+        await entered;
+        const future = new Date(Date.now() + GITHUB_SYNC_STALE_AFTER_MS + 1000);
+        expect(await getProjectGithubSyncStatus(project.id, { now: future })).toMatchObject({
+          id: old.id,
+          status: 'FAILED',
+          error: { code: 'GITHUB_SYNC_STALE' }
+        });
+        const replacement = await requestProjectGithubSync(project.id, owner.user.id, {
+          schedule: vi.fn(),
+          now: future
+        });
+        await githubSyncRunRepository.claim(replacement.id, future);
+        await projectRepository.markGithubSyncStarted(project.id, future);
+        releaseProvider();
+        await work;
+        expect(await githubSyncRunRepository.findById(old.id)).toMatchObject({
+          status: 'FAILED',
+          errorCode: 'GITHUB_SYNC_STALE'
+        });
+        expect(await githubSyncRunRepository.findById(replacement.id)).toMatchObject({
+          status: 'RUNNING',
+          activeProjectId: project.id
+        });
+        expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(0);
+        expect(
+          await prisma.projectGitHubIntegration.findUnique({
+            where: { projectId: project.id }
+          })
+        ).toMatchObject({ lastSyncStatus: 'SINCRONIZANDO' });
+        expect(
+          await prisma.auditEvent.count({
+            where: {
+              projectId: project.id,
+              action: 'GITHUB_SYNC_SUCCEEDED'
+            }
+          })
+        ).toBe(0);
+        const expired = await githubSyncRunRepository.findById(old.id);
+        expect(await githubSyncRunRepository.updateProgress(old.id, { commitsCreated: 999 })).toBe(
+          false
+        );
+        expect(await githubSyncRunRepository.succeed(old.id, {}, future, 1000)).toBeNull();
+        expect(
+          await githubSyncRunRepository.fail(old.id, {
+            errorCode: 'DELAYED_FAILURE',
+            errorMessage: 'late',
+            finishedAt: future,
+            durationMs: 1000
+          })
+        ).toBeNull();
+        expect(await githubSyncRunRepository.findById(old.id)).toEqual(expired);
+      } finally {
+        releaseProvider();
+        await work;
+      }
+    }
+  );
 
   it('mantém lote persistido, último sucesso e auditoria quando uma coleção posterior falha', async () => {
     const owner = await register('owner-partial@example.invalid');

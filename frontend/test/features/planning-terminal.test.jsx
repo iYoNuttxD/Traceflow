@@ -41,6 +41,50 @@ const progress = {
 };
 
 describe('frozen terminal presentation', () => {
+  it.each(['EM_ANDAMENTO', 'CONCLUIDA'])(
+    'labels incomplete estimates as partial for %s',
+    (status) => {
+      const partialSummary = {
+        ...historicalSummary,
+        totalPoints: 4,
+        percentage: null,
+        estimateCoverage: { current: { unknownEstimateCount: 1 } }
+      };
+      const partial = {
+        ...sprint,
+        status,
+        historicalSummary: status === 'CONCLUIDA' ? partialSummary : null,
+        tasks: [
+          { status: 'A_FAZER', estimatedEffort: 4 },
+          { status: 'A_FAZER', estimatedEffort: null }
+        ]
+      };
+      const { unmount } = render(
+        <SprintList sprints={[partial]} scheduleById={{ 1: partial }} readOnly />
+      );
+      expect(screen.getByText('Dados parciais')).toBeVisible();
+      expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+      expect(screen.getByRole('progressbar')).toHaveAttribute(
+        'aria-valuetext',
+        expect.stringContaining('estimativa conhecida')
+      );
+      unmount();
+      render(
+        <SprintProgressPanel
+          sprint={partial}
+          scheduleSprint={partial}
+          progress={{
+            ...progress,
+            frozen: status === 'CONCLUIDA',
+            historicalSummary: partial.historicalSummary
+          }}
+        />
+      );
+      expect(screen.getByText('Dados parciais')).toBeVisible();
+      expect(screen.queryByText('Sem pontos')).not.toBeInTheDocument();
+    }
+  );
+
   it.each(['PLANEJADA', 'EM_ANDAMENTO'])(
     'keeps %s metrics live after current status/effort updates',
     (status) => {

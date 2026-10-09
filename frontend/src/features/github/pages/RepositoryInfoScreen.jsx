@@ -13,6 +13,7 @@ import {
   SelectControl,
   classifyPageError,
   getErrorRequestId,
+  githubStateLabel,
   normalizeApiError,
   useAbortableRequest
 } from '../../../shared/index.js';
@@ -67,7 +68,7 @@ function getArtifactStatus(artifact) {
   }
 
   const number = artifact.metadata?.number ? `#${artifact.metadata.number}` : null;
-  const state = artifact.metadata?.state || null;
+  const state = artifact.metadata?.state ? githubStateLabel(artifact.metadata.state) : null;
   const flow =
     artifact.type === 'pull_request' &&
     artifact.metadata?.sourceBranch &&
@@ -257,6 +258,9 @@ export function RepositoryInfoScreen() {
             </section>
 
             <CollapsibleFilterPanel
+              onClear={clearFilters}
+              canClear={activeFilterCount > 0}
+              clearDisabled={loading}
               id="repository-filters"
               className="repository-filters"
               title="Filtrar artefatos"
@@ -264,18 +268,6 @@ export function RepositoryInfoScreen() {
               activeCount={activeFilterCount}
             >
               <div className="repository-filter-form">
-                {activeFilterCount > 0 && (
-                  <div className="planning-filter-panel__actions repository-filter-actions">
-                    <button
-                      className="button button-secondary button-compact"
-                      type="button"
-                      onClick={clearFilters}
-                      disabled={loading}
-                    >
-                      Limpar filtros
-                    </button>
-                  </div>
-                )}
                 <div className="repository-filter-grid">
                   <label className="repository-filter-field">
                     <span>Tipo de artefato</span>

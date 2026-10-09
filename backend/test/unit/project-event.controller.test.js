@@ -52,6 +52,17 @@ describe('projectEventController', () => {
     expect(res.flushHeaders).toHaveBeenCalledOnce();
     expect(res.write).toHaveBeenCalledWith('retry: 3000\n\n');
 
+    expect(mocks.subscribe).toHaveBeenCalledWith({
+      projectId: 2,
+      actorUserId: 10,
+      membershipRole: 'VIEWER',
+      sessionId: 30,
+      client: expect.objectContaining({
+        send: expect.any(Function),
+        heartbeat: expect.any(Function),
+        close: expect.any(Function)
+      })
+    });
     const { client } = mocks.subscribe.mock.calls[0][0];
     client.send({ type: 'task.comment.created', data: {} });
     client.heartbeat('2026-09-02T12:00:00.000Z');

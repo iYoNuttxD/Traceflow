@@ -280,8 +280,8 @@ describe('RepositoryInfoPage RF06', () => {
     getProjectArtifacts.mockResolvedValue(
       artifactsResponse({
         summary: {
-          total: 1,
-          commits: 1,
+          total: 2,
+          commits: 2,
           pullRequests: 0,
           issues: 0,
           metadataCompletenessPercentage: 100
@@ -295,7 +295,8 @@ describe('RepositoryInfoPage RF06', () => {
             date: '2026-01-01T00:00:00.000Z',
             githubUrl: 'https://github.com/example/repo/commit/abc',
             metadata: { branches: ['main'] }
-          }
+          },
+          { id: 8, type: 'commit', title: 'Sem URL disponível', githubUrl: null, metadata: {} }
         ]
       })
     );
@@ -308,10 +309,16 @@ describe('RepositoryInfoPage RF06', () => {
     expect(within(row).getByText('Autor minimizado')).toBeInTheDocument();
     expect(screen.getByText('100%')).toBeInTheDocument();
     const link = within(row).getByRole('link', { name: 'Abrir no GitHub' });
+    expect(link).toHaveAttribute('href', 'https://github.com/example/repo/commit/abc');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     expect(link).toHaveClass('task-detail-external-link');
     expect(link.querySelector('[data-icon="externalLink"]')).toHaveAttribute('aria-hidden', 'true');
+    const missingLinkRow = screen.getByText('Sem URL disponível').closest('tr');
+    expect(
+      within(missingLinkRow).queryByRole('link', { name: 'Abrir no GitHub' })
+    ).not.toBeInTheDocument();
+    expect(missingLinkRow.querySelector('.repository-artifact-unavailable')).toHaveTextContent('—');
   });
 
   it('preserva branches, filtro de commit e hierarquia técnica do pull request', async () => {
@@ -377,7 +384,7 @@ describe('RepositoryInfoPage RF06', () => {
       within(commitRow).getByText('feature/login, main').closest('.repository-artifact-status')
     ).toHaveAttribute('title', 'Branches: feature/login, main');
     const pullRequestRow = screen.getByText('Login').closest('tr');
-    expect(within(pullRequestRow).getByText('#2 · open')).toBeInTheDocument();
+    expect(within(pullRequestRow).getByText('#2 · Aberto')).toBeInTheDocument();
     expect(within(pullRequestRow).getByText('feature/login → main')).toBeInTheDocument();
   });
 

@@ -292,6 +292,7 @@ describe('TaskComments', () => {
     expect(screen.getByText('Editado')).toBeInTheDocument();
     expect(screen.getByLabelText('Novo comentário')).toHaveValue('');
     expect(apiMocks.updateTaskComment).toHaveBeenCalledOnce();
+    expect(apiMocks.updateTaskComment).toHaveBeenCalledWith(42, 1, 'Texto revisado.');
   });
 
   it('preserva confirmação e converte delete confirmado em tombstone local', async () => {
@@ -310,6 +311,7 @@ describe('TaskComments', () => {
 
     expect(await screen.findByText('Comentário excluído pelo autor.')).toBeInTheDocument();
     expect(apiMocks.deleteTaskComment).toHaveBeenCalledOnce();
+    expect(apiMocks.deleteTaskComment).toHaveBeenCalledWith(42, 1);
     expect(screen.queryByRole('button', { name: 'Ações do comentário' })).not.toBeInTheDocument();
   });
 
@@ -348,9 +350,17 @@ describe('TaskComments', () => {
     fireEvent.scroll(scroller);
     await waitFor(() => expect(apiMocks.getTaskComments).toHaveBeenCalledTimes(2));
     scrollHeight = 700;
-    resolveOlder(response([otherComment({ id: 3, content: 'Comentário antigo.' })]));
+    resolveOlder(
+      response([
+        otherComment({ id: 3, content: 'Comentário antigo.' }),
+        ownComment(),
+        otherComment()
+      ])
+    );
 
     expect(await screen.findByText('Comentário antigo.')).toBeInTheDocument();
+    expect(screen.getAllByText('Comentário próprio.')).toHaveLength(1);
+    expect(screen.getAllByText('Comentário de colega.')).toHaveLength(1);
     await waitFor(() => expect(scroller.scrollTop).toBe(210));
     expect(apiMocks.getTaskComments).toHaveBeenLastCalledWith(
       42,

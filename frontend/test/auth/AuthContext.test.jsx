@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useState } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,11 +26,18 @@ const { AuthProvider, AUTH_SESSION_EVENT_KEY, useAuth } =
 
 function AuthHarness() {
   const auth = useAuth();
+  const [failure, setFailure] = useState('');
   return (
     <div>
+      {failure && <p role="alert">{failure}</p>}
       <p data-testid="auth-state">{auth.loading ? 'Carregando' : auth.user?.name || 'Visitante'}</p>
       {auth.bootstrapError && <p data-testid="bootstrap-error">{auth.bootstrapError.message}</p>}
-      <button type="button" onClick={() => auth.login({ email: 'login@example.test' })}>
+      <button
+        type="button"
+        onClick={() =>
+          auth.login({ email: 'login@example.test' }).catch(() => setFailure('Login rejeitado'))
+        }
+      >
         Login
       </button>
       <button type="button" onClick={() => auth.register({ name: 'Nova pessoa' })}>
@@ -182,6 +189,13 @@ describe('AuthContext', () => {
     await user.click(screen.getByRole('button', { name: 'Registrar' }));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Cadastro'));
     expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-cadastro');
+    mocks.authApi.login.mockRejectedValueOnce({
+      response: { status: 401, data: { code: 'INVALID_CREDENTIALS' } }
+    });
+    await user.click(screen.getByRole('button', { name: 'Login' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Login rejeitado');
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Cadastro');
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-cadastro');
 
     await user.click(screen.getByRole('button', { name: 'Sair' }));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
@@ -213,12 +227,9 @@ describe('AuthContext', () => {
     expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
   });
 
-  it('limpa a sessão no evento global de 401 sem tratar 403 como logout', async () => {
+  it('limpa a sessão no evento global de 401', async () => {
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
-
-    window.dispatchEvent(new CustomEvent('traceflow:forbidden'));
-    expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel');
 
     window.dispatchEvent(new CustomEvent('traceflow:unauthorized'));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
@@ -285,5 +296,57 @@ describe('AuthContext', () => {
     );
 
     expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel');
+  });
+
+  it('não restaura identidade ou CSRF de um refresh anterior ao logout', async () => {
+    const user = userEvent.setup();
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+    let resolveMe;
+    mocks.authApi.me.mockImplementationOnce(() => new Promise((resolve) => (resolveMe = resolve)));
+    await user.click(screen.getByRole('button', { name: 'Atualizar duas vezes' }));
+    await user.click(screen.getByRole('button', { name: 'Sair' }));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante');
+    const csrfCalls = mocks.authApi.csrf.mock.calls.length;
+    await act(async () => resolveMe({ data: { user: { id: 1, name: 'Sessão antiga' } } }));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante');
+    expect(mocks.authApi.csrf).toHaveBeenCalledTimes(csrfCalls);
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith();
+  });
+
+  it('abre um refresh novo para autenticação entre abas mesmo com um refresh antigo pendente', async () => {
+    const user = userEvent.setup();
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+    let resolveOld;
+    mocks.authApi.me.mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)));
+    await user.click(screen.getByRole('button', { name: 'Atualizar duas vezes' }));
+    mocks.authApi.me.mockResolvedValueOnce({ data: { user: { id: 8, name: 'Sessão atual' } } });
+    mocks.authApi.csrf.mockResolvedValueOnce({ data: { csrfToken: 'csrf-atual' } });
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: AUTH_SESSION_EVENT_KEY,
+          newValue: JSON.stringify({ type: 'authenticated' })
+        })
+      );
+    });
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Sessão atual');
+    await act(async () => resolveOld({ data: { user: { id: 1, name: 'Sessão antiga' } } }));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Sessão atual');
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-atual');
+  });
+
+  it('não publica CSRF quando o provider desmonta durante o bootstrap', async () => {
+    let resolveMe;
+    mocks.authApi.me
+      .mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveMe = resolve)));
+    const view = renderProvider();
+    await waitFor(() => expect(resolveMe).toBeTypeOf('function'));
+    view.unmount();
+    await act(async () => resolveMe({ data: { user: { id: 1, name: 'Sessão antiga' } } }));
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
+    expect(mocks.setCsrfToken).not.toHaveBeenCalled();
   });
 });

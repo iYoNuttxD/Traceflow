@@ -59,19 +59,14 @@ export function RequirementFilters({ filters, onChange, onClear, count, total })
   );
   return (
     <CollapsibleFilterPanel
+      onClear={onClear}
+      canClear={activeCount > 0}
       className="sprint-filters"
       resultLabel={
         activeCount ? `${count ?? '—'} de ${total ?? '—'} requisitos` : `${total ?? '—'} requisitos`
       }
       activeCount={activeCount}
     >
-      {activeCount > 0 && (
-        <div className="planning-filter-panel__actions">
-          <button type="button" className="sprint-filters__clear" onClick={onClear}>
-            Limpar filtros
-          </button>
-        </div>
-      )}
       <div className="requirement-filter-grid">
         <label className="sprint-filter sprint-filter--search">
           <span>Pesquisar</span>

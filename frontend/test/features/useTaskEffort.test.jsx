@@ -169,13 +169,25 @@ describe('useTaskEffort — reconciliação entre respostas HTTP e eventos', () 
   });
 
   it('relê a tarefa depois de reconectar, sem depender de replay do stream', async () => {
-    const { rerender } = renderHook(() => useTaskEffort({ taskId: 42 }));
+    const { result, rerender } = renderHook(() => useTaskEffort({ taskId: 42 }));
     await waitFor(() => expect(apiMocks.getTaskTimeEntries).toHaveBeenCalledTimes(1));
 
+    apiMocks.getTaskTimeEntries.mockResolvedValue(
+      listResponse({
+        entries: [closedEntry({ id: 31 })],
+        effort: effort({ completedSeconds: HOUR, actualHours: 1, completedCount: 1 })
+      })
+    );
     bus.reconnectSequence = 1;
     rerender();
 
     await waitFor(() => expect(apiMocks.getTaskTimeEntries).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.entries).toEqual([closedEntry({ id: 31 })]));
+    expect(result.current.effort).toMatchObject({
+      actualHours: 1,
+      completedSeconds: HOUR,
+      completedCount: 1
+    });
   });
 
   it('leitura em voo não remove o lançamento confirmado depois que ela saiu', async () => {

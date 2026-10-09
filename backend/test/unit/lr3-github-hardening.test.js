@@ -42,7 +42,7 @@ describe('contratos persistidos LR.3', () => {
     );
   });
 
-  it('mantém estado de processamento e retry idempotente por deliveryId', () => {
+  it('declara os campos de processamento e a unicidade de deliveryId no schema', () => {
     const delivery = schema.match(/model GitHubWebhookDelivery \{([\s\S]*?)\n\}/)?.[1];
     expect(delivery).toMatch(/deliveryId\s+String\s+@unique/);
     expect(delivery).toMatch(/status\s+GitHubWebhookDeliveryStatus/);

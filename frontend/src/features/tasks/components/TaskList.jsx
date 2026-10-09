@@ -3,6 +3,7 @@ import { SprintActionsMenu } from '../../schedule/index.js';
 import { formatDate, formatEffortHours, priorityLabels, statusLabels } from './kanban-display.js';
 import '../styles/task-cards.css';
 import './TaskList.css';
+import { isTaskOverdue } from './kanban-view.js';
 
 function initials(value) {
   const words = String(value || '')
@@ -19,7 +20,7 @@ function deadlineView(task) {
   today.setHours(0, 0, 0, 0);
   const days = Math.ceil((deadline - today) / 86400000);
 
-  if (task.status !== 'CONCLUIDO' && days < 0) {
+  if (isTaskOverdue(task)) {
     return { label: `Atrasada · ${formatDate(task.deadline)}`, tone: 'overdue' };
   }
   if (task.status !== 'CONCLUIDO' && days <= 7) {
@@ -156,7 +157,7 @@ export function TaskList({
       <header>
         <h2 id="tasks-list-title">Tarefas do projeto</h2>
       </header>
-      {tasks.length ? (
+      {(tasks.length > 0 || canWrite) && (
         <div className="tasks-list-grid" role="list">
           {canWrite && (
             <div role="listitem">
@@ -177,20 +178,17 @@ export function TaskList({
             </div>
           ))}
         </div>
-      ) : filtered ? (
+      )}
+      {tasks.length === 0 && filtered && (
         <div className="tasks-empty-state">
           <h3>Nenhuma tarefa corresponde aos filtros.</h3>
           <p>Ajuste a busca ou limpe os filtros para ver outras tarefas.</p>
         </div>
-      ) : (
+      )}
+      {tasks.length === 0 && !filtered && !canWrite && (
         <div className="tasks-empty-state">
           <h3>Nenhuma tarefa cadastrada.</h3>
-          <p>Cadastre a primeira atividade para começar a organizar o trabalho do projeto.</p>
-          {canWrite && (
-            <button type="button" className="button button-primary" onClick={onCreate}>
-              + Nova tarefa
-            </button>
-          )}
+          <p>Seu perfil possui acesso somente para consulta.</p>
         </div>
       )}
     </section>

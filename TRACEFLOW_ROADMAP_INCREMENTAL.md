@@ -519,6 +519,23 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 - [ ] testar filtros, dados ausentes, cálculo e autorização;
 - [ ] documentar métricas e atualizar matriz RF.
 
+**Marco incremental P9 — 2026-10-04:**
+
+- [x] Meu painel: seleção de 1–12 indicadores aprovados, ordem por teclado e
+  preferência por usuário/projeto; default e restore com autoridade backend.
+- [x] API agregada CUSTOM, isolamento/autorização, migration incremental e
+  lifecycle; filtros, fórmulas e Health canônicos preservados.
+- [x] Gates locais completos e inspeção visual com API real, sete larguras,
+  Light/Dark/System. **S2 P9 PERSONALIZED INDICATORS DASHBOARD — PASS LOCAL**.
+
+Detalhes e limites de evidência no
+[relatório P9](docs/deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).
+Registro limitado ao P9. A revisão interna final IND-P10 foi executada posteriormente;
+resultados, correções e pendências estão no
+[relatório P10](docs/deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+Essa auditoria não conclui automaticamente S2-04/S2-05 nem os cartões de PDF,
+notificações, OCI ou validação acadêmica.
+
 ### S2-06 - Gerar relatórios resumidos do projeto
 
 **Requisito:** RF37.  
@@ -886,3 +903,52 @@ flowchart TD
 | Validação e aperfeiçoamento | Capítulo 4 e Apêndice B; sem novo RF funcional | Sprint 3 |
 
 Total: **39 RFs remanescentes** distribuídos entre as Sprints 1 e 2. A Sprint 3 valida o produto integrado e executa as correções derivadas das evidências, sem inventar novos RFs.
+
+## Fases internas de indicadores (IND)
+
+`IND-P*` identifica etapas internas da frente de indicadores. **Não equivale** a `S2-01…S2-10`,
+que continuam sendo cartões reais do roadmap. Em especial IND-P10 é a revisão interna final de
+indicadores, enquanto S2-10 mantém seu escopo próprio. Arquivos `S2_P*.md` e suas conclusões
+históricas conservam os nomes para preservar links; novos registros usam o prefixo inequívoco.
+Os cartões S2-04/S2-05 continuam sujeitos ao fechamento do review, sem promoção automática a DONE.
+
+| Fase interna | Nome / entrega | Cartões relacionados | Relatório / autoridade |
+| --- | --- | --- | --- |
+| IND-P0 | Contrato e prontidão de dados | S2-04 / S2-05 | [Catálogo](docs/indicators/S2_INDICATOR_CATALOG.md) |
+| IND-P1 | Indicator Data Foundation: relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P1_INDICATOR_DATA_FOUNDATION_REPORT.md) |
+| IND-P2 | Indicator Engine e RF15/RF16/RF17/RF36 | S2-04 | [Entrega](docs/deliveries/S2_P2_INDICATOR_ENGINE_RF15_RF16_RF17_RF36_REPORT.md) |
+| IND-P3 | GitHub Analytics + RF18/RF54 — relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P3_GITHUB_ANALYTICS_RF18_RF54_REPORT.md) |
+| IND-P4 | Flow + Task Analytics — relatório local | S2-04 | [Entrega](docs/deliveries/S2_P4_FLOW_TASK_ANALYTICS_REPORT.md) |
+| IND-P5 | Sprint Analytics — relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P5_SPRINT_ANALYTICS_REPORT.md) |
+| IND-P5.1 | Burnup Historical Foundation — relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P5_1_BURNUP_HISTORICAL_FOUNDATION_REPORT.md) |
+| IND-P5.2 | consistência histórica entre Burndown e Burnup | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P5_2_BURNDOWN_BURNUP_CONSISTENCY_REPORT.md) |
+| IND-P6 | Quality + Traceability Analytics | S2-05 | [Entrega](docs/deliveries/S2_P6_QUALITY_TRACEABILITY_ANALYTICS_REPORT.md) |
+| IND-P7 | Dashboard Aggregate API e RF56 | S2-05 | [Entrega](docs/deliveries/S2_P7_DASHBOARD_AGGREGATE_API_RF56_REPORT.md) |
+| IND-P8 | Dashboard na Visão Geral e RF55 | S2-05 | [Entrega](docs/deliveries/S2_P8_DASHBOARD_OVERVIEW_RF55_REPORT.md) |
+| IND-P8.1 | Homologação do Dashboard com dados reais | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_1_REAL_DASHBOARD_HOMOLOGATION_REPORT.md) |
+| IND-P8.2 | Dashboard visual e UX | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_2_DASHBOARD_VISUAL_UX_REDESIGN_REPORT.md) |
+| IND-P8.3 | Indicator Health + Project Health | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_3_INDICATOR_PROJECT_HEALTH_REPORT.md) |
+| IND-P8.4 | Validação integral e recuperação do Dashboard | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md) |
+| IND-P8.5 | Indicators Workspace + Commercial Analytics UX | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_5_INDICATORS_WORKSPACE_COMMERCIAL_UX_REPORT.md) |
+| IND-P8.6A | UI Consistency & Commercial UX Recovery | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md) |
+| IND-P8.6B | Analytics Data Enrichment & Visualization Completeness | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md) |
+| IND-P8.6C-1 | Final Indicators Experience Validation | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6C_FINAL_INDICATORS_VALIDATION_REPORT.md) |
+| IND-P8.6C-2 | Indicators visual & data hardening | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md) |
+| IND-P8.6D | Final Indicators Polish | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md) |
+| IND-P8.6E | Security Dependency Closure | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6E_SECURITY_DEPENDENCY_CLOSURE_REPORT.md) |
+| IND-P8.6F | Final visual consistency sweep | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md) |
+| IND-P9 | Personalized Indicators Dashboard | S2-05 | [Entrega](docs/deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md) |
+| IND-P9.1 | Personalized dashboard visual polish | S2-05 | [Entrega](docs/deliveries/S2_P9_1_PERSONALIZED_DASHBOARD_VISUAL_POLISH_REPORT.md) |
+| IND-P9.1.1 | Feedback de salvamento | S2-05 | [Registro de validação](docs/design/validation/VISUAL_VALIDATION_LOG.md#2026-10-04--p911-feedback-de-salvamento) |
+| IND-P10 | Final code review, QA e release readiness | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md) |
+
+S2-04 concentra RF15/RF16/RF17/RF18/RF36: motor, progresso, atividade e produtividade
+(IND-P2/P3/P4). S2-05 concentra RF54/RF55/RF56: qualidade, apresentação auditável, filtros e
+consolidação (IND-P3/P6/P7/P8). Fundação histórica, Sprint analytics, Health, homologação e fixes
+são suporte transversal à frente; Meu Painel (IND-P9) é evolução técnica da apresentação S2-05,
+sem criar RF oficial adicional. O vínculo transversal da tabela não afirma que cada fase implemente
+todos os requisitos de ambos os cartões.
+
+**P8.6C desambiguado:** IND-P8.6C-1 é a validação de 28/09/2026; IND-P8.6C-2 é o hardening posterior
+registrado em 03/10/2026. Para decisões posteriores de UI (incluindo Overview compacto), consultar
+IND-P8.6C-2 e suas sucessoras, sem atribuí-las retroativamente à rodada -1.

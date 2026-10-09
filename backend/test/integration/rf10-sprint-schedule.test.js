@@ -1,10 +1,17 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { contendProjectLock } from '../helpers/contended-project-lock.js';
+import { spawnSync } from 'node:child_process';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createMilestone, createProject, createSprint, createTask } from '../fixtures/factories.js';
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, spawnSync: vi.fn(actual.spawnSync) };
+});
 
 let prisma;
 let sprintRepository;
@@ -25,20 +32,39 @@ beforeAll(async () => {
   ({ taskKanbanService } = await import('../../src/modules/tasks/services/task-kanban.service.js'));
   await cleanTestDatabase(prisma);
 });
-afterEach(() => cleanTestDatabase(prisma));
+afterEach(() => {
+  vi.restoreAllMocks();
+  return cleanTestDatabase(prisma);
+});
 afterAll(async () => {
   await cleanTestDatabase(prisma);
   await prisma.$disconnect();
 });
 
 describe('migration add_sprint_milestone_schedule', () => {
-  it('e idempotente: reaplicar em banco ja migrado nao falha', () => {
-    expect(() => deployTestMigrations(testDatabaseUrl)).not.toThrow();
-  });
-
-  it('criou as tabelas Sprint e Milestone', async () => {
-    await expect(prisma.sprint.count()).resolves.toBe(0);
-    await expect(prisma.milestone.count()).resolves.toBe(0);
+  it('e idempotente: executa deploy novamente e preserva dados e histórico', async () => {
+    const project = await createProject(prisma);
+    const milestone = await createMilestone(prisma, project.id);
+    const sprint = await createSprint(prisma, project.id, { milestoneId: milestone.id });
+    const migrationsBefore = await prisma.$queryRawUnsafe(
+      'SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations ORDER BY migration_name'
+    );
+    expect(migrationsBefore.length).toBeGreaterThan(0);
+    spawnSync.mockClear();
+    expect(() => deployTestMigrations(testDatabaseUrl, { force: true })).not.toThrow();
+    expect(spawnSync).toHaveBeenCalledTimes(1);
+    expect(spawnSync).toHaveBeenCalledWith(
+      process.execPath,
+      [expect.stringContaining('prisma'), 'migrate', 'deploy'],
+      expect.objectContaining({ env: expect.objectContaining({ DATABASE_URL: testDatabaseUrl }) })
+    );
+    expect(
+      await prisma.$queryRawUnsafe(
+        'SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations ORDER BY migration_name'
+      )
+    ).toEqual(migrationsBefore);
+    expect(await prisma.sprint.findUnique({ where: { id: sprint.id } })).toEqual(sprint);
+    expect(await prisma.milestone.findUnique({ where: { id: milestone.id } })).toEqual(milestone);
   });
 
   it('moveu o vinculo de Milestone.sprintId para Sprint.milestoneId', async () => {
@@ -101,21 +127,6 @@ describe('migration add_sprint_milestone_schedule', () => {
 });
 
 describe('integridade no banco', () => {
-  it('aplica a unicidade de nome por projeto', async () => {
-    const project = await createProject(prisma);
-    await createSprint(prisma, project.id, { name: 'Sprint 1' });
-    await expect(createSprint(prisma, project.id, { name: 'Sprint 1' })).rejects.toMatchObject({
-      code: 'P2002'
-    });
-  });
-
-  it('aceita o mesmo nome em projetos diferentes', async () => {
-    const first = await createProject(prisma);
-    const second = await createProject(prisma);
-    await createSprint(prisma, first.id, { name: 'Sprint 1' });
-    await expect(createSprint(prisma, second.id, { name: 'Sprint 1' })).resolves.toBeDefined();
-  });
-
   it('SetNull na FK e rede de seguranca: exclusao direta nao apaga a tarefa', async () => {
     const project = await createProject(prisma);
     const sprint = await createSprint(prisma, project.id);
@@ -219,14 +230,31 @@ describe('transacoes dos repositories', () => {
     const sprint = await createSprint(prisma, project.id);
     const task = await createTask(prisma, project.id);
 
+    const actor = await prisma.user.create({
+      data: {
+        name: 'Audit failure actor',
+        username: 'audit-failure-actor',
+        email: 'audit-failure@example.invalid'
+      }
+    });
+    const { auditRepository } = await import('../../src/modules/audit/audit.repository.js');
+    const failure = vi
+      .spyOn(auditRepository, 'create')
+      .mockImplementationOnce(async (_event, tx) => {
+        expect(await tx.taskHistoryEntry.count({ where: { taskId: task.id } })).toBe(1);
+        expect(await tx.sprintTask.count({ where: { sprintId: sprint.id } })).toBe(1);
+        throw new Error('injected audit-only failure');
+      });
     await expect(
       sprintRepository.mutateScopeWithinSprintLock(
         sprint.id,
         project.id,
         [task.id],
-        planoDeEntrada(project, sprint, task, 999999)
+        planoDeEntrada(project, sprint, task, actor.id)
       )
-    ).rejects.toBeDefined();
+    ).rejects.toThrow('injected audit-only failure');
+    expect(failure).toHaveBeenCalledOnce();
+    failure.mockRestore();
 
     expect(await prisma.sprintTask.count()).toBe(0);
     expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBeNull();
@@ -278,10 +306,13 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
   it('duas atualizacoes parciais complementares nunca gravam janela invertida', async () => {
     const { sprint } = await sprintDeTeste();
 
+    const gate = contendProjectLock(prisma);
     const resultados = await Promise.allSettled([
       sprintService.updateSprint(sprint.id, { endDate: '2026-08-15' }),
       sprintService.updateSprint(sprint.id, { startDate: '2026-08-20' })
     ]);
+    expect(gate.attempts()).toBe(2);
+    gate.restore();
 
     const persistida = await prisma.sprint.findUnique({ where: { id: sprint.id } });
     expect(persistida.startDate.getTime()).toBeLessThan(persistida.endDate.getTime());
@@ -301,7 +332,7 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
   });
 
   it('duas sprints nao entram em andamento ao mesmo tempo', async () => {
-    for (let rodada = 0; rodada < 5; rodada += 1) {
+    {
       const project = await createProject(prisma);
       const primeira = await createSprint(prisma, project.id, {
         name: 'Sprint A',
@@ -314,10 +345,13 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
         endDate: fim
       });
 
+      const gate = contendProjectLock(prisma);
       const resultados = await Promise.allSettled([
         sprintService.updateSprintStatus(primeira.id, 'EM_ANDAMENTO'),
         sprintService.updateSprintStatus(segunda.id, 'EM_ANDAMENTO')
       ]);
+      expect(gate.attempts()).toBe(2);
+      gate.restore();
 
       const emAndamento = await prisma.sprint.count({
         where: { projectId: project.id, status: 'EM_ANDAMENTO' }
@@ -386,6 +420,45 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
       status: 'EM_ANDAMENTO'
     });
 
+    const beforeSprint = await prisma.sprint.findUnique({ where: { id: ultima.id } });
+    const beforeMilestone = await prisma.milestone.findUnique({ where: { id: marco.id } });
+    const transaction = prisma.$transaction.bind(prisma);
+    const failure = vi.fn(async () => {
+      throw new Error('injected milestone failure');
+    });
+    const transactionSpy = vi
+      .spyOn(prisma, '$transaction')
+      .mockImplementation((callback, options) =>
+        transaction(
+          (tx) =>
+            callback(
+              new Proxy(tx, {
+                get(target, property) {
+                  if (property !== 'milestone') return target[property];
+                  return new Proxy(target[property], {
+                    get(model, method) {
+                      if (method !== 'update') return model[method];
+                      return async () => {
+                        expect(
+                          await tx.sprint.findUnique({ where: { id: ultima.id } })
+                        ).toMatchObject({ status: 'CONCLUIDA' });
+                        return failure();
+                      };
+                    }
+                  });
+                }
+              })
+            ),
+          options
+        )
+      );
+    await expect(sprintService.updateSprintStatus(ultima.id, 'CONCLUIDA')).rejects.toThrow(
+      'injected milestone failure'
+    );
+    expect(failure).toHaveBeenCalledOnce();
+    transactionSpy.mockRestore();
+    expect(await prisma.sprint.findUnique({ where: { id: ultima.id } })).toEqual(beforeSprint);
+    expect(await prisma.milestone.findUnique({ where: { id: marco.id } })).toEqual(beforeMilestone);
     const resultado = await sprintService.updateSprintStatus(ultima.id, 'CONCLUIDA');
 
     expect(resultado.milestoneCompleted).toMatchObject({ id: marco.id, status: 'CONCLUIDO' });
@@ -421,10 +494,11 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
   });
 
   it('serializa exclusão lógica do Marco e criação da Sprint, preservando a referência se criada primeiro', async () => {
-    for (let rodada = 0; rodada < 5; rodada += 1) {
+    {
       const project = await createProject(prisma);
       const marco = await createMilestone(prisma, project.id);
 
+      const gate = contendProjectLock(prisma);
       const resultados = await Promise.allSettled([
         sprintService.deleteMilestone(marco.id),
         sprintService.createSprint(project.id, {
@@ -434,8 +508,17 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
           milestoneId: marco.id
         })
       ]);
+      expect(gate.attempts()).toBe(2);
+      gate.restore();
+      expect(resultados[0].status).toBe('fulfilled');
+      expect(await prisma.milestone.findUnique({ where: { id: marco.id } })).toMatchObject({
+        deletedAt: expect.any(Date)
+      });
 
       const sprints = await prisma.sprint.findMany({ where: { projectId: project.id } });
+      expect(sprints).toHaveLength(resultados[1].status === 'fulfilled' ? 1 : 0);
+      if (resultados[1].status === 'fulfilled')
+        expect(sprints[0]).toMatchObject({ id: resultados[1].value.id, milestoneId: marco.id });
       const marcos = await prisma.milestone.count({ where: { id: marco.id } });
       for (const sprint of sprints) {
         if (sprint.milestoneId !== null) expect(marcos).toBe(1);
@@ -509,13 +592,16 @@ describe('encerramento de sprint versus movimento de tarefa', () => {
   });
 
   it('o snapshot terminal nunca congela status diferente do que a tarefa termina', async () => {
-    for (let rodada = 0; rodada < 5; rodada += 1) {
+    {
       const { sprint, task, contextoSprint, contextoTask } = await cenario('CONCLUIDO');
 
+      const gate = contendProjectLock(prisma);
       const [encerramento, movimento] = await Promise.allSettled([
         sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA', contextoSprint),
         taskKanbanService.moveTask(task.id, { toStatus: 'EM_ANDAMENTO' }, contextoTask)
       ]);
+      expect(gate.attempts()).toBe(2);
+      gate.restore();
 
       expect(encerramento.status).toBe('fulfilled');
       const { tarefa, participacao, movimentos, historico } = await estadoFinal(sprint, task);
@@ -538,13 +624,16 @@ describe('encerramento de sprint versus movimento de tarefa', () => {
   });
 
   it('movimento posterior ao backlog nao registra a sprint encerrada', async () => {
-    for (let rodada = 0; rodada < 5; rodada += 1) {
+    {
       const { sprint, task, contextoSprint, contextoTask } = await cenario('A_FAZER');
 
+      const gate = contendProjectLock(prisma);
       const [encerramento, movimento] = await Promise.allSettled([
         sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA', contextoSprint),
         taskKanbanService.moveTask(task.id, { toStatus: 'EM_ANDAMENTO' }, contextoTask)
       ]);
+      expect(gate.attempts()).toBe(2);
+      gate.restore();
 
       expect(encerramento.status).toBe('fulfilled');
       expect(movimento.status).toBe('fulfilled');

@@ -44,10 +44,10 @@ function logStep(event, projectId, step, startedAt, details = {}) {
   });
 }
 
-async function validateAndRefreshRepository(project, integration, githubClient) {
+async function validateAndRefreshRepository(project, integration, githubClient, assertActive) {
   const coordinates = linkedRepositoryCoordinates(integration);
   const repository = await githubClient.getRepository(coordinates.owner, coordinates.repo);
-  await assertProjectActive(project.id);
+  await assertActive();
 
   if (
     integration.githubRepositoryId &&
@@ -76,6 +76,10 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
 
   projectsInSync.add(parsedProjectId);
   const attemptedAt = new Date();
+  const assertActive = async () => {
+    await onProgress({});
+    await assertProjectActive(parsedProjectId);
+  };
   let project;
 
   try {
@@ -93,6 +97,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
         409
       );
     }
+    await assertActive();
     if (!(await projectRepository.markGithubSyncStarted(parsedProjectId, attemptedAt))) {
       throw new ProjectServiceError('Projeto não encontrado.', 404);
     }
@@ -103,7 +108,12 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
     let stepStartedAt = Date.now();
     await onProgress({ step: 'REPOSITORY', currentBranch: null });
     logStep('started', parsedProjectId, 'repository', stepStartedAt);
-    const repository = await validateAndRefreshRepository(project, integration, githubClient);
+    const repository = await validateAndRefreshRepository(
+      project,
+      integration,
+      githubClient,
+      assertActive
+    );
     logStep('completed', parsedProjectId, 'repository', stepStartedAt);
 
     stepStartedAt = Date.now();
@@ -113,7 +123,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       project,
       repository,
       githubClient,
-      assertActive: () => assertProjectActive(parsedProjectId)
+      assertActive
     });
     await onProgress({ branchCount: branchResult.summary.found });
     logStep('completed', parsedProjectId, 'branches', stepStartedAt, {
@@ -131,7 +141,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       branches: branchResult.branches,
       githubClient,
       onProgress,
-      assertActive: () => assertProjectActive(parsedProjectId)
+      assertActive
     });
     logStep('completed', parsedProjectId, 'commits', stepStartedAt, {
       branchCount: branchResult.summary.active,
@@ -146,7 +156,8 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       project,
       repository,
       githubClient,
-      assertActive: () => assertProjectActive(parsedProjectId)
+      onProgress,
+      assertActive
     });
     await onProgress({
       pullRequestsFound: pullRequestSummary.found,
@@ -164,7 +175,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       project,
       repository,
       githubClient,
-      assertActive: () => assertProjectActive(parsedProjectId)
+      assertActive
     });
     await onProgress({
       issuesFound: issueSummary.found,
@@ -177,7 +188,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
 
     stepStartedAt = Date.now();
     await onProgress({ step: 'PERSIST' });
-    await assertProjectActive(parsedProjectId);
+    await assertActive();
     logStep('started', parsedProjectId, 'persist', stepStartedAt);
     const updatedProject = await projectRepository.markGithubSyncSucceeded(
       parsedProjectId,
@@ -196,7 +207,10 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       project: updatedProject
     };
   } catch (error) {
-    if (project) {
+    if (project && error.code !== 'GITHUB_SYNC_LEASE_LOST') {
+      // A delayed provider failure must not overwrite the integration after
+      // another request has expired this worker and claimed a replacement.
+      await onProgress({});
       await projectRepository.markGithubSyncFailed(
         parsedProjectId,
         attemptedAt,

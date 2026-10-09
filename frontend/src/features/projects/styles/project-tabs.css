@@ -12,11 +12,35 @@
 }
 
 .project-section-tabs {
+  gap: var(--space-1);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
   align-items: stretch;
   min-height: calc(3rem + var(--border-width-default));
+}
+
+.project-section-tabs .internal-tab {
+  padding-inline: var(--space-2);
+  white-space: nowrap;
+}
+
+@media (min-width: 1280px) {
+  .project-section-tabs {
+    justify-content: space-between;
+    gap: 0;
+  }
+
+  .project-section-tabs .internal-tab {
+    padding-inline: var(--space-1);
+    font-size: var(--font-size-1);
+  }
+}
+
+@media (min-width: 1440px) {
+  .project-section-tabs .internal-tab {
+    font-size: var(--font-size-2);
+  }
 }
 
 .project-section-tabs .internal-tab--active::after {

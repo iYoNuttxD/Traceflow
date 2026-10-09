@@ -86,12 +86,23 @@ describe('InMemoryProjectEventPublisher', () => {
     publisher.subscribe(session);
     publisher.subscribe(lifetime);
 
-    publisher.disconnectUser(10, { projectId: 1 });
+    const foreign = subscriber({ projectId: 2, sessionId: 'foreign' });
+    const exempt = subscriber({ sessionId: 'exempt' });
+    publisher.subscribe(foreign);
+    publisher.subscribe(exempt);
+    publisher.disconnectUser(10, { projectId: 1, exceptSessionId: 'exempt' });
+    expect(foreign.onClose).not.toHaveBeenCalled();
+    expect(exempt.onClose).not.toHaveBeenCalled();
+    expect(publisher.publish(event(2))).toBe(1);
+    expect(publisher.publish(event(1))).toBe(3);
     publisher.disconnectSession('session-2');
     expect(membership.onClose).toHaveBeenCalledWith('authorization_changed');
     expect(session.onClose).toHaveBeenCalledWith('session_revoked');
 
-    now = 101;
+    now = 99;
+    heartbeat();
+    expect(lifetime.onClose).not.toHaveBeenCalled();
+    now = 100;
     heartbeat();
     expect(lifetime.onClose).toHaveBeenCalledWith('maximum_lifetime');
     expect(publisher.subscriberCount()).toBe(0);

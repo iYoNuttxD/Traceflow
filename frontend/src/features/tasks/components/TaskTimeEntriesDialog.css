@@ -61,7 +61,7 @@
 
 .task-time-entries__filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-3);
   align-items: end;
   margin-bottom: var(--space-4);
@@ -75,14 +75,6 @@
   padding: 0 var(--space-3);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-3);
-}
-.task-time-entries__filter-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.task-time-entries__filter-actions .button {
-  min-height: var(--size-touch-target);
 }
 .task-time-entries-embedded {
   min-width: 0;
@@ -258,18 +250,7 @@
   .task-time-entries__filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .task-time-entries__filter-actions {
-    grid-column: 1 / -1;
-  }
 
-  .task-time-entries__filter-actions {
-    width: 100%;
-    padding-left: 0;
-  }
-
-  .task-time-entries__filter-actions .button {
-    flex: 1 1 auto;
-  }
 }
 
 .task-time-entries__action:hover:not(:disabled) {

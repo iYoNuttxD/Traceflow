@@ -17,19 +17,14 @@ export function KanbanFilters({
 
   return (
     <CollapsibleFilterPanel
+      onClear={onClear}
+      canClear={activeCount > 0}
       id="kanban-filters-body"
       title="Buscar e filtrar"
       resultLabel={resultLabel}
       activeCount={activeCount}
       className="kanban-filters"
     >
-      {activeCount > 0 && (
-        <div className="kanban-filters__actions">
-          <button type="button" className="kanban-filters__clear" onClick={onClear}>
-            Limpar filtros
-          </button>
-        </div>
-      )}
       <div className="kanban-filters__controls">
         <label className="kanban-filter kanban-filter--search">
           <span>Pesquisar</span>

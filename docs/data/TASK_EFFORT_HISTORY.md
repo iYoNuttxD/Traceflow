@@ -4,6 +4,8 @@
 
 TaskTimeEntry representa sessões atuais. Task.actualEffort soma sessões encerradas e legacyActualEffort, convertido para horas com duas casas. Excluir uma sessão retira sua duração desse total. TaskEffortHistoryEntry preserva eventos imutáveis separados; não é derivado da lista atual nem do AuditEvent técnico.
 
+O P5.1 auditou essa fonte para Burnup: `TaskEffortHistoryEntry` registra **segundos realizados** de sessões, não revisões de `Task.estimatedEffort`. Ela não alimenta I46 e sua semântica permanece a mesma. Estimativas válidas no tempo da Sprint são capturadas separadamente em `SprintBurnupEvent`, descrito em [PLANNING_HISTORY](PLANNING_HISTORY.md#fundação-histórica-do-burnup--p51).
+
 | Evento | Momento | previousSeconds | newSeconds |
 |---|---|---|---|
 | CREATED | Lançamento manual ou encerramento do timer | null | Duração realizada |

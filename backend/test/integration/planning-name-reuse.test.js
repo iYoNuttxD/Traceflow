@@ -1,7 +1,8 @@
+import { contendProjectLock } from '../helpers/contended-project-lock.js';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -15,7 +16,10 @@ beforeAll(async () => {
   ({ sprintService: service } = await import('../../src/modules/sprints/sprint.service.js'));
   await cleanTestDatabase(prisma);
 });
-afterEach(() => cleanTestDatabase(prisma));
+afterEach(() => {
+  vi.restoreAllMocks();
+  return cleanTestDatabase(prisma);
+});
 afterAll(() => prisma.$disconnect());
 const data = (name = 'Sprint QA', startDate = '2026-10-01', endDate = '2026-10-05') => ({
   name,
@@ -92,10 +96,13 @@ describe('BR-SPRINT-021 — active name uniqueness', () => {
 
   it('concurrent same-name creates have one winner even with disjoint periods', async () => {
     const p = await createProject(prisma);
+    const gate = contendProjectLock(prisma);
     const results = await Promise.allSettled([
       create(p.id),
       create(p.id, data('Sprint QA', '2026-11-01', '2026-11-05'))
     ]);
+    expect(gate.attempts()).toBe(2);
+    gate.restore();
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.find((r) => r.status === 'rejected').reason.code).toBe('SPRINT_NAME_IN_USE');
     expect(await prisma.sprint.count({ where: { projectId: p.id, deletedAt: null } })).toBe(1);
@@ -109,7 +116,10 @@ describe('BR-SPRINT-021 — active name uniqueness', () => {
       const remove = () => service.deleteSprint(a.id);
       const insert = () => create(p.id, data('Sprint QA', '2026-11-01', '2026-11-05'));
       const actions = order === 'delete-first' ? [remove, insert] : [insert, remove];
+      const gate = contendProjectLock(prisma);
       const results = await Promise.allSettled(actions.map((fn) => fn()));
+      expect(gate.attempts()).toBe(2);
+      gate.restore();
       const deletion = results[order === 'delete-first' ? 0 : 1];
       const creation = results[order === 'delete-first' ? 1 : 0];
       expect(deletion.status).toBe('fulfilled');

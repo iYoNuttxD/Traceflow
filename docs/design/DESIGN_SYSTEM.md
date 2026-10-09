@@ -429,6 +429,14 @@ Success, warning, error e info combinam icon, título/mensagem, surface e border
 dinâmicas devem adotar `role="status"`, `role="alert"` ou live region conforme urgência real. Cor não
 é o único sinal.
 
+`FeedbackRegion` mantém regiões de anúncio polite/assertive montadas. Com `transient`, somente
+success/info desaparecem após os 4 segundos canônicos. Error, warning vigente e rate-limit não
+têm auto-dismiss; o dono do fluxo remove a mensagem ao resolver a condição ou mudar de contexto.
+A contagem regressiva visual não é anunciada a cada segundo: o prazo inicial é informado uma
+vez. Retry permanece desabilitado durante Retry-After, sem repetição automática da request.
+Feedback com interação permite pointer events. Confirmação de save pode ser transitória, mas
+falha posterior de atualização permanece junto da ação de retry; não é erro de salvamento.
+
 ### Empty state
 
 Composição: ícone opcional, título, descrição, ação opcional e spacing centralizado. Ilustração não
@@ -648,6 +656,128 @@ correspondente no log e não equivale a certificação WCAG ou cobertura histór
 browsers. Testes automatizados sustentam `TECHNICALLY VERIFIED`, mas não substituem inspeção
 renderizada. `ENVIRONMENT BLOCKED` registra uma limitação objetiva; não é aprovação nem falha visual.
 
+### RF55 — ajuda em duas camadas (PR23-FIX-02, 2026-10-05)
+
+Regra vigente para os indicadores, inclusive Meu painel: a ajuda principal mantém o que mostra,
+valor, referência e interpretação. Ao final, `Detalhes do cálculo` é um botão secundário de 44px,
+fechado por padrão, com `aria-expanded`/`aria-controls`, Enter/Space e conteúdo na mesma ajuda
+`DashboardHelp`. Não cria modal adicional nem altera o layout do card. Escape/close retornam foco;
+o portal continua limitado ao viewport e rolável no mobile.
+
+O disclosure identifica **Como é calculado**, **Fonte** e **horário/frescor**. A regra vem de
+`formula` no catálogo backend, conferida contra repository/service/calculator/policy na
+PR23-FIX-02.1. O frontend apresenta a regra recebida; traduz somente nomes de fontes. Não
+mantém registry de fórmulas ou substituições por ID. GitHub mostra `sourceUpdatedAt` como “Fonte atualizada” ou, em STALE, “Última atualização
+da fonte”. Métricas locais mostram `asOf` como “Calculado com dados até”. Clock ausente/inválido
+ou fonte indisponível não recebe data fictícia. NO_DATA mantém ausência de valor; um corte de
+consulta local conhecido pode ser identificado sem alegar existência de registros.
+
+IDs de indicador, RFs, versões, códigos de motivo, campos de banco e pesos continuam internos,
+inclusive nessa camada. Esta decisão substitui tanto a exibição técnica ampla do P8/P8.2 quanto
+a exclusão de fórmula/fonte/horário da ajuda comercial P8.5/P8.6. Não altera Health ou cálculos.
+
+#### Padrão de redação e wrap do cálculo (PR23-FIX-02.1)
+
+Regras de cálculo usam linguagem de domínio: Tarefas, Requisitos, Pull Requests, Commits,
+Defeitos, Casos de teste e Sprints. Percentuais identificam numerador e denominador e usam
+`(Numerador ÷ Denominador) × 100`; contagens, somas, médias e medianas usam frases claras.
+Eventos iniciais/finais, recorte, elegibilidade e exclusões relevantes devem corresponder à
+implementação. Não apresentar pseudocódigo, abreviações de banco ou nomes internos.
+
+A regra tem bloco próprio com tokens de surface, borda e padding, fonte proporcional e largura
+orientada pelo conteúdo. A expressão inteira pode quebrar; somente grupos pequenos como
+`requisitos) × 100` e `÷ Total` permanecem juntos. Não usar código, monospace ou `nowrap` na regra
+inteira. Regras longas e fontes continuam acessíveis pela rolagem da ajuda existente, sem novo modal.
+[Auditoria por indicador e evidência](../deliveries/PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md).
+
+### Indicadores da Visão Geral — P8
+
+`/projects/:projectId` conserva Projeto, GitHub e Equipe em uma surface de contexto, seguida do
+painel analítico. A feature `indicators` usa tabs com `aria-selected`, formulário de período/Sprint/
+responsável e seções com grids de três, duas ou uma coluna conforme a largura útil do container.
+Esta anatomia P8 é histórica, substituída pelo workspace P8.5/P8.6 e pela ajuda RF55 em duas
+camadas da seção RF55. O card atual contém título, estado e valor/série/lista/distribuição;
+fórmula, fonte e horário ficam sob demanda, sem IDs ou campos internos. `AVAILABLE`, `NO_DATA`, `PARTIAL`,
+`STALE` e `UNAVAILABLE` são rótulos distintos e não dependem apenas de cor. Informação desconhecida
+permanece ausente; a série não desenha zero para lacuna.
+
+Os gráficos SVG de Sprint/Fluxo usam cores dos tokens existentes, legenda textual, leitura de ponto
+por teclado e tabela de dados expansível. Dados tabulares usam `details` nativo; desde P8.4, a
+ajuda usa `DashboardHelp` em portal, dialog não modal nomeado, com Escape e retorno de foco.
+Os acionadores têm alvo de toque de 44px. Os estilos permanecem no boundary `.dashboard-panel`/`.indicator-card`/
+`.dashboard-chart`; não alteram controles de outras features. A inspeção renderizada P8 em fixture
+local está registrada no [log visual](validation/VISUAL_VALIDATION_LOG.md); ela não substitui a
+revisão com API e sessão reais.
+
+### Indicadores — apresentação P8.2
+
+O Dashboard usa a mesma linguagem da surface Projeto/GitHub/Equipe: cada seção tem um container
+com divisões internas. KPIs ficam em tiles compactos; listas e distribuições crescem pelo conteúdo;
+séries ocupam largura analítica. Geral reúne Panorama e Sprint em foco sem reservar um bloco vazio
+para a futura saúde do projeto. As visões Task e Sprint subdividem as seções P7 apenas para leitura,
+sem mudar a composição ou a resposta do agregado.
+
+As sete tabs, Filtros e o refresh local pertencem à mesma toolbar. Filtros começam recolhidos e
+mostram quantidade e recorte aplicado ao fechar. A seleção serializada continua na URL; fuso IANA
+é enviado com período, sem ocupar a interface principal. Quando a visão não contém recorte temporal
+seguro, os campos de data não aparecem e o painel explica a limitação. Refresh relê o agregado;
+Sincronizar no header continua sendo a operação GitHub.
+
+P8.4 publica a compatibilidade da visão no catálogo e oferece datas também quando definem a
+janela de Project Health na Geral. Sprint/Responsável sem suporte ficam desabilitados com
+explicação associada; filtros preservados na URL indicam quando não têm efeito. A ausência de
+um widget temporal não autoriza ocultar um filtro usado pelo Health.
+
+Um indicador `AVAILABLE` não recebe badge. `PARTIAL`, `STALE`, `NO_DATA` e `UNAVAILABLE` preservam
+nome textual e valor conhecido, quando houver. Limitações comuns aparecem na seção ou na visão;
+ajuda individual explica as limitações em linguagem de uso, sem códigos internos. O horário de montagem e a fonte GitHub estão
+no contexto da visão; o widget mostra data de fonte individual quando está `STALE`. O texto visível
+usa um presenter por campo/unidade, incluindo contagens I58 sem `%` e plural de defeitos. IDs e
+versões permanecem internos. A regra antiga de “Detalhes técnicos” foi substituída pelo
+disclosure “Detalhes do cálculo” de PR23-FIX-02, definido na seção RF55.
+
+Séries de um ponto usam resumo histórico, sem eixo de datas duplicadas. Séries com dois ou mais
+pontos mantêm SVG, seleção por cursor/toque/teclado, linha de referência, resumo do ponto e tabela
+de dados expandível. `null` permanece lacuna. A barra, o resumo e a tabela leem os valores da API;
+nenhuma cor ou badge nesta etapa julga a saúde do projeto. A matriz Light/Dark e 1440/1280/768/390
+px com API real está no [log visual](validation/VISUAL_VALIDATION_LOG.md) e no
+[relatório P8.2](../deliveries/S2_P8_2_DASHBOARD_VISUAL_UX_REDESIGN_REPORT.md).
+
+### Saúde do projeto — P8.3
+
+Na visão Geral, o bloco `project-health` precede Panorama. Usa container C2, nota em destaque,
+status por texto, barra horizontal simples, cobertura secundária, linhas compactas para as seis
+dimensões e até três drivers negativos/positivos. Não usa gauge radial. `UNASSESSED` mostra
+travessão e explicação, nunca `0/100`. Dimensão não aplicável recebe rótulo textual. No mobile,
+dimensões e drivers empilham em uma coluna; score, status e cobertura permanecem no topo.
+
+`HEALTHY`, `ATTENTION` e `CRITICAL` reutilizam os tokens de sucesso, aviso e perigo tanto no
+bloco quanto no badge discreto do indicador. Texto acompanha toda cor. `NEUTRAL` e `UNASSESSED`
+não criam badge no card; a ajuda explica a participação e mantém o estado de dados independente.
+Na anatomia histórica P8.3, o help incluía peso e versão; a ajuda comercial P8.6 substitui essa
+regra e mantém escopo, cobertura e limite da nota, sem pesos/versões internos. Help do indicador traduz
+`reasonCode`/`basis` recebidos da API; não contém cálculo de score. O modelo canônico está em
+[Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
+
+### Recuperação e validação integral — P8.4
+
+Geral exibe I45 e I46 lado a lado quando há largura; Sprint conserva I45/I46/I47 independentemente
+do papel no Health. Linhas de KPIs e detalhes distribuem toda a largura disponível, inclusive a
+última linha e snapshots únicos. O badge de saúde fica abaixo do título, separado do acionador de
+ajuda. O presenter preserva indicadores adicionais recebidos ao reagrupar seções.
+
+Escala e datas dos gráficos usam texto HTML que pode quebrar linha; o SVG dimensiona somente o
+desenho. Séries vazias explicam a ausência de pontos; `null` conserva lacunas. Ajuda fica limitada
+ao viewport, acompanha scroll/resize e usa a camada overlay acima do header móvel, abaixo de
+modais. O dialog fecha por Escape, botão, clique externo ou saída de foco.
+
+O [relatório P8.4](../deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md)
+preserva as observações declaradas na época. Retificação PR23-FIX-02: o pacote binário citado
+não está no repositório nem foi localizado com origem comprovável; a rodada histórica conserva
+`TECHNICALLY VERIFIED`, sem promoção visual canônica. Evidência posterior não prova a P8.4.
+Zoom de renderer e reflow equivalente foram verificados; não constituem teste do menu de zoom
+nativo, certificação WCAG ou homologação de outros motores de navegador.
+
 
 ## Padronização transversal de controles e Details — S1-08 FIX 02
 
@@ -780,3 +910,193 @@ link real, fallback textual da URL e versão `text` completa. Conteúdo dinâmic
 escapado, URLs aceitam somente HTTP/HTTPS e datas são apresentadas em `pt-BR` com
 timezone UTC explícito. O preview local é gerado em diretório temporário por
 `npm run email:preview --prefix backend`, sem envio SMTP.
+
+### Workspace de Indicadores — P8.5
+
+A Visão Geral preserva contexto/ações/GitHub/equipe e apenas o resumo de saúde com cobertura,
+principal área de atenção e CTA “Ver indicadores”. Detalhamento, dimensões, drivers, filtros e gráficos
+pertencem a `/projects/:projectId/indicators`, integrado à navegação do projeto.
+
+Essa composição de Health é histórica: a revisão P8.6C abaixo substitui cobertura,
+área de atenção e CTA por um resumo mínimo na Visão Geral.
+
+A página segue header/eyebrow/descrição, ProjectSectionNav, resumo canônico, CollapsibleFilterPanel
+único e categorias com internal-tabs. SummaryPanel generaliza o resumo de Casos de teste para
+reutilização; campos usam SelectControl. Período e Sprint pertencem ao workspace inteiro; o controle de responsável fica ausente enquanto não houver recorte funcional. Tabelas semânticas apresentam
+entidades; séries só usam os pontos reais do backend. Ajuda não expõe IDs de indicador, versões,
+campos internos ou RFs, mesmo em disclosure. A exclusão anterior de fórmula/fonte/horário foi
+substituída pela regra da seção RF55; esses três itens são auditáveis em linguagem de uso.
+Referência é identificada como comparação, nunca
+como meta inventada. Revalidação visual P8.5 é necessária antes de nova aprovação.
+
+
+O layout detalhado possui container próprio `indicators-workspace`; seus ajustes
+não dependem do antigo container de Overview. O resumo usa cinco tiles com quebra
+por largura disponível. Listas de entidades usam tabela semântica com cabeçalhos,
+rolagem local focável e somente colunas sustentadas pelo payload (incluindo
+responsável quando fornecido). A referência é secundária ao valor atual.
+
+
+### Consistência de Indicadores — P8.6A
+
+- `ProjectHealthSummary` pertence ao container da Visão Geral, após Projeto/GitHub/Equipe e antes do rodapé de datas. Usa divisor e padding da superfície, coração `TraceFlowIcon` secundário, nota/status/barra, principal área de atenção, cobertura discreta e CTA. Dimensões e drivers ficam em Indicadores.
+- `SummaryPanel` é a primitive de Casos de teste e Indicadores. Seu slot `footer` integra atualização, disponibilidade, Sprint e sincronização sem faixa externa. Labels, valores e detalhes usam a escala canônica; detalhes são descrições semânticas do `dl`.
+- `CollapsibleFilterPanel` e `SelectControl` são os controles reais de filtro. Período e Sprint aplicam automaticamente; um período só é enviado quando completo e válido. Limpar usa a ação canônica. URL mantém o contexto entre categorias. Compatibilidade aparece uma vez no filtro expandido.
+- Limitações compartilhadas ficam no cabeçalho da seção; avisos da view suprimem repetições abaixo. Informação histórica usa texto secundário. Cor de atenção continua reservada ao assessment e a estados que a exigem.
+- Ajuda tem desenho de 18px e alvo de 44px, fechamento compacto, Escape e retorno de foco. Camada principal: definição, valor, referência e interpretação, sem pesos ou metadados internos. Fórmula, fonte e horário seguem a camada secundária definida na seção RF55.
+- `IndicatorProgress` admite `value`, `referenceValue`, `health` e rótulos acessíveis. Marker tracejado apenas para referências percentuais fornecidas pelo servidor em implementação, evidência técnica, TestCase e validação. A comparação também permanece textual.
+- Grids detalhados alinham pelo início, sem esticar listas. Cumulative Flow com série usa SVG de 352px (área útil aproximada de 283px). Séries de um ponto são resumos de conteúdo, sem tabela redundante; séries vazias não reservam altura de gráfico.
+
+Evidências e limites no [relatório P8.6A](../deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md).
+
+
+### P8.6B — séries com referência e rankings maiores
+
+- `IndicatorChart` apresenta I20/I21 com lacunas preservadas, amostra diária na tabela
+  e primeira amostra disponível selecionada inicialmente. Linha tracejada somente
+  para `PROJECT_BASELINE` fornecida pelo servidor em unidade compatível; o domínio
+  vertical inclui a referência e a legenda textual continua acessível.
+- Regiões de tabelas de indicadores têm altura máxima de 28rem, rolagem interna e
+  cabeçalho fixo. Listas curtas continuam com altura de conteúdo. Rankings de Tasks
+  informam “10 de 11”, por exemplo, quando o backend limita os registros retornados.
+- Não há nova biblioteca de gráficos nem mudança de tokens ou primitives globais.
+
+### P8.6C — herança tipográfica do header de Indicadores
+
+O h1 de Indicadores herda a regra global de página, como Casos de teste, Defeitos e
+Rastreabilidade. Não limitar essa superfície a uma escala própria. Na auditoria local,
+a remoção da exceção de 40px resultou em 48px no desktop e 32px no mobile, conforme a
+regra canônica. SummaryPanel e CollapsibleFilterPanel permanecem compartilhados.
+
+### P8.6C — correção visual, dados e interações (2026-10-03)
+
+Esta revisão substitui as regras anteriores de conteúdo do Health na Visão Geral,
+texto de compatibilidade no filtro, tamanho do desenho de ajuda e altura de listas.
+
+- `ProjectHealthSummary` continua dentro da superfície Projeto/GitHub/Equipe. Exibe
+  somente coração neutro, título, nota, status e barra. O título compartilha 12px,
+  peso 700, uppercase e letter spacing dos três blocos. Sem CTA, cobertura ou área
+  de atenção; acesso a Indicadores pelo `ProjectSectionNav`.
+- Filtro canônico com Período e Sprint, aplicação automática e resumo curto no
+  disclosure. Sem parágrafo de compatibilidade ou campo Responsável inoperante.
+- `IndicatorHeader` é o owner de título, ajuda e assessment dos widgets. Título e
+  ajuda ficam na mesma linha, com status abaixo. Desenho de ajuda de 16px, alvo de
+  44px, alinhamento central e espaçamento com tokens existentes.
+- A tabela de Tasks atrasadas ocupa linha própria no Panorama. Distribuições não
+  são esticadas pela tabela vizinha. Atividade GitHub usa fluxo vertical de conteúdo.
+- Listas têm máximo de 20rem, altura menor quando cabem, cabeçalhos de coluna fixos,
+  região focável com nome específico e caption “N de M registros”. A tabela de dados
+  dos gráficos também é uma região nomeada, focável e com cabeçalho fixo.
+- Zero disponível continua `0`. Ausência/indisponibilidade mostram `—` e contexto
+  curto. `PARTIAL` sem valor não deixa célula vazia. I73 com assessment factual de
+  ausência de PRs abertas apresenta “Nenhuma PR aberta.” e status saudável.
+- Limitações de esforço conhecidas são agrupadas semanticamente na seção. A
+  informação interna sobre composição de sessões e esforço legado fica fora da UI.
+- Lead/Cycle identificam a mediana do período; a legenda identifica a mediana diária.
+  Um único dia com amostra produz resumo compacto, mesmo em janela com muitos dias
+  vazios. Dois ou mais dias úteis usam marcadores e segmentos somente entre buckets
+  consecutivos. `null` permanece lacuna, zero permanece amostra e outliers permanecem
+  na escala. A referência é fornecida pelo backend, com linha tracejada e texto.
+- Amostra diária aparece na seleção e no resumo compacto. Instruções de teclado e
+  descrição da área empilhada continuam acessíveis sem microcopy permanente.
+- Recuperar foco/visibilidade não invalida Indicadores. Refresh manual e conclusão
+  confirmada de sincronização continuam usando a mesma atualização de dados e Health.
+
+Evidências e gate pendente no [relatório de hardening P8.6C](../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).
+
+
+### P8.6D — anatomia, Flow e filtros aplicados (2026-10-03)
+
+- `IndicatorHeader` centraliza título, ajuda, Health e Data State. Estado abaixo do
+  título; `.indicator-card__headline` reúne contexto/valor/referência, seguido por
+  `.indicator-card__visualization`. Ausência de informação não cria slot invisível.
+- Lead/Cycle com duas ou mais observações compartilham linhas de subgrid no desktop.
+  Em área de conteúdo até 56rem empilham, com altura orientada pelo conteúdo.
+  Teclado e pointer selecionam somente dias com amostra; `null` segue lacuna, zero
+  real continua selecionável. Descrição acessível informa dias com amostra.
+- Commits separam Associação e Por responsável em grupos nomeados, com barras
+  normalizadas dentro de cada grupo e contagens textuais. Grupos alinham pelo topo.
+- Sprint reúne adições/remoções/carry-over em Mudanças de escopo; esforço em seção
+  própria. Carry-over apresenta entradas/saídas antes dos registros, sem barras.
+- Datas editadas são draft até formar intervalo válido. URL, resumo e active count
+  refletem apenas filtros aplicados. Sprint/categoria preservam draft e período.
+  Erro fica junto às datas, associado por ARIA. Limpar aparece no fim do painel
+  expandido somente com draft ou filtro aplicado; oculto quando pristine.
+- Tabelas conservam limite de 20rem, caption N de M e região rolável focável.
+  PARTIAL sem observação mostra `—`, inclusive LIST/SERIES. Parágrafos vazios e
+  avisos específicos já cobertos pela seção não reservam espaço adicional.
+
+Evidência, amostras e gate pendente no [relatório P8.6D](../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).
+
+
+### P8.6F — consistência final de filtros e indicadores (2026-10-04)
+
+- `CollapsibleFilterPanel` é o owner da superfície, disclosure, borda, background,
+  radius e padding do filtro. `FilterActions` é o footer compartilhado após os campos,
+  alinhado à direita, com Limpar ghost e Aplicar/Filtrar primary quando o formulário
+  já usa submit explícito. Auto-apply permanece auto-apply; Clear exige filtro aplicado
+  ou draft não vazio. Targets de 44px e focus ring semântico.
+- `ProjectSectionNav` mantém targets de 48px e 12 opções visíveis em 1280/1440 com
+  sidebar expandida. Padding horizontal de 4px em desktop; fonte 12px em 1280–1439
+  e 14px a partir de 1440. Em larguras menores, scroll horizontal permanece acessível.
+  As oito categorias analíticas usam padding horizontal de 12px e target de 48px.
+- Anatomia vigente de `IndicatorHeader`: título e Health/Data State no mesmo grupo
+  flexível, Health primeiro, no máximo dois badges, wrap conforme espaço. Ajuda à
+  direita em target separado de 44px. Esta regra substitui a linha separada de P8.6D.
+- KPIs equivalentes compartilham linhas de título, conteúdo, limitação e atualização
+  usando subgrid; título longo não desalinha os valores da mesma linha. A última linha
+  distribui sua largura entre os KPIs existentes. Mensagem vazia fica junto ao valor.
+- Fluxo apresenta WIP/Throughput em strip compacto e tendência do Throughput em linha
+  própria. Lead/Cycle compartilham cabeçalho, headline, plot, eixos e ação Ver dados;
+  a ausência de referência não desloca o plot. Limitação de Cycle fica abaixo.
+  Aging continua com altura do conteúdo; CFD usa largura total e área de 22rem.
+- Mudanças de escopo usa um container com três células e divisores completos.
+  Carry-over usa a mesma escala de valor das células vizinhas. Distribuições
+  equivalentes de Testes/Defeitos também têm divisores completos.
+- Indicadores preservam De/Até, grupo acessível Período e Sprint; apenas a legenda
+  visual Período foi removida. Draft inválido mantém URL, recorte e contador aplicados.
+
+Evidências e gates: [relatório P8.6F](../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).
+
+### P9 — painel pessoal e seleção ordenada (2026-10-04)
+
+- Meu painel reutiliza `IndicatorCard`, summary, filtros, ajuda, referências, tabelas
+  e charts da baseline. Health permanece no summary fixo e não é item removível.
+- A ordem de leitura é a ordem salva. Grupos reúnem apenas widgets adjacentes com
+  tamanho semântico compatível (`compact`, `standard`, `wide`, `full`); sem grid
+  dense ou resize. KPIs usam o subgrid canônico. Um chart isolado ocupa a linha;
+  tabelas/listas conservam altura de conteúdo e região rolável existente.
+- Na view pessoal, nove tabs usam a largura disponível em uma linha própria; ações
+  ficam abaixo, à direita. O container é um grid com coluna `minmax(0, 1fr)`, evitando
+  expansão intrínseca em mobile. Nas demais views, composição anterior preservada.
+- O editor reutiliza `SprintDialog` e confirmação canônica. No mobile, segue a
+  apresentação de diálogo com altura disponível. Lista selecionada compacta, com
+  posição, título, Mover para cima/baixo e Remover; controles de 44px, nomes
+  contextuais e anúncio de posição. Foco acompanha o item e permanece em controle
+  habilitado ao chegar à primeira/última posição.
+- Picker em lista, com busca por nome/descrição e `SelectControl` de categoria.
+  Selecionados e limite de 12 ficam explícitos; sem previews de todos os gráficos.
+  Salvar aplica draft; Cancelar/Escape descartam; Restaurar padrão exige confirmação
+  e continua como draft até Salvar. Erro de salvamento preserva a seleção.
+
+Contrato e matriz: [Painel pessoal v1](../indicators/PERSONALIZED_DASHBOARD_V1.md).
+
+### P9.1 — toolbar integrada e arraste do painel pessoal (2026-10-04)
+
+Esta composição substitui as duas linhas desktop descritas no P9.
+
+- Meu painel usa tabs à esquerda e ações secundárias à direita, numa única barra
+  com divisor inferior comum. Em 1280–1439px, padding horizontal de 8px, gap de 2px
+  entre tabs e fonte de 13px; targets continuam 48px nas tabs e 44px nas ações.
+  A partir de 1440px, conserva a escala normal. Em áreas menores que 42rem, admite
+  wrap controlado das ações, dentro da mesma composição; tabs têm scroll próprio.
+- Personalizar painel continua exclusivo de Meu painel. Refresh mantém nome/tooltip
+  “Atualizar indicadores” e a mesma atualização conjunta de indicadores/Health.
+- A lista selecionada ganha alça de seis pontos, target 44px, cursor grab e nome
+  acessível com posição. Somente a alça inicia drag nativo; texto e ações da linha
+  conservam suas interações. Linha de origem suavizada e marcador superior/inferior
+  identificam a posição de destino. Drop muda apenas o draft.
+- Teclado: setas para cima/baixo na alça ou botões Mover existentes. Botões continuam
+  disponíveis para toque quando o navegador não oferece drag nativo confiável.
+  Foco acompanha o item após reorder; Save/Cancel, trap e retorno de foco preservados.
+- Não houve troca de overlay, picker, catálogo ou primitives de indicadores.

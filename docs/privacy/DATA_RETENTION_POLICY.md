@@ -20,6 +20,8 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | requisitos, tarefas, movements, histórico RF38 e artifacts | MySQL                               | ciclo do projeto; projeto excluído tem carência exata de 30 × 24h | `TaskHistoryEntry` é histórico funcional; hard delete da Task remove movement/history na transação, mas preserva `AuditEvent`; purge do Project remove o grafo  |
 | histórico de Planning e tombstones                         | `Sprint`, `SprintTask`, `Milestone` |                     ciclo do projeto, sem expurgo automático novo | excluir Sprint/Marco é lógico; preserva baseline, card mínimo, pontos e corte. IDs históricos não copiam nome/e-mail; dados legados ausentes não são fabricados |
 | vínculos `TaskCommit`, `TaskIssue` e `Task.pullRequestId`  | MySQL                               |                                           ciclo da tarefa/projeto | excluir Task remove joins/FK; Commit, PullRequest e Issue importados são preservados                                                                            |
+| PR lifecycle (`PullRequestLifecycleEvent`)                | MySQL                               |                                           ciclo da PR/projeto     | eventos GitHub append-only; soft delete preserva; FK de Project/PR remove no hard purge; nenhum payload integral do evento é guardado                         |
+| IDs técnicos P1 de autoria/responsabilidade                | MySQL                               |                                           ciclo do artefato       | `Commit.authorGithubUserId` externo e `TaskMovement.responsibleUserIdSnapshot` nullable; sem nome/e-mail novos; legado permanece null                             |
 | logs                                                       | destino operacional                 |              a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador                                                                                                               |
 | e-mails técnicos                                           | provedor SMTP                       |                                              política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação                                                                                                     |
 | backup                                                     | infraestrutura                      |                                        a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros                                |
@@ -49,6 +51,10 @@ avaliação jurídica; esta implementação não declara apagamento instantâneo
 conformidade legal absoluta.
 
 Na E9, sincronização GitHub atualiza ou acrescenta artefatos por identificador externo e não apaga automaticamente itens ausentes em uma execução posterior. Essa preservação protege rastreabilidade e vínculos; uma política de reconciliação destrutiva exigirá decisão específica de retenção e auditoria.
+
+No P1, apenas `CommitBranch` passou a representar membership **corrente** da branch após varredura completa ancorada no SHA: links não observados são removidos exclusivamente daquela branch no commit da reconciliação. O `Commit` canônico e seus vínculos com Tasks permanecem. Falha parcial não remove links. `PullRequestLifecycleEvent` é append-only; o sync importa IDs e timestamps da API oficial sem inferir estados anteriores.
+
+`Commit.authorGithubUserId` permanece como identificador técnico de artefato externo no histórico do projeto após unlink ou anonimização; a relação local `GitHubIdentity` é removida e nenhuma associação por nome/e-mail é criada. A exportação pessoal inclui apenas Commits cujo ID está exatamente ligado ao titular no momento da exportação e somente em projetos com membership ativa. Esse tratamento de retenção técnica não constitui conclusão jurídica; uma decisão de remoção do identificador em artefatos de projetos compartilhados exige política própria, inclusive para ressincronização. `TaskMovement.responsibleUserIdSnapshot` referencia o `User` pseudonimizado e sua exportação é igualmente limitada ao titular e ao projeto ativo.
 
 `Task.responsible` e `TaskMovement.movedBy` permanecem como snapshots históricos somente leitura. IDs canônicos só podem ser preenchidos com seleção válida para Tasks ou evidência técnica inequívoca para movimentos; nome textual nunca é prova de identidade. A LR.2 removeu `ProjectMember` e `TaskMovement.projectMemberId` após auditoria com zero linhas/referências na base atual e guard para outras bases.
 
@@ -94,3 +100,36 @@ Não há upload OCI, retenção automática de vídeo nem coleta periódica nova
   `actorUserId` seja o titular, sempre em projetos com membership ativa. Ator nulo e
   registros de terceiros ficam de fora. O evento funcional é preservado quando a
   identidade direta deixa de resolver.
+
+## Personalização e histórico de indicadores — PR23-FIX-06
+
+- `ProjectDashboardPreference` não possui TTL próprio. Enquanto há participação ativa, permanece
+  até save/reset ou fim do ciclo aplicável. GET tolerante a catálogo antigo é apresentação apenas.
+- Desativação de membership pelo OWNER e saída voluntária removem a preferência **somente do par
+  usuário/projeto**, dentro da transação de membership. Falha da transação preserva ambos.
+  Reativação não restaura a configuração anterior: retorna o padrão e aceita novo save explícito.
+- Desativação da **conta** é operação distinta e reversível: não apaga automaticamente a preferência.
+  Acesso fica sujeito ao estado da conta. Anonimização remove todas as preferências do usuário.
+- Soft delete de **projeto** mantém a preferência inacessível; restore do projeto recupera o contexto
+  quando a membership continua ativa. Hard purge usa cascade. Exclusão física do usuário também
+  possui cascade. Não há rotina de expurgo retroativo de memberships já inativas nesta entrega.
+- Export pessoal filtra preferências e fatos vinculados por projetos acessíveis/memberships ativas.
+  Nenhuma preferência de outro usuário é exportada. Os arquivos e a identificação por snapshot/ID
+  GitHub estão no [inventário pessoal](PERSONAL_DATA_INVENTORY.md).
+- `SprintBurnupEvent` conserva fatos de escopo/esforço/status mesmo após exclusão física da Task;
+  `taskKey` é chave técnica sem FK e não contém autoria pessoal própria. Soft delete conserva;
+  hard purge de Sprint/Project remove por cascade. Sem prazo numérico autônomo ou titular pessoal
+  inferido. Não se deve reconstruir identidade a partir dessa chave para fabricar export pessoal.
+- I02/I03/I05 não persistem score individual. Sua disponibilidade deriva das fontes, da membership
+  e da anonimização; a apresentação por pessoa não prolonga a retenção das entidades de origem.
+
+Implementação: [membership](../../backend/src/modules/projects/project-membership.repository.js),
+[anonimização](../../backend/src/modules/privacy/privacy.repository.js),
+[schema](../../backend/prisma/schema.prisma). Regressões transacionais e de escopo em
+[indicators-p9.test.js](../../backend/test/api/indicators-p9.test.js).
+
+
+PR23-FIX-07 / D-D: retenção interna não implica exposição geral. O presenter de commits remove
+`authorGithubUserId` do payload de listagem; a correlação interna continua exata. A exportação
+pessoal e seus filtros não foram ampliados. `TaskMovement.responsibilitySnapshotState` registra
+somente ASSIGNED/UNASSIGNED, sem identidade adicional; estado nulo continua legado desconhecido.

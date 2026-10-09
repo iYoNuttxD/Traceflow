@@ -25,6 +25,16 @@ const vinculo = (marcoId, sprintId, prazo, titulo = `M${marcoId}`) => ({
 });
 
 describe('relatorio', () => {
+  it('delega ao SQL a seleção determinística por sprint, menor prazo e menor id', async () => {
+    // The reporting fixtures below are already ordered. Assert the actual SQL
+    // boundary independently so their ordering cannot conceal a query regression.
+    const client = clienteFalso([]);
+    await runAdr011MilestoneSprintAudit({ client });
+    const sql = client.$queryRawUnsafe.mock.calls[0][0].replace(/\s+/g, ' ').trim();
+    expect(sql).toMatch(/FROM Milestone m JOIN Sprint s ON s\.id = m\.sprintId/);
+    expect(sql).toMatch(/ORDER BY m\.sprintId ASC, m\.dueDate ASC, m\.id ASC$/);
+  });
+
   it('nao reporta perda quando cada sprint tem no maximo um marco', async () => {
     const relatorio = await runAdr011MilestoneSprintAudit({
       client: clienteFalso([vinculo(1, 10, '2026-08-10'), vinculo(2, 11, '2026-08-20')], {
@@ -92,6 +102,17 @@ describe('migration ja aplicada', () => {
     const relatorio = await runAdr011MilestoneSprintAudit({ client });
     expect(relatorio.jaInvertido).toBe(true);
     expect(relatorio.mensagem).toMatch(/migration ja foi aplicada/);
+  });
+
+  it.each([
+    "Unknown column 'm.dueDate' in 'field list'",
+    "Unknown column 's.sprintId' in 'field list'",
+    "Table 'Milestone' does not exist",
+    'no such column: unrelated'
+  ])('propaga erro de schema alheio à coluna legada: %s', async (message) => {
+    const error = new Error(message);
+    const client = { $queryRawUnsafe: vi.fn().mockRejectedValue(error) };
+    await expect(runAdr011MilestoneSprintAudit({ client })).rejects.toBe(error);
   });
 
   it('propaga erro que nao e coluna ausente', async () => {

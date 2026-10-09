@@ -46,7 +46,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `DELETE /api/tasks/:id/time-entries/:entryId`                                                                  |     401 |    403 | E (próprio) |       E |     E | quem iniciou exclui a própria sessão; MANAGER/OWNER moderam qualquer uma                                       |
 | Sprints: `GET /api/projects/:projectId/sprints`, `/api/sprints/:id`, `/api/sprints/:id/tasks`                  |     401 |      L |           L |       L |     L | RF10; recurso e membership do mesmo projeto                                                                    |
 | Sprints: `POST`, `PUT`, `PATCH /api/sprints/:id/status`, `PUT /api/sprints/:id/tasks`                          |     401 |    403 |           E |       E |     E | invariantes, sobreposição e estados terminais no service sob lock                                              |
-| `DELETE /api/sprints/:id`                                                                                      |     401 |    403 |         405 |     405 |   405 | sprint não é excluída; autorização precede a recusa do método                                                  |
+| `DELETE /api/sprints/:id` | 401 | 403 | E | E | E | exclusão lógica; preserva histórico e tombstone conforme ADR-011; invariantes verificadas sob lock |
 | Milestones: `GET /api/projects/:projectId/milestones`, `/api/milestones/:id`                                   |     401 |      L |           L |       L |     L | RF10; recurso e membership do mesmo projeto                                                                    |
 | Milestones: `POST`, `PUT`, `PATCH /api/milestones/:id/status`, `DELETE`                                        |     401 |    403 |           E |       E |     E | invariantes e lifecycle no service                                                                             |
 | `GET /api/projects/:projectId/schedule`                                                                        |     401 |      L |           L |       L |     L | RF10; agregado somente-leitura e DTO minimizado                                                                |
@@ -72,7 +72,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 
 - `ACTIVE` segue a matriz por papel. `DEACTIVATED` acessa somente estado da conta e reativação. `DELETION_PENDING` acessa somente status/cancelamento/exportação e reautenticação GitHub necessária ao cancelamento de conta GitHub-only. `ANONYMIZED` não autentica nem pode reassociar automaticamente uma identidade GitHub anterior.
 
-- OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
+- OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é read-only sobre dados compartilhados do projeto, com exceção das preferências estritamente pessoais descritas abaixo.
 - Respostas a convites são vinculadas ao destinatário, usam token hashado/expirável e recebem limiter de operação sensível; criação combina limiter sensível e de entrega de e-mail.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
 - O mesmo boundary exige `Project.deletedAt = null` para todo acesso normal. Somente as rotas
@@ -160,3 +160,37 @@ Reteste confere também TestCase, versão atual, ciclo e revisão dentro da tran
 CSRF precede o parser multipart existente. Nenhuma rota permite escolher status
 manualmente. Defect excluído não fica acessível pelas rotas operacionais, mas sua
 identidade permanece nos metadados das Tasks e nos registros históricos persistidos.
+
+## Indicadores e preferência pessoal — PR23-FIX-06
+
+Todas as rotas abaixo têm prefixo `/api/projects/:projectId`. A fronteira é sessão autenticada,
+conta ativa e membership ativa em projeto acessível. Ausência de sessão retorna `401`;
+projeto inacessível, membership ausente/inativa ou recurso fora do escopo retornam `404` opaco.
+`OWNER` continua sendo papel do projeto, não administrador global.
+
+| Método | Sufixo da rota | Papel mínimo | Escopo | Operação |
+| --- | --- | --- | --- | --- |
+| GET | `/indicators/progress` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/activity` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/github` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/tasks` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/sprints` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/quality` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/traceability` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/dashboard` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/catalog` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Leitura sem escrita implícita |
+| PUT | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Salvar personalização; CSRF obrigatório |
+| DELETE | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Remover preferência / restaurar padrão; CSRF obrigatório |
+
+Project Health usa o aggregate existente (`view=GENERAL&healthOnly=true`), sem endpoint separado.
+A exceção de escrita para VIEWER não permite modificar tarefas, requisitos ou outro domínio
+compartilhado. O controller obtém `userId` exclusivamente da sessão; o corpo não escolhe titular.
+O repository revalida projeto/membership na transação da mutação. Desativação/saída remove apenas
+sua preferência naquele projeto, na mesma transação; reativação começa com o padrão canônico.
+
+Autoridades: [rotas](../../backend/src/modules/indicators/indicators.routes.js),
+[policy](../../backend/src/modules/authorization/authorization.service.js),
+[controller](../../backend/src/modules/indicators/indicators.controller.js),
+[repository de preferência](../../backend/src/modules/indicators/dashboard-preference.repository.js)
+e [testes HTTP](../../backend/test/api/indicators-p9.test.js).
