@@ -160,5 +160,15 @@ certificação ASVS.
 | Minimização (V14) | DTO sem e-mail, `dedupeKey`, `activeKey` ou campos crus do GitHub; quem dispensou aparece só como `{id,name}` | API S2-01 (DTO e contexto) |
 
 Limites: a reconciliação pós-sync roda no processo da API, depois de o run ser persistido; uma
-falha nela fica só no log e é recuperada pelo reprocessamento manual ou pelo script
-`traceability:alerts`. Nenhum teste local cobre o limitador sob carga real.
+falha nela fica no log e no registro da última reconciliação, e é recuperada pelo reprocessamento
+manual ou pelo script `traceability:alerts`. Nenhum teste local cobre o limitador sob carga real.
+
+**Revisão de 09/10/2026 (correções da campanha de testes, `docs/issues/S2_01_RELATORIO_TESTES.md`):**
+
+| Controle | Mudança | Evidência |
+|---|---|---|
+| V2.1.3, V2.3.2 | a justificativa conta caracteres Unicode, como documentado; deixa de ser `PARCIAL` | `test/api/s201-correcoes.test.js` (C5-01), bateria de frontend (C5-02, C5-03) |
+| V16.5.2, V16.5.3 | a falha da reconciliação do projeto fica registrada e visível na tela (`reconciliation.stale`); deixa de ser `PARCIAL` | `test/integration/s201-correcoes.test.js` (C3), bateria de frontend (C4) |
+| V8.2.1 | a regra MANAGER do middleware aceita a barra final; dispensa e reprocessamento têm duas camadas também nessas variantes | `test/unit/s201-bateria.test.js` (papel exigido no middleware) |
+| V1.2.1, V3.2.2, §13.2 do contexto | URLs vindas do GitHub só são gravadas com o prefixo `https://github.com/` | `test/unit/github-mapper.correcoes.test.js` (C1-03) |
+| Disponibilidade do sync | textos do GitHub cabem nas colunas; um título longo não derruba mais a importação | `test/api/s201-correcoes.test.js` (C1-01) |

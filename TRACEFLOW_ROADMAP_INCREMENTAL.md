@@ -427,6 +427,16 @@ da CI; aprovação visual das telas de alertas e de tarefas sem vínculo técnic
 GitHub real, porque os alertas de PR mesclada e de issue fechada só surgem ao fim de uma
 sincronização. As limitações conhecidas estão em `S201-F01..F06` no backlog técnico.
 
+**Campanha de testes e correções (08–09/10/2026):** a campanha
+([relatório](docs/issues/S2_01_RELATORIO_TESTES.md)) abriu nove achados. Os corrigíveis no cartão
+foram corrigidos em 09/10, com teste de regressão (`S201-F07..F12` fechados):
+- o sync não falha mais com textos longos do GitHub;
+- conectar o repositório reconcilia os alertas;
+- a falha da reconciliação fica visível;
+- a justificativa conta caracteres.
+
+Seguem fora do cartão o E2E (S104-F02) e a dependência relaxada no quadro Kanban.
+
 ### S2-02 - Notificar mudança de status e vencimento de tarefa
 
 **Requisitos:** RF30 e RF59.  

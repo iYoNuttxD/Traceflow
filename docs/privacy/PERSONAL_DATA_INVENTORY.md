@@ -109,3 +109,7 @@ titularidade pelo ID canônico: responsabilidade própria ou ação própria. A 
 no mesmo projeto não autoriza exportar atribuições ou eventos de outro usuário. Eventos
 legados com ator nulo permanecem fora da exportação; nomes, descrições completas,
 metadata livre e dados de outros membros não são usados para inferir titularidade.
+
+O registro `TraceabilityAlertReconciliation` (S2-01, revisão de 09/10/2026) guarda só o projeto,
+o gatilho, os instantes da última reconciliação e o código de erro. Não tem dado pessoal, e a
+purga do projeto o remove por cascata.

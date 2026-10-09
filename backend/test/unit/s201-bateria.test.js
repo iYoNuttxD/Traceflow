@@ -261,6 +261,8 @@ describe('Bateria S2-01 unidade — papel exigido no middleware (M18)', () => {
     const role = (method, path) => authorizationService.requiredRole({ method, path });
     expect(role('POST', '/projects/3/traceability/alerts/41/dismiss')).toBe('MANAGER');
     expect(role('POST', '/projects/3/traceability/alerts/reconcile')).toBe('MANAGER');
+    expect(role('POST', '/projects/3/traceability/alerts/41/dismiss/')).toBe('MANAGER');
+    expect(role('POST', '/projects/3/traceability/alerts/reconcile/')).toBe('MANAGER');
     for (const path of [
       '/projects/3/traceability/alerts',
       '/projects/3/traceability/alerts/summary',

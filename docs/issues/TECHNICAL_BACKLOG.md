@@ -53,12 +53,20 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | S201-F04 | Persistir `state_reason` da issue | issue fechada como "not planned" também gera alerta; a dispensa cobre o caso | BAIXA | se o volume desses alertas incomodar; exige campo novo no sync e regra na política |
 | S201-F05 | Contador de alertas fora de Rastreabilidade | o número de alertas abertos só aparece na sub-navegação de Rastreabilidade, não na navegação principal do projeto nem na aba Repositório | BAIXA | decisão de produto sobre a navegação canônica de 11 abas |
 | S201-F06 | Timeouts de 5 s em `KanbanPage.test.jsx`, `TestCases.test.jsx` e `TraceabilityWorkspace.test.jsx` na suíte completa | na máquina de desenvolvimento (Windows), a suíte completa do frontend estoura 5 s em 6 a 8 testes dos dois primeiros arquivos, e em 12 testes dos três quando roda com cobertura; sozinhos, os três passam 115/115. Preexistente ao S2-01, que não toca essas telas, mas cresce com o número de arquivos de teste | MÉDIA | medir na CI; avaliar `testTimeout` maior para esses arquivos ou reduzir o custo de render dos testes integrados |
-| S201-F07 | Título de PR ou issue acima de 191 caracteres derruba o sync | `github.mapper.js` grava `item.title` sem limite em `VARCHAR(191)`; o GitHub aceita até 256. O sync falha (`P2000`), nada é importado e nenhum alerta RF39/RF40 nasce (S201-A03 em `S2_01_RELATORIO_TESTES.md`) | ALTA | aval do João para o prompt de correção; truncar por caractere no mapper ou alargar a coluna por migration |
-| S201-F08 | Conectar a integração não reconcilia os alertas | `PUT …/github/integration` ativa a regra do RF13 sem gerar o alerta das tarefas já concluídas até o próximo sync (S201-A01) | MÉDIA | aval do João; reconciliar o projeto em transação própria ao conectar |
-| S201-F09 | Estado de erro do resumo de alertas | falha só no resumo deixa "Carregando resumo dos alertas..." para sempre, sem nova tentativa (S201-A06) | MÉDIA | aval do João; expor `error`/`retry` de `useAlertSummary` |
-| S201-F10 | Unidade da justificativa da dispensa | "10 a 500 caracteres" é medido em unidades UTF-16 no servidor, no formulário e no contador (S201-A02) | BAIXA | decidir entre contar por caractere ou documentar a unidade |
-| S201-F11 | Sinal de falha da última reconciliação | falha da reconciliação pós-sync só vai para o log (ADR-015 D5), em tensão com o §13.10 do contexto de arquitetura (S201-A05) | BAIXA | decisão de produto sobre expor o estado da última reconciliação |
-| S201-F12 | ADR-015 e tabela de erros do S2-01 | a ADR-015 descreve o limitador como compartilhado com o sync, e a tabela de erros do contrato omite os códigos gerais devolvidos pelas rotas (S201-A04) | BAIXA | junto com a próxima correção do S2-01 |
+| S201-F13 | Texto de ajuda do filtro "Com evidência técnica" | no catálogo de requisitos (S1-09), o filtro não explica que issue não conta como evidência técnica, embora conte como vínculo técnico no RF58 (O-10 de `S2_01_RELATORIO_TESTES.md`) | BAIXA | próxima mudança na tela de requisitos |
+
+## Fechadas pelas correções do S2-01 (09/10/2026)
+
+Origem: `docs/issues/S2_01_RELATORIO_TESTES.md`; enunciado em `docs/issues/S2_01_PROMPT_CORRECOES.md`.
+
+| ID | Pendência | Correção |
+|---|---|---|
+| S201-F07 | título de PR ou issue acima de 191 caracteres derrubava o sync | `3f42f0e`: colunas do GitHub alargadas (títulos 256, branches 512, URLs 512, autor 255) em duas migrations; mapper corta por caractere e valida a URL |
+| S201-F08 | conectar a integração não reconciliava os alertas | `be79ee1`: gatilho `GITHUB_INTEGRATION` depois da conexão, sem desfazê-la em caso de falha |
+| S201-F09 | resumo de alertas sem estado de erro | `5ff2d8a`: `ErrorState` com nova tentativa no lugar da carga eterna |
+| S201-F10 | justificativa medida em unidades UTF-16 | `058ada9`: servidor, formulário e contador contam caracteres Unicode; sem `maxLength` nativo |
+| S201-F11 | falha da reconciliação só no log | `d6cfefe` e `5ff2d8a`: registro `TraceabilityAlertReconciliation` e aviso de alertas desatualizados |
+| S201-F12 | ADR-015 e tabela de erros divergentes | `5a90459` e o commit de documentação das correções: ADR-015 revisada; tabela de erros completa no contrato |
 
 ## Fechadas pela LR.2
 

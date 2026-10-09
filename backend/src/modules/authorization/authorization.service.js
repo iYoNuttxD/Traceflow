@@ -77,7 +77,7 @@ export const authorizationService = {
     )
       return 'OWNER';
     if (/\/github\/sync(?:\/|$)/.test(path)) return 'MANAGER';
-    if (/\/traceability\/alerts\/(?:\d+\/dismiss|reconcile)$/.test(path)) return 'MANAGER';
+    if (/\/traceability\/alerts\/(?:\d+\/dismiss|reconcile)(?:\/|$)/.test(path)) return 'MANAGER';
     return 'MEMBER';
   },
   permits(role, required) {

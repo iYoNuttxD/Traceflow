@@ -1249,9 +1249,9 @@ crie ou resolva alerta manualmente: detecção e resolução são do servidor.
 | Método | Sufixo                              | Entrada                                                                                     | Resposta                                                                                         |
 | ------ | ----------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | GET    | `/alerts`                           | `status?` = OPEN (padrão)/DISMISSED/RESOLVED; `type?`; `page?`, `limit?` (máx. 100)         | `200`, `{projectId,status,type,alerts,pagination,permissions}`                                   |
-| GET    | `/alerts/summary`                   | —                                                                                           | `200`, `{projectId,open{total,byType},dismissed{total},rules{taskWithoutCommitActive},permissions}` |
+| GET    | `/alerts/summary`                   | —                                                                                           | `200`, `{projectId,open{total,byType},dismissed{total},rules{taskWithoutCommitActive},reconciliation,permissions}` |
 | GET    | `/alerts/:alertId`                  | IDs positivos                                                                               | `200`, `{alert,permissions}`; `alert.context` conforme o tipo                                    |
-| POST   | `/alerts/:alertId/dismiss`          | `{reason}`, de 10 a 500 caracteres depois do `trim`                                         | `200`, `{alert,changed}`                                                                         |
+| POST   | `/alerts/:alertId/dismiss`          | `{reason}`, de 10 a 500 caracteres Unicode (code points) depois do `trim`                   | `200`, `{alert,changed}`                                                                         |
 | POST   | `/alerts/reconcile`                 | body vazio                                                                                  | `200`, `{projectId,result{created,resolved,kept}}`                                               |
 | GET    | `/tasks-without-technical-links`    | `status?` = A_FAZER/EM_ANDAMENTO/CONCLUIDO; `page?`, `limit?` (máx. 100)                    | `200`, `{projectId,status,tasks,pagination}`                                                     |
 
@@ -1264,6 +1264,12 @@ desconhecido responde 400.
 **Listagem.** Ordem `detectedAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
 `totalPages`. O resumo conta o projeto inteiro, nunca a página.
 `rules.taskWithoutCommitActive` é `true` quando o projeto tem `ProjectGitHubIntegration`.
+`reconciliation` é `null` sem registro, ou
+`{lastSucceededAt,lastFailedAt,lastTrigger,stale}`, com o resultado da última reconciliação do
+projeto inteiro (sync, conexão do repositório, reprocessamento manual ou script). `stale` é
+`true` quando a última falha é mais recente que o último sucesso. Conectar o repositório
+(`PUT /projects/:projectId/github/integration`) também reconcilia o projeto, sem desfazer a
+conexão se a reconciliação falhar.
 `permissions` traz `canLink` (MEMBER+) e `canManage` (MANAGER+).
 
 **`AlertDTO`.** Campos:
@@ -1286,7 +1292,8 @@ GitHub.
 - **Issue:** `number`, `title`, `state`, `closedAt` e `githubUrl`.
 
 **Dispensa.** Repetir a dispensa de um alerta `DISMISSED` responde 200 com `changed=false` e mantém
-a justificativa original. A auditoria `TRACEABILITY_ALERT_DISMISSED` guarda só `alertType`.
+a justificativa original. A justificativa conta caracteres Unicode (code points): um emoji simples
+conta 1. A auditoria `TRACEABILITY_ALERT_DISMISSED` guarda só `alertType`.
 
 **Reprocessamento.** É idempotente: repetido sem mudança de dado, devolve `created=0`. A auditoria
 `TRACEABILITY_ALERTS_RECONCILED` guarda `created` e `resolved`.
@@ -1299,6 +1306,11 @@ a justificativa original. A auditoria `TRACEABILITY_ALERT_DISMISSED` guarda só 
 
 | Código                         | Status | Quando                                                        |
 | ------------------------------ | ------ | ------------------------------------------------------------- |
+| `VALIDATION_ERROR`             | 400    | parâmetro, query ou corpo inválido, ou parâmetro desconhecido |
+| `AUTHENTICATION_REQUIRED`      | 401    | requisição sem sessão                                         |
+| `CSRF_INVALID`                 | 403    | dispensa ou reprocessamento sem token CSRF válido             |
+| `FORBIDDEN`                    | 403    | dispensa ou reprocessamento por papel abaixo de MANAGER       |
+| `RESOURCE_NOT_FOUND`           | 404    | usuário sem membership no projeto                             |
 | `TRACEABILITY_ALERT_NOT_FOUND` | 404    | alerta inexistente ou de outro projeto                        |
 | `TRACEABILITY_ALERT_NOT_OPEN`  | 409    | dispensa de alerta já resolvido                               |
-| `FORBIDDEN`                    | 403    | dispensa ou reprocessamento por papel abaixo de MANAGER       |
+| `RATE_LIMITED`                 | 429    | limitador do reprocessamento                                  |
