@@ -12,7 +12,12 @@ let log;
 let audit;
 
 function service(repository) {
-  return createTraceabilityAlertService(repository, log, () => now, audit);
+  return createTraceabilityAlertService(
+    { recordReconciliation: vi.fn(), ...repository },
+    log,
+    () => now,
+    audit
+  );
 }
 
 const managerContext = { actorUserId: 5, requestId: 'req-1', role: 'MANAGER' };

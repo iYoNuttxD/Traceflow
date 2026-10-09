@@ -809,7 +809,7 @@ describe('Bateria S2-01 — reprocessamento (bloco R)', () => {
 });
 
 describe('Bateria S2-01 — fim do sync (bloco S)', () => {
-  it('AT-S-03 (H5) falha na reconciliação pós-sync não muda o sync e só o reprocessamento recupera', async () => {
+  it('AT-S-03 (H5, S201-A05) falha na reconciliação pós-sync não muda o sync, marca desatualização e o reprocessamento recupera', async () => {
     const project = await createProject(prisma, {
       createdAt: new Date('2026-08-01T12:00:00.000Z')
     });
@@ -847,14 +847,10 @@ describe('Bateria S2-01 — fim do sync (bloco S)', () => {
 
     expect(status.body.run.status).toBe('SUCCEEDED');
     expect(summary.open.total).toBe(0);
-    expect(Object.keys(summary).sort()).toEqual([
-      'dismissed',
-      'open',
-      'permissions',
-      'projectId',
-      'rules'
-    ]);
+    expect(summary.reconciliation).toMatchObject({ lastTrigger: 'GITHUB_SYNC', stale: true });
     const recovered = await expectStatus(reconcile(owner, project.id), 200);
     expect(recovered.body.result.created).toBe(1);
+    const healed = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
+    expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', stale: false });
   });
 });

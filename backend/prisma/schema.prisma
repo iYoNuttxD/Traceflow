@@ -63,6 +63,13 @@ enum TraceabilityAlertStatus {
   RESOLVED
 }
 
+enum TraceabilityAlertTrigger {
+  GITHUB_SYNC
+  GITHUB_INTEGRATION
+  MANUAL
+  SCRIPT
+}
+
 enum TraceabilityAlertResolution {
   COMMIT_LINKED
   TASK_REOPENED
@@ -379,6 +386,7 @@ model Project {
   auditEvents            AuditEvent[]
   taskCommitSuggestions  TaskCommitSuggestion[]
   traceabilityAlerts     TraceabilityAlert[]
+  alertReconciliation    TraceabilityAlertReconciliation?
   githubIntegration      ProjectGitHubIntegration?
   githubConnectionStates GitHubAppConnectionState[]
   githubBranches         GitBranch[]
@@ -855,6 +863,20 @@ model TraceabilityAlert {
   @@index([pullRequestId])
   @@index([issueId])
   @@index([dismissedByUserId])
+}
+
+model TraceabilityAlertReconciliation {
+  id              Int                      @id @default(autoincrement())
+  projectId       Int                      @unique
+  lastTrigger     TraceabilityAlertTrigger
+  lastAttemptAt   DateTime
+  lastSucceededAt DateTime?
+  lastFailedAt    DateTime?
+  lastErrorCode   String?                  @db.VarChar(64)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 // Vinculo de rastreabilidade entre tarefas e issues importadas do GitHub.

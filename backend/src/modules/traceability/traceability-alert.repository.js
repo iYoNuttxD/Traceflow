@@ -321,7 +321,7 @@ export const traceabilityAlertRepository = {
   },
 
   async summary(projectId) {
-    const [open, dismissed, integration] = await prisma.$transaction([
+    const [open, dismissed, integration, reconciliation] = await prisma.$transaction([
       prisma.traceabilityAlert.groupBy({
         by: ['type'],
         where: { projectId, status: 'OPEN' },
@@ -329,9 +329,24 @@ export const traceabilityAlertRepository = {
         orderBy: { type: 'asc' }
       }),
       prisma.traceabilityAlert.count({ where: { projectId, status: 'DISMISSED' } }),
-      prisma.projectGitHubIntegration.findUnique({ where: { projectId }, select: { id: true } })
+      prisma.projectGitHubIntegration.findUnique({ where: { projectId }, select: { id: true } }),
+      prisma.traceabilityAlertReconciliation.findUnique({
+        where: { projectId },
+        select: { lastTrigger: true, lastSucceededAt: true, lastFailedAt: true }
+      })
     ]);
-    return { open, dismissed, integrationExists: Boolean(integration) };
+    return { open, dismissed, integrationExists: Boolean(integration), reconciliation };
+  },
+
+  recordReconciliation({ projectId, trigger, at, errorCode = null }) {
+    const outcome = errorCode
+      ? { lastFailedAt: at, lastErrorCode: errorCode }
+      : { lastSucceededAt: at };
+    return prisma.traceabilityAlertReconciliation.upsert({
+      where: { projectId },
+      create: { projectId, lastTrigger: trigger, lastAttemptAt: at, ...outcome },
+      update: { lastTrigger: trigger, lastAttemptAt: at, ...outcome }
+    });
   },
 
   findById(projectId, alertId) {

@@ -94,7 +94,24 @@ export function toAlertDetailDTO(alert) {
   return { ...toAlertDTO(alert), context: alertContext(alert) };
 }
 
-export function toAlertSummaryDTO({ projectId, open, dismissed, integrationExists }) {
+function toReconciliationDTO(reconciliation) {
+  if (!reconciliation) return null;
+  const { lastTrigger, lastSucceededAt, lastFailedAt } = reconciliation;
+  return {
+    lastSucceededAt,
+    lastFailedAt,
+    lastTrigger,
+    stale: Boolean(lastFailedAt) && (!lastSucceededAt || lastFailedAt > lastSucceededAt)
+  };
+}
+
+export function toAlertSummaryDTO({
+  projectId,
+  open,
+  dismissed,
+  integrationExists,
+  reconciliation
+}) {
   const byType = Object.fromEntries(TRACEABILITY_ALERT_TYPES.map((type) => [type, 0]));
   for (const row of open) byType[row.type] = row._count._all;
   return {
@@ -104,7 +121,8 @@ export function toAlertSummaryDTO({ projectId, open, dismissed, integrationExist
       byType
     },
     dismissed: { total: dismissed },
-    rules: { taskWithoutCommitActive: integrationExists }
+    rules: { taskWithoutCommitActive: integrationExists },
+    reconciliation: toReconciliationDTO(reconciliation)
   };
 }
 

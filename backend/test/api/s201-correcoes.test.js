@@ -259,8 +259,16 @@ describe('Correções S2-01 — reconciliar ao conectar o repositório (S201-A01
     expect(await prisma.projectGitHubIntegration.count({ where: { projectId: project.id } })).toBe(
       1
     );
-    expect((await owner.agent.get(`${base(project.id)}/alerts/summary`)).body.open.total).toBe(0);
+    const failedSummary = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
+    expect(failedSummary.open.total).toBe(0);
+    expect(failedSummary.reconciliation).toMatchObject({
+      lastTrigger: 'GITHUB_INTEGRATION',
+      lastSucceededAt: null,
+      stale: true
+    });
     const recovered = await owner.mutate('post', `${base(project.id)}/alerts/reconcile`).send({});
     expect(recovered.body.result.created).toBe(1);
+    const healed = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
+    expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', stale: false });
   });
 });
