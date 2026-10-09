@@ -105,7 +105,8 @@ export const METRIC_TITLES = {
 export const FIELD_LABELS = {
   associated: 'Associados',
   unassociated: 'Não associados',
-  unassignedHistoricalCount: 'Histórico sem responsável',
+  unassignedHistoricalCount: 'Registro antigo sem snapshot',
+  unassignedCount: 'Sem responsável',
   unknownCount: 'Estado desconhecido',
   completedTasks: 'Tasks concluídas',
   commits: 'Commits',

@@ -476,3 +476,64 @@ describe('fundação histórica de indicadores', () => {
     expect(await prisma.taskMovement.count({ where: { projectId: project.id } })).toBe(0);
   });
 });
+
+it('skips only orphan PR events and does not advance lifecycle completeness', async () => {
+  const { project } = await fixture('orphan');
+  const summary = await syncProjectPullRequests({
+    project,
+    repository,
+    githubClient: prClient([[event(1, 1, 'CLOSED'), event(2, 99, 'REOPENED')]])
+  });
+  expect(summary.lifecycleEventsCreated).toBe(1);
+  expect(await prisma.pullRequest.count({ where: { projectId: project.id } })).toBe(1);
+  expect(
+    await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } })
+  ).toMatchObject({ pullRequestLifecycleSyncedAt: null, pullRequestLifecycleCoverageFrom: null });
+  await syncProjectPullRequests({
+    project,
+    repository,
+    githubClient: prClient([[event(1, 1, 'CLOSED')]])
+  });
+  expect(
+    (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } }))
+      .pullRequestLifecycleSyncedAt
+  ).toBeInstanceOf(Date);
+});
+
+it('keeps GitHub author identity internal in the general commit presenter', async () => {
+  const { project } = await fixture('presenter');
+  await prisma.commit.create({
+    data: { projectId: project.id, hash: 'presenter-hash', authorGithubUserId: '123456' }
+  });
+  const { commitService } = await import('../../src/modules/commits/commit.service.js');
+  const rows = await commitService.listProjectCommits(project.id);
+  expect(rows[0]).toMatchObject({ hash: 'presenter-hash' });
+  expect(rows[0]).not.toHaveProperty('authorGithubUserId');
+  expect(
+    (await commitRepository.findByProjectIdAndHashes(project.id, ['presenter-hash']))[0]
+      .authorGithubUserId
+  ).toBe('123456');
+});
+
+it('records explicit unassigned state through the real task movement domain', async () => {
+  const { project, user } = await fixture('unassigned');
+  const task = await prisma.task.create({
+    data: { projectId: project.id, title: 'No responsible', status: 'A_FAZER' }
+  });
+  await taskKanbanService.updateTaskStatus(task.id, 'EM_ANDAMENTO', {
+    actor: user,
+    actorUserId: user.id
+  });
+  await taskKanbanService.updateTaskStatus(task.id, 'CONCLUIDO', {
+    actor: user,
+    actorUserId: user.id
+  });
+  const movements = await prisma.taskMovement.findMany({ where: { taskId: task.id } });
+  expect(movements).toHaveLength(2);
+  expect(
+    movements.every(
+      (row) =>
+        row.responsibleUserIdSnapshot === null && row.responsibilitySnapshotState === 'UNASSIGNED'
+    )
+  ).toBe(true);
+});

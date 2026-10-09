@@ -11,7 +11,11 @@ export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
   useEffect(() => {
     const controller = new AbortController();
     indicatorsApi
-      .dashboard(projectId, { view: 'GENERAL', healthOnly: true }, { signal: controller.signal })
+      .dashboard(
+        projectId,
+        { view: 'GENERAL', healthOnly: true },
+        { signal: controller.signal, fresh: true }
+      )
       .then(
         ({ data }) => {
           if (!controller.signal.aborted) setState({ identity, health: data.projectHealth });

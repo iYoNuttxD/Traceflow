@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   validateHomologationEnvironment,
-  validateHomologationProject
+  validateHomologationProject,
+  installHomologationClock
 } from '../../scripts/lib/indicators-homologation.js';
 const options = {
   database: 'traceflow',
@@ -44,4 +45,28 @@ describe('homologation safety', () => {
     ).toThrow();
     expect(() => validateHomologationProject(p, options, { ...m, role: 'MEMBER' })).toThrow();
   });
+});
+
+it('rejects a same-day anchor whose 15:00Z facts are still in the future', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-09T11:00:00Z'));
+  try {
+    expect(() =>
+      validateHomologationEnvironment(env, { ...options, anchor: '2026-10-09' })
+    ).toThrow('futuro');
+    expect(() =>
+      validateHomologationEnvironment(env, { ...options, anchor: '2026-10-08' })
+    ).not.toThrow();
+    const clock = installHomologationClock({ $use() {} }, []);
+    try {
+      expect(() => clock.at('2026-10-09T15:00:00Z')).toThrow('futuros');
+      clock.at('2026-10-08T15:00:00Z');
+      expect(new Date().toISOString()).toBe('2026-10-08T15:00:00.000Z');
+      expect(() => clock.at('invalid')).toThrow('futuros');
+    } finally {
+      clock.restore();
+    }
+  } finally {
+    vi.useRealTimers();
+  }
 });

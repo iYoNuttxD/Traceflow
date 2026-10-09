@@ -131,3 +131,14 @@ Resultado final frontend após a correção pós-E14 e a revalidação E15: **0 
 - nenhuma major automática sem análise de API, testes e plano de rollback;
 - lockfiles são obrigatórios; fontes esperadas são o registry npm e o repositório oficial do pacote;
 - Dependency review é obrigatório em pull requests desde a E14. SBOM automatizada permanece como evolução futura.
+
+
+## Nodemailer 10 — smoke real PR23-FIX-07 (09/10/2026)
+
+O registro de setembro acima é histórico. O lockfile atual usa **10.0.9**; a versão registrada
+anteriormente era **9.1.1**. Nenhuma dependência foi atualizada no FIX-07. Risco do salto de major:
+compatibilidade de `createTransport`/`sendMail`, serialização, templates e controles de acesso a
+arquivo/URL. `backend/test/unit/nodemailer-real-smoke.test.js` usa a biblioteca instalada real com
+`jsonTransport:true` (sem mock do transporte) para reset de senha, verificação de e-mail e convite.
+Valida subject/text/html, escape, envelope e messageId, sem envio externo. Gate de audit completo
+é executado separadamente; esse smoke não prova entrega SMTP/TLS, que depende do ambiente operacional.

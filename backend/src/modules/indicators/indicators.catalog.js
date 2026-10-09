@@ -216,7 +216,7 @@ export const INDICATORS = Object.freeze({
     category: 'GITHUB',
     title: 'PRs abertas mais antigas',
     description: 'Total de PRs abertas com idade válida e lista das dez mais antigas.',
-    unit: 'DAYS',
+    unit: 'PULL_REQUESTS',
     temporalType: 'CURRENT_STATE',
     eventClock: null,
     supportedFilters: [],

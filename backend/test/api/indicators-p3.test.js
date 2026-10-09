@@ -255,7 +255,12 @@ describe('GitHub analytics P3 — API', () => {
     expect(i.I16.value).toBe(4);
     expect(i.I18).toMatchObject({ value: 3, eligibleCount: 1, excludedCount: 0 });
     expect(i.I74.value).toBe(3);
-    expect(i.I17).toMatchObject({ kind: 'LIST', eligibleCount: 1, period: null });
+    expect(i.I17).toMatchObject({
+      kind: 'LIST',
+      unit: 'PULL_REQUESTS',
+      eligibleCount: 1,
+      period: null
+    });
     expect(i.I17.items).toHaveLength(1);
     expect(i.I73).toMatchObject({ value: 30, eligibleCount: 1, excludedCount: 2 });
   });

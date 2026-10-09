@@ -1,11 +1,13 @@
-export function calculateDistribution(rows) {
+export function calculateDistribution(rows, { responsibility = false } = {}) {
   const people = [];
   let total = 0;
   let unassociated = 0;
   let unassignedHistoricalCount = 0;
+  let unassignedCount = 0;
   for (const row of rows) {
     const count = Number(row.count);
     total += count;
+    if (row.knownUnassigned) unassignedCount += count;
     if (row.unknownHistorical) unassignedHistoricalCount += count;
     if (row.userId == null) unassociated += count;
     else people.push({ userId: Number(row.userId), displayName: row.displayName, count });
@@ -16,6 +18,7 @@ export function calculateDistribution(rows) {
     associated: total - unassociated,
     unassociated,
     unassignedHistoricalCount,
+    ...(responsibility ? { unassignedCount } : {}),
     people
   };
 }

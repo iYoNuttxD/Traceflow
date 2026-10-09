@@ -484,3 +484,52 @@ describe('historical GitHub migrations with real legacy rows', () => {
     });
   });
 });
+
+it('skips a secondary branch without SHA while preserving its previous links', async () => {
+  const project = await fixture();
+  const branches = await githubBranchRepository.syncObserved(
+    project.id,
+    [
+      { name: 'main', headSha: 'main-head' },
+      { name: 'feature', headSha: null }
+    ],
+    'main'
+  );
+  const githubClient = client({ 'main-head': ['valid-commit'] });
+  const summary = await syncProjectCommits({
+    project,
+    repository: { owner: 'owner', name: 'repo', defaultBranch: 'main' },
+    branches,
+    githubClient
+  });
+  expect(summary.branchesSkipped).toBe(1);
+  expect(summary.created).toBe(1);
+  expect(githubClient.listCommitPages).toHaveBeenCalledTimes(1);
+  expect(
+    (
+      await prisma.gitBranch.findUnique({
+        where: { projectId_name: { projectId: project.id, name: 'feature' } }
+      })
+    ).lastSyncedGeneration
+  ).toBeNull();
+});
+
+it.each(['main', 'trunk'])(
+  'fails explicitly for the critical %s branch without SHA',
+  async (name) => {
+    const project = await fixture();
+    const branches = await githubBranchRepository.syncObserved(
+      project.id,
+      [{ name, headSha: null }],
+      name
+    );
+    await expect(
+      syncProjectCommits({
+        project,
+        repository: { owner: 'owner', name: 'repo', defaultBranch: name },
+        branches,
+        githubClient: client({})
+      })
+    ).rejects.toThrow('sem head SHA');
+  }
+);

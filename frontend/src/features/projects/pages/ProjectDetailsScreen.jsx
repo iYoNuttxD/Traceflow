@@ -108,7 +108,7 @@ function getGithubSyncDisplay(project, syncStatus) {
   }
   if (syncStatus === 'error' || persistedStatus === 'FALHA') {
     return {
-      label: integration?.lastSyncAt ? 'Sincronizado anteriormente' : 'Falha na sincronização',
+      label: 'Falha na última sincronização',
       variant: 'danger'
     };
   }

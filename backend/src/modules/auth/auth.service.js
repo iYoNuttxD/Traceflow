@@ -142,7 +142,10 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     const updated = await authRepository.updateUser(user.id, { lastLoginAt: new Date() });
-    return { user: publicUser(updated), ...(await issueSession(updated, rememberMe)) };
+    return {
+      user: publicUser(updated),
+      ...(await issueSession({ ...updated, sessionVersion: user.sessionVersion }, rememberMe))
+    };
   },
   async authenticate(token) {
     if (!token) return null;
@@ -225,7 +228,13 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     ensurePasswordPolicy(password, user);
-    await authRepository.changePassword(userId, await this.hashPassword(password));
+    const changed = await authRepository.changePassword(
+      userId,
+      await this.hashPassword(password),
+      new Date(),
+      { passwordHash: user.passwordHash, sessionVersion: user.sessionVersion }
+    );
+    if (!changed) throw authError('A senha foi alterada durante a solicitação. Entre novamente.');
     projectEventPublisher.disconnectUser(userId);
   },
   async verifyPassword(userId, password) {

@@ -241,7 +241,7 @@ describe('P8.5 Indicators workspace', () => {
     expect(mocks.dashboard).toHaveBeenCalledWith(
       1,
       { view: 'GENERAL', healthOnly: true },
-      { signal: expect.any(AbortSignal) }
+      { signal: expect.any(AbortSignal), fresh: true }
     );
     fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
     const summary = screen.getByRole('region', { name: 'Saúde do projeto' });

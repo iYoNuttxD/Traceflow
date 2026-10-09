@@ -443,3 +443,38 @@ describe('Indicator Engine P2 — API persistida', () => {
     expect((await get(path, owner)).status).toBe(404);
   });
 });
+
+it('distinguishes known unassigned completion from legacy missing responsibility', async () => {
+  const owner = await user('Snapshot owner');
+  const p = await project(owner);
+  const knownTask = await task(p.id, 'CONCLUIDO');
+  const legacyTask = await task(p.id, 'CONCLUIDO');
+  const known = await movement(p.id, knownTask.id, 'CONCLUIDO', '2026-09-10T12:00:00Z');
+  await prisma.taskMovement.update({
+    where: { id: known.id },
+    data: { responsibilitySnapshotState: 'UNASSIGNED' }
+  });
+  await movement(p.id, legacyTask.id, 'CONCLUIDO', '2026-09-11T12:00:00Z');
+  const { indicatorsService } = await import('../../src/modules/indicators/indicators.service.js');
+  const result = await indicatorsService.activity(p.id, {
+    startDate: '2026-09-01',
+    endDate: '2026-09-30',
+    timeZone: 'UTC'
+  });
+  const i03 = result.indicators.find((i) => i.metricId === 'I03');
+  expect(i03.distribution).toMatchObject({
+    total: 2,
+    unassociated: 2,
+    unassignedCount: 1,
+    unassignedHistoricalCount: 1
+  });
+  await prisma.taskMovement.deleteMany({ where: { taskId: legacyTask.id } });
+  const current = await indicatorsService.activity(p.id, {
+    startDate: '2026-09-01',
+    endDate: '2026-09-30',
+    timeZone: 'UTC'
+  });
+  expect(current.indicators.find((i) => i.metricId === 'I03').limitations).not.toContain(
+    'LEGACY_RESPONSIBLE_SNAPSHOT_MISSING'
+  );
+});

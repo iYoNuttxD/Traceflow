@@ -43,7 +43,7 @@ export const flowTaskPeriodQuerySchema = indicatorPeriodQuerySchema.superRefine(
       context.addIssue({
         code: 'custom',
         path: ['endDate'],
-        message: 'O período para séries de Tasks deve ter no máximo 366 dias.'
+        message: 'O período informado deve ter no máximo 366 dias.'
       });
     }
   }
@@ -130,7 +130,7 @@ export const dashboardQuerySchema = strictObject({
     });
     return;
   }
-  const schema = ['FLOW', 'TASK', 'CUSTOM'].includes(value.view)
+  const schema = ['FLOW', 'TASK', 'CUSTOM', 'QUALITY'].includes(value.view)
     ? flowTaskPeriodQuerySchema
     : indicatorPeriodQuerySchema;
   const result = schema.safeParse({

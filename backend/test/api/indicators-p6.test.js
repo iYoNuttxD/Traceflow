@@ -323,3 +323,21 @@ describe('P6 Quality and Traceability analytics API', () => {
     expect(trace.I67).toMatchObject({ value: 50, state: 'AVAILABLE' });
   });
 });
+
+it('enforces the same 366 civil-day bound on quality and the QUALITY aggregate', async () => {
+  const owner = await actor();
+  const p = await project(owner);
+  for (const path of [
+    `/api/projects/${p.id}/indicators/quality?`,
+    `/api/projects/${p.id}/indicators/dashboard?view=QUALITY&`
+  ]) {
+    const send = (endDate) =>
+      request(app)
+        .get(`${path}startDate=2024-01-01&endDate=${endDate}&timeZone=UTC`)
+        .set('Cookie', `traceflow_session=${owner.token}`);
+    expect((await send('2024-12-31')).status).toBe(200);
+    const rejected = await send('2025-01-01');
+    expect(rejected.status).toBe(400);
+    expect(JSON.stringify(rejected.body)).toContain('366 dias');
+  }
+});

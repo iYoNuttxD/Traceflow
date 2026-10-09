@@ -56,7 +56,7 @@ export const indicatorsService = {
     if (!facts) throw resourceNotFoundError('Project');
     const asOf = facts.asOf.toISOString();
     const periodDto = publicPeriod(period);
-    const tasks = calculateDistribution(facts.taskRows);
+    const tasks = calculateDistribution(facts.taskRows, { responsibility: true });
     const taskState = tasks.unassociated > 0 ? 'PARTIAL' : 'AVAILABLE';
     const taskResult = indicatorResult(
       'I03',

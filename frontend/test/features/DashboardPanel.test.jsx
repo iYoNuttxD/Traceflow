@@ -125,7 +125,7 @@ describe('P8 Dashboard na Visão Geral', () => {
           indicators: [
             metric('I17', 1, {
               kind: 'LIST',
-              unit: 'DAYS',
+              unit: 'PULL_REQUESTS',
               items: [{ pullRequestId: 1, title: 'Revisar entrega', age: 1 }]
             })
           ]

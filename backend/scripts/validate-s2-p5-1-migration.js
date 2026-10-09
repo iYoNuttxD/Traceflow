@@ -103,7 +103,7 @@ try {
     join(migrationDirectory, 'migration_lock.toml')
   );
   for (const entry of readdirSync(join(sourcePrisma, 'migrations'), { withFileTypes: true })) {
-    if (!entry.isDirectory() || migrations.includes(entry.name)) continue;
+    if (!entry.isDirectory() || entry.name >= migrations[0]) continue;
     cpSync(join(sourcePrisma, 'migrations', entry.name), join(migrationDirectory, entry.name), {
       recursive: true
     });
@@ -125,11 +125,15 @@ try {
   const after = new PrismaClient({ datasourceUrl: target.toString() });
   try {
     const [active, old, task, effort, events] = await Promise.all([
-      after.sprint.findUnique({ where: { id: fixture.sprints[0].id } }),
-      after.sprint.findUnique({ where: { id: fixture.sprints[1].id } }),
-      after.task.findUnique({ where: { id: fixture.taskId } }),
+      after.$queryRaw`SELECT * FROM Sprint WHERE id = ${fixture.sprints[0].id}`.then(
+        (rows) => rows[0]
+      ),
+      after.$queryRaw`SELECT * FROM Sprint WHERE id = ${fixture.sprints[1].id}`.then(
+        (rows) => rows[0]
+      ),
+      after.$queryRaw`SELECT * FROM Task WHERE id = ${fixture.taskId}`.then((rows) => rows[0]),
       after.taskEffortHistoryEntry.count({ where: { taskId: fixture.taskId } }),
-      after.sprintBurnupEvent.findMany({ where: { projectId: fixture.projectId } })
+      after.$queryRaw`SELECT * FROM SprintBurnupEvent WHERE projectId = ${fixture.projectId}`
     ]);
     if (
       !active?.burnupCoverageStartedAt ||
@@ -143,9 +147,9 @@ try {
       events[0].occurredAt.getTime() !== active.burnupCoverageStartedAt.getTime()
     )
       throw new Error('Upgrade P5.1 não preservou dados ou ancorou incorretamente a Sprint ativa.');
-    const foreignProject = await after.project.create({
-      data: { name: 'Outro projeto', responsibleTeam: 'Equipe', accessCode: 'P51-FOREIGN' }
-    });
+    await after.$executeRaw`INSERT INTO Project (name,responsibleTeam,accessCode,createdAt,updatedAt) VALUES ('Outro projeto','Equipe','P51-FOREIGN',NOW(3),NOW(3))`;
+    const [foreignProject] =
+      await after.$queryRaw`SELECT id FROM Project WHERE accessCode = 'P51-FOREIGN'`;
     let crossProjectRejected = false;
     try {
       await after.sprintBurnupEvent.create({

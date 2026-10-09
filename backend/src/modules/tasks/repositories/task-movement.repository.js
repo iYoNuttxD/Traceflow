@@ -85,6 +85,8 @@ export const taskMovementRepository = {
             movedBy: actor.name,
             movedByUserId: actor.id,
             responsibleUserIdSnapshot: resultingResponsibleUserId,
+            responsibilitySnapshotState:
+              resultingResponsibleUserId == null ? 'UNASSIGNED' : 'ASSIGNED',
             sprintId: sprintAtual
           },
           include: { movedByUser: { select: { id: true, name: true } } }

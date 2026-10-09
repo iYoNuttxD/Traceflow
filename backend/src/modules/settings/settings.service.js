@@ -380,13 +380,20 @@ export const settingsService = {
     }
     const policyErrors = passwordPolicyErrors(input.newPassword, user);
     if (policyErrors.length) throw error(policyErrors[0], 400, ERROR_CODES.VALIDATION_ERROR);
-    await settingsRepository.changePassword(
+    const changed = await settingsRepository.changePassword(
       userId,
       sessionId,
       await authService.hashPassword(input.newPassword),
       now,
-      audit(userId, requestId, 'PASSWORD_CHANGED')
+      audit(userId, requestId, 'PASSWORD_CHANGED'),
+      { passwordHash: user.passwordHash }
     );
+    if (!changed)
+      throw error(
+        'A senha foi alterada durante a solicitação. Entre novamente.',
+        403,
+        ERROR_CODES.CURRENT_PASSWORD_INVALID
+      );
     projectEventPublisher.disconnectUser(userId, { exceptSessionId: sessionId });
     await emailService.sendPasswordChangedNotice({ to: user.email, userId, name: user.name });
   },

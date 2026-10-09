@@ -83,6 +83,13 @@ npx prisma migrate deploy
 npx prisma migrate status
 ```
 
+**Backfill histórico S2:** se o ambiente ainda não aplicou a migration inicial de Burnup,
+pare API, workers de sync e demais escritores antes de migrar; mantenha a pausa até conferir
+os fatos e iniciar o código atualizado. Use UTC na sessão de implantação. Consulte o
+[runbook de migrations](docs/runbooks/DATABASE_MIGRATIONS.md#s2--backfill-histórico-de-burnup-pr23-fix-07)
+para o checklist e diagnóstico somente leitura.
+
+
 Na CI e em testes locais isolados:
 
 ```bash

@@ -17,12 +17,14 @@ export const authRepository = {
   updateUser(id, data) {
     return prisma.user.update({ where: { id }, data });
   },
-  changePassword(userId, passwordHash, now = new Date()) {
+  changePassword(userId, passwordHash, now = new Date(), expectedCredential) {
     return prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({
-        where: { id: userId },
+      const changed = await tx.user.updateMany({
+        where: { id: userId, ...expectedCredential },
         data: { passwordHash, sessionVersion: { increment: 1 } }
       });
+      if (changed.count !== 1) return null;
+      const user = await tx.user.findUnique({ where: { id: userId } });
       await tx.session.updateMany({
         where: { userId, revokedAt: null },
         data: { revokedAt: now }

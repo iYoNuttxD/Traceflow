@@ -127,3 +127,9 @@ Implementação: [membership](../../backend/src/modules/projects/project-members
 [anonimização](../../backend/src/modules/privacy/privacy.repository.js),
 [schema](../../backend/prisma/schema.prisma). Regressões transacionais e de escopo em
 [indicators-p9.test.js](../../backend/test/api/indicators-p9.test.js).
+
+
+PR23-FIX-07 / D-D: retenção interna não implica exposição geral. O presenter de commits remove
+`authorGithubUserId` do payload de listagem; a correlação interna continua exata. A exportação
+pessoal e seus filtros não foram ampliados. `TaskMovement.responsibilitySnapshotState` registra
+somente ASSIGNED/UNASSIGNED, sem identidade adicional; estado nulo continua legado desconhecido.

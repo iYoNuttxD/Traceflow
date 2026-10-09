@@ -33,7 +33,8 @@ export function validateHomologationEnvironment(env, options) {
     new Date(options.anchor).toISOString().slice(0, 10) !== options.anchor
   )
     throw Error('Anchor deve ser data civil ISO.');
-  if (Date.parse(options.anchor) > Date.now()) throw Error('Anchor não pode estar no futuro.');
+  if (Date.parse(`${options.anchor}T15:00:00.000Z`) > Date.now())
+    throw Error('Anchor não pode estar no futuro.');
   return target;
 }
 
@@ -87,7 +88,10 @@ export function installHomologationClock(prisma, models) {
   globalThis.Date = SeedDate;
   return {
     at(value) {
-      instant = new NativeDate(value).getTime();
+      const next = new NativeDate(value).getTime();
+      if (!Number.isFinite(next) || next > NativeDate.now())
+        throw Error('O relógio de homologação não permite fatos futuros.');
+      instant = next;
     },
     restore() {
       instant = null;

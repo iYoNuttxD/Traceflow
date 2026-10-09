@@ -88,6 +88,7 @@ describe('configurações de conta L2', () => {
     mocks.repository.exportGithubAuthoredCommits.mockResolvedValue([]);
     mocks.auth.verifyPassword.mockResolvedValue(true);
     mocks.auth.hashPassword.mockResolvedValue('argon2-hash');
+    mocks.repository.changePassword.mockResolvedValue(activeUser);
     mocks.githubAuth.identity.mockResolvedValue(null);
     for (const method of Object.values(mocks.email))
       method.mockResolvedValue({ status: 'accepted' });
@@ -190,7 +191,8 @@ describe('configurações de conta L2', () => {
       22,
       'argon2-hash',
       expect.any(Date),
-      expect.objectContaining({ action: 'PASSWORD_CHANGED' })
+      expect.objectContaining({ action: 'PASSWORD_CHANGED' }),
+      { passwordHash: activeUser.passwordHash }
     );
   });
 

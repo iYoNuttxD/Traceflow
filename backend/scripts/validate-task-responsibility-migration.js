@@ -9,18 +9,18 @@ import { validateTestDatabaseUrl } from './lib/database-safety.js';
 dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: false, quiet: true });
 dotenv.config({ path: resolve(process.cwd(), '.env'), override: false, quiet: true });
 
-const migrations = ['20260924234000_s2_p3_lifecycle_coverage_start'];
+const migrations = ['20261009120000_task_responsibility_snapshot_state'];
 const sourceUrl = validateTestDatabaseUrl(process.env.TEST_DATABASE_URL, process.env.DATABASE_URL);
 const sourceDatabase = new URL(sourceUrl).pathname.slice(1);
-const validationDatabase = `${sourceDatabase}_s2_p3_upgrade_validation`;
-if (!/^[a-zA-Z0-9_]+_test_s2_p3_upgrade_validation$/.test(validationDatabase)) {
-  throw new Error('Nome do banco descartável de validação P3 recusado.');
+const validationDatabase = `${sourceDatabase}_responsibility_upgrade_validation`;
+if (!/^[a-zA-Z0-9_]+_test_responsibility_upgrade_validation$/.test(validationDatabase)) {
+  throw new Error('Nome do banco descartável de validação Responsibility recusado.');
 }
 const validationUrl = new URL(sourceUrl);
 validationUrl.pathname = `/${validationDatabase}`;
 const databaseUrl = validationUrl.toString();
 const admin = new PrismaClient({ datasourceUrl: sourceUrl });
-const root = mkdtempSync(join(tmpdir(), 'traceflow-s2-p3-'));
+const root = mkdtempSync(join(tmpdir(), 'traceflow-responsibility-'));
 const prismaDirectory = join(root, 'prisma');
 const migrationsDirectory = join(prismaDirectory, 'migrations');
 const schemaPath = join(prismaDirectory, 'schema.prisma');
@@ -38,33 +38,31 @@ function deploy() {
       encoding: 'utf8'
     }
   );
-  if (result.status !== 0) throw new Error(`Deploy P3 falhou: ${result.stderr || result.stdout}`);
+  if (result.status !== 0)
+    throw new Error(`Deploy Responsibility falhou: ${result.stderr || result.stdout}`);
 }
 
 async function seed(client) {
   await client.$executeRawUnsafe(
-    "INSERT INTO User (name,email,username,createdAt,updatedAt) VALUES ('P1 artificial','p1-upgrade@example.invalid','p1_upgrade',NOW(3),NOW(3))"
+    "INSERT INTO User (name,email,username,createdAt,updatedAt) VALUES ('Responsibility artificial','p1-upgrade@example.invalid','p1_upgrade',NOW(3),NOW(3))"
   );
   await client.$executeRawUnsafe(
-    "INSERT INTO Project (name,responsibleTeam,accessCode,createdAt,updatedAt) VALUES ('P1 artificial','Equipe','P1-UPGRADE',NOW(3),NOW(3))"
+    "INSERT INTO Project (name,responsibleTeam,accessCode,createdAt,updatedAt) VALUES ('Responsibility artificial','Equipe','Responsibility-UPGRADE',NOW(3),NOW(3))"
   );
   await client.$executeRawUnsafe(
-    'INSERT INTO ProjectGitHubIntegration (projectId,pullRequestLifecycleSyncedAt,createdAt,updatedAt) VALUES (1,NOW(3),NOW(3),NOW(3))'
+    'INSERT INTO ProjectGitHubIntegration (projectId,createdAt,updatedAt) VALUES (1,NOW(3),NOW(3))'
   );
   await client.$executeRawUnsafe(
     "INSERT INTO Task (projectId,title,status,createdAt,updatedAt) VALUES (1,'Task antiga','A_FAZER',NOW(3),NOW(3))"
   );
   await client.$executeRawUnsafe(
-    "INSERT INTO TaskMovement (projectId,taskId,fromStatus,toStatus,movedBy,movedAt,createdAt) VALUES (1,1,'A_FAZER','EM_ANDAMENTO','P1 artificial',NOW(3),NOW(3))"
+    "INSERT INTO TaskMovement (projectId,taskId,fromStatus,toStatus,movedBy,movedAt,createdAt) VALUES (1,1,'A_FAZER','EM_ANDAMENTO','Responsibility artificial',NOW(3),NOW(3))"
   );
   await client.$executeRawUnsafe(
     "INSERT INTO Commit (projectId,hash,createdAt,updatedAt) VALUES (1,'p1-commit',NOW(3),NOW(3))"
   );
   await client.$executeRawUnsafe(
     "INSERT INTO PullRequest (projectId,githubId,number,title,createdAt,updatedAt) VALUES (1,'p1-pr',1,'PR antiga',NOW(3),NOW(3))"
-  );
-  await client.$executeRawUnsafe(
-    "INSERT INTO PullRequestLifecycleEvent (projectId,pullRequestId,eventType,occurredAt,providerEventId,createdAt) VALUES (1,1,'CLOSED',NOW(3),'legacy-closed',NOW(3))"
   );
   await client.$executeRawUnsafe(
     "INSERT INTO GitBranch (projectId,name,headSha,isDefault,isActive,firstSeenAt,lastSeenAt,createdAt,updatedAt) VALUES (1,'main','p1-head',true,true,NOW(3),NOW(3),NOW(3),NOW(3))"
@@ -78,7 +76,7 @@ try {
     validationDatabase
   );
   if (existing.length)
-    throw new Error('Banco descartável P3 já existe; remoção manual necessária.');
+    throw new Error('Banco descartável Responsibility já existe; remoção manual necessária.');
   await admin.$executeRawUnsafe(`CREATE DATABASE \`${validationDatabase}\``);
   created = true;
   mkdirSync(migrationsDirectory, { recursive: true });
@@ -131,18 +129,27 @@ try {
       !pullRequest ||
       !branch ||
       !link ||
-      events !== 1 ||
+      events !== 0 ||
       movement.responsibleUserIdSnapshot !== null ||
+      movement.responsibilitySnapshotState !== null ||
       commit.authorGithubUserId !== null ||
       branch.lastSyncedGeneration !== null ||
       link.lastObservedGeneration !== null ||
-      integration.pullRequestLifecycleSyncedAt === null ||
-      integration.pullRequestLifecycleCoverageFrom !== null
+      integration.pullRequestLifecycleSyncedAt !== null
     ) {
-      throw new Error('Upgrade P3 não preservou fixtures ou cobertura legacy nullable.');
+      throw new Error('Upgrade Responsibility não preservou fixtures ou defaults nullable.');
     }
+    await afterClient.taskMovement.update({
+      where: { id: movement.id },
+      data: { responsibilitySnapshotState: 'UNASSIGNED' }
+    });
+    if (
+      (await afterClient.taskMovement.findUnique({ where: { id: movement.id } }))
+        .responsibilitySnapshotState !== 'UNASSIGNED'
+    )
+      throw Error('Known unassigned state not persisted');
     process.stdout.write(
-      `${JSON.stringify({ database: validationDatabase, upgrade: 'ok', preserved: ['Project', 'Task', 'TaskMovement', 'Commit', 'PullRequest', 'GitBranch', 'CommitBranch', 'PullRequestLifecycleEvent'], lifecycleEvents: events, legacyCoverageFrom: null })}\n`
+      `${JSON.stringify({ database: validationDatabase, upgrade: 'ok', preserved: ['Project', 'Task', 'TaskMovement', 'Commit', 'PullRequest', 'GitBranch', 'CommitBranch'], lifecycleEvents: events })}\n`
     );
   } finally {
     await afterClient.$disconnect();

@@ -74,7 +74,8 @@ export const indicatorsRepository = {
         const taskRows = needsTasks
           ? await tx.$queryRaw`
         SELECT u.id AS userId, u.name AS displayName,
-               (m.responsibleUserIdSnapshot IS NULL) AS unknownHistorical,
+               (m.responsibleUserIdSnapshot IS NULL AND m.responsibilitySnapshotState IS NULL) AS unknownHistorical,
+               COALESCE(m.responsibilitySnapshotState = 'UNASSIGNED', FALSE) AS knownUnassigned,
                COUNT(*) AS count
         FROM TaskMovement m
         JOIN Task t ON t.id = m.taskId AND t.projectId = ${projectId}
@@ -93,7 +94,7 @@ export const indicatorsRepository = {
               AND (later.movedAt > m.movedAt
                 OR (later.movedAt = m.movedAt AND later.id > m.id))
           )
-        GROUP BY u.id, u.name, (m.responsibleUserIdSnapshot IS NULL)
+        GROUP BY u.id, u.name, (m.responsibleUserIdSnapshot IS NULL AND m.responsibilitySnapshotState IS NULL), COALESCE(m.responsibilitySnapshotState = 'UNASSIGNED', FALSE)
       `
           : [];
         return { project, branch: validBranch, commitRows, taskRows, asOf: new Date() };

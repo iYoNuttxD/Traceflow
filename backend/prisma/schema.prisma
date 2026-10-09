@@ -860,6 +860,7 @@ model TaskMovement {
   movedBy                   String
   movedByUserId             Int?
   responsibleUserIdSnapshot Int?
+  responsibilitySnapshotState ResponsibilitySnapshotState?
   movedAt                   DateTime @default(now())
   sprintId                  Int?
   createdAt                 DateTime @default(now())
@@ -1113,6 +1114,7 @@ model PullRequestLifecycleEvent {
   @@unique([projectId, providerEventId])
   @@index([projectId, occurredAt])
   @@index([pullRequestId, occurredAt])
+  @@index([pullRequestId, projectId])
 }
 
 // Issue importada do repositorio GitHub vinculado ao projeto.
@@ -1505,4 +1507,10 @@ model ProjectDashboardPreference {
 
   @@unique([projectId, userId])
   @@index([userId])
+}
+
+// Null identifies legacy facts without a recorded assignment state.
+enum ResponsibilitySnapshotState {
+  ASSIGNED
+  UNASSIGNED
 }

@@ -1288,7 +1288,8 @@ denominator:0, state:NO_DATA`; Tasks existentes com zero concluídas retornam
 
 I02 e I03 acrescentam `distribution:{total,associated,unassociated,
 unassignedHistoricalCount,people[]}`; cada pessoa é `{userId,displayName,count}`.
-O campo `unassignedHistoricalCount` é significativo em I03. I05 expõe `value` como
+I03 acrescenta `unassignedCount` para conclusões explicitamente sem responsável;
+`unassignedHistoricalCount` conta ausência legada do snapshot. Não são sinônimos. I05 expõe `value` como
 vetor `{completedTasks,commits}`, `people[]` com as duas contagens e
 `unassociated` por dimensão, além de `components` com o estado de cada fonte.
 Se não há fotografia confirmada da `main`, o número de commits é `null`, inclusive
@@ -1346,7 +1347,7 @@ de `mergedAtGithub-createdAtGithub` em horas. I14 conta Issues atualmente fechad
 Datas ausentes/invertidas não viram zero; I15/I16/I18/I74 expõem `eligibleCount` e
 `excludedCount` e, quando necessário, `INVALID_OR_MISSING_TIMESTAMPS_EXCLUDED`.
 
-I17 é `kind:LIST`, `value` = número de PRs abertas com idade válida, `items` = top 10
+I17 é `kind:LIST`, `unit:PULL_REQUESTS`, `value` = número de PRs abertas com idade válida, `items` = top 10
 mais antigas, cada item `{pullRequestId,number,title,age,githubUrl,createdAtGithub}`.
 I73 é a idade média em dias de todas as PRs abertas com data válida; ambos incluem
 contagens de elegíveis/excluídas. Sem fotografia GitHub, valores ficam `null` e
@@ -1557,7 +1558,7 @@ S2-04/S2-05 permanecem abertos.
 para o dia civil de I28/Health; não cria filtro de evento. Datas inicial/final continuam pareadas
 e exigem fuso. Sem datas e sem fuso, a API usa UTC; o cliente TraceFlow envia o fuso do navegador.
 Query desconhecida, view/fuso/data inválidos ou período incompleto retornam
-400. FLOW e TASK limitam a leitura de séries a 366 dias civis. O período solicitado é normalizado **uma vez** pela
+400. FLOW, TASK, QUALITY e CUSTOM limitam o período a 366 dias civis. O período solicitado é normalizado **uma vez** pela
 policy P2 para `[startInclusive,endExclusive)`; os services temporais recebem esse mesmo corte e
 preservam o `eventClock` de cada indicador. Sem período solicitado, indicadores de evento em fontes configuradas trazem
 `UNAVAILABLE`, `value:null`, `PERIOD_REQUIRED`; não há default público de 30 dias. Indicadores
@@ -1833,3 +1834,15 @@ preferência persistida. O frontend obtém a preferência, solicita um agregado 
 refaz esse agregado após Save/reset. Não há endpoint nem request por widget.
 
 Matriz completa e decisões: [Painel pessoal v1](../indicators/PERSONALIZED_DASHBOARD_V1.md).
+
+
+### PR23-FIX-07 — refinamentos de integridade
+
+- `GET /projects/:projectId/commits` não publica `authorGithubUserId`. O ID permanece na
+  persistência e nas correlações internas exatas; o frontend continua recebendo os campos de autoria já utilizados.
+- Eventos de lifecycle sem PR local são ignorados com log de contagem. Eventos associáveis
+  persistem, mas essa varredura não avança `pullRequestLifecycleSyncedAt`/coverage; não certifica completude.
+- Branch secundária sem SHA preserva associações anteriores e gera warning interno. `main`
+  ou default sem SHA continua interrompendo explicitamente o estágio, sem confirmar uma varredura incompleta.
+- Velocity exige fechamento conhecido (cutoff, status e estimativas); ausência de baseline
+  planejada, isoladamente, não invalida esse fechamento. Estimativas desconhecidas continuam excluídas.

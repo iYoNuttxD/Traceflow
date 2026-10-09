@@ -70,6 +70,23 @@ export async function syncProjectCommits({
 
   for (const branch of branches) {
     const branchStartedAt = Date.now();
+    if (
+      !branch.headSha &&
+      branch.name !== 'main' &&
+      !branch.isDefault &&
+      branch.name !== repository.defaultBranch
+    ) {
+      await assertActive();
+      logger.warn('Branch secundária sem SHA ignorada; associação anterior preservada.', {
+        event: 'github_branch_head_missing',
+        projectId: project.id,
+        branch: branch.name
+      });
+      summary.branchesSkipped += 1;
+      processedBranches += 1;
+      await onProgress({ processedBranches, currentBranch: null });
+      continue;
+    }
     const unchanged = Boolean(
       branch.headSha && branch.lastSyncedGeneration && branch.lastSyncedHeadSha === branch.headSha
     );

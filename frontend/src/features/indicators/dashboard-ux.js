@@ -29,7 +29,7 @@ export function compatibleDashboardPreference(preference, catalog, policy) {
 
 // Matches dashboardQuerySchema. Other views intentionally accept longer periods.
 export function dashboardPeriodError({ view, startDate, endDate }) {
-  if (!['FLOW', 'TASK', 'CUSTOM'].includes(view) || !startDate || !endDate) return '';
+  if (!['FLOW', 'TASK', 'CUSTOM', 'QUALITY'].includes(view) || !startDate || !endDate) return '';
   const days = (Date.parse(endDate) - Date.parse(startDate)) / 86400000 + 1;
   return days > 366 ? 'O período informado deve ter no máximo 366 dias nesta visão.' : '';
 }

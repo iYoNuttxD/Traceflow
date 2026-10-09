@@ -57,7 +57,7 @@ router.get(
 );
 router.get(
   '/projects/:projectId/indicators/quality',
-  validateRequest({ params: indicatorProjectParamsSchema, query: indicatorPeriodQuerySchema }),
+  validateRequest({ params: indicatorProjectParamsSchema, query: flowTaskPeriodQuerySchema }),
   indicatorsController.quality
 );
 router.get(

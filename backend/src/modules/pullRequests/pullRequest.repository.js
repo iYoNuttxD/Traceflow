@@ -1,3 +1,4 @@
+import { logger } from '../../shared/logger/index.js';
 // Repository de Pull Requests importados do GitHub.
 import { prisma } from '../../database/prismaClient.js';
 import { withActiveProjectWrite } from '../projects/active-project-write.js';
@@ -80,12 +81,17 @@ export const pullRequestRepository = {
           });
           pullRequests.forEach((pullRequest) => byNumber.set(pullRequest.number, pullRequest.id));
         }
-        if (byNumber.size !== numbers.length) {
-          throw new Error('Evento de PR sem Pull Request correspondente no projeto.');
-        }
+        const associated = events.filter(({ number }) => byNumber.has(number));
+        const ignoredCount = events.length - associated.length;
+        if (ignoredCount)
+          logger.warn('Eventos de PR sem associação foram ignorados.', {
+            event: 'github_pr_lifecycle_orphan',
+            projectId,
+            ignoredCount
+          });
         let count = 0;
-        for (let offset = 0; offset < events.length; offset += 500) {
-          const batch = events.slice(offset, offset + 500);
+        for (let offset = 0; offset < associated.length; offset += 500) {
+          const batch = associated.slice(offset, offset + 500);
           const result = await tx.pullRequestLifecycleEvent.createMany({
             data: batch.map(({ number, ...event }) => ({
               ...event,
@@ -96,15 +102,18 @@ export const pullRequestRepository = {
           });
           count += result.count;
         }
-        await tx.projectGitHubIntegration.updateMany({
-          where: { projectId },
-          data: { pullRequestLifecycleSyncedAt: completedAt }
-        });
-        await tx.projectGitHubIntegration.updateMany({
-          where: { projectId, pullRequestLifecycleCoverageFrom: null },
-          data: { pullRequestLifecycleCoverageFrom: completedAt }
-        });
-        return { count };
+        // A skipped event cannot establish complete lifecycle coverage.
+        if (!ignoredCount) {
+          await tx.projectGitHubIntegration.updateMany({
+            where: { projectId },
+            data: { pullRequestLifecycleSyncedAt: completedAt }
+          });
+          await tx.projectGitHubIntegration.updateMany({
+            where: { projectId, pullRequestLifecycleCoverageFrom: null },
+            data: { pullRequestLifecycleCoverageFrom: completedAt }
+          });
+        }
+        return { count, ignoredCount };
       },
       { timeout: 120000 }
     );

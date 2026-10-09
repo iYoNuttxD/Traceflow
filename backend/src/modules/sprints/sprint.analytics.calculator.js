@@ -97,7 +97,12 @@ export function buildSprintVelocity(sprints, closingParticipations, limit, basel
       bySprint.get(sprint.id) ?? [],
       eventsBySprint.get(sprint.id)
     );
-    if (summary.historicalLimitations.length || summary.completedPoints === null) {
+    if (
+      !(sprint.closedAt || sprint.completedAt) ||
+      summary.completedTasks === null ||
+      summary.estimateCoverage.current.unknownEstimateCount > 0 ||
+      !Number.isFinite(summary.completedPoints)
+    ) {
       excludedCount++;
       continue;
     }

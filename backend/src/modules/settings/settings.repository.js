@@ -176,12 +176,14 @@ export const settingsRepository = {
       orderBy: { lastSeenAt: 'desc' }
     });
   },
-  async changePassword(userId, currentSessionId, passwordHash, now, auditData) {
+  async changePassword(userId, currentSessionId, passwordHash, now, auditData, expectedCredential) {
     return prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({
-        where: { id: userId },
+      const changed = await tx.user.updateMany({
+        where: { id: userId, ...expectedCredential },
         data: { passwordHash, sessionVersion: { increment: 1 } }
       });
+      if (changed.count !== 1) return null;
+      const user = await tx.user.findUnique({ where: { id: userId } });
       await tx.session.updateMany({
         where: { userId, id: { not: currentSessionId }, revokedAt: null },
         data: { revokedAt: now }

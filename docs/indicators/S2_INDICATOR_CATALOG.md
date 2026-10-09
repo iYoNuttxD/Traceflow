@@ -48,7 +48,7 @@ Exemplos contratuais: dez PRs fechadas e nenhuma reaberta, **com histórico ínt
 | **I03 TASK Conclusões por responsável** — Quantas Tasks únicas ficaram concluídas no período sob cada responsável? | N=Tasks distintas com conclusão elegível; D=—; Tasks. | `TaskMovement.responsibleUserIdSnapshot,toStatus,movedAt`; entrada em `CONCLUIDO`; E; `S/S/S`; LC. | **RF17/UC14; IMPLEMENTED BACKEND**. D02/D03: última conclusão vigente no corte; `null` legado permanece PARTIAL, sem usar responsável atual; hard delete limita histórico. TABLE/BAR futuro. |
 | **I04 GITHUB Retrabalho de PR** — Que proporção das PRs elegíveis reabriu após fechamento? | N=PRs distintas com `closed→reopened`; D=PRs fechadas no período; `%`. | `PullRequestLifecycleEvent.eventType,occurredAt`; transições provider; E; `S/N/N`; GR. | **RF18/UC14; IMPLEMENTED BACKEND condicionado à cobertura completa da coorte**. Cobertura parcial → PARTIAL/UNAVAILABLE; legado não é reconstruído. TCC_ALIGNMENT_NOTE permanece. KPI/LINE futura. |
 | **I05 TASK Atividade por responsável** — Como se distribuem conclusões e commits na main, sem avaliar pessoas? | Vetor I02 + I03; D=—; commits e Tasks. | Fontes I02/I03 + membership; E; `S/U/S`; GE (com limitações locais). | **RF36/UC14; IMPLEMENTED BACKEND** para pessoas com fatos e membership atual ativa. “Ativo no período” histórico não é inferido; filtro Sprint permanece UNSAFE; não somar unidades em score; fonte parcial/stale é exposta por dimensão. TABLE futura. |
-| **I06 QUALITY Qualidade de PR oficial** — Qual taxa de retrabalho e qual fração das PRs fechadas foi mesclada? | Retrabalho=I04; taxa de merge: N=PRs mescladas, D=PRs fechadas; `%` cada. | `PullRequestLifecycleEvent` + PR corrente; E; `S/N/N`; GR. | **RF54/UC14; IMPLEMENTED BACKEND condicionado à cobertura completa da coorte**. Merge/fechadas não representa Review APPROVED. TCC_ALIGNMENT_NOTE preservada. KPIs/LINE futuros. |
+| **I06 GITHUB Qualidade de PR oficial** — Qual taxa de retrabalho e qual fração das PRs fechadas foi mesclada? | Retrabalho=I04; taxa de merge: N=PRs mescladas, D=PRs fechadas; `%` cada. | `PullRequestLifecycleEvent` + PR corrente; E; `S/N/N`; GR. | **RF54/UC14; IMPLEMENTED BACKEND condicionado à cobertura completa da coorte**. Merge/fechadas não representa Review APPROVED. TCC_ALIGNMENT_NOTE preservada. KPIs/LINE futuros. |
 | **I07 GENERAL Painel consolidado** — O projeto é compreensível em planejamento, repositório, progresso, atividade, cobertura e qualidade? | Composição de indicadores; N/D=—; contrato, sem score. | Blocos selecionados; corte por fonte; C; `U/U/U`; CC. | **RF55/UC14**; **NEEDS_PRODUCT_DECISION**. Três seções oficiais + cobertura/qualidade UC14; “completude de seções” é medida de aceite, não KPI do projeto. TABLE/KPI. |
 | **I08 GENERAL Filtro temporal** — Os números compatíveis correspondem exatamente ao intervalo escolhido? | Operação sobre fichas E/H; N/D=—; contrato. | Relógio por ficha; E; `S/N/N`; CC. | **RF56/UC14**; **NEEDS_PRODUCT_DECISION**. Precisão de filtros do Quadro 350 é medida de teste, não KPI. Filtros sprint/responsável do UC14 exigem compatibilidade por ficha. TABLE. |
 
@@ -376,3 +376,18 @@ rastreabilidade; a redação efetivamente apresentada e os fatos conferidos est�
 [matriz completa da auditoria](../deliveries/PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md#6-indicator-by-indicator-audit-summary).
 A divergência acadêmica RF54 já registrada em TCC_ALIGNMENT_NOTE permanece explícita; a regra
 vigente P3 conserva a coorte fechada RF18 e não é redefinida por esta revisão de apresentação.
+
+
+## PR23-FIX-07 — ajustes de contrato e elegibilidade
+
+- I03 distingue conclusão sem responsável (`responsibilitySnapshotState=UNASSIGNED`) de
+  fato legado sem snapshot (estado nulo). `ASSIGNED` conserva que havia associação mesmo
+  se uma exclusão posterior tornar a FK nula. A migration não infere fatos antigos.
+  Distribuição: `unassignedCount` = **Sem responsável**; `unassignedHistoricalCount` = registro antigo
+  sem snapshot. Contagens totais, recorte e definição de conclusão permanecem iguais.
+- I06 pertence ao domínio GITHUB; a view QUALITY reutiliza esse indicador. I25 conserva S/U/N:
+  responsável UNSAFE, Sprint não aplicável. A ficha I25 já estava correta antes desta rodada.
+- I17 publica `PULL_REQUESTS` no total; `items[].age` continua em dias. Não altera aging nem top 10.
+- I47 usa integridade do fechamento, não existência de snapshot de planejamento. Sem cutoff,
+  status final ou estimativa completa de fechamento, a Sprint continua excluída. `null ≠ 0`.
+- Quality direta e aggregate QUALITY respeitam o teto contratual de 366 dias civis inclusivos.

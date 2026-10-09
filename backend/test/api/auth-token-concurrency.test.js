@@ -206,3 +206,56 @@ describe('single-use authentication tokens under concurrency', () => {
     });
   });
 });
+
+describe('credential authority across password reset', () => {
+  it('does not mint a valid post-reset session from a login verified before reset', async () => {
+    const { user, token } = await fixture('passwordResetToken');
+    const original = authRepository.updateUser.bind(authRepository);
+    vi.spyOn(authRepository, 'updateUser').mockImplementationOnce(async (...args) => {
+      await authService.resetPassword({ token, password: 'ConfirmadaSegura123!' });
+      return original(...args);
+    });
+    const login = await authService.login({
+      identifier: user.username,
+      password: 'InicialSegura123!'
+    });
+    expect(await authService.authenticate(login.token)).toBeNull();
+    expect(await authService.verifyPassword(user.id, 'ConfirmadaSegura123!')).toBe(true);
+  });
+
+  it.each(['auth', 'settings'])(
+    'does not overwrite reset with an already verified %s password change',
+    async (source) => {
+      const { user, token } = await fixture('passwordResetToken');
+      const session = await authService.issueSession(user);
+      const { settingsRepository } =
+        await import('../../src/modules/settings/settings.repository.js');
+      const { settingsService } = await import('../../src/modules/settings/settings.service.js');
+      const repo = source === 'auth' ? authRepository : settingsRepository;
+      const original = repo.changePassword.bind(repo);
+      vi.spyOn(repo, 'changePassword').mockImplementationOnce(async (...args) => {
+        await authService.resetPassword({ token, password: 'ConfirmadaSegura123!' });
+        return original(...args);
+      });
+      const operation =
+        source === 'auth'
+          ? authService.changePassword(user.id, 'InicialSegura123!', 'ObsoletaSegura123!')
+          : settingsService.changePassword(
+              user.id,
+              session.session.id,
+              {
+                currentPassword: 'InicialSegura123!',
+                newPassword: 'ObsoletaSegura123!',
+                confirmation: 'ObsoletaSegura123!'
+              },
+              'fix07-race'
+            );
+      await expect(operation).rejects.toMatchObject({ statusCode: source === 'auth' ? 401 : 403 });
+      expect(await authService.verifyPassword(user.id, 'ConfirmadaSegura123!')).toBe(true);
+      expect(await authService.authenticate(session.token)).toBeNull();
+      expect((await prisma.user.findUnique({ where: { id: user.id } })).sessionVersion).toBe(
+        user.sessionVersion + 1
+      );
+    }
+  );
+});

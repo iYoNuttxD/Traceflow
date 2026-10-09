@@ -521,7 +521,7 @@ describe('ProjectDetailsPage E9', () => {
     expect(
       within(
         screen.getByRole('heading', { name: 'GitHub' }).closest('.project-overview-group')
-      ).getByText('Sincronizado anteriormente')
+      ).getByText('Falha na última sincronização')
     ).toBeInTheDocument();
     expect(screen.getByText('Último sucesso')).toBeInTheDocument();
     expect(screen.getByText('Última tentativa falhou')).toBeInTheDocument();

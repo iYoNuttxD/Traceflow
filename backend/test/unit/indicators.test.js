@@ -104,3 +104,12 @@ describe('Indicator Engine puro', () => {
     });
   });
 });
+
+it('publishes known unassigned responsibility only for task distribution', () => {
+  const rows = [{ userId: null, count: 2, knownUnassigned: true, unknownHistorical: false }];
+  expect(calculateDistribution(rows, { responsibility: true })).toMatchObject({
+    unassignedCount: 2,
+    unassignedHistoricalCount: 0
+  });
+  expect(calculateDistribution([{ userId: null, count: 2 }])).not.toHaveProperty('unassignedCount');
+});

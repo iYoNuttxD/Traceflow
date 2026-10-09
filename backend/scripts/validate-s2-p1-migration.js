@@ -28,15 +28,19 @@ const prismaDirectory = join(root, 'prisma');
 const migrationsDirectory = join(prismaDirectory, 'migrations');
 const schemaPath = join(prismaDirectory, 'schema.prisma');
 const sourcePrisma = resolve(process.cwd(), 'prisma');
-const prismaExecutable = resolve(process.cwd(), 'node_modules', '.bin', 'prisma');
+const prismaExecutable = resolve(process.cwd(), 'node_modules', 'prisma', 'build', 'index.js');
 let created = false;
 
 function deploy() {
-  const result = spawnSync(prismaExecutable, ['migrate', 'deploy', '--schema', schemaPath], {
-    cwd: process.cwd(),
-    env: { ...process.env, NODE_ENV: 'test', DATABASE_URL: databaseUrl },
-    encoding: 'utf8'
-  });
+  const result = spawnSync(
+    process.execPath,
+    [prismaExecutable, 'migrate', 'deploy', '--schema', schemaPath],
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, NODE_ENV: 'test', DATABASE_URL: databaseUrl },
+      encoding: 'utf8'
+    }
+  );
   if (result.status !== 0) throw new Error(`Deploy P1 falhou: ${result.stderr || result.stdout}`);
 }
 
@@ -84,7 +88,7 @@ try {
     join(migrationsDirectory, 'migration_lock.toml')
   );
   for (const entry of readdirSync(join(sourcePrisma, 'migrations'), { withFileTypes: true })) {
-    if (!entry.isDirectory() || migrations.includes(entry.name)) continue;
+    if (!entry.isDirectory() || entry.name >= migrations[0]) continue;
     cpSync(join(sourcePrisma, 'migrations', entry.name), join(migrationsDirectory, entry.name), {
       recursive: true
     });
@@ -106,14 +110,16 @@ try {
   try {
     const [project, integration, task, movement, commit, pullRequest, branch, link, events] =
       await Promise.all([
-        afterClient.project.findFirst(),
-        afterClient.projectGitHubIntegration.findFirst(),
-        afterClient.task.findFirst(),
-        afterClient.taskMovement.findFirst(),
-        afterClient.commit.findFirst(),
-        afterClient.pullRequest.findFirst(),
-        afterClient.gitBranch.findFirst(),
-        afterClient.commitBranch.findFirst(),
+        afterClient.$queryRawUnsafe('SELECT * FROM `Project` LIMIT 1').then((rows) => rows[0]),
+        afterClient
+          .$queryRawUnsafe('SELECT * FROM `ProjectGitHubIntegration` LIMIT 1')
+          .then((rows) => rows[0]),
+        afterClient.$queryRawUnsafe('SELECT * FROM `Task` LIMIT 1').then((rows) => rows[0]),
+        afterClient.$queryRawUnsafe('SELECT * FROM `TaskMovement` LIMIT 1').then((rows) => rows[0]),
+        afterClient.$queryRawUnsafe('SELECT * FROM `Commit` LIMIT 1').then((rows) => rows[0]),
+        afterClient.$queryRawUnsafe('SELECT * FROM `PullRequest` LIMIT 1').then((rows) => rows[0]),
+        afterClient.$queryRawUnsafe('SELECT * FROM `GitBranch` LIMIT 1').then((rows) => rows[0]),
+        afterClient.$queryRawUnsafe('SELECT * FROM `CommitBranch` LIMIT 1').then((rows) => rows[0]),
         afterClient.pullRequestLifecycleEvent.count()
       ]);
     if (

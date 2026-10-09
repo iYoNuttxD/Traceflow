@@ -211,3 +211,35 @@ describe('Sprint analytics facts', () => {
     });
   });
 });
+
+it('velocity requires closing facts, not a planning snapshot', () => {
+  const sprint = {
+    id: 1,
+    name: 'Legacy planning',
+    status: 'CONCLUIDA',
+    startedAt: at(1),
+    planningSnapshotAt: null,
+    closedAt: at(7)
+  };
+  const closing = {
+    sprintId: 1,
+    removedAt: null,
+    plannedAtStart: null,
+    pointsAtPlanning: null,
+    pointsAtClose: 8,
+    exitStatus: 'CONCLUIDO'
+  };
+  expect(buildSprintVelocity([sprint], [closing], 10)).toMatchObject({
+    eligibleCount: 1,
+    excludedCount: 0,
+    points: [{ completedPoints: 8 }]
+  });
+  expect(buildSprintVelocity([sprint], [{ ...closing, pointsAtClose: null }], 10)).toMatchObject({
+    eligibleCount: 0,
+    excludedCount: 1
+  });
+  expect(buildSprintVelocity([sprint], [{ ...closing, exitStatus: null }], 10)).toMatchObject({
+    eligibleCount: 0,
+    excludedCount: 1
+  });
+});

@@ -317,3 +317,57 @@ transferência, o fato é `null`. I43 terminal ignora memberships vivos; após S
 exclusão física da Task, seus itens mantêm o ID capturado e o instante de fechamento.
 Snapshots antigos não recebem destino inferido: I43 publica `outgoing:null`, `PARTIAL` e
 `UNKNOWN_LEGACY_CARRY_OVER`. Nenhum DDL/migration foi necessário; o owner é o JSON existente.
+
+
+## Operação do backfill Burnup — retificação PR23-FIX-07 / M09 / L11
+
+A migration histórica `20260925120000_s2_p5_1_sprint_burnup_history` permanece inalterada.
+Seu baseline é um retrato no instante da implantação, não reconstrução de todo o passado.
+`CURRENT_TIMESTAMP(3)` depende do timezone da sessão MySQL; verificar timezone atual não prova
+qual timezone foi usado naquela execução. Não corrigir âncoras existentes por suposição.
+
+Para um ambiente que ainda não aplicou esse backfill:
+
+1. Preservar backup recuperável e identificar explicitamente banco/ambiente.
+2. Pausar API, sync workers e outros escritores antes de `migrate deploy`; manter a pausa
+   até terminar deploy e a conferência. O schema não oferece bloqueio distribuído automático.
+3. Garantir sessão/servidor de implantação em UTC e conferir `@@session.time_zone`,
+   `@@system_time_zone`, `NOW(3)` e `UTC_TIMESTAMP(3)` na conexão operacional.
+4. Aplicar migrations incrementais com o procedimento canônico do ambiente.
+5. Conferir baseline das Sprints ativas e executar a consulta somente leitura abaixo.
+6. Investigar qualquer divergência; não inventar eventos/estimativas. Retomar escritores
+   somente depois da conferência e do runtime atualizado.
+
+Exemplo de diagnóstico de STATUS sem evento Burnup correspondente, para participações
+cobertas no instante do fato (não é uma prova completa de escopo/estimativas):
+
+```sql
+SELECT h.projectId, h.taskId, h.id AS historyId, st.sprintId, h.occurredAt
+FROM TaskHistoryEntry h
+JOIN SprintTask st ON st.taskId = h.taskId AND st.projectId = h.projectId
+JOIN Sprint s ON s.id = st.sprintId AND s.projectId = h.projectId
+WHERE h.field = 'STATUS'
+  AND h.occurredAt >= s.burnupCoverageStartedAt
+  AND h.occurredAt >= st.addedAt
+  AND (st.removedAt IS NULL OR h.occurredAt < st.removedAt)
+  AND (s.closedAt IS NULL OR h.occurredAt <= s.closedAt)
+  AND NOT EXISTS (
+    SELECT 1 FROM SprintBurnupEvent e
+    WHERE e.projectId = h.projectId AND e.sprintId = st.sprintId
+      AND e.taskKey = h.taskId AND e.type = 'STATUS_CHANGED'
+      AND e.occurredAt = h.occurredAt
+      AND e.toStatus = h.toValue
+  );
+```
+
+**Limitação aceita M09:** pausa operacional continua obrigatória; não há detector automático
+completo de escritas concorrentes ao backfill. A consulta aponta candidatos, sujeitos à revisão
+(e.g. fronteiras legadas), e não repara dados. Falhas de disciplina operacional podem deixar
+histórico incompleto sem aviso específico. Backlog: auditor de completude do backfill e protocolo
+operacional de implantação; exige rodada própria, sem alterar projeção/semântica silenciosamente.
+**L11:** não existe evidência confiável do timezone de sessões históricas para normalização retroativa;
+ambientes externos precisam da própria auditoria. Nenhuma migration aplicada foi reescrita.
+
+Velocity (I47) depende do snapshot de fechamento. Ausência isolada de planning snapshot não
+exclui Sprint com cutoff, status e estimativas de fechamento íntegros. Essa seleção não muda
+I36/planejamento nem torna estimativas desconhecidas em zero.
