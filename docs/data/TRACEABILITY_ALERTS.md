@@ -87,7 +87,8 @@ Toda reconciliação começa por `lockActiveProject`, o mesmo primeiro lock dos 
 | --- | --- | --- |
 | Mutação de tarefa ou vínculo (`traceabilityMutation` com `taskIds`) | as tarefas do escopo, mais as PRs e issues ligadas a elas antes **e** depois da mutação | a da mutação |
 | Confirmação de sugestão RF41 | a tarefa da sugestão | a da confirmação |
-| Fim de execução de sync (`SUCCEEDED` ou `FAILED`) | o projeto inteiro | própria; uma falha só gera log e não altera o resultado do sync |
+| Fim de execução de sync (`SUCCEEDED` ou `FAILED`) | o projeto inteiro | própria; uma falha gera log e registro de falha e não altera o resultado do sync |
+| Conexão do repositório (`PUT /projects/:projectId/github/integration`), gatilho `GITHUB_INTEGRATION` | o projeto inteiro | própria, depois da conexão gravada; uma falha gera log e registro de falha e não desfaz a conexão |
 | `POST /projects/:projectId/traceability/alerts/reconcile` (MANAGER+) | o projeto inteiro | própria |
 | `npm run traceability:alerts[:dry-run]` | um projeto ou todos os ativos | própria; dry-run em `RepeatableRead`, sem escrita |
 
@@ -95,10 +96,33 @@ Na varredura do projeto, entram dois conjuntos: os sujeitos que satisfazem cada 
 sujeitos com alerta ativo. As criações são ordenadas por `occurredAt` ascendente (nulos primeiro)
 e depois por id do sujeito.
 
+## Última reconciliação
+
+O modelo `TraceabilityAlertReconciliation` guarda, por projeto, o resultado da última reconciliação
+do projeto inteiro:
+
+- `lastTrigger`: `GITHUB_SYNC`, `GITHUB_INTEGRATION`, `MANUAL` ou `SCRIPT`;
+- `lastAttemptAt`;
+- `lastSucceededAt` e `lastFailedAt`;
+- `lastErrorCode`, apenas o código, nunca a mensagem.
+
+Regras:
+
+- O dry-run e a reconciliação de mutação (`traceabilityMutation`, RF41) não escrevem o registro. Uma
+  falha nelas desfaz a própria mutação.
+- A gravação da falha é uma escrita própria, fora da transação que falhou. Se ela também falhar,
+  fica só o log.
+- O resumo expõe `reconciliation{lastSucceededAt,lastFailedAt,lastTrigger,stale}`:
+  - `stale` vale `true` quando `lastFailedAt` é posterior a `lastSucceededAt`, ou quando só há
+    falha;
+  - sem registro, `reconciliation` é `null`.
+- A purga do projeto remove o registro por cascata.
+
 ## Dispensa
 
 - Somente MANAGER+ dispensa, e só alerta `OPEN`.
-- A justificativa tem de 10 a 500 caracteres depois do `trim`.
+- A justificativa tem de 10 a 500 caracteres Unicode (code points), contados depois do `trim`. Um
+  emoji simples conta 1; um emoji composto com ZWJ conta cada code point.
 - A dispensa grava `dismissedAt`, `dismissedByUserId` e `dismissalReason`, e registra a auditoria
   `TRACEABILITY_ALERT_DISMISSED`.
 - Dispensar de novo um alerta `DISMISSED` não muda nada e responde `changed: false`.
@@ -111,5 +135,5 @@ e depois por id do sujeito.
 - **Atraso dos alertas de GitHub:** o alerta de PR ou issue nasce no fim do sync seguinte ao
   merge ou fechamento, porque não há webhook desses eventos.
 - **`state_reason` da issue** não é persistido.
-- **Snapshot do sujeito:** `subjectCode` e `subjectTitle` (até 191 caracteres) são gravados na
+- **Snapshot do sujeito:** `subjectCode` e `subjectTitle` (até 256 caracteres) são gravados na
   detecção e só aparecem quando o sujeito deixou de existir.

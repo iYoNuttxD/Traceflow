@@ -1,7 +1,7 @@
 # ADR-015 — Alertas de inconsistência de rastreabilidade
 
 - **Estado:** aceita para o cartão S2-01 (RF13, RF39, RF40, RF58)
-- **Data:** 07/10/2026
+- **Data:** 07/10/2026; revisão em 09/10/2026 (correções da campanha de testes, ver "Revisão de 09/10/2026")
 - **Responsáveis:** João Vitor S. Hernandes
 
 ## Contexto
@@ -57,12 +57,23 @@ Restrições do terreno que moldam a decisão:
    - na confirmação do RF41;
    - ao fim de cada execução de sync (`SUCCEEDED` ou `FAILED`), em transação própria e sem afetar
      o resultado do sync;
+   - depois de conectar o repositório ao projeto (`GITHUB_INTEGRATION`), em transação própria e sem
+     desfazer a conexão;
    - no reprocessamento manual (MANAGER+);
    - num script operacional com dry-run.
+
+   As reconciliações do projeto inteiro (sync, conexão, manual e script) registram o resultado da
+   última execução, de sucesso ou de falha. A tela avisa quando os alertas podem estar
+   desatualizados. A reconciliação de mutação não registra: se ela falha, a mutação inteira é
+   desfeita.
 6. **Dispensa.** MANAGER+ pode dispensar um alerta aberto, com justificativa de 10 a 500
-   caracteres. O alerta dispensado continua segurando a chave enquanto a condição persistir.
+   caracteres Unicode (code points, contados depois do `trim`). O alerta dispensado continua
+   segurando a chave enquanto a condição persistir.
 7. **Interface.** Os alertas ficam dentro de Rastreabilidade, numa sub-navegação. As 11 abas do
    projeto permanecem.
+8. **Módulo.** O código vive em `backend/src/modules/traceability/` (`traceability-alert.*`), como
+   parte do domínio de rastreabilidade, e não num módulo `alerts/` próprio. As notificações
+   (S2-02/S2-03) decidem o próprio módulo.
 
 ## Alternativas consideradas
 
@@ -102,10 +113,28 @@ Restrições do terreno que moldam a decisão:
 
 ## Impactos de segurança e privacidade
 
-- A leitura exige membership ativa: não membro recebe 404 e papel insuficiente recebe 403.
+- A leitura exige membership ativa: não membro recebe 404. Todo membro ativo lê.
 - Dispensar e reprocessar exigem MANAGER+, CSRF e revalidação de papel no serviço. O
-  reprocessamento usa o mesmo limitador do sync manual.
+  reprocessamento tem limitador próprio (`traceability-alerts-reconcile`), com a mesma janela e o
+  mesmo teto do sync manual.
 - `dismissedByUserId` e `dismissalReason` são dados pessoais do ciclo do projeto: `SetNull` na
   remoção do usuário e DTO mínimo `{ id, name }`. A justificativa é texto livre, limitada a 500
   caracteres.
 - Logs e auditoria não carregam título, nome nem justificativa.
+
+## Revisão de 09/10/2026
+
+Correções dos achados da campanha de testes (`docs/issues/S2_01_RELATORIO_TESTES.md`), aprovadas
+pelo João em 09/10/2026:
+
+- **Gatilho na conexão (S201-A01).** Conectar o repositório a um projeto com tarefas concluídas sem
+  commit não gerava o alerta até o próximo sync. A conexão passa a reconciliar o projeto (D5).
+- **Registro da última reconciliação (S201-A05).** Uma falha da reconciliação depois do sync ficava
+  só no log. O registro por projeto (`TraceabilityAlertReconciliation`) guarda o último sucesso e a
+  última falha. O resumo expõe `reconciliation.stale` quando a falha é mais recente que o sucesso
+  (D5).
+- **Unidade da justificativa (S201-A02).** O limite era medido em unidades UTF-16, e 5 emojis
+  passavam como 10 caracteres. Passa a contar code points, coerente com a coluna `VARCHAR(500)` em
+  `utf8mb4` (D6).
+- **Localização do módulo (S201-A09).** Registrada em D8.
+- **Textos corrigidos (S201-A04):** limitador próprio do reprocessamento e leitura sem 403.

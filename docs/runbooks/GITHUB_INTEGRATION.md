@@ -38,6 +38,23 @@ A migration L1 cria integração `RECONNECT_REQUIRED` para projetos com metadado
 - `installation_repositories.added` atualiza metadados e o novo repositório aparece na listagem ao vivo, sem alterar projetos existentes.
 - `installation_repositories.removed` bloqueia somente integrações dos IDs removidos e preserva as demais integrações e todos os artifacts já importados.
 
+## Limites dos campos importados
+
+Todo texto que vem do GitHub cabe na coluna correspondente; um sync nunca falha por tamanho
+(S201-A03, correção de 09/10/2026).
+
+| Campo | Coluna | Limite no GitHub | Gravado | Tratamento |
+|---|---|---|---|---|
+| título de PR | `PullRequest.title` | 256 caracteres | `VARCHAR(256)` | cabe inteiro |
+| título de issue | `Issue.title` | 256 caracteres | `VARCHAR(256)` | cabe inteiro |
+| branch de origem e destino | `PullRequest.sourceBranch`, `targetBranch` | 255 | `VARCHAR(255)` | cabe inteiro |
+| nome de branch | `GitBranch.name` | 255 | `VARCHAR(255)`, collation sensível a caixa preservada | cabe inteiro |
+| branch padrão | `ProjectGitHubIntegration.defaultBranch` | 255 | `VARCHAR(255)` | cabe inteiro |
+| milestone | `Issue.milestone` | 255 | `VARCHAR(255)` | cabe inteiro |
+| URL do item | `githubUrl` de PR, issue e commit | sem limite formal | `VARCHAR(512)` | só `https://github.com/…`; outro valor vira `null` |
+| autor do commit | `Commit.authorName`, `authorEmail` | sem limite (texto livre do git) | `VARCHAR(255)` | truncado por caractere, sem partir par substituto |
+| snapshot do alerta | `TraceabilityAlert.subjectTitle` | — | `VARCHAR(256)` | título inteiro |
+
 ## Webhook
 
 GitHub deve enviar `Content-Type: application/json`, `X-Hub-Signature-256`, `X-GitHub-Delivery` e `X-GitHub-Event`. O backend limita raw body a 1 MiB, valida HMAC e trata delivery repetido idempotentemente. Monitore 4xx/5xx por request ID, nunca pelo payload integral.
