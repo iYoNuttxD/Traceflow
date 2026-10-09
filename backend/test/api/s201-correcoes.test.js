@@ -17,6 +17,7 @@ let app;
 let prisma;
 let githubAppService;
 let alertService;
+let alertRepository;
 let sequence = 0;
 const password = 'SenhaSegura123';
 const CREATED_AT = new Date('2026-08-01T12:00:00.000Z');
@@ -42,6 +43,8 @@ beforeAll(async () => {
   ({ githubAppService } = await import('../../src/modules/github/github-app.service.js'));
   ({ traceabilityAlertService: alertService } =
     await import('../../src/modules/traceability/traceability-alert.service.js'));
+  ({ traceabilityAlertRepository: alertRepository } =
+    await import('../../src/modules/traceability/traceability-alert.repository.js'));
   ({ default: app } = await import('../../src/app.js'));
   app = await startTestServer(app);
   await cleanTestDatabase(prisma);
@@ -209,5 +212,55 @@ describe('Correções S2-01 — campos do GitHub no limite (S201-A03)', () => {
       ['Issue #3', 'PR #1', 'PR #2'].sort()
     );
     expect(alerts.find((alert) => alert.subjectCode === 'PR #1').subjectTitle).toBe(TITLE_256);
+  });
+});
+
+describe('Correções S2-01 — reconciliar ao conectar o repositório (S201-A01)', () => {
+  const base = (projectId) => `/api/projects/${projectId}/traceability`;
+
+  async function concludedTask(owner, projectId) {
+    const created = await owner
+      .mutate('post', `/api/projects/${projectId}/tasks`)
+      .send({ title: 'Concluída antes da conexão' });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const moved = await owner
+      .mutate('patch', `/api/tasks/${created.body.task.id}/status`)
+      .send({ status: 'CONCLUIDO' });
+    expect(moved.status).toBe(200);
+    return created.body.task;
+  }
+
+  it('C2-01 conectar o repositório gera o alerta da tarefa já concluída sem commit (AT-T-09)', async () => {
+    const project = await createProject(prisma);
+    const owner = await register('OWNER', project.id);
+    const task = await concludedTask(owner, project.id);
+    expect((await owner.agent.get(`${base(project.id)}/alerts/summary`)).body.open.total).toBe(0);
+
+    expect((await connectRepository(owner, project.id)).status).toBe(200);
+
+    const summary = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
+    expect(summary.rules.taskWithoutCommitActive).toBe(true);
+    expect(summary.open.total).toBe(1);
+    const list = (await owner.agent.get(`${base(project.id)}/alerts`)).body;
+    expect(list.alerts[0].subject).toMatchObject({ type: 'TASK', id: task.id });
+  });
+
+  it('C2-02 falha na reconciliação ao conectar não desfaz a conexão', async () => {
+    const project = await createProject(prisma);
+    const owner = await register('OWNER', project.id);
+    await concludedTask(owner, project.id);
+    vi.spyOn(alertRepository, 'reconcileProject').mockRejectedValueOnce(
+      Object.assign(new Error('falha injetada'), { code: 'P2034' })
+    );
+
+    const connected = await connectRepository(owner, project.id);
+
+    expect(connected.status, JSON.stringify(connected.body)).toBe(200);
+    expect(await prisma.projectGitHubIntegration.count({ where: { projectId: project.id } })).toBe(
+      1
+    );
+    expect((await owner.agent.get(`${base(project.id)}/alerts/summary`)).body.open.total).toBe(0);
+    const recovered = await owner.mutate('post', `${base(project.id)}/alerts/reconcile`).send({});
+    expect(recovered.body.result.created).toBe(1);
   });
 });

@@ -75,6 +75,27 @@ export function createTraceabilityAlertService(
     return result;
   }
 
+  const failureMessages = {
+    GITHUB_SYNC: 'Falha ao reconciliar alertas de rastreabilidade após a sincronização.',
+    GITHUB_INTEGRATION:
+      'Falha ao reconciliar alertas de rastreabilidade após conectar o repositório.'
+  };
+
+  async function reconcileSafely(projectId, trigger) {
+    try {
+      return await reconcile(projectId, { dryRun: false, trigger });
+    } catch (error) {
+      if (isInactiveProject(error)) return null;
+      log.warn(failureMessages[trigger], {
+        event: 'traceability_alerts_reconcile_failed',
+        projectId,
+        trigger,
+        errorCode: error?.code || 'TRACEABILITY_ALERTS_RECONCILE_FAILED'
+      });
+      return null;
+    }
+  }
+
   async function requireManager(projectId, actorUserId) {
     if (!Number.isInteger(actorUserId)) throw forbidden();
     const role = await repository.findMembershipRole(projectId, actorUserId);
@@ -86,19 +107,12 @@ export function createTraceabilityAlertService(
       return reconcile(projectId, { dryRun, trigger });
     },
 
-    async reconcileAfterSync(projectId) {
-      try {
-        return await reconcile(projectId, { dryRun: false, trigger: 'GITHUB_SYNC' });
-      } catch (error) {
-        if (isInactiveProject(error)) return null;
-        log.warn('Falha ao reconciliar alertas de rastreabilidade após a sincronização.', {
-          event: 'traceability_alerts_reconcile_failed',
-          projectId,
-          trigger: 'GITHUB_SYNC',
-          errorCode: error?.code || 'TRACEABILITY_ALERTS_RECONCILE_FAILED'
-        });
-        return null;
-      }
+    reconcileAfterSync(projectId) {
+      return reconcileSafely(projectId, 'GITHUB_SYNC');
+    },
+
+    reconcileAfterIntegration(projectId) {
+      return reconcileSafely(projectId, 'GITHUB_INTEGRATION');
     },
 
     async reconcileAllProjects({ dryRun = true, trigger = 'SCRIPT' } = {}) {

@@ -3,6 +3,7 @@ import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
 import { authorizationService } from '../authorization/authorization.service.js';
+import { traceabilityAlertService } from '../traceability/traceability-alert.service.js';
 import { githubAppCredentialProvider } from './github-credential.provider.js';
 import { githubInstallationClientFactory } from './github.client.js';
 import { collectGithubPages } from './github-pagination.js';
@@ -389,8 +390,9 @@ export const githubAppService = {
       githubRepositoryId
     );
     await this.assertRepositoryAvailable(repository.githubRepositoryId, projectId, userId);
+    let integration;
     try {
-      return await githubRepository.connectProject(Number(projectId), installation.id, {
+      integration = await githubRepository.connectProject(Number(projectId), installation.id, {
         githubRepositoryId: repository.githubRepositoryId,
         repositoryName: repository.name,
         repositoryFullName: repository.fullName,
@@ -403,6 +405,8 @@ export const githubAppService = {
       if (error?.code === 'P2002') throw repositoryConflict();
       throw error;
     }
+    await traceabilityAlertService.reconcileAfterIntegration(Number(projectId));
+    return integration;
   },
   verifyWebhookSignature(rawBody, suppliedSignature) {
     if (
