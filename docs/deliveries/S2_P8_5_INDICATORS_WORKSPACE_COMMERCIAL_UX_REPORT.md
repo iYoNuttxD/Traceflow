@@ -1,5 +1,9 @@
 # S2 P8.5 — Indicators Workspace + Commercial Analytics UX
 
+> Legacy label: S2 P8.5. Canonical phase: **IND-P8.5**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 Data: 2026-09-28. Escopo: reorganização da superfície analítica e exposição das referências já existentes.
 
 ## 1. Baseline

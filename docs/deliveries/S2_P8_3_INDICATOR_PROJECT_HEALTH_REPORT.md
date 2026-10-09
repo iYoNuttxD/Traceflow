@@ -1,5 +1,9 @@
 # S2 P8.3 — Indicator Health + Project Health
 
+> Legacy label: S2 P8.3. Canonical phase: **IND-P8.3**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 **Estado local:** PASS LOCAL para o escopo P8.3. **Capacidade:** derivada de RF55/UC14, sem RF novo. **Modelo:** Project Health Model v1. Os gates e seus limites estão nas seções 24–27.
 
 ## 1. Baseline

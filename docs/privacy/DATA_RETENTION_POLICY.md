@@ -100,3 +100,30 @@ Não há upload OCI, retenção automática de vídeo nem coleta periódica nova
   `actorUserId` seja o titular, sempre em projetos com membership ativa. Ator nulo e
   registros de terceiros ficam de fora. O evento funcional é preservado quando a
   identidade direta deixa de resolver.
+
+## Personalização e histórico de indicadores — PR23-FIX-06
+
+- `ProjectDashboardPreference` não possui TTL próprio. Enquanto há participação ativa, permanece
+  até save/reset ou fim do ciclo aplicável. GET tolerante a catálogo antigo é apresentação apenas.
+- Desativação de membership pelo OWNER e saída voluntária removem a preferência **somente do par
+  usuário/projeto**, dentro da transação de membership. Falha da transação preserva ambos.
+  Reativação não restaura a configuração anterior: retorna o padrão e aceita novo save explícito.
+- Desativação da **conta** é operação distinta e reversível: não apaga automaticamente a preferência.
+  Acesso fica sujeito ao estado da conta. Anonimização remove todas as preferências do usuário.
+- Soft delete de **projeto** mantém a preferência inacessível; restore do projeto recupera o contexto
+  quando a membership continua ativa. Hard purge usa cascade. Exclusão física do usuário também
+  possui cascade. Não há rotina de expurgo retroativo de memberships já inativas nesta entrega.
+- Export pessoal filtra preferências e fatos vinculados por projetos acessíveis/memberships ativas.
+  Nenhuma preferência de outro usuário é exportada. Os arquivos e a identificação por snapshot/ID
+  GitHub estão no [inventário pessoal](PERSONAL_DATA_INVENTORY.md).
+- `SprintBurnupEvent` conserva fatos de escopo/esforço/status mesmo após exclusão física da Task;
+  `taskKey` é chave técnica sem FK e não contém autoria pessoal própria. Soft delete conserva;
+  hard purge de Sprint/Project remove por cascade. Sem prazo numérico autônomo ou titular pessoal
+  inferido. Não se deve reconstruir identidade a partir dessa chave para fabricar export pessoal.
+- I02/I03/I05 não persistem score individual. Sua disponibilidade deriva das fontes, da membership
+  e da anonimização; a apresentação por pessoa não prolonga a retenção das entidades de origem.
+
+Implementação: [membership](../../backend/src/modules/projects/project-membership.repository.js),
+[anonimização](../../backend/src/modules/privacy/privacy.repository.js),
+[schema](../../backend/prisma/schema.prisma). Regressões transacionais e de escopo em
+[indicators-p9.test.js](../../backend/test/api/indicators-p9.test.js).

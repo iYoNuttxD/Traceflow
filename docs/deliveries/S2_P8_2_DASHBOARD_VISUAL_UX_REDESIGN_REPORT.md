@@ -1,5 +1,9 @@
 # S2 P8.2 — Dashboard visual e UX
 
+> Legacy label: S2 P8.2. Canonical phase: **IND-P8.2**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 **Resultado local:** S2 P8.2 DASHBOARD VISUAL & UX REDESIGN — **PASS LOCAL**. Redesign renderizado
 com API real nas sete visões, em Light/Dark e 1440/1280/768/390 px; gates locais aprovados. Esta
 declaração cobre a rodada P8.2 no checkout atual, sem equivaler a CI remoto, certificação WCAG ou

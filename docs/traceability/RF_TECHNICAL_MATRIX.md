@@ -150,3 +150,21 @@ sem reaproveitar a homologação visual P8.1 como aprovação da nova superfíci
   Isso não altera o texto oficial dos RFs nem conclui S2-04/S2-05 como um todo.
 - Registros P2–P8.5 acima preservam a cronologia de entrega. Seu uso de “pendente”
   deve ser lido no contexto da etapa, prevalecendo os contratos e evidências atuais.
+
+## Referências técnicas de Indicadores — PR23-FIX-06
+
+As fases históricas S2 P* são denominadas **IND-P*** no
+[roadmap](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind);
+não correspondem aos cartões S2-01…S2-10. IND-P10 foi revisão interna final, sem alegação de
+independência de autoria. Seus registros não encerram automaticamente S2-04/S2-05.
+
+A rota atual RF55/RF56 é `/projects/:projectId/indicators` (`IndicatorsScreen` → `DashboardPanel`);
+a Overview contém apenas `ProjectHealthSummary`. RF55 conserva o resultado de FIX-02/FIX-02.1:
+regra/fórmula, fonte e frescor sob demanda na ajuda, sem novo rebaixamento de implementação.
+Autorização das 12 rotas e exceção pessoal VIEWER:
+[matriz](../security/AUTHORIZATION_MATRIX.md#indicadores-e-preferência-pessoal--pr23-fix-06).
+Privacidade/retenção: [inventário](../privacy/PERSONAL_DATA_INVENTORY.md) e
+[política](../privacy/DATA_RETENTION_POLICY.md), conferidos com schema/export/anonimização.
+Evidência executável: [API e preferências](../../backend/test/api/indicators-p9.test.js),
+[privacidade](../../backend/test/api/privacy-governance.test.js) e
+[inventário canônico](../design/UI_SURFACE_INVENTORY.md).

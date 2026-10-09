@@ -1,5 +1,9 @@
 # S2 P8.6D — Final Indicators Polish
 
+> Legacy label: S2 P8.6D. Canonical phase: **IND-P8.6D**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 Rodada iniciada em 2026-10-03 e encerrada em 2026-10-04, America/Sao_Paulo, no checkout `/Users/daniel/Coding/Traceflow`.

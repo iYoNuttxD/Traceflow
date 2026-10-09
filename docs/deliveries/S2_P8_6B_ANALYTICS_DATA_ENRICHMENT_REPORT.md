@@ -1,5 +1,9 @@
 # S2 P8.6B — Analytics Data Enrichment & Visualization Completeness
 
+> Legacy label: S2 P8.6B. Canonical phase: **IND-P8.6B**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline e escopo
 
 - Pré-requisito confirmado: P8.6A registra **PASS LOCAL** no HEAD.

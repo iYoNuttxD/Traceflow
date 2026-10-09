@@ -110,3 +110,47 @@ titularidade pelo ID canônico: responsabilidade própria ou ação própria. A 
 no mesmo projeto não autoriza exportar atribuições ou eventos de outro usuário. Eventos
 legados com ator nulo permanecem fora da exportação; nomes, descrições completas,
 metadata livre e dados de outros membros não são usados para inferir titularidade.
+
+## Indicadores e personalização — inventário conferido no PR23-FIX-06
+
+| Dado | Conteúdo e finalidade | Acesso e identificação | Ciclo de vida / export |
+| --- | --- | --- | --- |
+| `ProjectDashboardPreference` | `id`, `userId`, `projectId`, `configurationVersion`, `configuration` (JSON com IDs ordenados de widgets), `createdAt`, `updatedAt`; personalização individual | Somente titular autenticado com membership ativa no projeto; backend autorizado. Chave única usuário/projeto; não armazena valores dos indicadores | GET sanitiza legado sem escrever; save/reset explícito. Desativação/saída remove o par; anonimização remove todas do usuário; purge de projeto/usuário tem cascade. Soft delete de projeto preserva para restore. Export `indicator-preferences.json` apenas de projetos acessíveis com membership ativa |
+| `TaskMovement.responsibleUserIdSnapshot` | Responsável no instante da movimentação; rastreabilidade de responsabilidade, não avaliação humana | Vínculo persistido com usuário, sem inferência pelo responsável atual | Export `task-responsibility-movements.json`: movimentos associados ao titular em projetos ativos acessíveis; campos de movimento, sem exportar preferências alheias |
+| Autoria GitHub vinculada | Commits associados a `GitHubIdentity.githubUserId`, usados para autoria técnica e I02/I05 | Correspondência exata por ID GitHub; não inferida por nome/email | `github-authored-commits.json` exporta `id`, `projectId`, `hash`, `date`, `githubUrl` de commits associados à identidade atual, em projetos com participação ativa |
+| `SprintBurnupEvent` | `id`, `projectId`, `sprintId`, `taskKey`, `type`, `previousPoints`, `newPoints`, `fromStatus`, `toStatus`, `occurredAt`, `createdAt`; fatos para reconstrução histórica | Sem usuário/ator/nome/email próprios. `taskKey` permite correlação técnica indireta, não identifica titular de export | Sobrevive à exclusão da tarefa: `taskKey` não é FK de Task. Cascade por Sprint/Project em hard purge; soft delete conserva histórico. Não há arquivo pessoal específico atribuído a um titular por esse modelo |
+
+### Segmentação por pessoa
+
+I02 (commits), I03 (tarefas concluídas) e I05 (visão por membro, RF36) retornam `userId`,
+`displayName` e contagens por unidade. I05 preserva tarefas e commits como unidades separadas.
+I36 representa esforço planejado de Sprint; não é uma avaliação individual nem sinônimo de RF36.
+A visibilidade segue a leitura de indicadores do projeto (VIEWER+), não uma consulta pública.
+São elegíveis membros ativos e contas ativas não anonimizadas. I02 usa autoria GitHub por ID;
+I03 usa o snapshot de responsabilidade na conclusão válida, não a atribuição atual.
+Registros sem vínculo elegível permanecem agregados no grupo sem associação; não são reatribuídos
+por heurística. A lista é ordenada por nome/ID, não por produtividade. Não há score humano,
+ranking ou leaderboard. No Health, I02/I03/I05 são contexto, não sinais para pontuar pessoas.
+I03/I05 permanecem APIs de contexto; não são widgets personalizáveis independentes.
+
+Os resultados são calculados sobre os fatos retidos, não persistem um perfil de desempenho.
+Retenção e anonimização seguem as entidades de origem e a
+[política de retenção](DATA_RETENTION_POLICY.md).
+
+### Export pessoal: arquivos conferidos
+
+O serviço gera `profile.json`, `memberships.json`, `projects.json`, `requirements.json`,
+`test-cases.json`, `test-executions.json`, `test-evidence.json`, `responsible-defects.json`,
+`defect-history.json`, `task-effort-history.json`, `tasks.json`, `task-comments.json`,
+`task-time-entries.json`, `sessions.json`, `privacy-requests.json`, `data-exports.json`,
+`email-change-history.json`, `audit-events.json`, `github-identity.json`,
+`github-integrations.json`, `indicator-preferences.json`, `task-responsibility-movements.json`
+e `github-authored-commits.json`, além do manifest. Os recortes e seleções são definidos pelo
+[repository](../../backend/src/modules/settings/settings.repository.js) e os nomes pelo
+[serviço de export](../../backend/src/modules/settings/settings.service.js).
+A preferência exportada contém projeto, versão, configuração e timestamps; o titular é o
+usuário do export, sem seleção de outro usuário na requisição.
+
+Autoridade de persistência: [schema](../../backend/prisma/schema.prisma).
+Evidência: [preferências/API](../../backend/test/api/indicators-p9.test.js) e
+[governança de privacidade](../../backend/test/api/privacy-governance.test.js).

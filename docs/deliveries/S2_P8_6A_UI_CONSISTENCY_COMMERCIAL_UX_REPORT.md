@@ -1,5 +1,9 @@
 # S2 P8.6A — UI Consistency & Commercial UX Recovery
 
+> Legacy label: S2 P8.6A. Canonical phase: **IND-P8.6A**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## Baseline e escopo
 
 - Data: 2026-09-28; checkout `/Users/daniel/Coding/Traceflow`.

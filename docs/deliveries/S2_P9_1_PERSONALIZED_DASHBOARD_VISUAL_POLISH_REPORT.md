@@ -1,5 +1,9 @@
 # S2 P9.1 — Personalized dashboard visual polish
 
+> Legacy label: S2 P9.1. Canonical phase: **IND-P9.1**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-09.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 Data: 04/10/2026. Escopo: toolbar de Meu painel e ordenação no editor existente.
 
 ## 1. Baseline

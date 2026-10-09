@@ -1,5 +1,9 @@
 # S2 P8 — Dashboard na Visão Geral e RF55
 
+> Legacy label: S2 P8. Canonical phase: **IND-P8**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 **Resultado atualizado após P8.1: PASS LOCAL.** Nesta rodada P8 original, o painel foi implementado
 e os gates automatizados locais passaram, mas a inspeção renderizada usou fixture isolada. O bloqueio
 de sessão autenticada, API P7, dados persistidos e sync GitHub foi encerrado pela

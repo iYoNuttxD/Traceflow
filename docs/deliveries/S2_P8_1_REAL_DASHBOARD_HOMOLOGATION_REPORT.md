@@ -1,5 +1,9 @@
 # S2 P8.1 — Homologação do Dashboard com dados reais
 
+> Legacy label: S2 P8.1. Canonical phase: **IND-P8.1**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 **Resultado local: PASS LOCAL.** O bloqueio do P8 foi encerrado: sessão autenticada, API P7, dados persistidos, sincronização GitHub externa com atualização do painel e matriz visual real em desktop, tablet e mobile. Uma Sprint de homologação no banco de teste produziu I46 `AVAILABLE` por eventos do domínio; gráfico e tabela foram conferidos no frontend autenticado contra os pontos da API. Este resultado é local, sem equivalência automática a CI remota ou certificação WCAG.
 
 ## 1. Baseline

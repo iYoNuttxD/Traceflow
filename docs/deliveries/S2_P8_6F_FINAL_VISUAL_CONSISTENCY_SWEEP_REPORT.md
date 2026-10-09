@@ -1,5 +1,9 @@
 # S2 P8.6F — Final visual consistency sweep
 
+> Legacy label: S2 P8.6F. Canonical phase: **IND-P8.6F**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 - Data: 2026-10-04. Branch `daniel-dev`; HEAD `9d3e9dfb65475a21a7ef063a48c2f6567216b470`.

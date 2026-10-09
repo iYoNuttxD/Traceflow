@@ -1,5 +1,10 @@
 # S2 P8.6C — Indicators visual & data hardening
 
+> Legacy label: S2 P8.6C. Canonical phase: **IND-P8.6C-2**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+> Rodadas distintas: [outro registro P8.6C](S2_P8_6C_FINAL_INDICATORS_VALIDATION_REPORT.md). IND-P8.6C-1 registra a validação inicial; IND-P8.6C-2 registra o hardening posterior.
+
 Data local: 2026-10-03. Resultado: **CHANGES REQUIRED — HIGH / SECURITY**.
 
 ## 1. Baseline

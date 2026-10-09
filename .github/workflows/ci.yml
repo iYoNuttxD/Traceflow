@@ -63,6 +63,9 @@ jobs:
           ../scripts/*.mjs
           ../docs/security/npm-audit-exceptions.json
 
+      - name: Validate canonical UI inventory
+        run: node --test scripts/check-ui-inventory.test.mjs
+
       - name: Validate workflow policy
         run: node --test scripts/validate-ci.test.mjs
 

@@ -1,5 +1,9 @@
 # S2 P5.2 — consistência histórica entre Burndown e Burnup
 
+> Legacy label: S2 P5.2. Canonical phase: **IND-P5.2**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-05.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 **Resultado local: PASS LOCAL.**
 
 ## 1. Baseline

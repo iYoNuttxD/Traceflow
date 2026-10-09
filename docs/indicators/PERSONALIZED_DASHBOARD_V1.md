@@ -176,3 +176,11 @@ Nenhum indicador novo foi implementado nesta rodada.
 | I72 | Carry-over atual | SPRINT | CONTEXT_ONLY_BUT_CUSTOMIZABLE | Presenter standalone existente; estados preservados. | KPI | full | sprintId |
 | I73 | Idade média das PRs abertas | GITHUB | CUSTOMIZABLE | Presenter standalone existente; estados preservados. | KPI | compact | — |
 | I74 | Tempo médio até fechamento de Issue | GITHUB | CONTEXT_ONLY_BUT_CUSTOMIZABLE | Presenter standalone existente; estados preservados. | KPI | compact | period |
+
+## Retenção por participação — PR23-FIX-06
+
+Saída voluntária e desativação de membership removem a preferência do par usuário/projeto
+na mesma transação da mudança de participação. Reativação retorna o default canônico;
+não recupera a personalização removida. Isso é distinto de soft delete/restore do projeto
+ou desativação reversível da conta. GET permanece sem escrita, inclusive ao sanitizar IDs legados.
+Não há expurgo retroativo de dados existentes nesta entrega.

@@ -1,5 +1,9 @@
 # S2 P8.4 — Validação integral e recuperação do Dashboard
 
+> Legacy label: S2 P8.4. Canonical phase: **IND-P8.4**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 > **Retificação PR23-FIX-02 — 2026-10-05:** o pacote binário citado em §36 não está
 > versionado, não possui histórico Git nesse caminho e não foi encontrado localmente com
 > origem comprovável. O texto abaixo preserva a declaração feita na época, mas seu PASS
@@ -211,7 +215,7 @@ HEALTHY, ATTENTION, CRITICAL e UNASSESSED foram renderizados também em 16 combi
 | QUALITY | Habilitadas | Não aplicável | Não aplicável |
 | TRACEABILITY | Sem suporte seguro; explicado | Não aplicável | Não aplicável |
 
-Compatibilidade é derivada do backend, não da disponibilidade momentânea de dados. URL preserva período/Sprint/responsável ao trocar visão; resumo indica ausência de efeito e Limpar remove a seleção. Draft não dispara request; abrir/fechar preserva draft. Aplicar envia fuso IANA; período incompleto exibe erro nomeado. Back/Forward restaura estado. Teste API confirma São Paulo `[03:00Z,03:00Z)` e cobertura existente de DST de Nova York. Listagem de Sprints tem recuperação própria.
+Compatibilidade é derivada do backend, não da disponibilidade momentânea de dados. URL preserva período/Sprint/responsável ao trocar visão; resumo indica ausência de efeito e Limpar remove a seleção. Draft não dispara request; abrir/fechar preserva draft. Aplicar envia fuso IANA; período incompleto exibe erro nomeado. Back/Forward restaura estado. Teste API confirma São Paulo `03:00Z,03:00Z)` e cobertura existente de DST de Nova York. Listagem de Sprints tem recuperação própria.
 
 ## 17. Burndown
 
@@ -338,19 +342,19 @@ Foram usados lockfiles/dependências instaladas e Node 22; não se executou novo
 
 ## 36. Evidências visuais
 
-Pasta durável: [evidence/s2-p8-4](../design/validation/evidence/s2-p8-4/README.md). Contém 26 capturas selecionadas e oito arquivos JSON com payloads/resultados, sem credenciais. As imagens reais usam nome longo de projeto, dados persistidos e sessão autenticada.
+Pasta durável: [evidence/s2-p8-4 (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/README.md`). Contém 26 capturas selecionadas e oito arquivos JSON com payloads/resultados, sem credenciais. As imagens reais usam nome longo de projeto, dados persistidos e sessão autenticada.
 
 | Evidência | Link |
 |---|---|
-| Geral real desktop | [Light](../design/validation/evidence/s2-p8-4/real-general-1440-light.png) / [Dark](../design/validation/evidence/s2-p8-4/real-general-1440-dark.png) |
-| Sprint real desktop | [Light](../design/validation/evidence/s2-p8-4/real-sprint-1440-light.png) / [Dark](../design/validation/evidence/s2-p8-4/real-sprint-1440-dark.png) |
-| Snapshot comprimido / corrigido | [Antes](../design/validation/evidence/s2-p8-4/baseline-snapshot-1440.png) / [Depois real](../design/validation/evidence/s2-p8-4/real-closed-sprint-snapshot-1440.png) |
-| Ajuda mobile | [Antes](../design/validation/evidence/s2-p8-4/baseline-help-390.png) / [Depois real](../design/validation/evidence/s2-p8-4/real-help-390.png) |
-| Qualidade real | [Execuções 1/1/1](../design/validation/evidence/s2-p8-4/real-quality-1440-light.png) |
-| Rastreabilidade real | [Mobile Dark](../design/validation/evidence/s2-p8-4/real-traceability-390-dark.png) |
-| I17 final | [Replay rotulado](../design/validation/evidence/s2-p8-4/replay-i17-390-dark.png) |
-| Sprint planejada real | [Sem histórico inventado](../design/validation/evidence/s2-p8-4/real-planned-sprint.png) |
-| Health sintético | [Crítico](../design/validation/evidence/s2-p8-4/fixture-critical-1440-light.png) / [Sem avaliação](../design/validation/evidence/s2-p8-4/fixture-unassessed-390-dark.png) |
+| Geral real desktop | Light (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-general-1440-light.png`) / Dark (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-general-1440-dark.png`) |
+| Sprint real desktop | Light (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-sprint-1440-light.png`) / Dark (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-sprint-1440-dark.png`) |
+| Snapshot comprimido / corrigido | Antes (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/baseline-snapshot-1440.png`) / Depois real (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-closed-sprint-snapshot-1440.png`) |
+| Ajuda mobile | Antes (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/baseline-help-390.png`) / Depois real (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-help-390.png`) |
+| Qualidade real | Execuções 1/1/1 (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-quality-1440-light.png`) |
+| Rastreabilidade real | Mobile Dark (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-traceability-390-dark.png`) |
+| I17 final | Replay rotulado (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/replay-i17-390-dark.png`) |
+| Sprint planejada real | Sem histórico inventado (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/real-planned-sprint.png`) |
+| Health sintético | Crítico (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/fixture-critical-1440-light.png`) / Sem avaliação (caminho histórico indisponível: `../design/validation/evidence/s2-p8-4/fixture-unassessed-390-dark.png`) |
 
 Outras visões estão na pasta; JSONs registram presença, tamanho, contraste, requests, estados e interação. A anotação de I17 preserva a captura anterior ao ajuste, sem apresentar evidência antiga como resultado final corrigido.
 

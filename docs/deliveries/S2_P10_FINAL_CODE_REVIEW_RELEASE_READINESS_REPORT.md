@@ -1,7 +1,11 @@
 # S2 P10 — Final code review, QA e release readiness
 
+> Legacy label: S2 P10. Canonical phase: **IND-P10**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-10.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 Data: 04/10/2026. Ambiente local, Node 22. Este relatório registra a revisão
-independente do estado final P9.1.1 e as correções realizadas nesta rodada.
+interna final do estado final P9.1.1 e as correções realizadas nesta rodada.
 
 ## 1. Executive Summary
 

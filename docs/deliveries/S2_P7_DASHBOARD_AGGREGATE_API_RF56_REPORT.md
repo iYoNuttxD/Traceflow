@@ -1,5 +1,9 @@
 # S2 P7 — Dashboard Aggregate API e RF56
 
+> Legacy label: S2 P7. Canonical phase: **IND-P7**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-07.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 - Branch inicial: `daniel-dev`; HEAD: `b6182dac37c36a0c930d96ecd1aff8565c3f248a` (P6).

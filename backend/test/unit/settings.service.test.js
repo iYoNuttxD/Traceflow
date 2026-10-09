@@ -303,11 +303,26 @@ describe('configurações de conta L2', () => {
   });
 
   it('exporta ZIP JSON sem hashes, tokens ou segredos', async () => {
+    const preferences = [
+      { projectId: 11, configurationVersion: 1, configuration: { widgets: ['I01'] } }
+    ];
+    const movements = [{ id: 12, projectId: 11, taskId: 13, toStatus: 'CONCLUIDO' }];
+    const commits = [
+      {
+        id: 14,
+        projectId: 11,
+        hash: 'abc',
+        githubUrl: 'https://github.com/example/repo/commit/abc'
+      }
+    ];
+    mocks.repository.exportGithubAuthoredCommits.mockResolvedValue(commits);
     mocks.repository.exportData.mockResolvedValue({
       ...activeUser,
       emailVerifiedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      dashboardPreferences: preferences,
+      responsibleMovementSnapshots: movements,
       memberships: [],
       responsibleTasks: [],
       sessions: [],
@@ -326,6 +341,13 @@ describe('configurações de conta L2', () => {
       email: 'daniel@example.test',
       accountStatus: 'ACTIVE'
     });
+    for (const [filename, expected] of [
+      ['indicator-preferences.json', preferences],
+      ['task-responsibility-movements.json', movements],
+      ['github-authored-commits.json', commits]
+    ]) {
+      expect(JSON.parse(await archive.file(filename).async('string'))).toEqual(expected);
+    }
     expect(profile).not.toHaveProperty('passwordHash');
     const manifest = JSON.parse(await archive.file('manifest.json').async('string'));
     expect(manifest.generatedAt).toBe('2030-01-01T00:00:00.000Z');

@@ -1,5 +1,9 @@
 # S2 P3 — GitHub Analytics + RF18/RF54 — relatório local
 
+> Legacy label: S2 P3. Canonical phase: **IND-P3**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-03.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 Início em `daniel-dev`, HEAD `b10920f34510692f4a769fcca49a1296ea52de8c`, working tree limpa, `git diff --check` vazio. Gates em Node 22.23.3 e Prisma 6.12.0. Sem commit, push, merge, rebase, reset, clean ou stash.

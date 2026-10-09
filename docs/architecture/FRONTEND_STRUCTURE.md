@@ -118,13 +118,20 @@ embutidas na Overview: edição usa `/projects/:projectId/edit`, e membros, conv
 usam `/projects/:projectId/members`. As telas continuam exibindo ações conforme o papel retornado
 pela API; o backend permanece autoritativo para autorização e lifecycle.
 
-P8 mantém essa surface como contexto compacto e carrega `features/indicators/DashboardPanel` sob
-demanda na mesma rota. A feature consulta o catálogo e uma resposta agregada P7 por visão/filtro;
-nenhum widget chama um endpoint de cálculo próprio. O seletor e os filtros serializáveis ficam na
-query string, restauráveis por Back/Forward. Cada consulta usa geração e cancelamento para impedir
-respostas antigas de substituir a visão atual. Gráficos SVG são um chunk separado e recebem os
-pontos do backend sem recalcular indicadores; a tabela expansível preserva os valores para leitura
-textual. Projeto, membros e lista de Sprints continuam sendo dados de contexto e opções de filtro.
+O workspace completo vive em `/projects/:projectId/indicators`:
+`app/routes/AppRoutes.jsx` → `pages/IndicatorsPage.jsx` → `features/indicators/IndicatorsScreen.jsx`
+→ `DashboardPanel.jsx`. Geral e Meu Painel são views desse workspace; o editor é
+`components/DashboardEditor.jsx` e a personalização é apresentada por `components/CustomDashboard.jsx`.
+A Visão Geral em `/projects/:projectId` contém apenas `ProjectHealthSummary`, compacto e integrado
+ao container de contexto. Ele usa o aggregate com `view=GENERAL&healthOnly=true`; não monta o
+DashboardPanel completo nem cria outro endpoint de Health.
+
+A feature consulta catálogo e aggregate por visão/filtro, via o client real em
+`frontend/src/api/http-client.js`; widgets não fazem requests individuais de cálculo.
+Query string mantém view/filtros para Back/Forward. Geração e cancelamento impedem respostas
+antigas de substituir o contexto atual. Gráficos recebem pontos do backend sem recalcular
+indicadores. Projeto, membros e Sprints fornecem contexto/opções. As fronteiras continuam
+routes → pages → features → API compartilhada, sem mover regras de domínio para a UI.
 
 Overview, edição e membros usam `BackButton`, primitive shared com destino conhecido, nome acessível
 e touch target. A rota de membros organiza Equipe e Convites em tabs com a mesma primitive visual da

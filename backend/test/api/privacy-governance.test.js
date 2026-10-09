@@ -173,6 +173,7 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
     });
     expect(anonymized.email).toMatch(/^anonymous_.+@deleted\.traceflow\.invalid$/);
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.projectDashboardPreference.count({ where: { userId: user.id } })).toBe(0);
     expect(await prisma.gitHubInstallationAuthorization.count({ where: { userId: user.id } })).toBe(
       0
     );

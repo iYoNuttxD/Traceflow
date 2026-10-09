@@ -1,5 +1,9 @@
 # S2 P5.1 — Burnup Historical Foundation — relatório local
 
+> Legacy label: S2 P5.1. Canonical phase: **IND-P5.1**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-05.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 **Resultado: S2 P5.1 BURNUP HISTORICAL FOUNDATION — PASS LOCAL.** Uma Sprint iniciada após a fundação produz I46 `AVAILABLE` com escopo e conclusão históricos demonstráveis. A diferença de semântica histórica com I45 em reaberturas permanece registrada na seção 19.
 
 ## 1. Baseline

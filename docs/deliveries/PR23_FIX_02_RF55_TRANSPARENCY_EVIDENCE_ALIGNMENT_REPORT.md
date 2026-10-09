@@ -121,7 +121,7 @@ captura prematura durante rolagem foi substituída pelo frame final.
 Console capturado sem warnings/errors. Tema Escuro, sidebar expandida e viewport
 original restaurados; aba temporária de inspeção encerrada.
 
-Pacote próprio: [evidências PR23-FIX-02](../design/validation/evidence/pr23-fix-02/README.md).
+Pacote próprio: evidências PR23-FIX-02 (referência histórica indisponível neste checkout: `../design/validation/evidence/pr23-fix-02/README.md`).
 Arquivos incluídos no working tree para revisão/versionamento; nenhum commit feito.
 
 ## 16. Design System alignment
@@ -208,3 +208,10 @@ contra suas implementações e normalizou `formula` na autoridade backend, subst
 a tradução de termos do presenter descrita neste relatório histórico. Label vigente
 **Como é calculado**; clocks, Data States e RF55 preservados. Evidência atual em
 [PR23-FIX-02.1](PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md).
+
+## Retificação de referências — PR23-FIX-06 (08/10/2026)
+
+Os caminhos de evidência binária citados neste relatório não estão disponíveis no checkout/índice
+atual. As observações e conclusões originais acima permanecem históricas; não comprovam que esses
+arquivos estejam versionados. O inventário/log foram alinhados a TECHNICALLY VERIFIED para a ajuda
+afetada, preservando RF55 funcional. Nenhuma evidência foi recriada retroativamente.

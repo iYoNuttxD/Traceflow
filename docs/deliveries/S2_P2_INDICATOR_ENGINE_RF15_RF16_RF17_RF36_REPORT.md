@@ -1,5 +1,9 @@
 # S2 P2 — Indicator Engine e RF15/RF16/RF17/RF36
 
+> Legacy label: S2 P2. Canonical phase: **IND-P2**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-02.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 P2 começou em `daniel-dev`, HEAD `a355b615fb6cd752dd333e6ed200c200bb92da24`, working tree limpa e `git diff --check` vazio. Shell padrão Node 26.9.0; implementação e gates usam Node 22.23.3. Prisma `6.12.0`. O P0/P1 já estava versionado. Nenhum commit, push, merge, rebase, reset, clean ou stash faz parte desta rodada.

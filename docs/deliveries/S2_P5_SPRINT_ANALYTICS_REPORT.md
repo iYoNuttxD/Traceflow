@@ -1,5 +1,9 @@
 # S2 P5 — Sprint Analytics — relatório local
 
+> Legacy label: S2 P5. Canonical phase: **IND-P5**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-05.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 Início em `daniel-dev`, HEAD `5d3973a231d61c03e18725507ee2c2ee3afc929b`, working tree limpa, `git diff --check` e `git diff --stat` vazios. Node 22.23.3 e Prisma 6.12.0. Sem commit, push, merge, rebase, reset, clean ou stash.

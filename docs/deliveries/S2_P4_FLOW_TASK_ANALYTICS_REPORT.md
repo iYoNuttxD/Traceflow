@@ -1,5 +1,9 @@
 # S2 P4 — Flow + Task Analytics — relatório local
 
+> Legacy label: S2 P4. Canonical phase: **IND-P4**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-04.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 Início em `daniel-dev`, HEAD `4d1b1f2d7ab031701d585272ad2b7d08d5cacc48`, working tree limpa e `git diff --check` vazio. Node 22.23.3, Prisma 6.12.0. Sem commit, push, merge, rebase, reset, clean ou stash.

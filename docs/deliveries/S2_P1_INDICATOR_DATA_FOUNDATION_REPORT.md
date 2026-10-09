@@ -1,5 +1,9 @@
 # S2 P1 — Indicator Data Foundation: relatório local
 
+> Legacy label: S2 P1. Canonical phase: **IND-P1**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-01.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## A. Baseline e escopo
 
 `daniel-dev`, HEAD inicial `54ea185e42bc95d07c0ade91b89ace6f64375b99`; antes do P1 havia apenas `docs/indicators/` não rastreado do P0. Shell inicial Node 26; validações P1 usam Node 22.23.3. A fundação adiciona fatos, migrations e contratos; S2-04/S2-05 continuam abertos. Não há Indicator Engine, `/indicators`, dashboard, gráfico, biblioteca de chart, commit ou push.

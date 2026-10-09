@@ -38,7 +38,7 @@ nenhum texto ou widget foi inventado para eles.
 
 Para cada ID: texto anterior efetivamente apresentado → leitura persistida →
 service → calculator/policy → RF/decisão vigente → nova descrição. A matriz
-registra antes/depois, fatos e classificação; o [JSON completo](../design/validation/evidence/pr23-fix-02-1/audit-matrix.json)
+registra antes/depois, fatos e classificação; o JSON completo (referência histórica indisponível neste checkout: `../design/validation/evidence/pr23-fix-02-1/audit-matrix.json`)
 contém cada caminho de implementação e autoridade. Nenhuma linha foi aceita apenas
 porque já estava documentada. Os aliases da matriz identificam estes owners:
 
@@ -317,7 +317,7 @@ retries ou criados skips. Os skips preexistentes exigem banco anterior a LR.2.
 Inspeção atual com Chrome autenticado e API real do Project 2, período setembro,
 sem seed, mocks de rede ou escrita no banco de desenvolvimento. Todas as sete
 famílias expostas possuem amostra real; matriz exata e capturas próprias:
-[evidence/pr23-fix-02-1](../design/validation/evidence/pr23-fix-02-1/README.md).
+evidence/pr23-fix-02-1 (referência histórica indisponível neste checkout: `../design/validation/evidence/pr23-fix-02-1/README.md`).
 1440 Light/Dark, 390 Light/Dark e tablet 768×1024 foram conferidos em amostra;
 Meu painel reutiliza a mesma ajuda na API real. Space/Enter, Escape e retorno de
 foco também foram exercitados. Console capturado sem warn/error. Camada principal
@@ -367,3 +367,10 @@ Health weight, contrato estrutural, domínio, schema, banco, autorização ou de
 alterado. Não iniciar FIX-03.
 
 Sugestão de commit para revisão futura: `fix: audit and clarify indicator calculation details`.
+
+## Retificação de referências — PR23-FIX-06 (08/10/2026)
+
+Os caminhos de evidência binária citados neste relatório não estão disponíveis no checkout/índice
+atual. As observações e conclusões originais acima permanecem históricas; não comprovam que esses
+arquivos estejam versionados. O inventário/log foram alinhados a TECHNICALLY VERIFIED para a ajuda
+afetada, preservando RF55 funcional. Nenhuma evidência foi recriada retroativamente.

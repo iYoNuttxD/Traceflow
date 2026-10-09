@@ -69,6 +69,77 @@ const config = (widgets) => ({ configurationVersion: 1, widgets });
 const ids = (r) => r.body.sections.flatMap((s) => s.indicators.map((i) => i.metricId));
 
 describe('P9 personal preference and custom aggregate', () => {
+  it.each(['deactivate', 'leave'])(
+    '%s removes only this membership preference; reactivation starts with the default',
+    async (operation) => {
+      const owner = await actor();
+      const member = await actor();
+      const p = await project(owner);
+      const q = await project(member);
+      const membership = await prisma.projectMembership.create({
+        data: { projectId: p.id, userId: member.id, role: 'VIEWER' }
+      });
+      await call(p, owner, 'put').send(config(['I01']));
+      await call(p, member, 'put').send(config(['I23']));
+      await call(q, member, 'put').send(config(['I21']));
+      const removed = await call(
+        p,
+        operation === 'leave' ? member : owner,
+        'delete',
+        operation === 'leave' ? 'members/me' : `members/${membership.id}`
+      );
+      expect(removed.status).toBe(204);
+      expect((await call(p, member)).status).toBe(404);
+      expect(
+        await prisma.projectDashboardPreference.count({
+          where: { projectId: p.id, userId: member.id }
+        })
+      ).toBe(0);
+      expect((await call(p, owner)).body.widgets).toEqual(['I01']);
+      expect((await call(q, member)).body.widgets).toEqual(['I21']);
+      const { settingsRepository } =
+        await import('../../src/modules/settings/settings.repository.js');
+      expect((await settingsRepository.exportData(member.id)).dashboardPreferences).toEqual([
+        expect.objectContaining({ projectId: q.id })
+      ]);
+      expect((await call(p, owner, 'post', `members/${membership.id}/reactivate`)).status).toBe(
+        200
+      );
+      expect((await call(p, member)).body).toEqual(defaultDashboardPreference());
+      expect((await call(p, member, 'put').send(config(['I49']))).status).toBe(200);
+      expect((await call(p, member)).body.widgets).toEqual(['I49']);
+    }
+  );
+
+  it('rolls back membership and preference together if the deactivation audit fails', async () => {
+    const owner = await actor();
+    const member = await actor();
+    const p = await project(owner);
+    const membership = await prisma.projectMembership.create({
+      data: { projectId: p.id, userId: member.id, role: 'MEMBER' }
+    });
+    await call(p, member, 'put').send(config(['I23']));
+    const { auditRepository } = await import('../../src/modules/audit/audit.repository.js');
+    vi.spyOn(auditRepository, 'create').mockRejectedValueOnce(
+      new Error('controlled audit failure')
+    );
+    expect((await call(p, owner, 'delete', `members/${membership.id}`)).status).toBe(500);
+    expect(
+      await prisma.projectMembership.findUnique({ where: { id: membership.id } })
+    ).toMatchObject({
+      isActive: true
+    });
+    expect((await call(p, member)).body.widgets).toEqual(['I23']);
+  });
+
+  it('preserves the last owner preference when leaving is rejected', async () => {
+    const owner = await actor();
+    const p = await project(owner);
+    await call(p, owner, 'put').send(config(['I23']));
+    expect((await call(p, owner, 'delete', 'members/me')).status).toBe(409);
+    expect((await call(p, owner)).body.widgets).toEqual(['I23']);
+  });
+
   it.each([
     [['I03', 'I01'], ['I01']],
     [['I99', 'I03'], defaultDashboardPreference().widgets]

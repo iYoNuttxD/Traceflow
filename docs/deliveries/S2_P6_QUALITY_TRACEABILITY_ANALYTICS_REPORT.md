@@ -1,5 +1,9 @@
 # S2 P6 — Quality + Traceability Analytics
 
+> Legacy label: S2 P6. Canonical phase: **IND-P6**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-06.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 ## 1. Baseline
 
 Branch `daniel-dev`, HEAD inicial `0b0aeb13922a1c93e83d6fb9ba2b26fb16df5302`, working tree limpo no início. Node 22.23.3 para os gates; schema de teste `localhost/traceflow_test`, distinto de `localhost/traceflow`, validado antes de qualquer teste mutável.

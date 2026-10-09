@@ -1157,7 +1157,7 @@ Sem alterações em DnD, layout dos widgets, persistência/API/autorização, fi
 Health ou backend. Sem commit/push/P10. Este aceite é restrito ao feedback de
 salvamento; não promove a pendência de inspeção de drag registrada no P9.1.
 
-## 2026-10-04 — P10 revisão final independente (API e banco reais)
+## 2026-10-04 — IND-P10 revisão interna final (API e banco reais)
 
 Baseline `daniel-dev` @ `279e17fbeadabb1cfbc3885bb49a4fe1cc746c60`, árvore inicialmente
 limpa. A inspeção desta rodada utilizou Chrome autenticado, Project 2 artificial,
@@ -1346,7 +1346,7 @@ de rolagem foram substituídas por frames finais. Console capturado: zero warnin
 Tema Escuro, sidebar expandida e viewport original restaurados; aba temporária fechada.
 
 Status canônico **VISUALLY APPROVED**, restrito à ajuda atual na matriz acima.
-Pacote próprio no repositório: [capturas e observações](evidence/pr23-fix-02/README.md).
+Pacote próprio no repositório: capturas e observações (referência histórica não disponível neste checkout: `evidence/pr23-fix-02/README.md`).
 Não promove o estado histórico P8.4 ou outras superfícies por inferência.
 
 84 testes focados PASS; frontend full/coverage **1.398 PASS**, backend regressão
@@ -1368,7 +1368,7 @@ manual; I17 distingue total/lista; I72 inclui recebidas já concluídas no escop
 API real do Project 2, Chrome autenticado, setembro/2026. Inspecionados Geral,
 GitHub, Fluxo, Sprint, Tarefas, Qualidade e Rastreabilidade, mais Meu painel. 1440
 Light/Dark, 390 Light/Dark e tablet 768×1024, em amostras identificadas na
-[matriz de capturas próprias](evidence/pr23-fix-02-1/README.md). Fórmulas percentuais,
+matriz de capturas próprias (referência histórica não disponível neste checkout: `evidence/pr23-fix-02-1/README.md`). Fórmulas percentuais,
 contagens, somas, diferenças, medianas/tempos e regras históricas legíveis; grupos
 matemáticos e popover sem overflow horizontal nas amostras. Regras curtas não usam
 largura excessiva; I45/I66 longas continuam acessíveis por scroll. Clock local `asOf`
@@ -1390,3 +1390,13 @@ focadas; frontend full/coverage **1.400 PASS**, backend full/coverage **1.578 PA
 security/audits e diffcheck PASS; zero vulnerabilidades. A divergência acadêmica RF54
 já registrada continua explícita, com a regra executável P3 preservada.
 [Relatório e limites](../../deliveries/PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md).
+
+## 2026-10-08 — PR23-FIX-06: coerência documental, sem inspeção visual
+
+Nenhuma captura ou homologação nova. O censo foi reconciliado com as linhas canônicas.
+IND-P10 passa a ser descrito como revisão interna final. Os caminhos de pacotes FIX-02/FIX-02.1
+citados anteriormente não existem no checkout/índice desta rodada: as observações textuais
+originais foram preservadas, mas não se afirma disponibilidade dos arquivos. As entradas de
+ajuda correspondentes no inventário ficam TECHNICALLY VERIFIED, sem rebaixar RF55 funcional.
+A retificação P8.4 continua válida; caminhos ausentes foram mantidos como referências históricas
+textuais, não links de evidência disponível. Não foi fabricada evidência retroativa.

@@ -1,5 +1,9 @@
 # S2 P8.6E — Security Dependency Closure
 
+> Legacy label: S2 P8.6E. Canonical phase: **IND-P8.6E**.
+> Fase interna de indicadores vinculada a S2-04/S2-05; não é o cartão S2-08.
+> [Mapeamento canônico](../../TRACEFLOW_ROADMAP_INCREMENTAL.md#fases-internas-de-indicadores-ind).
+
 Data: **04/10/2026**, America/Sao_Paulo. Escopo: eliminar a cadeia vulnerável de desenvolvimento e preservar o workflow local.
 
 ## 1. Baseline
