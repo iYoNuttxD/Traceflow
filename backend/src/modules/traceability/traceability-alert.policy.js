@@ -14,7 +14,7 @@ export const ISSUE_ALERT = 'ISSUE_CLOSED_WITHOUT_TASK';
 
 export const COMPLETION_TIME_UNAVAILABLE = 'COMPLETION_TIME_UNAVAILABLE';
 
-export const SUBJECT_TITLE_MAX_LENGTH = 191;
+export const SUBJECT_TITLE_MAX_LENGTH = 256;
 
 export const ALERT_SUBJECTS = Object.freeze({
   [TASK_ALERT]: Object.freeze({ subjectType: 'TASK', foreignKey: 'taskId' }),

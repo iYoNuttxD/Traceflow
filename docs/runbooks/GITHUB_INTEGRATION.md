@@ -45,15 +45,18 @@ Todo texto que vem do GitHub cabe na coluna correspondente; um sync nunca falha 
 
 | Campo | Coluna | Limite no GitHub | Gravado | Tratamento |
 |---|---|---|---|---|
-| título de PR | `PullRequest.title` | 256 caracteres | `VARCHAR(256)` | cabe inteiro |
-| título de issue | `Issue.title` | 256 caracteres | `VARCHAR(256)` | cabe inteiro |
-| branch de origem e destino | `PullRequest.sourceBranch`, `targetBranch` | 255 | `VARCHAR(255)` | cabe inteiro |
-| nome de branch | `GitBranch.name` | 255 | `VARCHAR(255)`, collation sensível a caixa preservada | cabe inteiro |
-| branch padrão | `ProjectGitHubIntegration.defaultBranch` | 255 | `VARCHAR(255)` | cabe inteiro |
-| milestone | `Issue.milestone` | 255 | `VARCHAR(255)` | cabe inteiro |
-| URL do item | `githubUrl` de PR, issue e commit | sem limite formal | `VARCHAR(512)` | só `https://github.com/…`; outro valor vira `null` |
-| autor do commit | `Commit.authorName`, `authorEmail` | sem limite (texto livre do git) | `VARCHAR(255)` | truncado por caractere, sem partir par substituto |
+| título de PR | `PullRequest.title` | 256 caracteres | `VARCHAR(256)` | cabe inteiro; acima disso, cortado por caractere |
+| título de issue | `Issue.title` | 256 caracteres | `VARCHAR(256)` | idem |
+| branch de origem e destino da PR | `PullRequest.sourceBranch`, `targetBranch` | sem limite total (255 bytes por trecho do nome) | `VARCHAR(512)` | cabe inteiro; acima de 512, cortado por caractere |
+| nome de branch | `GitBranch.name` | idem | `VARCHAR(512)`, `utf8mb4_bin` preservada | cabe inteiro; é identidade e não é cortado |
+| branch em andamento do sync | `GitHubSyncRun.currentBranch` | idem | `VARCHAR(512)` | cabe inteiro |
+| branch padrão | `ProjectGitHubIntegration.defaultBranch` | idem | `VARCHAR(512)` | cabe inteiro |
+| milestone | `Issue.milestone` | sem limite documentado | `VARCHAR(255)` | cortado por caractere em 255 |
+| URL do item | `githubUrl` de PR, issue e commit | sem limite formal | `VARCHAR(512)` | só `https://github.com/…` de até 512; outro valor vira `null` |
+| autor do commit | `Commit.authorName`, `authorEmail` | sem limite (texto livre do git) | `VARCHAR(255)` | cortado por caractere, sem partir par substituto |
 | snapshot do alerta | `TraceabilityAlert.subjectTitle` | — | `VARCHAR(256)` | título inteiro |
+
+Migrations: `20261009010000_github_field_limits` e `20261009010100_github_sync_run_branch_limit`.
 
 ## Webhook
 

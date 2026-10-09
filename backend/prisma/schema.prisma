@@ -457,7 +457,7 @@ model ProjectGitHubIntegration {
   repositoryName     String?
   repositoryFullName String?
   repositoryUrl      String?
-  defaultBranch      String?
+  defaultBranch      String?                 @db.VarChar(512)
   repositoryPrivate  Boolean?
   integratedAt       DateTime?
   autoSyncEnabled    Boolean                 @default(false)
@@ -832,7 +832,7 @@ model TraceabilityAlert {
   pullRequestId     Int?
   issueId           Int?
   subjectCode       String                       @db.VarChar(32)
-  subjectTitle      String                       @db.VarChar(191)
+  subjectTitle      String                       @db.VarChar(256)
   occurredAt        DateTime?
   detectedAt        DateTime                     @default(now())
   resolvedAt        DateTime?
@@ -984,11 +984,11 @@ model Commit {
   id             Int             @id @default(autoincrement())
   hash           String
   message        String?         @db.Text
-  authorName     String?
-  authorEmail    String?
+  authorName     String?         @db.VarChar(255)
+  authorEmail    String?         @db.VarChar(255)
   authorUsername String?
   date           DateTime?
-  githubUrl      String?
+  githubUrl      String?         @db.VarChar(512)
   projectId      Int
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -1009,7 +1009,7 @@ model GitBranch {
   projectId         Int
   // A collation case-sensitive desta coluna é aplicada pela migration LR.5.
   // O Prisma não representa collation por campo; o tipo nativo documenta o contrato físico.
-  name              String    @db.VarChar(191)
+  name              String    @db.VarChar(512)
   headSha           String?
   lastSyncedHeadSha String?
   isDefault         Boolean   @default(false)
@@ -1038,7 +1038,7 @@ model GitHubSyncRun {
   activeProjectId     Int?                @unique
   status              GitHubSyncRunStatus @default(QUEUED)
   step                GitHubSyncStep      @default(QUEUED)
-  currentBranch       String?
+  currentBranch       String?             @db.VarChar(512)
   startedAt           DateTime?
   heartbeatAt         DateTime?
   finishedAt          DateTime?
@@ -1087,13 +1087,13 @@ model PullRequest {
   id              Int             @id @default(autoincrement())
   githubId        String
   number          Int
-  title           String
+  title           String          @db.VarChar(256)
   description     String?         @db.Text
   state           String?
   authorUsername  String?
-  sourceBranch    String?
-  targetBranch    String?
-  githubUrl       String?
+  sourceBranch    String?         @db.VarChar(512)
+  targetBranch    String?         @db.VarChar(512)
+  githubUrl       String?         @db.VarChar(512)
   createdAtGithub DateTime?
   updatedAtGithub DateTime?
   closedAtGithub  DateTime?
@@ -1117,14 +1117,14 @@ model Issue {
   id               Int       @id @default(autoincrement())
   githubId         String
   number           Int
-  title            String
+  title            String    @db.VarChar(256)
   description      String?   @db.Text
   state            String?
   authorUsername   String?
   assigneeUsername String?
   labels           Json?
-  milestone        String?
-  githubUrl        String?
+  milestone        String?   @db.VarChar(255)
+  githubUrl        String?   @db.VarChar(512)
   createdAtGithub  DateTime?
   updatedAtGithub  DateTime?
   closedAtGithub   DateTime?
