@@ -26,7 +26,8 @@ import {
   alertEmptyTitle,
   alertSummarySentence,
   alertTypeLabel,
-  reconcileMessage
+  reconcileMessage,
+  reconciliationNotice
 } from '../model/alert-view.js';
 import '../styles/trace-alert.css';
 import './TraceabilityAlertsScreen.css';
@@ -86,7 +87,7 @@ function AlertFilters({ filters, onChange, onClear, count }) {
 
 function ProjectAlerts({ projectId }) {
   const alerts = useTraceabilityAlerts(projectId);
-  const { summary, reload: reloadSummary } = useAlertSummary(projectId);
+  const { summary, error: summaryError, reload: reloadSummary } = useAlertSummary(projectId);
   const [selected, setSelected] = useState(null);
   const [feedback, setFeedback] = useState({});
   const [reconciling, setReconciling] = useState(false);
@@ -156,9 +157,22 @@ function ProjectAlerts({ projectId }) {
           retryAfterSeconds={feedback.retryAfterSeconds}
         />
         <section className="sprints-summary trace-alert-summary" aria-label="Resumo dos alertas">
-          <p className="trace-alert-summary__sentence" aria-live="polite">
-            {summary ? alertSummarySentence(summary) : 'Carregando resumo dos alertas...'}
-          </p>
+          {!summary && summaryError ? (
+            <ErrorState
+              message={summaryError.message}
+              retryAfterSeconds={summaryError.retryAfterSeconds}
+              onRetry={reloadSummary}
+            />
+          ) : (
+            <p className="trace-alert-summary__sentence" aria-live="polite">
+              {summary ? alertSummarySentence(summary) : 'Carregando resumo dos alertas...'}
+            </p>
+          )}
+          {summary?.reconciliation?.stale && (
+            <p className="trace-alert-notice" role="status">
+              {reconciliationNotice(summary.reconciliation, permissions.canManage)}
+            </p>
+          )}
           {summary && !summary.rules.taskWithoutCommitActive && (
             <p className="trace-alert-notice">
               O alerta de tarefa concluída sem commit fica ativo quando o projeto tem um repositório

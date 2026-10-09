@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
+import { formatInstant } from '../../src/features/traceability/model/alert-view.js';
 
 const api = vi.hoisted(() => ({
   getTraceabilityAlerts: vi.fn(),
@@ -410,5 +411,76 @@ describe('Bateria S2-01 frontend — falhas e estados residuais (AT-U-02, AT-U-0
       expect.objectContaining({ page: 2 }),
       expect.anything()
     );
+  });
+});
+
+describe('Correções S2-01 frontend — resumo com falha e alertas desatualizados (S201-A06, S201-A05)', () => {
+  const viewer = { canLink: false, canManage: false };
+  const withReconciliation = (reconciliation, permissions = manager) => ({
+    ...summary(),
+    permissions,
+    reconciliation
+  });
+  const failure = {
+    lastSucceededAt: '2026-10-07T10:00:00.000Z',
+    lastFailedAt: '2026-10-08T10:00:00.000Z',
+    lastTrigger: 'GITHUB_SYNC',
+    stale: true
+  };
+
+  it('C4-01 falha só no resumo mostra erro com nova tentativa, e a nova tentativa recupera', async () => {
+    api.getTraceabilityAlertSummary
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValueOnce({ ...summary(), open: { total: 1, byType: { [PULL_REQUEST]: 1 } } });
+    api.getTraceabilityAlerts.mockResolvedValue(listing([prAlert()]));
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText('Ajusta CI')).toBeInTheDocument();
+    const summaryRegion = screen.getByRole('region', { name: 'Resumo dos alertas' });
+    expect(within(summaryRegion).queryByText('Carregando resumo dos alertas...')).toBeNull();
+    await user.click(
+      await within(summaryRegion).findByRole('button', { name: /Tentar novamente/ })
+    );
+
+    expect(await within(summaryRegion).findByText(/1 alerta aberto/)).toBeInTheDocument();
+  });
+
+  it('C4-02 alertas desatualizados: MANAGER vê o aviso e o reprocessamento', async () => {
+    api.getTraceabilityAlertSummary.mockResolvedValue(withReconciliation(failure));
+    renderPage();
+
+    const notice = await screen.findByText(/podem estar desatualizados/);
+    expect(notice.textContent).toContain(formatInstant(failure.lastFailedAt));
+    expect(notice.textContent).toContain('Reprocessar alertas');
+    expect(screen.getByRole('button', { name: 'Reprocessar alertas' })).toBeInTheDocument();
+  });
+
+  it('C4-03 alertas desatualizados: VIEWER é orientado a pedir a um gestor', async () => {
+    api.getTraceabilityAlertSummary.mockResolvedValue(withReconciliation(failure, viewer));
+    api.getTraceabilityAlerts.mockResolvedValue({ ...listing([]), permissions: viewer });
+    renderPage();
+
+    const notice = await screen.findByText(/podem estar desatualizados/);
+    expect(notice.textContent).toContain('gestor');
+    expect(screen.queryByRole('button', { name: 'Reprocessar alertas' })).toBeNull();
+  });
+
+  it('C4-04 sem falha registrada, ou com sucesso mais recente, não há aviso', async () => {
+    api.getTraceabilityAlertSummary
+      .mockResolvedValueOnce(withReconciliation({ ...failure, stale: false }))
+      .mockResolvedValueOnce(withReconciliation(null));
+    const first = renderPage();
+    expect(
+      await screen.findByText('Nenhuma inconsistência pendente neste projeto.')
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/podem estar desatualizados/)).toBeNull();
+    first.unmount();
+
+    renderPage();
+    expect(
+      await screen.findByText('Nenhuma inconsistência pendente neste projeto.')
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/podem estar desatualizados/)).toBeNull();
   });
 });

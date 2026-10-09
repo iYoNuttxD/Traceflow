@@ -104,6 +104,14 @@ export function validateDismissReason(reason) {
   return '';
 }
 
+export function reconciliationNotice(reconciliation, canManage) {
+  if (!reconciliation?.stale) return '';
+  const guidance = canManage
+    ? 'Use Reprocessar alertas para atualizá-los.'
+    : 'Peça a um gestor do projeto para reprocessar os alertas.';
+  return `A última atualização dos alertas falhou em ${formatInstant(reconciliation.lastFailedAt)}. Os alertas podem estar desatualizados. ${guidance}`;
+}
+
 export function alertEmptyTitle(filters) {
   if (filters.type) return 'Nenhum alerta corresponde aos filtros.';
   if (filters.status === 'DISMISSED') return 'Nenhum alerta dispensado.';
