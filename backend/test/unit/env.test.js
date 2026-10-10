@@ -210,4 +210,35 @@ describe('configuração centralizada', () => {
       /CORS_ALLOWED_ORIGINS/
     );
   });
+
+  it('S2-02: valida o fuso de referência, a janela e a retenção das notificações', () => {
+    expect(createEnvironment(validSource)).toMatchObject({
+      appTimeZone: 'America/Sao_Paulo',
+      notificationsDueLookbackDays: 7,
+      notificationRetentionDays: 180
+    });
+    expect(
+      createEnvironment({
+        ...validSource,
+        APP_TIMEZONE: 'Asia/Tokyo',
+        NOTIFICATIONS_DUE_LOOKBACK_DAYS: '1',
+        NOTIFICATION_RETENTION_DAYS: '30'
+      })
+    ).toMatchObject({
+      appTimeZone: 'Asia/Tokyo',
+      notificationsDueLookbackDays: 1,
+      notificationRetentionDays: 30
+    });
+    for (const APP_TIMEZONE of ['Mars/Olympus', 'America/Sao Paulo', '-03:00'])
+      expect(() => createEnvironment({ ...validSource, APP_TIMEZONE })).toThrowError(
+        /APP_TIMEZONE/
+      );
+    for (const value of ['0', '91', '7.5', 'sete'])
+      expect(() =>
+        createEnvironment({ ...validSource, NOTIFICATIONS_DUE_LOOKBACK_DAYS: value })
+      ).toThrowError(/NOTIFICATIONS_DUE_LOOKBACK_DAYS/);
+    expect(() =>
+      createEnvironment({ ...validSource, NOTIFICATION_RETENTION_DAYS: '29' })
+    ).toThrowError(/NOTIFICATION_RETENTION_DAYS/);
+  });
 });
