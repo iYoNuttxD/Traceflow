@@ -77,6 +77,17 @@ export function localDateOf(instant, timeZone) {
   return wallClock(new Date(instant), timeZone).date;
 }
 
+function firstInstantOnOrAfter(dateText, timeZone, midnightAsUtc) {
+  let before = midnightAsUtc - 2 * DAY_MS;
+  let after = midnightAsUtc + 2 * DAY_MS;
+  while (after - before > 1) {
+    const middle = Math.floor((before + after) / 2);
+    if (localDateOf(middle, timeZone) >= dateText) after = middle;
+    else before = middle;
+  }
+  return after;
+}
+
 export function startOfLocalDay(dateText, timeZone) {
   const [year, month, day] = dateText.split('-').map(Number);
   const midnightAsUtc = Date.UTC(year, month - 1, day);
@@ -86,7 +97,9 @@ export function startOfLocalDay(dateText, timeZone) {
     localDateOf(candidate, timeZone) === dateText &&
     localDateOf(candidate - 1, timeZone) !== dateText;
   const valid = [first, second].filter(startsTheDay);
-  return new Date(valid.length ? Math.min(...valid) : second);
+  return new Date(
+    valid.length ? Math.min(...valid) : firstInstantOnOrAfter(dateText, timeZone, midnightAsUtc)
+  );
 }
 
 export function dueDateOf(deadline) {
