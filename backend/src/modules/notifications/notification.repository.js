@@ -11,6 +11,7 @@ import {
 } from './notification.policy.js';
 
 const unique = (values) => [...new Set(values)];
+const ACTIVE_ACCOUNT = 'ACTIVE';
 const dtoInclude = {
   project: { select: { id: true, name: true } },
   actor: { select: { id: true, name: true } }
@@ -29,12 +30,17 @@ export const notificationRepository = {
     const candidate = {
       responsibleUserId: task.responsibleUserId,
       actorUserId,
+      accountActive: true,
       membershipActive: true,
       preferenceEnabled: true
     };
     const early = statusChangeExclusion(candidate);
     if (early) return { outcome: early };
 
+    const responsible = await tx.user.findUnique({
+      where: { id: task.responsibleUserId },
+      select: { accountStatus: true }
+    });
     const membership = await tx.projectMembership.findUnique({
       where: { projectId_userId: { projectId: task.projectId, userId: task.responsibleUserId } },
       select: { isActive: true }
@@ -45,6 +51,7 @@ export const notificationRepository = {
     });
     const exclusion = statusChangeExclusion({
       ...candidate,
+      accountActive: responsible?.accountStatus === ACTIVE_ACCOUNT,
       membershipActive: Boolean(membership?.isActive),
       preferenceEnabled: preference?.enabled !== false
     });
@@ -88,6 +95,14 @@ export const notificationRepository = {
     return prisma.task.count({
       where: { projectId, status: { not: 'CONCLUIDO' }, deadline: { lt: before } }
     });
+  },
+
+  async activeAccountIds(userIds) {
+    const rows = await prisma.user.findMany({
+      where: { id: { in: unique(userIds) }, accountStatus: ACTIVE_ACCOUNT },
+      select: { id: true }
+    });
+    return new Set(rows.map((row) => row.id));
   },
 
   async activeMemberIds(projectId, userIds) {

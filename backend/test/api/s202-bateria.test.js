@@ -430,7 +430,7 @@ describe('S2-02 bateria API — autorização, visibilidade e estado da conta (b
     expect((await patch(removedRow.id)).status).toBe(200);
   });
 
-  it('NT-Z-02/H4 conta desativada ou com exclusão pendente não lê a central, e o RF30 continua criando para ela', async () => {
+  it('NT-Z-02/H4 conta desativada ou com exclusão pendente não lê a central nem recebe a notificação do movimento', async () => {
     const project = await createProject(prisma);
     const deactivated = await register(project.id);
     const pending = await register(project.id);
@@ -456,9 +456,9 @@ describe('S2-02 bateria API — autorização, visibilidade e estado da conta (b
     expect(readPending.body.code).toBe('ACCOUNT_DELETION_PENDING');
     expect(
       await prisma.notification.count({ where: { recipientUserId: deactivated.user.id } })
-    ).toBe(1);
+    ).toBe(0);
     expect(await prisma.notification.count({ where: { recipientUserId: pending.user.id } })).toBe(
-      1
+      0
     );
   });
 

@@ -43,7 +43,8 @@ Restrições do terreno:
      está entre as "partes envolvidas" da §3.2.8.
    - Tarefa sem responsável não gera notificação.
    - Responsável com a conta fora de `ACTIVE` (desativada, com exclusão pendente ou anonimizada)
-     não recebe (`INACTIVE_ACCOUNT`). Reativar a conta não recupera o que foi excluído.
+     não recebe (`INACTIVE_ACCOUNT`). Como a membership, a conta vale no instante da mudança no
+     RF30 e no instante da varredura no RF59.
 4. **RF30 nasce na transação da mudança (D4).** `transitionStatus` cria a notificação depois de
    gravar o movimento e o histórico, na mesma transação. Se a inserção falhar, a mudança de status
    também é desfeita. A chave é `TASK_STATUS_CHANGED:movement:<movementId>`.
@@ -146,8 +147,11 @@ Restrições do terreno:
 - `transitionStatus` faz duas leituras a mais por mudança: a membership e a preferência do
   responsável.
 - Até haver agendador instalado (S2-09), o RF59 só roda à mão.
-- Notificação excluída por conta restrita ou por preferência desligada não volta quando a conta é
-  reativada ou a preferência é religada.
+- No RF30, notificação excluída (conta restrita, membership inativa ou preferência desligada) não
+  volta depois.
+- No RF59, a conta e a membership valem a cada varredura: reativar a conta ou voltar ao projeto
+  enquanto o corte está na janela faz a varredura seguinte notificar. A preferência é a exceção:
+  religá-la não recupera o vencimento anterior (`enabledAt`).
 
 ## Impactos de segurança e privacidade
 

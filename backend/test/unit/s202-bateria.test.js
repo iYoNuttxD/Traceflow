@@ -128,50 +128,56 @@ describe('S2-02 bateria de unidade — faixa de prazos da varredura (NT-P-04)', 
 describe('S2-02 bateria de unidade — tabelas de exclusão (NT-S-01, NT-P-09)', () => {
   const booleans = [true, false];
 
-  it('RF30: as 16 combinações seguem a ordem documentada', () => {
+  it('RF30: as 32 combinações seguem a ordem documentada', () => {
     const rows = [];
     for (const responsible of [5, null])
       for (const self of booleans)
-        for (const membershipActive of booleans)
-          for (const preferenceEnabled of booleans) {
-            const candidate = {
-              responsibleUserId: responsible,
-              actorUserId: self ? 5 : 9,
-              membershipActive,
-              preferenceEnabled
-            };
-            let expected = null;
-            if (!responsible) expected = 'NO_RESPONSIBLE';
-            else if (self) expected = 'SELF_CHANGE';
-            else if (!membershipActive) expected = 'INACTIVE_MEMBER';
-            else if (!preferenceEnabled) expected = 'PREFERENCE_OFF';
-            rows.push([JSON.stringify(candidate), statusChangeExclusion(candidate), expected]);
-          }
+        for (const accountActive of booleans)
+          for (const membershipActive of booleans)
+            for (const preferenceEnabled of booleans) {
+              const candidate = {
+                responsibleUserId: responsible,
+                actorUserId: self ? 5 : 9,
+                accountActive,
+                membershipActive,
+                preferenceEnabled
+              };
+              let expected = null;
+              if (!responsible) expected = 'NO_RESPONSIBLE';
+              else if (self) expected = 'SELF_CHANGE';
+              else if (!accountActive) expected = 'INACTIVE_ACCOUNT';
+              else if (!membershipActive) expected = 'INACTIVE_MEMBER';
+              else if (!preferenceEnabled) expected = 'PREFERENCE_OFF';
+              rows.push([JSON.stringify(candidate), statusChangeExclusion(candidate), expected]);
+            }
     expect(rows.map(([label, actual]) => [label, actual])).toEqual(
       rows.map(([label, , expected]) => [label, expected])
     );
   });
 
-  it('RF59: as 16 combinações seguem a ordem documentada, e o ator não importa', () => {
+  it('RF59: as 32 combinações seguem a ordem documentada, e o ator não importa', () => {
     const rows = [];
     for (const withinWindow of booleans)
       for (const responsible of [5, null])
-        for (const membershipActive of booleans)
-          for (const preferenceEnabled of booleans) {
-            const candidate = {
-              withinWindow,
-              responsibleUserId: responsible,
-              actorUserId: 5,
-              membershipActive,
-              preferenceEnabled
-            };
-            let expected = null;
-            if (!withinWindow) expected = 'OUTSIDE_WINDOW';
-            else if (!responsible) expected = 'NO_RESPONSIBLE';
-            else if (!membershipActive) expected = 'INACTIVE_MEMBER';
-            else if (!preferenceEnabled) expected = 'PREFERENCE_OFF';
-            rows.push([JSON.stringify(candidate), overdueExclusion(candidate), expected]);
-          }
+        for (const accountActive of booleans)
+          for (const membershipActive of booleans)
+            for (const preferenceEnabled of booleans) {
+              const candidate = {
+                withinWindow,
+                responsibleUserId: responsible,
+                actorUserId: 5,
+                accountActive,
+                membershipActive,
+                preferenceEnabled
+              };
+              let expected = null;
+              if (!withinWindow) expected = 'OUTSIDE_WINDOW';
+              else if (!responsible) expected = 'NO_RESPONSIBLE';
+              else if (!accountActive) expected = 'INACTIVE_ACCOUNT';
+              else if (!membershipActive) expected = 'INACTIVE_MEMBER';
+              else if (!preferenceEnabled) expected = 'PREFERENCE_OFF';
+              rows.push([JSON.stringify(candidate), overdueExclusion(candidate), expected]);
+            }
     expect(rows.map(([label, actual]) => [label, actual])).toEqual(
       rows.map(([label, , expected]) => [label, expected])
     );

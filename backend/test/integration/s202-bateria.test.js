@@ -402,6 +402,7 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
         listActiveProjectIds: async () => [1],
         findOverdueCandidates: async (_p, { from, to }) => tasks.filter((t) => t.deadline >= from && t.deadline < to),
         countOutsideWindow: async (_p, before) => tasks.filter((t) => t.deadline < before).length,
+        activeAccountIds: async (userIds) => new Set(userIds),
         activeMemberIds: async () => new Set([7]),
         overduePreferences: async () => new Map(),
         existingOverdueKeys: async () => new Set(),
@@ -531,6 +532,7 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
     expect(report.excluded).toEqual({
       OUTSIDE_WINDOW: 1,
       NO_RESPONSIBLE: 1,
+      INACTIVE_ACCOUNT: 0,
       INACTIVE_MEMBER: 1,
       PREFERENCE_OFF: 0
     });
@@ -618,6 +620,7 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
     expect(Object.keys(dry).sort()).toEqual([...common, 'wouldCreate'].sort());
     expect(Object.keys(apply).sort()).toEqual(common);
     expect(Object.keys(apply.excluded).sort()).toEqual([
+      'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
       'NO_RESPONSIBLE',
       'OUTSIDE_WINDOW',

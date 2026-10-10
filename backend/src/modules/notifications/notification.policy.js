@@ -6,6 +6,7 @@ export const NOTIFICATION_EXCLUSIONS = Object.freeze([
   'OUTSIDE_WINDOW',
   'NO_RESPONSIBLE',
   'SELF_CHANGE',
+  'INACTIVE_ACCOUNT',
   'INACTIVE_MEMBER',
   'PREFERENCE_OFF'
 ]);
@@ -150,7 +151,13 @@ export function preferenceAllowsOverdue(preference, cutoff) {
   return !preference.enabledAt || preference.enabledAt.getTime() <= cutoff.getTime();
 }
 
-function recipientExclusion({ responsibleUserId, membershipActive, preferenceEnabled }) {
+function recipientExclusion({
+  responsibleUserId,
+  accountActive,
+  membershipActive,
+  preferenceEnabled
+}) {
+  if (!accountActive) return 'INACTIVE_ACCOUNT';
   if (!membershipActive) return 'INACTIVE_MEMBER';
   if (!preferenceEnabled) return 'PREFERENCE_OFF';
   return responsibleUserId ? null : 'NO_RESPONSIBLE';

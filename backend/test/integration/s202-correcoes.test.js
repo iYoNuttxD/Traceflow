@@ -8,6 +8,7 @@ import { createProject, createTask } from '../fixtures/factories.js';
 
 let prisma;
 let service;
+let kanban;
 let createNotificationService;
 let sequence = 0;
 
@@ -16,6 +17,8 @@ beforeAll(async () => {
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ notificationService: service, createNotificationService } =
     await import('../../src/modules/notifications/notification.service.js'));
+  ({ taskKanbanService: kanban } =
+    await import('../../src/modules/tasks/services/task-kanban.service.js'));
   await cleanTestDatabase(prisma);
 }, 60000);
 
@@ -255,5 +258,100 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
     expect(off.enabledAt).toBeNull();
     expect(on.enabledAt.toISOString()).toBe('2026-10-15T12:00:00.000Z');
     expect(unchanged.enabledAt.toISOString()).toBe('2026-10-15T12:00:00.000Z');
+  });
+});
+
+const restrict = (user, accountStatus) =>
+  prisma.user.update({ where: { id: user.id }, data: { accountStatus } });
+const moveBy = (actor, task, toStatus) =>
+  kanban.moveTask(
+    task.id,
+    { toStatus },
+    { actor: { id: actor.id, name: actor.name }, requestId: 's202-correcoes' }
+  );
+const statusNotificationsTo = (user) =>
+  prisma.notification.count({ where: { recipientUserId: user.id, type: 'TASK_STATUS_CHANGED' } });
+
+describe('S2-02 correções — contas restritas não recebem (S202-A04)', () => {
+  it('C6-02 RF30: estado da conta × membership × preferência', async () => {
+    const project = await createProject(prisma);
+    const actor = await person(project.id, { role: 'MANAGER' });
+    const rows = [];
+    for (const accountStatus of ['ACTIVE', 'DEACTIVATED', 'DELETION_PENDING', 'ANONYMIZED'])
+      for (const isActive of [true, false])
+        for (const preference of [true, false]) {
+          const responsible = await person(project.id, { isActive });
+          await restrict(responsible, accountStatus);
+          if (!preference)
+            await prisma.notificationPreference.create({
+              data: { userId: responsible.id, type: 'TASK_STATUS_CHANGED', enabled: false }
+            });
+          const task = await createTask(prisma, project.id, { responsibleUserId: responsible.id });
+          await moveBy(actor, task, 'EM_ANDAMENTO');
+          const expected = accountStatus === 'ACTIVE' && isActive && preference ? 1 : 0;
+          rows.push([
+            `${accountStatus}/${isActive}/${preference}`,
+            await statusNotificationsTo(responsible),
+            expected
+          ]);
+        }
+
+    expect(rows.map(([label, actual]) => [label, actual])).toEqual(
+      rows.map(([label, , expected]) => [label, expected])
+    );
+  });
+
+  it('C6-02 RF30: reativar a conta não recupera o movimento anterior', async () => {
+    const project = await createProject(prisma);
+    const actor = await person(project.id, { role: 'MANAGER' });
+    const responsible = await person(project.id);
+    const task = await createTask(prisma, project.id, { responsibleUserId: responsible.id });
+    await restrict(responsible, 'DEACTIVATED');
+
+    await moveBy(actor, task, 'EM_ANDAMENTO');
+    await restrict(responsible, 'ACTIVE');
+    const afterReactivation = await statusNotificationsTo(responsible);
+    await moveBy(actor, task, 'CONCLUIDO');
+
+    expect(afterReactivation).toBe(0);
+    expect(await statusNotificationsTo(responsible)).toBe(1);
+  });
+
+  it('C6-02 RF59: conta restrita conta em INACTIVE_ACCOUNT; reativar dentro da janela notifica na varredura seguinte', async () => {
+    const { project, responsible } = await overdueScenario('2026-10-15');
+    await restrict(responsible, 'DELETION_PENDING');
+
+    const whileRestricted = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
+    await restrict(responsible, 'ACTIVE');
+    const afterReactivation = await job('2026-10-17T12:00:00.000Z', { projectId: project.id });
+
+    expect(whileRestricted).toMatchObject({
+      created: 0,
+      eligible: 0,
+      excluded: { INACTIVE_ACCOUNT: 1, INACTIVE_MEMBER: 0 }
+    });
+    expect(afterReactivation).toMatchObject({ created: 1, excluded: { INACTIVE_ACCOUNT: 0 } });
+  });
+
+  it('C6-02 RF59: a conta restrita vem antes da membership inativa e da preferência', async () => {
+    const { project, responsible } = await overdueScenario('2026-10-15');
+    await restrict(responsible, 'DEACTIVATED');
+    await prisma.projectMembership.updateMany({
+      where: { projectId: project.id, userId: responsible.id },
+      data: { isActive: false }
+    });
+    await prisma.notificationPreference.create({
+      data: { userId: responsible.id, type: 'TASK_OVERDUE', enabled: false }
+    });
+
+    const report = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
+
+    expect(report.excluded).toEqual({
+      OUTSIDE_WINDOW: 0,
+      NO_RESPONSIBLE: 0,
+      INACTIVE_ACCOUNT: 1,
+      INACTIVE_MEMBER: 0,
+      PREFERENCE_OFF: 0
+    });
   });
 });

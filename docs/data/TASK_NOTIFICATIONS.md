@@ -28,8 +28,13 @@ avaliadas nesta ordem; a primeira que vale é o motivo registrado.
 | 5 | `PREFERENCE_OFF`: o responsável desligou o tipo | `PREFERENCE_OFF`: o responsável desligou o tipo, ou o religou depois do corte |
 
 `OUTSIDE_WINDOW`, `NO_RESPONSIBLE`, `SELF_CHANGE`, `INACTIVE_ACCOUNT` e `INACTIVE_MEMBER` são
-**exclusões por regra**. `PREFERENCE_OFF` é **exclusão por escolha** do usuário. Reativar a conta,
-voltar ao projeto ou religar o tipo não recupera o que foi excluído.
+**exclusões por regra**. `PREFERENCE_OFF` é **exclusão por escolha** do usuário.
+
+- **RF30:** as exclusões valem no instante da mudança de status. O que foi excluído não volta.
+- **RF59:** o job avalia a conta e a membership a cada varredura. Se a conta for reativada, ou a
+  pessoa voltar ao projeto, enquanto o corte ainda está na janela, a varredura seguinte notifica. A
+  preferência é a exceção: religá-la não recupera o vencimento cujo corte foi antes de religar
+  (`enabledAt`, seção "Preferências").
 
 ## Corte do vencimento
 

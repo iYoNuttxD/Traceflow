@@ -22,7 +22,13 @@ import {
 } from './notification.policy.js';
 import { notificationRepository } from './notification.repository.js';
 
-const JOB_EXCLUSIONS = ['OUTSIDE_WINDOW', 'NO_RESPONSIBLE', 'INACTIVE_MEMBER', 'PREFERENCE_OFF'];
+const JOB_EXCLUSIONS = [
+  'OUTSIDE_WINDOW',
+  'NO_RESPONSIBLE',
+  'INACTIVE_ACCOUNT',
+  'INACTIVE_MEMBER',
+  'PREFERENCE_OFF'
+];
 
 function notificationNotFound() {
   return new AppError({
@@ -69,6 +75,9 @@ export function createNotificationService({
     counts.scanned = due.length;
 
     const responsibleIds = due.map((task) => task.responsibleUserId).filter(Boolean);
+    const accounts = responsibleIds.length
+      ? await repository.activeAccountIds(responsibleIds)
+      : new Set();
     const members = responsibleIds.length
       ? await repository.activeMemberIds(projectId, responsibleIds)
       : new Set();
@@ -81,6 +90,7 @@ export function createNotificationService({
       const exclusion = overdueExclusion({
         withinWindow: true,
         responsibleUserId: task.responsibleUserId,
+        accountActive: accounts.has(task.responsibleUserId),
         membershipActive: members.has(task.responsibleUserId),
         preferenceEnabled: preferenceAllowsOverdue(
           preferences.get(task.responsibleUserId),

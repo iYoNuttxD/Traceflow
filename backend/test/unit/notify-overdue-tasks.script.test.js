@@ -27,6 +27,7 @@ function fakeRepository({ failingProjectId } = {}) {
       ];
     }),
     countOutsideWindow: vi.fn(async () => 0),
+    activeAccountIds: vi.fn(async (userIds) => new Set(userIds)),
     activeMemberIds: vi.fn(async () => new Set([7])),
     overduePreferences: vi.fn(async () => new Map()),
     existingOverdueKeys: vi.fn(async () => new Set()),
@@ -84,6 +85,7 @@ describe('S2-02 job de vencimento: falhas e contagens (N15, §13.10)', () => {
     expect(report.excluded).toEqual({
       OUTSIDE_WINDOW: 0,
       NO_RESPONSIBLE: 0,
+      INACTIVE_ACCOUNT: 0,
       INACTIVE_MEMBER: 2,
       PREFERENCE_OFF: 0
     });

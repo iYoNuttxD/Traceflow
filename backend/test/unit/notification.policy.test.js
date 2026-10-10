@@ -124,6 +124,7 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
   const eligible = {
     responsibleUserId: 5,
     actorUserId: 9,
+    accountActive: true,
     membershipActive: true,
     preferenceEnabled: true
   };
@@ -132,12 +133,14 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
     expect(statusChangeExclusion(eligible)).toBeNull();
     expect(statusChangeExclusion({ ...eligible, responsibleUserId: null })).toBe('NO_RESPONSIBLE');
     expect(statusChangeExclusion({ ...eligible, actorUserId: 5 })).toBe('SELF_CHANGE');
+    expect(statusChangeExclusion({ ...eligible, accountActive: false })).toBe('INACTIVE_ACCOUNT');
     expect(statusChangeExclusion({ ...eligible, membershipActive: false })).toBe('INACTIVE_MEMBER');
     expect(statusChangeExclusion({ ...eligible, preferenceEnabled: false })).toBe('PREFERENCE_OFF');
     expect(
       statusChangeExclusion({
         responsibleUserId: 5,
         actorUserId: 5,
+        accountActive: false,
         membershipActive: false,
         preferenceEnabled: false
       })
@@ -151,6 +154,7 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
       'OUTSIDE_WINDOW'
     );
     expect(overdueExclusion({ ...base, responsibleUserId: null })).toBe('NO_RESPONSIBLE');
+    expect(overdueExclusion({ ...base, accountActive: false })).toBe('INACTIVE_ACCOUNT');
     expect(overdueExclusion({ ...base, membershipActive: false })).toBe('INACTIVE_MEMBER');
     expect(overdueExclusion({ ...base, preferenceEnabled: false })).toBe('PREFERENCE_OFF');
     expect(overdueExclusion({ ...base, actorUserId: 5 })).toBeNull();
@@ -162,6 +166,7 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
       'OUTSIDE_WINDOW',
       'NO_RESPONSIBLE',
       'SELF_CHANGE',
+      'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
       'PREFERENCE_OFF'
     ]);
