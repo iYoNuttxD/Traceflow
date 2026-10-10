@@ -30,15 +30,15 @@ export function NotificationsScreen() {
   const { refresh: refreshCount, report } = useUnreadNotifications();
   const list = useNotifications({ onCount: report });
   const [feedback, setFeedback] = useState({});
-  const [busyId, setBusyId] = useState(null);
+  const [busyIds, setBusyIds] = useState(() => new Set());
   const [markingAll, setMarkingAll] = useState(false);
   const headingRef = useRef(null);
   const items = list.data?.notifications || [];
   const unreadCount = list.data?.unreadCount ?? 0;
 
   async function toggleRead(notification) {
-    if (busyId) return;
-    setBusyId(notification.id);
+    if (busyIds.has(notification.id)) return;
+    setBusyIds((previous) => new Set(previous).add(notification.id));
     setFeedback({});
     try {
       const response = await markNotification(notification.id, !notification.readAt);
@@ -53,7 +53,11 @@ export function NotificationsScreen() {
         headingRef.current?.focus();
       }
     } finally {
-      setBusyId(null);
+      setBusyIds((previous) => {
+        const next = new Set(previous);
+        next.delete(notification.id);
+        return next;
+      });
     }
   }
 
@@ -136,7 +140,7 @@ export function NotificationsScreen() {
               <li key={notification.id}>
                 <NotificationCard
                   notification={notification}
-                  busy={busyId === notification.id}
+                  busy={busyIds.has(notification.id)}
                   onToggleRead={toggleRead}
                   onOpen={open}
                 />
@@ -155,7 +159,7 @@ export function NotificationsScreen() {
         {!list.loading && !list.error && list.data && items.length === 0 && (
           <EmptyState title={notificationEmptyTitle(list.status)} />
         )}
-        {!list.error && list.data?.pagination.page < list.data?.pagination.totalPages && (
+        {!list.error && list.data?.nextCursor && (
           <button
             type="button"
             className="button button-secondary notifications-load-more"

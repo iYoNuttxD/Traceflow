@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useProjectsCatalog } from '../../features/projects/index.js';
 import {
+  navigationMenuLabel,
   unreadBadge,
   unreadNavLabel,
   useUnreadNotifications
@@ -467,9 +468,10 @@ export function AppShell({ user, onLogout, children }) {
             onClick={() => setDrawerOpen(true)}
             aria-controls="traceflow-global-navigation"
             aria-expanded={drawerOpen}
-            aria-label="Abrir navegação"
+            aria-label={navigationMenuLabel(unreadCount)}
           >
             <ShellIcon name="menu" />
+            {notificationBadge && <span className="trace-shell__menu-dot" aria-hidden="true" />}
           </button>
         </header>
         <div className="trace-shell__content" id="main-content" ref={contentRef} tabIndex={-1}>

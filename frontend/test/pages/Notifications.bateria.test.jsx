@@ -69,19 +69,23 @@ function notification(id, overrides = {}) {
 
 function offsetServer(items) {
   const store = items.map((item) => ({ ...item }));
-  api.listNotifications.mockImplementation(async ({ status, page, limit }) => {
+  api.listNotifications.mockImplementation(async ({ status, page, cursor, limit }) => {
     const visible = store
       .filter((item) => status === 'ALL' || !item.readAt)
       .sort((a, b) => b.id - a.id);
+    const after = cursor ? visible.findIndex((item) => item.id < Number(cursor)) : -1;
+    const start = cursor ? (after === -1 ? visible.length : after) : (page - 1) * limit;
+    const slice = visible.slice(start, start + limit);
     return {
-      notifications: visible.slice((page - 1) * limit, page * limit),
+      notifications: slice,
       pagination: {
-        page,
+        page: cursor ? null : page,
         limit,
         total: visible.length,
         totalPages: Math.ceil(visible.length / limit)
       },
-      unreadCount: store.filter((item) => !item.readAt).length
+      unreadCount: store.filter((item) => !item.readAt).length,
+      nextCursor: start + limit < visible.length ? String(slice.at(-1).id) : null
     };
   });
   api.markNotification.mockImplementation(async (id, read) => {
@@ -120,7 +124,8 @@ function listing(items, { page = 1, totalPages = 1 } = {}) {
   return {
     notifications: items,
     pagination: { page, limit: 20, total: items.length, totalPages },
-    unreadCount: items.filter((item) => !item.readAt).length
+    unreadCount: items.filter((item) => !item.readAt).length,
+    nextCursor: null
   };
 }
 
@@ -187,6 +192,38 @@ describe('S2-02 bateria frontend — contador no menu (NT-U-01)', () => {
 
     const link = await screen.findByRole('link', { name: label });
     expect(within(link).getByText(badge)).toBeInTheDocument();
+  });
+});
+
+describe('S2-02 correções — indicador no botão de navegação do celular (O-7)', () => {
+  it.each([
+    [0, 'Abrir navegação', false],
+    [1, 'Abrir navegação, 1 notificação não lida', true],
+    [3, 'Abrir navegação, 3 notificações não lidas', true]
+  ])('C3-03 com %i não lidas o botão se chama "%s"', async (count, label, dot) => {
+    api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: count });
+    render(
+      <MemoryRouter initialEntries={['/projects']}>
+        <ThemeProvider>
+          <ProjectsCatalogProvider>
+            <UnreadNotificationsProvider>
+              <AppShell
+                user={{ id: 7, name: 'João Teste', email: 'joao@example.invalid' }}
+                onLogout={vi.fn()}
+              >
+                <p>Conteúdo</p>
+              </AppShell>
+            </UnreadNotificationsProvider>
+          </ProjectsCatalogProvider>
+        </ThemeProvider>
+      </MemoryRouter>
+    );
+
+    const menuButton = () => document.querySelector('.trace-shell__mobile-topbar button');
+    await waitFor(() => expect(menuButton()).toHaveAttribute('aria-label', label));
+    const marker = menuButton().querySelector('.trace-shell__menu-dot');
+    expect(Boolean(marker)).toBe(dot);
+    if (marker) expect(marker).toHaveAttribute('aria-hidden', 'true');
   });
 });
 
@@ -320,7 +357,7 @@ describe('S2-02 bateria frontend — preferências e datas (NT-U-08, NT-U-09)', 
 });
 
 describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04, NT-L)', () => {
-  it('Carregar mais acrescenta a página 2 sem repetir o item deslocado por uma chegada nova', async () => {
+  it('Carregar mais segue pelo cursor: uma chegada nova não desloca nem repete', async () => {
     const user = userEvent.setup();
     const store = offsetServer(twentyFive());
     renderCenter();
@@ -332,8 +369,9 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(25));
     const labels = screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'));
     expect(new Set(labels).size).toBe(25);
+    expect(screen.queryByRole('article', { name: /TASK-126/ })).not.toBeInTheDocument();
     expect(api.listNotifications).toHaveBeenLastCalledWith(
-      { status: 'UNREAD', page: 2, limit: 20 },
+      { status: 'UNREAD', cursor: '6', limit: 20 },
       expect.objectContaining({ fresh: true })
     );
     expect(
@@ -341,7 +379,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     ).not.toBeInTheDocument();
   });
 
-  it('falha ao carregar mais mantém a página 1 e a nova tentativa pede a página 2', async () => {
+  it('falha ao carregar mais mantém a página 1 e a nova tentativa repete o mesmo cursor', async () => {
     const user = userEvent.setup();
     offsetServer(twentyFive());
     renderCenter();
@@ -360,7 +398,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
 
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(25));
     expect(api.listNotifications).toHaveBeenLastCalledWith(
-      { status: 'UNREAD', page: 2, limit: 20 },
+      { status: 'UNREAD', cursor: '6', limit: 20 },
       expect.anything()
     );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -426,22 +464,62 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     expect(screen.getAllByRole('article')).toHaveLength(2);
   });
 
-  it('com uma marcação em andamento, o clique em outro cartão não dispara segunda chamada', async () => {
+  it('C3-02 com uma marcação em andamento, marcar outro cartão também chama a API (O-2)', async () => {
     const user = userEvent.setup();
-    const marking = deferred();
+    const first = deferred();
+    const second = deferred();
     offsetServer([notification(1), notification(2)]);
-    api.markNotification.mockReturnValueOnce(marking.promise);
+    api.markNotification.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     renderCenter();
     await waitFor(() => cardOf('TASK-102'));
 
     await user.click(within(cardOf('TASK-102')).getByRole('button', { name: /Marcar como lida/ }));
     await user.click(within(cardOf('TASK-101')).getByRole('button', { name: /Marcar como lida/ }));
-    expect(api.markNotification).toHaveBeenCalledTimes(1);
 
-    await act(async () => marking.resolve({ notification: notification(2, { readAt: READ_AT }) }));
-    await user.click(within(cardOf('TASK-101')).getByRole('button', { name: /Marcar como lida/ }));
+    expect(api.markNotification.mock.calls).toEqual([
+      [2, true],
+      [1, true]
+    ]);
+    for (const code of ['TASK-102', 'TASK-101'])
+      expect(
+        within(cardOf(code)).getByRole('button', { name: /Marcar como lida/ })
+      ).toHaveAttribute('aria-busy', 'true');
+
+    await user.click(within(cardOf('TASK-102')).getByRole('button', { name: /Marcar como lida/ }));
     expect(api.markNotification).toHaveBeenCalledTimes(2);
-    expect(api.markNotification).toHaveBeenLastCalledWith(1, true);
+
+    await act(async () => first.resolve({ notification: notification(2, { readAt: READ_AT }) }));
+    await act(async () => second.resolve({ notification: notification(1, { readAt: READ_AT }) }));
+    for (const code of ['TASK-102', 'TASK-101'])
+      expect(
+        within(cardOf(code)).getByRole('button', { name: /Marcar como não lida/ })
+      ).not.toHaveAttribute('aria-busy');
+  });
+
+  it('C3-01 H1 na tela: marcar como lidas e "Carregar mais" mostra as não lidas seguintes (S202-A01)', async () => {
+    const user = userEvent.setup();
+    offsetServer(twentyFive());
+    renderCenter();
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
+
+    for (const code of ['TASK-125', 'TASK-124', 'TASK-123', 'TASK-122']) {
+      await user.click(within(cardOf(code)).getByRole('button', { name: /Marcar como lida/ }));
+      await waitFor(() =>
+        expect(
+          within(cardOf(code)).getByRole('button', { name: /Marcar como não lida/ })
+        ).toBeInTheDocument()
+      );
+    }
+    await user.click(screen.getByRole('button', { name: 'Carregar mais notificações' }));
+
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(25));
+    const labels = screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'));
+    expect(new Set(labels).size).toBe(25);
+    for (const code of ['TASK-105', 'TASK-104', 'TASK-103', 'TASK-102', 'TASK-101'])
+      expect(cardOf(code)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Carregar mais notificações' })
+    ).not.toBeInTheDocument();
   });
 
   it('abrir uma tarefa já lida leva ao Kanban sem nova marcação', async () => {

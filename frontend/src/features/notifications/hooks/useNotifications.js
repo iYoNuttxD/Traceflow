@@ -13,13 +13,13 @@ export function useNotifications({ onCount } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [failedPage, setFailedPage] = useState(1);
+  const [failedCursor, setFailedCursor] = useState(null);
   const current = useRef(null);
   const countRef = useRef(onCount);
   countRef.current = onCount;
 
   const load = useCallback(
-    async (page = 1) => {
+    async (cursor = null) => {
       current.current?.abort();
       const controller = new AbortController();
       current.current = controller;
@@ -27,22 +27,21 @@ export function useNotifications({ onCount } = {}) {
       setError(null);
       try {
         const next = await listNotifications(
-          { status, page, limit: PAGE_SIZE },
+          cursor ? { status, cursor, limit: PAGE_SIZE } : { status, page: 1, limit: PAGE_SIZE },
           { signal: controller.signal, fresh: true }
         );
         if (current.current !== controller) return;
         setData((previous) => ({
           ...next,
-          notifications:
-            page === 1
-              ? next.notifications
-              : mergeById(previous?.notifications || [], next.notifications)
+          notifications: cursor
+            ? mergeById(previous?.notifications || [], next.notifications)
+            : next.notifications
         }));
         countRef.current?.(next.unreadCount);
       } catch (failure) {
         if (current.current !== controller) return;
         setError(normalizeApiError(failure, 'Não foi possível carregar as notificações.'));
-        setFailedPage(page);
+        setFailedCursor(cursor);
       } finally {
         if (current.current === controller) setLoading(false);
       }
@@ -51,7 +50,7 @@ export function useNotifications({ onCount } = {}) {
   );
 
   useEffect(() => {
-    void load(1);
+    void load();
   }, [load]);
 
   useEffect(() => () => current.current?.abort(), []);
@@ -80,9 +79,9 @@ export function useNotifications({ onCount } = {}) {
       setData(null);
       setStatus(next);
     },
-    retry: () => load(failedPage),
-    more: () => load(data.pagination.page + 1),
-    reload: () => load(1),
+    retry: () => load(failedCursor),
+    more: () => load(data.nextCursor),
+    reload: () => load(),
     replace
   };
 }

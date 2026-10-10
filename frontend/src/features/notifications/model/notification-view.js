@@ -80,6 +80,11 @@ export function unreadNavLabel(count) {
   return `Notificações, ${count} ${count === 1 ? 'não lida' : 'não lidas'}`;
 }
 
+export function navigationMenuLabel(count) {
+  if (!count || count < 1) return 'Abrir navegação';
+  return `Abrir navegação, ${count} ${count === 1 ? 'notificação não lida' : 'notificações não lidas'}`;
+}
+
 export function markAllMessage(updated) {
   if (!updated) return 'Nenhuma notificação estava pendente.';
   return updated === 1

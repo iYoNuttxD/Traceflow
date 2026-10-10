@@ -31,8 +31,7 @@ export function UnreadNotificationsProvider({ children }) {
       if (current.current === controller) setUnreadCount(Number(next?.unreadCount) || 0);
     } catch (failure) {
       const error = normalizeApiError(failure);
-      if (error.status === 429)
-        blockedUntil.current = Date.now() + (error.retryAfterSeconds || 60) * 1000;
+      if (error.status === 429) blockedUntil.current = Date.now() + error.retryAfterSeconds * 1000;
     }
   }, []);
 

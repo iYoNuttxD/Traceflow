@@ -123,6 +123,16 @@
   cursor: pointer;
 }
 
+.trace-shell__menu-dot {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-primary);
+}
+
 .trace-shell__icon-button:hover,
 .trace-shell__pin-button:hover {
   border-color: var(--color-border-default);
