@@ -1314,3 +1314,67 @@ conta 1. A auditoria `TRACEABILITY_ALERT_DISMISSED` guarda só `alertType`.
 | `TRACEABILITY_ALERT_NOT_FOUND` | 404    | alerta inexistente ou de outro projeto                        |
 | `TRACEABILITY_ALERT_NOT_OPEN`  | 409    | dispensa de alerta já resolvido                               |
 | `RATE_LIMITED`                 | 429    | limitador do reprocessamento                                  |
+
+## S2-02 — Notificações de tarefa (RF30, RF59)
+
+Rotas do próprio usuário, fora do escopo de projeto. Decisão em
+[ADR-016](../architecture/ADR-016-TASK-NOTIFICATIONS.md); regra executável (destinatário, corte,
+deduplicação, visibilidade e métrica) em [Task Notifications](../data/TASK_NOTIFICATIONS.md). Não
+há rota que crie notificação: a de status nasce na transação da mudança de status, e a de
+vencimento, no job `notifications:due`.
+
+| Método | Rota                                 | Entrada                                                                                           | Resposta                                                 |
+| ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `page?`, `limit?` (máx. 100)                                     | `200`, `{notifications,pagination,unreadCount}`          |
+| GET    | `/api/notifications/unread-count`    | —                                                                                                 | `200`, `{unreadCount}`                                   |
+| PATCH  | `/api/notifications/:notificationId` | `{read: boolean}` estrito                                                                         | `200`, `{notification}`                                  |
+| POST   | `/api/notifications/read-all`        | body vazio                                                                                        | `200`, `{updated}`                                       |
+| GET    | `/api/settings/notifications`        | —                                                                                                 | `200`, `{preferences{TASK_STATUS_CHANGED,TASK_OVERDUE}}` |
+| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED: boolean, TASK_OVERDUE: boolean}}`, as duas chaves obrigatórias | `200`, `{preferences}`                                   |
+
+**Autorização.** Toda rota exige sessão; sem ela, 401. O destinatário vem da sessão: nenhum
+`userId` é aceito em query ou corpo (parâmetro desconhecido responde 400). A notificação só é
+visível ao destinatário enquanto ele tiver membership ativa num projeto não excluído. Id de outra
+pessoa, ou oculto, responde 404 com o mesmo código e a mesma mensagem do inexistente. As mutações
+exigem CSRF. As três leituras entram no limitador de leitura autenticada (`authenticatedReadBurst`
+e `authenticatedReadSustained`).
+
+**Listagem.** Ordem `createdAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
+`totalPages`. `unreadCount` conta todas as não lidas visíveis, não só a página. Listar não marca
+nada como lido.
+
+**`NotificationDTO`.** Campos:
+
+- `id`, `type`, `createdAt`, `readAt`;
+- `project{id,name}`;
+- `task{id,code,title,available}`: o título é o copiado na criação; tarefa excluída vem com
+  `id=null`, `code=null` e `available=false`;
+- `context`: `{fromStatus,toStatus,actor{id,name}|null}` em `TASK_STATUS_CHANGED`, `{dueDate}`
+  (`YYYY-MM-DD`) em `TASK_OVERDUE`;
+- `link`: `/projects/:projectId/kanban?task=:taskId`, ou `null` sem tarefa.
+
+O DTO nunca expõe e-mail, `dedupeKey` nem o destinatário. O nome do ator é lido na exibição.
+
+**Leitura.** `{read: true}` grava o primeiro instante de leitura e não o sobrescreve; `{read:
+false}` volta a nulo. `read-all` é um único `UPDATE` sobre as não lidas visíveis do usuário, tudo
+ou nada: `updated` é a contagem, e não há item que falhe ou seja ignorado isoladamente.
+
+**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as duas chaves, só
+booleanos; chave fora do enum, `__proto__` ou `constructor` respondem 400. A auditoria
+`NOTIFICATION_PREFERENCES_UPDATED` só é gravada quando algo muda e guarda apenas `changedTypes`.
+
+**Divergência declarada com o contexto de arquitetura (§12, classe DR).** As rotas seguem a
+convenção deste documento, não a do anexo: base `/api` em vez de `/api/v1`; objeto nomeado em vez
+do envelope `{data, meta}`; `limit` em vez de `pageSize`; erro `{message, code, requestId}` em vez
+de `{error: {...}}`. A §20 do contexto exige ADR para versão e contrato da API; esse ADR é da
+campanha de conformidade, não do S2-02.
+
+### Códigos de erro do S2-02
+
+| Código                    | Status | Quando                                                                |
+| ------------------------- | ------ | --------------------------------------------------------------------- |
+| `VALIDATION_ERROR`        | 400    | query, parâmetro ou corpo inválido, chave desconhecida ou `__proto__` |
+| `AUTHENTICATION_REQUIRED` | 401    | requisição sem sessão                                                 |
+| `CSRF_INVALID`            | 403    | `PATCH`, `POST` ou `PUT` sem token CSRF válido                        |
+| `NOTIFICATION_NOT_FOUND`  | 404    | notificação inexistente, de outra pessoa ou oculta                    |
+| `RATE_LIMITED`            | 429    | limitador de leitura autenticada ou global                            |

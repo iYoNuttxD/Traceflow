@@ -136,7 +136,8 @@ Restrições do terreno:
 - **Dados pessoais:**
   - a notificação e a preferência são dados do titular;
   - a anonimização apaga as do titular;
-  - a exportação inclui os metadados das notificações recebidas e as preferências;
+  - a exportação inclui as preferências e as notificações dos projetos com acesso atual, como as
+    demais seções da exportação, sem o ator;
   - notificações com mais de 180 dias são apagadas pelo `privacy:retention`.
 - Logs do job só com contagens e códigos de erro, sem título, nome ou e-mail. Só a mudança de
   preferências é auditada, com os tipos alterados.

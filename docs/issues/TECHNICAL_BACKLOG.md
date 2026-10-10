@@ -56,6 +56,18 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | S201-F13 | Texto de ajuda do filtro "Com evidência técnica" | no catálogo de requisitos (S1-09), o filtro não explica que issue não conta como evidência técnica, embora conte como vínculo técnico no RF58 (O-10 de `S2_01_RELATORIO_TESTES.md`) | BAIXA | próxima mudança na tela de requisitos |
 | S201-F14 | `db:test:validate-empty` não roda no Windows | `scripts/validate-empty-migrations.js` chama `node_modules/.bin/prisma.cmd` com `spawnSync` sem `shell`, o que o Node 20.12+ recusa (`EINVAL`); a validação local falha com "Migration vazia falhou. undefined". A CI, em Linux, não é afetada | BAIXA | quem rodar a validação localmente no Windows; usar `shell: true` ou `npx` |
 
+## Pendências abertas pelo S2-02 (notificações de tarefa)
+
+| ID | Pendência | Requisito/impacto | Prioridade | Critério para iniciar |
+|---|---|---|---|---|
+| S202-F01 | Canal de e-mail e push para notificações | o S2-02 entrega só a central na aplicação (ADR-016 D7); quem não abre o TraceFlow não vê o aviso | MÉDIA | SMTP real homologado (S1-02); decisão de frequência e de opt-in por canal |
+| S202-F02 | Lembrete antes do vencimento ("prazo próximo") | o RF59 avisa só depois do corte; não há aviso preventivo | BAIXA | pedido de uso real; definir antecedência e fuso por usuário |
+| S202-F03 | Vencimento de marcos e sprints | o job do S2-02 cobre só tarefas; marcos e sprints vencidos não notificam | BAIXA | decisão de quem recebe (gestor do projeto? membros da sprint?) |
+| S202-F04 | Agregação e SSE por usuário | cada evento é uma notificação, e o contador é consultado a cada 60 s; não há resumo agrupado nem atualização em tempo real | BAIXA | volume real de notificações; ADR sobre SSE por usuário (o ADR-013 é por projeto) |
+| S202-F05 | Indicador de cobertura de notificações no produto | a métrica oficial do RF30/RF59 é medida pelos testes M1/M2 e pela saída do job, sem tela (ADR-016 D16) | MÉDIA | S2-04/S2-05 (painel de indicadores) ou instrumento do S3-01 |
+| S202-F06 | `__proto__` descartado em silêncio pelo Zod 4 em toda a API | `strictObject` não acusa uma chave própria `__proto__`; não há poluição, mas a tentativa não vira erro de validação nem chega ao log. O S2-02 recusa a chave nos seus corpos | MÉDIA | ajuste no helper `strictObject` compartilhado, com teste de regressão nas rotas existentes |
+| S202-F07 | Fuso por usuário | o corte do vencimento usa um fuso único (`APP_TIMEZONE`), como a ADR-010 D15 já aceita para datas | BAIXA | preferência de fuso no perfil e decisão sobre o efeito na tela do Kanban |
+
 ## Fechadas pelas correções do S2-01 (09/10/2026)
 
 Origem: `docs/issues/S2_01_RELATORIO_TESTES.md`; enunciado em `docs/issues/S2_01_PROMPT_CORRECOES.md`.

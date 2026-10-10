@@ -172,3 +172,59 @@ manual ou pelo script `traceability:alerts`. Nenhum teste local cobre o limitado
 | V8.2.1 | a regra MANAGER do middleware aceita a barra final; dispensa e reprocessamento têm duas camadas também nessas variantes | `test/unit/s201-bateria.test.js` (papel exigido no middleware) |
 | V1.2.1, V3.2.2, §13.2 do contexto | URLs vindas do GitHub só são gravadas com o prefixo `https://github.com/` | `test/unit/github-mapper.correcoes.test.js` (C1-03) |
 | Disponibilidade do sync | textos do GitHub cabem nas colunas; um título longo não derruba mais a importação | `test/api/s201-correcoes.test.js` (C1-01) |
+
+## Delta S2-02 — notificações de tarefa (RF30, RF59)
+
+A entrega acrescenta seis rotas do próprio usuário, duas tabelas com dado pessoal
+(`Notification`, `NotificationPreference`), um job agendado (`notifications:due`) e duas telas. A
+matriz segue a §13.1 do contexto de arquitetura: requisito, aplicabilidade, implementação,
+evidência e status. O mapeamento descreve controles exercitados; não é certificação ASVS.
+
+| Requisito | Nível | Aplicação ao S2-02 | Implementação | Evidência | Status |
+|---|---|---|---|---|---|
+| V1.2.1, V3.2.2 | L1 | título da tarefa, nome do ator e do projeto exibidos como texto | `NotificationCard` | `NotificationsPage.test.jsx` (título com `<img onerror>` literal) | ATENDIDO |
+| V1.2.2 | L1 | link de contexto montado pelo servidor com ids inteiros | `notification.policy.js` (`notificationLink`), mapper | `notification.policy.test.js`; DTO em `s202-notifications.test.js` (API) | ATENDIDO |
+| V1.2.4 | L1 | consultas só pelo Prisma; o módulo não usa SQL bruto | `notification.repository.js` | inspeção; `architecture:check` | ATENDIDO |
+| V2.1.1, V2.1.3 | L1, L2 | regras e limites documentados: `limit` até 100, `status` enum, preferências estritas, janela de 7 dias, 15 min, título de 191 | `docs/data/TASK_NOTIFICATIONS.md`, `API_CONTRACTS.md` | documentos da Fase 0 e da Fase 6 | ATENDIDO |
+| V2.2.1, V2.2.2 | L1 | validação positiva no servidor (`strictObject`, enums, ids inteiros até 2³¹−1) | `notification.validation.js` | API: campo desconhecido, ids malformados e `limit=101` respondem 400, nunca 500 | ATENDIDO |
+| V2.3.2 | L2 | limites implementados como documentados | política e validação | `notification.policy.test.js` (janela nas duas pontas); API (`limit=101`) | ATENDIDO |
+| V2.3.3 | L2 | notificação de status na mesma transação do movimento e do histórico | `transitionStatus` | N4 (`test/integration/s202-notifications.test.js`) | ATENDIDO |
+| V2.3.4 | L2 | índice único (destinatário, chave) contra duplicidade sob concorrência | schema, `skipDuplicates` | N5, N8 | ATENDIDO |
+| V2.4.1 | L2 | as três leituras no limitador autenticado; mutações com CSRF e limitador global | `app.js` | API: 429 com `Retry-After` nas três leituras | ATENDIDO |
+| V3.5.1, V3.5.3 | L1 | CSRF em `PATCH`, `POST` e `PUT`; nenhuma `GET` muda estado | middleware CSRF existente | API: mutação sem token responde 403; `readAt` intacto depois das `GET` | ATENDIDO |
+| V4.1.1 | L1 | `Content-Type` com charset em sucesso e erro | resposta global | API (cabeçalhos das rotas novas) | ATENDIDO |
+| V8.1.1 | L1 | regra documentada: só o destinatário, com membership ativa | `AUTHORIZATION_MATRIX.md`, ADR-016 | documentos | ATENDIDO |
+| V8.2.1 | L1 | toda rota exige sessão | `authenticate` | API: 401 nas seis rotas | ATENDIDO |
+| V8.2.2 | L1 | id de outra pessoa ou oculto responde 404 igual ao inexistente | repository filtra por `recipientUserId` e visibilidade | API (C6) | ATENDIDO |
+| V8.2.3, V15.3.1 | L2, L1 | DTO sem e-mail, `dedupeKey` nem destinatário | `notification.mapper.js` | API (chaves exatas do DTO) | ATENDIDO |
+| V8.3.1 | L1 | destinatário só da sessão; nenhum `userId` aceito | controller e validação | API: `userId` em query ou corpo responde 400 | ATENDIDO |
+| V8.4.1 | L2 | perder a membership oculta; contador e `read-all` respeitam a visibilidade | repository (`visibleWhere`) | API (membership removida e reativada, projeto excluído, `read-all`) | ATENDIDO |
+| V14.1.1, V14.1.2, V14.2.4 | L2 | notificação e preferência inventariadas, com retenção de 180 dias, exportação e anonimização | `PERSONAL_DATA_INVENTORY.md`, `DATA_RETENTION_POLICY.md` | `test/integration/s202-privacy.test.js`; exportação na API | ATENDIDO |
+| V14.2.1 | L1 | a query só leva `status`, `page` e `limit`; o link não leva dado pessoal | rotas e mapper | API (inspeção das rotas) | ATENDIDO |
+| V14.3.2 | L2 | `Cache-Control: no-store` nas respostas com nome e título | `noStoreApiResponses` global | API (cabeçalhos) | ATENDIDO |
+| V14.3.3 | L2 | nada de notificação em `localStorage` ou `sessionStorage` | feature `notifications` | `NotificationsPage.test.jsx` | ATENDIDO |
+| V15.1.3, V15.2.2 | L2 | custo do job documentado e limitado (janela, lote por projeto, índices) | runbook e script | medição da Fase 7 | PENDENTE (Fase 7) |
+| V15.3.3, V15.3.5, V15.3.7 | L2 | `PATCH` aceita só `read`; `"true"` responde 400; `status` repetido responde 400 | validação | API | ATENDIDO |
+| V15.3.6 | L2 | `__proto__` em qualquer nível do corpo responde 400; `constructor` também | `notification.validation.js` | API (preferências) | ATENDIDO |
+| V16.2.1, V16.2.2 | L2 | log do job com evento, projeto, contagens e instante em UTC, e o fuso usado | `notification.service.js` | `notify-overdue-tasks.script.test.js` | ATENDIDO |
+| V16.2.5, V16.4.1 | L2 | log sem título, nome ou e-mail; título com `\r\n` não forja linha | `notification.service.js` | `notify-overdue-tasks.script.test.js` | ATENDIDO |
+| V16.3.2 | L2 | 404 por id alheio registrado pelo tratador de erros | tratador global | API (logger injetado) | ATENDIDO |
+| V16.3.3 | L2 | mudança de preferências auditada, só com `changedTypes` | `audit.service.js` | API (auditoria) | ATENDIDO |
+| V16.5.1 | L2 | erro genérico, sem eco da entrada nem stack | tratador global | API | ATENDIDO |
+| V16.5.2, V16.5.3 | L2 | falha de inserção desfaz a mudança de status; falha de um projeto no job conta em `failed` e o processo sai com código 1 | `transitionStatus`, script | N4; N15 e testes do script | ATENDIDO |
+| V16.4.2, V16.4.3 | L2 | proteção e envio dos logs para sistema separado | ambiente | — | NÃO VERIFICÁVEL LOCALMENTE (S2-10) |
+
+**Não aplicáveis:**
+- **V1.3.x:** sem HTML rico, SVG, template, Markdown, SSRF, LDAP, JNDI ou e-mail.
+- **V1.5.x:** sem XML nem desserialização de objeto.
+- **V2.3.1:** não há fluxo em etapas.
+- **Cabeçalhos e origem (V3.3.x, V3.4.x, V3.5.2, V3.5.4–V3.5.5, V3.7.x):** cookies, cabeçalhos globais, CORS e origem não mudam.
+- **V4.1.2–V4.4.x:** sem GraphQL, WebSocket ou intermediário novo.
+- **V5, V6, V7, V9, V10, V11 e V12:** nada novo de arquivo, autenticação, sessão, token, OAuth, criptografia ou TLS.
+- **V13.x:** sem comunicação externa nova; o job usa a mesma `DATABASE_URL`.
+- **V17:** sem WebRTC.
+
+**Achado transversal.** O Zod 4 descarta em silêncio uma chave própria `__proto__` num
+`strictObject`, em vez de acusar chave desconhecida. Não há poluição de protótipo, porque o objeto
+validado sai limpo. Mesmo assim, a tentativa não chega ao log como erro de validação. O S2-02
+recusa a chave nos próprios corpos; o restante da API está no backlog (S202-F06).
