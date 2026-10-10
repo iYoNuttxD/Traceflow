@@ -801,8 +801,14 @@ C2-01, C3-01, C5-01 e C4-01, verdes.
 | Mutação dirigida | 22 de 22 mortos: M31 (cursor sem desempate), M32 ("Carregar mais" por página), M33 (`PUT` sem bloqueio), M34 (todos os tipos regravados), M34b (religar sem `enabledAt`), M35 (job ignora `enabledAt`), M36 e M37 (estado da conta ignorado no RF30 e no job), M38 (exportação filtrada), M39 (código 0), M40 (recurso `second`), M41 (guarda global), M42 e M43 (validação do cursor); M10, M11, M12, M13, M17, M23, M29 e M30 da campanha continuam mortos |
 | Tela, na conta do João (painel Browser) | botão ☰ com o ponto e "Abrir navegação, 1 notificação não lida" em 390 px, nos temas claro e escuro, sem rolagem horizontal; o cursor percorre as 6 notificações em páginas de 4 e 2 contra o backend real. A notificação marcada como não lida para a prova voltou a lida |
 
-**Conferência no ambiente do João:** a migration `20261011010000_notification_preference_enabled_at` precisa ser aplicada no banco
-de desenvolvimento (`npx prisma migrate deploy` em `backend`), pelo João. Até lá, a tela de
-preferências e o job falham no ambiente de desenvolvimento, porque o código já espera a coluna. O
-roteiro com a carga de escala (H1 na tela e H9 com a saída do job colada) fica para depois da
-migration, com aval para cada carga.
+**Conferência no ambiente do João (10/10/2026):** o João aplicou a migration
+`20261011010000_notification_preference_enabled_at` no banco de desenvolvimento
+(`npx prisma migrate deploy` em `backend`). Entre o commit `3aab6cd` e a migration, a tela de
+preferências e o job falhariam no ambiente de desenvolvimento, porque o código já esperava a coluna.
+Depois dela, na conta do João:
+- `GET /api/settings/notifications` responde 200, com as duas preferências ligadas;
+- `GET /api/notifications?status=ALL&limit=2` responde 200, com `nextCursor` e as 6 notificações no
+  total.
+
+O roteiro com a carga de escala (H1 na tela e H9 com a saída do job colada) fica opcional, com aval
+para cada carga.
