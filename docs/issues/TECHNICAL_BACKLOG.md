@@ -67,6 +67,7 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | S202-F05 | Indicador de cobertura de notificações no produto | a métrica oficial do RF30/RF59 é medida pelos testes M1/M2 e pela saída do job, sem tela (ADR-016 D16) | MÉDIA | S2-04/S2-05 (painel de indicadores) ou instrumento do S3-01 |
 | S202-F06 | `__proto__` descartado em silêncio pelo Zod 4 em toda a API | `strictObject` não acusa uma chave própria `__proto__`; não há poluição, mas a tentativa não vira erro de validação nem chega ao log. O S2-02 recusa a chave nos seus corpos | MÉDIA | ajuste no helper `strictObject` compartilhado, com teste de regressão nas rotas existentes |
 | S202-F07 | Fuso por usuário | o corte do vencimento usa um fuso único (`APP_TIMEZONE`), como a ADR-010 D15 já aceita para datas | BAIXA | preferência de fuso no perfil e decisão sobre o efeito na tela do Kanban |
+| S202-F08 | Barra de abas internas com 1 px de rolagem vertical | anterior ao S2-02: em `internal-tabs.css`, o indicador da aba ativa (`::after`, `bottom: -1px`) passa 1 px da borda de um contêiner com `overflow: auto`, e aparece uma barra de rolagem vertical na barra de abas das Configurações (visto em `/settings/account` e `/settings/notifications`) | BAIXA | ajuste no CSS compartilhado das abas, conferindo as outras telas que o usam |
 
 ## Fechadas pelas correções do S2-01 (09/10/2026)
 
