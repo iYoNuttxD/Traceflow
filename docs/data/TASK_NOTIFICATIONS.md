@@ -126,7 +126,8 @@ das exclusões por motivo. O valor nunca aparece sem as exclusões.
 | Frequência | a cada 15 minutos, por agendador externo ([runbook](../runbooks/TASK_NOTIFICATIONS.md)) |
 | Escrita | por projeto, com `createMany` e `skipDuplicates` |
 | Falha | a falha de um projeto conta em `failed` e não impede os outros; com `failed > 0`, o processo sai com código 1 |
-| Saída | JSON com `timeZone`, `lookbackDays`, `scanned`, `eligible`, `created`, `alreadyNotified`, `excluded` por motivo, `failed`, `durationMs` e, em dry-run, `wouldCreate`. O job não atualiza linhas, então não há contagem de atualizados |
+| Saída | JSON com `dryRun`, `timeZone`, `lookbackDays`, `projects`, `scanned`, `eligible`, `created`, `alreadyNotified`, `excluded` por motivo, `failed`, `durationMs` e, em dry-run, `wouldCreate`. O job não atualiza linhas, e a saída diz isso com `updated: "NOT_APPLICABLE"` |
+| Log | `notifications_due_started` (com o fuso), `notifications_due_project_failed` (projeto e código do erro) e `notifications_due_completed` (contagens); nunca título, nome ou e-mail |
 
 ## Retenção e privacidade
 
