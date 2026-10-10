@@ -300,6 +300,29 @@ describe('S2-02 bateria API — lista, contador e leitura (bloco L)', () => {
   });
 });
 
+describe('S2-02 bateria API — exportação (bloco D)', () => {
+  it('NT-D-02 a exportação traz a data do prazo das notificações de vencimento', async () => {
+    const project = await createProject(prisma);
+    const owner = await register(project.id);
+    await notify(owner, project.id, { dueDate: new Date('2026-10-12T00:00:00.000Z') });
+
+    const exported = await owner
+      .mutate('post', '/api/settings/privacy/export')
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
+      .send({});
+
+    expect(exported.status).toBe(200);
+    const text = exported.body.toString('utf8');
+    expect(text).toMatch(/"type":\s*"TASK_OVERDUE"/);
+    expect(text).toMatch(/"dueDate":\s*"2026-10-12"/);
+  });
+});
+
 describe('S2-02 bateria API — preferências (bloco F)', () => {
   it('NT-F-02 PUT recusa null, array, chaves de protótipo em qualquer nível e valores não booleanos', async () => {
     const owner = await register();

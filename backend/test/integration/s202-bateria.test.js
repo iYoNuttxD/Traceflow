@@ -14,6 +14,7 @@ let prisma;
 let kanban;
 let crud;
 let notifications;
+let movements;
 let service;
 let createNotificationService;
 let audit;
@@ -34,6 +35,8 @@ beforeAll(async () => {
     await import('../../src/modules/tasks/services/task-kanban.service.js'));
   ({ taskCrudService: crud } =
     await import('../../src/modules/tasks/services/task-crud.service.js'));
+  ({ taskMovementRepository: movements } =
+    await import('../../src/modules/tasks/repositories/task-movement.repository.js'));
   ({ notificationRepository: notifications } =
     await import('../../src/modules/notifications/notification.repository.js'));
   ({ notificationService: service, createNotificationService } =
@@ -208,6 +211,32 @@ describe('S2-02 bateria de integração — RF30 (bloco S)', () => {
 
     const rows = await prisma.notification.findMany();
     expect(rows.map((row) => row.recipientUserId)).toEqual([after.id]);
+  });
+
+  it('NT-S-07b responsável trocado entre a leitura da tarefa e o lock: notifica o vigente no instante da mudança', async () => {
+    const project = await createProject(prisma);
+    const actor = await person(project.id, { role: 'MANAGER' });
+    const [before, after] = [await person(project.id), await person(project.id)];
+    const task = await createTask(prisma, project.id, {
+      title: 'Título antigo',
+      responsibleUserId: before.id
+    });
+    const stale = await prisma.task.findUnique({ where: { id: task.id } });
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { responsibleUserId: after.id, title: 'Título vigente' }
+    });
+
+    await movements.transitionStatus({
+      task: stale,
+      toStatus: 'EM_ANDAMENTO',
+      actor: { id: actor.id, name: actor.name }
+    });
+
+    const rows = await prisma.notification.findMany();
+    expect(rows.map((row) => [row.recipientUserId, row.taskTitle])).toEqual([
+      [after.id, 'Título vigente']
+    ]);
   });
 
   it('NT-S-08 título de 191 caracteres com emoji na fronteira é copiado inteiro e não muda com a renomeação', async () => {
@@ -619,6 +648,51 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
 
     expect(hidden.projects).toBe(0);
     expect(restored).toMatchObject({ projects: 1, created: 1 });
+  });
+
+  it('NT-J-10 o comando do runbook roda como processo: dry-run no banco de teste e uso inválido com código 1', () => {
+    const backend = resolve(fileURLToPath(new URL('../..', import.meta.url)));
+    const run = (args) =>
+      spawnSync(process.execPath, ['scripts/notify-overdue-tasks.js', ...args], {
+        cwd: backend,
+        env: { ...process.env, NODE_ENV: 'test' },
+        encoding: 'utf8'
+      });
+
+    const dry = run(['--dry-run']);
+    const invalid = run(['--project-id=abc']);
+
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(JSON.parse(dry.stdout)).toMatchObject({
+      dryRun: true,
+      failed: 0,
+      database: { database: expect.stringMatching(/_test$/) }
+    });
+    expect(dry.stdout).not.toMatch(/password|senha|:\/\/[^@]*@/i);
+    expect(invalid.status).toBe(1);
+    expect(invalid.stderr).toMatch(/Uso/);
+  });
+
+  it('NT-J-04 erro sem código vira NOTIFICATIONS_DUE_FAILED no log', async () => {
+    await overdueScenario('2026-10-15');
+    vi.spyOn(notifications, 'findOverdueCandidates').mockRejectedValue(new Error('sem código'));
+    const calls = [];
+    const log = { info() {}, warn() {}, error: (message, context) => calls.push(context) };
+
+    const report = await createNotificationService({ log }).notifyOverdueTasks({
+      now: at('2026-10-20T12:00:00.000Z'),
+      timeZone: 'America/Sao_Paulo',
+      lookbackDays: 7,
+      dryRun: false
+    });
+
+    expect(report.failed).toBe(1);
+    expect(calls).toEqual([
+      expect.objectContaining({
+        event: 'notifications_due_project_failed',
+        errorCode: 'NOTIFICATIONS_DUE_FAILED'
+      })
+    ]);
   });
 
   it('NT-J-09/H16 --project-id inexistente termina sem varrer nada', async () => {
