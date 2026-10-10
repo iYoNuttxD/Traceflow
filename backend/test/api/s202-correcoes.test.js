@@ -188,3 +188,95 @@ describe('S2-02 correções — cursor estável na central (S202-A01)', () => {
     expect(ids(response.body)).toEqual([own[1].id, own[0].id]);
   });
 });
+
+function readStoredJsonFiles(zip) {
+  const files = {};
+  let offset = 0;
+  while (zip.readUInt32LE(offset) === 0x04034b50) {
+    const size = zip.readUInt32LE(offset + 18);
+    const filenameLength = zip.readUInt16LE(offset + 26);
+    const extraLength = zip.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + filenameLength + extraLength;
+    const name = zip.subarray(nameStart, nameStart + filenameLength).toString('utf8');
+    files[name] = JSON.parse(zip.subarray(contentStart, contentStart + size).toString('utf8'));
+    offset = contentStart + size;
+  }
+  return files;
+}
+
+function parseBinary(response, callback) {
+  const chunks = [];
+  response.on('data', (chunk) => chunks.push(chunk));
+  response.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
+const exportOf = async (person) => {
+  const response = await person
+    .mutate('post', '/api/settings/privacy/export')
+    .buffer(true)
+    .parse(parseBinary)
+    .send({});
+  expect(response.status).toBe(200);
+  return readStoredJsonFiles(response.body)['notifications.json'];
+};
+
+describe('S2-02 correções — exportação com as notificações ocultas (S202-A05)', () => {
+  it('C7-01 visível, de projeto que a pessoa deixou e de projeto excluído entram, com visible', async () => {
+    const current = await createProject(prisma, { name: 'Projeto atual' });
+    const left = await createProject(prisma, { name: 'Projeto deixado' });
+    const removed = await createProject(prisma, { name: 'Projeto excluído' });
+    const owner = await register(current.id);
+    await prisma.projectMembership.create({
+      data: { projectId: left.id, userId: owner.user.id, role: 'MEMBER', isActive: false }
+    });
+    await prisma.projectMembership.create({
+      data: { projectId: removed.id, userId: owner.user.id, role: 'MEMBER', isActive: true }
+    });
+    await prisma.project.update({ where: { id: removed.id }, data: { deletedAt: new Date() } });
+    const rows = {
+      current: await notify(owner, current.id, { createdAt: new Date('2026-10-03T00:00:00.000Z') }),
+      left: await notify(owner, left.id, { createdAt: new Date('2026-10-02T00:00:00.000Z') }),
+      removed: await notify(owner, removed.id, { createdAt: new Date('2026-10-01T00:00:00.000Z') })
+    };
+
+    const exported = await exportOf(owner);
+
+    expect(exported.map((item) => [item.id, item.visible])).toEqual([
+      [rows.current.id, true],
+      [rows.left.id, false],
+      [rows.removed.id, false]
+    ]);
+  });
+
+  it('C7-01 a notificação de outra pessoa nunca entra, e nada traz ator, e-mail, chave ou destinatário', async () => {
+    const project = await createProject(prisma);
+    const owner = await register(project.id);
+    const other = await register(project.id);
+    const actor = await register(project.id, 'MANAGER');
+    await notify(owner, project.id, {
+      type: 'TASK_STATUS_CHANGED',
+      dedupeKey: 'TASK_STATUS_CHANGED:movement:91',
+      fromStatus: 'A_FAZER',
+      toStatus: 'EM_ANDAMENTO',
+      actorUserId: actor.user.id,
+      dueDate: null
+    });
+    const foreign = await notify(other, project.id);
+
+    const exported = await exportOf(owner);
+    const serialized = JSON.stringify(exported);
+
+    expect(exported).toHaveLength(1);
+    expect(exported.map((item) => item.id)).not.toContain(foreign.id);
+    for (const forbidden of [
+      actor.user.email,
+      actor.user.name,
+      'actor',
+      'dedupeKey',
+      'recipientUserId',
+      'TASK_STATUS_CHANGED:movement:91'
+    ])
+      expect(serialized).not.toContain(forbidden);
+  });
+});

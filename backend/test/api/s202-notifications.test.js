@@ -493,7 +493,7 @@ function parseBinary(response, callback) {
 }
 
 describe('S2-02 API: exportação do titular (D13)', () => {
-  it('inclui as preferências e as notificações dos projetos com acesso atual', async () => {
+  it('inclui as preferências e todas as notificações do titular, com visible', async () => {
     const project = await createProject(prisma, { name: 'Projeto exportado' });
     const former = await createProject(prisma, { name: 'Projeto antigo' });
     const owner = await register(project.id);
@@ -510,7 +510,9 @@ describe('S2-02 API: exportação do titular (D13)', () => {
       dueDate: null,
       readAt: new Date('2026-10-09T10:00:00.000Z')
     });
-    await notify(owner, former.id);
+    const hidden = await notify(owner, former.id, {
+      createdAt: new Date('2026-10-01T10:00:00.000Z')
+    });
     await owner
       .mutate('put', '/api/settings/notifications')
       .send({ preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false } });
@@ -541,7 +543,21 @@ describe('S2-02 API: exportação do titular (D13)', () => {
         toStatus: 'CONCLUIDO',
         dueDate: null,
         createdAt: visible.createdAt.toISOString(),
-        readAt: '2026-10-09T10:00:00.000Z'
+        readAt: '2026-10-09T10:00:00.000Z',
+        visible: true
+      },
+      {
+        id: hidden.id,
+        type: 'TASK_OVERDUE',
+        projectId: former.id,
+        taskId: null,
+        taskTitle: hidden.taskTitle,
+        fromStatus: null,
+        toStatus: null,
+        dueDate: '2026-10-10',
+        createdAt: '2026-10-01T10:00:00.000Z',
+        readAt: null,
+        visible: false
       }
     ]);
     const serialized = JSON.stringify(files['notifications.json']);

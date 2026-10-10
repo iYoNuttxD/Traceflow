@@ -49,6 +49,7 @@ export function toNotificationExportItem(row) {
     toStatus: row.toStatus,
     dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
     createdAt: row.createdAt,
-    readAt: row.readAt
+    readAt: row.readAt,
+    visible: !row.project.deletedAt && row.project.memberships.length > 0
   };
 }

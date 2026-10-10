@@ -639,9 +639,6 @@ export const settingsRepository = {
           }
         },
         notifications: {
-          where: {
-            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
-          },
           select: {
             id: true,
             type: true,
@@ -652,7 +649,13 @@ export const settingsRepository = {
             toStatus: true,
             dueDate: true,
             createdAt: true,
-            readAt: true
+            readAt: true,
+            project: {
+              select: {
+                deletedAt: true,
+                memberships: { where: { userId, isActive: true }, select: { id: true } }
+              }
+            }
           },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
         },
