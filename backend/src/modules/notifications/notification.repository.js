@@ -1,3 +1,4 @@
+import { lockUser } from '../../database/locks.js';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import {
@@ -180,6 +181,7 @@ export const notificationRepository = {
 
   savePreferences(userId, preferences, auditFor) {
     return prisma.$transaction(async (tx) => {
+      await lockUser(tx, userId);
       const current = await tx.notificationPreference.findMany({
         where: { userId },
         select: preferenceSelect
@@ -188,14 +190,11 @@ export const notificationRepository = {
       const changed = NOTIFICATION_TYPES.filter(
         (type) => (enabledBefore.get(type) ?? true) !== preferences[type]
       );
-      await tx.notificationPreference.createMany({
-        data: NOTIFICATION_TYPES.map((type) => ({ userId, type, enabled: preferences[type] })),
-        skipDuplicates: true
-      });
-      for (const type of NOTIFICATION_TYPES)
-        await tx.notificationPreference.updateMany({
-          where: { userId, type },
-          data: { enabled: preferences[type] }
+      for (const type of changed)
+        await tx.notificationPreference.upsert({
+          where: { userId_type: { userId, type } },
+          create: { userId, type, enabled: preferences[type] },
+          update: { enabled: preferences[type] }
         });
       if (changed.length) await auditRepository.create(auditFor(changed), tx);
       return tx.notificationPreference.findMany({ where: { userId }, select: preferenceSelect });
