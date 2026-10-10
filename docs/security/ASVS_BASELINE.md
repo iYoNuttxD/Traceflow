@@ -203,7 +203,7 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 | V14.2.1 | L1 | a query só leva `status`, `page` e `limit`; o link não leva dado pessoal | rotas e mapper | API (inspeção das rotas) | ATENDIDO |
 | V14.3.2 | L2 | `Cache-Control: no-store` nas respostas com nome e título | `noStoreApiResponses` global | API (cabeçalhos) | ATENDIDO |
 | V14.3.3 | L2 | nada de notificação em `localStorage` ou `sessionStorage` | feature `notifications` | `NotificationsPage.test.jsx` | ATENDIDO |
-| V15.1.3, V15.2.2 | L2 | custo do job documentado e limitado (janela, lote por projeto, índices) | runbook e script | medição da Fase 7 | PENDENTE (Fase 7) |
+| V15.1.3, V15.2.2 | L2 | custo do job documentado e limitado (janela, lote por projeto, índices) | runbook e script | medição em banco de teste, num projeto: 2.000 tarefas, 47 ms; 10.000 tarefas, 171 ms; a segunda execução não cria nada (154 ms) | ATENDIDO |
 | V15.3.3, V15.3.5, V15.3.7 | L2 | `PATCH` aceita só `read`; `"true"` responde 400; `status` repetido responde 400 | validação | API | ATENDIDO |
 | V15.3.6 | L2 | `__proto__` em qualquer nível do corpo responde 400; `constructor` também | `notification.validation.js` | API (preferências) | ATENDIDO |
 | V16.2.1, V16.2.2 | L2 | log do job com evento, projeto, contagens e instante em UTC, e o fuso usado | `notification.service.js` | `notify-overdue-tasks.script.test.js` | ATENDIDO |
@@ -228,3 +228,14 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 `strictObject`, em vez de acusar chave desconhecida. Não há poluição de protótipo, porque o objeto
 validado sai limpo. Mesmo assim, a tentativa não chega ao log como erro de validação. O S2-02
 recusa a chave nos próprios corpos; o restante da API está no backlog (S202-F06).
+
+**Verificação de 09/10/2026.**
+- Suíte completa do backend duas vezes: 1744 testes passaram nas duas rodadas. A única falha é o
+  `storage.test.js` (symlink `EPERM` no Windows, de ambiente e anterior ao S2-02).
+- Mutação dirigida: 20 mutantes, todos mortos. Cobrem fuso, valor-limite, guarda de concluída,
+  ator, transação, deduplicação, visibilidade, `read-all`, preferências, contador, código de saída,
+  contagens, janela, exportação, anonimização, retenção, recarga após 404, consulta periódica e o
+  teto "99+".
+- Cadeia de 62 migrations aplicada num banco vazio temporário, com as colunas, os índices e as
+  chaves estrangeiras esperados. O banco temporário foi removido em seguida.
+- `db:lr5:audit -- --test`: `SCHEMA_CONSISTENT`.
