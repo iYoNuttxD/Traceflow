@@ -59,16 +59,6 @@ function offsetAt(instantMs, timeZone) {
   return wallClock(new Date(flooredMs), timeZone).asUtc - flooredMs;
 }
 
-export function isValidTimeZone(timeZone) {
-  if (typeof timeZone !== 'string' || !timeZone) return false;
-  try {
-    new Intl.DateTimeFormat('en-CA', { timeZone });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function addDays(dateText, days) {
   const [year, month, day] = dateText.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);

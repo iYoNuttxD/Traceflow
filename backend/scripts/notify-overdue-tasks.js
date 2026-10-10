@@ -41,6 +41,10 @@ export async function runOverdueNotifications({
     write(
       `${JSON.stringify({ ...report, database: sanitizedDatabaseTarget(databaseUrl) }, null, 2)}\n`
     );
+    if (projectId && report.projects === 0) {
+      writeError(`Nenhum projeto ativo com --project-id=${projectId}; nada foi avaliado.\n`);
+      return 2;
+    }
     return report.failed > 0 ? 1 : 0;
   } catch (error) {
     writeError(

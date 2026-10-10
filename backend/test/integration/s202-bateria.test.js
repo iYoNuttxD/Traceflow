@@ -720,18 +720,40 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
     ]);
   });
 
-  it('NT-J-09/H16 --project-id inexistente termina sem varrer nada', async () => {
-    const writes = [];
+  it('NT-J-09/H16 --project-id inexistente ou excluído avisa em stderr e sai com código 2', async () => {
+    const removed = await createProject(prisma);
+    await prisma.project.update({ where: { id: removed.id }, data: { deletedAt: new Date() } });
+
+    for (const projectId of [2147483000, removed.id]) {
+      const writes = [];
+      const errors = [];
+      const code = await runOverdueNotifications({
+        args: ['--apply', `--project-id=${projectId}`],
+        service,
+        databaseUrl: env.databaseUrl,
+        write: (text) => writes.push(text),
+        writeError: (text) => errors.push(text)
+      });
+
+      expect(JSON.parse(writes[0])).toMatchObject({ projects: 0, failed: 0 });
+      expect(errors.join('')).toContain(`--project-id=${projectId}`);
+      expect(code).toBe(2);
+    }
+    expect(await prisma.notification.count()).toBe(0);
+  });
+
+  it('NT-J-09 sem --project-id e sem projeto ativo termina com 0 e sem aviso', async () => {
+    const errors = [];
     const code = await runOverdueNotifications({
-      args: ['--apply', '--project-id=2147483000'],
+      args: ['--apply'],
       service,
       databaseUrl: env.databaseUrl,
-      write: (text) => writes.push(text),
-      writeError: (text) => writes.push(text)
+      write: () => {},
+      writeError: (text) => errors.push(text)
     });
 
-    expect(JSON.parse(writes[0])).toMatchObject({ projects: 0, failed: 0 });
     expect(code).toBe(0);
+    expect(errors).toEqual([]);
   });
 });
 
