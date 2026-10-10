@@ -1,5 +1,8 @@
 import { env } from '../../config/env.js';
+import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
+import { buildAuditEvent } from '../audit/audit.service.js';
+import { toNotificationDTO, toPreferencesDTO } from './notification.mapper.js';
 import {
   OVERDUE,
   addDays,
@@ -15,6 +18,15 @@ import {
 import { notificationRepository } from './notification.repository.js';
 
 const JOB_EXCLUSIONS = ['OUTSIDE_WINDOW', 'NO_RESPONSIBLE', 'INACTIVE_MEMBER', 'PREFERENCE_OFF'];
+
+function notificationNotFound() {
+  return new AppError({
+    message: 'Notificação não encontrada.',
+    statusCode: 404,
+    code: ERROR_CODES.NOTIFICATION_NOT_FOUND,
+    exposeTechnicalDetails: true
+  });
+}
 
 function errorCodeOf(error) {
   return String(error?.code || 'NOTIFICATIONS_DUE_FAILED').slice(0, 64);
@@ -97,6 +109,53 @@ export function createNotificationService({
   }
 
   return {
+    async list(userId, query = {}) {
+      const page = query.page || 1;
+      const limit = query.limit || 20;
+      const [total, rows, unreadCount] = await repository.listPage(userId, {
+        unreadOnly: query.status !== 'ALL',
+        skip: (page - 1) * limit,
+        take: limit
+      });
+      return {
+        notifications: rows.map(toNotificationDTO),
+        pagination: { page, limit, total, totalPages: total ? Math.ceil(total / limit) : 0 },
+        unreadCount
+      };
+    },
+
+    async unreadCount(userId) {
+      return { unreadCount: await repository.countUnread(userId) };
+    },
+
+    async markRead(userId, notificationId, read) {
+      const row = await repository.setRead(userId, notificationId, read, clock());
+      if (!row) throw notificationNotFound();
+      return { notification: toNotificationDTO(row) };
+    },
+
+    async markAllRead(userId) {
+      return { updated: await repository.markAllRead(userId, clock()) };
+    },
+
+    async preferences(userId) {
+      return { preferences: toPreferencesDTO(await repository.preferences(userId)) };
+    },
+
+    async updatePreferences(userId, preferences, { requestId } = {}) {
+      const rows = await repository.savePreferences(userId, preferences, (changed) =>
+        buildAuditEvent({
+          actorUserId: userId,
+          requestId,
+          action: 'NOTIFICATION_PREFERENCES_UPDATED',
+          resourceType: 'NotificationPreference',
+          resourceId: userId,
+          metadata: { changedTypes: changed.join(',') }
+        })
+      );
+      return { preferences: toPreferencesDTO(rows) };
+    },
+
     async notifyOverdueTasks({
       now = clock(),
       timeZone = configuration.appTimeZone,

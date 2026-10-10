@@ -29,7 +29,8 @@ const allowedMetadata = new Set([
   'durationSeconds',
   'alertType',
   'created',
-  'resolved'
+  'resolved',
+  'changedTypes'
 ]);
 
 export function minimizeAuditMetadata(metadata) {

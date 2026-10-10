@@ -100,7 +100,10 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
       '/api/projects/:projectId/members',
       '/api/projects/:projectId/invitations',
       '/api/projects/:projectId/access-code',
-      '/api/projects/invitations/mine'
+      '/api/projects/invitations/mine',
+      '/api/notifications',
+      '/api/notifications/unread-count',
+      '/api/settings/notifications'
     ],
     rateLimiters.authenticatedReadBurst,
     rateLimiters.authenticatedReadSustained

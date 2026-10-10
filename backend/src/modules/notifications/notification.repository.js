@@ -1,5 +1,7 @@
 import { prisma } from '../../database/prismaClient.js';
+import { auditRepository } from '../audit/audit.repository.js';
 import {
+  NOTIFICATION_TYPES,
   STATUS_CHANGED,
   snapshotTitle,
   statusChangeDedupeKey,
@@ -7,6 +9,18 @@ import {
 } from './notification.policy.js';
 
 const unique = (values) => [...new Set(values)];
+const dtoInclude = {
+  project: { select: { id: true, name: true } },
+  actor: { select: { id: true, name: true } }
+};
+const preferenceSelect = { type: true, enabled: true };
+
+function visibleWhere(userId) {
+  return {
+    recipientUserId: userId,
+    project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+  };
+}
 
 export const notificationRepository = {
   async createStatusChangeNotification(tx, { task, movement, actorUserId }) {
@@ -106,5 +120,72 @@ export const notificationRepository = {
     if (!rows.length) return 0;
     const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
     return result.count;
+  },
+
+  listPage(userId, { unreadOnly, skip, take }) {
+    const where = { ...visibleWhere(userId), ...(unreadOnly ? { readAt: null } : {}) };
+    return prisma.$transaction([
+      prisma.notification.count({ where }),
+      prisma.notification.findMany({
+        where,
+        include: dtoInclude,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take
+      }),
+      prisma.notification.count({ where: { ...visibleWhere(userId), readAt: null } })
+    ]);
+  },
+
+  countUnread(userId) {
+    return prisma.notification.count({ where: { ...visibleWhere(userId), readAt: null } });
+  },
+
+  setRead(userId, notificationId, read, now) {
+    return prisma.$transaction(async (tx) => {
+      const where = { id: notificationId, ...visibleWhere(userId) };
+      if (!(await tx.notification.findFirst({ where, select: { id: true } }))) return null;
+      await tx.notification.updateMany({
+        where: read ? { ...where, readAt: null } : where,
+        data: { readAt: read ? now : null }
+      });
+      return tx.notification.findFirst({ where, include: dtoInclude });
+    });
+  },
+
+  async markAllRead(userId, now) {
+    const result = await prisma.notification.updateMany({
+      where: { ...visibleWhere(userId), readAt: null },
+      data: { readAt: now }
+    });
+    return result.count;
+  },
+
+  preferences(userId) {
+    return prisma.notificationPreference.findMany({ where: { userId }, select: preferenceSelect });
+  },
+
+  savePreferences(userId, preferences, auditFor) {
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.notificationPreference.findMany({
+        where: { userId },
+        select: preferenceSelect
+      });
+      const enabledBefore = new Map(current.map((row) => [row.type, row.enabled]));
+      const changed = NOTIFICATION_TYPES.filter(
+        (type) => (enabledBefore.get(type) ?? true) !== preferences[type]
+      );
+      await tx.notificationPreference.createMany({
+        data: NOTIFICATION_TYPES.map((type) => ({ userId, type, enabled: preferences[type] })),
+        skipDuplicates: true
+      });
+      for (const type of NOTIFICATION_TYPES)
+        await tx.notificationPreference.updateMany({
+          where: { userId, type },
+          data: { enabled: preferences[type] }
+        });
+      if (changed.length) await auditRepository.create(auditFor(changed), tx);
+      return tx.notificationPreference.findMany({ where: { userId }, select: preferenceSelect });
+    });
   }
 };
