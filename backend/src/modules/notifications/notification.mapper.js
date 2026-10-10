@@ -29,6 +29,10 @@ export function toNotificationDTO(row) {
   };
 }
 
+export function toNotificationCursor(row) {
+  return Buffer.from(`${row.createdAt.toISOString()}|${row.id}`, 'utf8').toString('base64url');
+}
+
 export function toPreferencesDTO(rows) {
   const disabled = new Set(rows.filter((row) => !row.enabled).map((row) => row.type));
   return Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, !disabled.has(type)]));

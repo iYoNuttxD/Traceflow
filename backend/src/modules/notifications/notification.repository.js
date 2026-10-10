@@ -122,15 +122,28 @@ export const notificationRepository = {
     return result.count;
   },
 
-  listPage(userId, { unreadOnly, skip, take }) {
+  listPage(userId, { unreadOnly, skip, take, after = null }) {
     const where = { ...visibleWhere(userId), ...(unreadOnly ? { readAt: null } : {}) };
+    const pageWhere = after
+      ? {
+          AND: [
+            where,
+            {
+              OR: [
+                { createdAt: { lt: after.createdAt } },
+                { createdAt: after.createdAt, id: { lt: after.id } }
+              ]
+            }
+          ]
+        }
+      : where;
     return prisma.$transaction([
       prisma.notification.count({ where }),
       prisma.notification.findMany({
-        where,
+        where: pageWhere,
         include: dtoInclude,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        skip,
+        ...(after ? {} : { skip }),
         take
       }),
       prisma.notification.count({ where: { ...visibleWhere(userId), readAt: null } })

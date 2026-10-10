@@ -2,7 +2,11 @@ import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
 import { buildAuditEvent } from '../audit/audit.service.js';
-import { toNotificationDTO, toPreferencesDTO } from './notification.mapper.js';
+import {
+  toNotificationCursor,
+  toNotificationDTO,
+  toPreferencesDTO
+} from './notification.mapper.js';
 import {
   OVERDUE,
   addDays,
@@ -112,15 +116,24 @@ export function createNotificationService({
     async list(userId, query = {}) {
       const page = query.page || 1;
       const limit = query.limit || 20;
+      const after = query.cursor || null;
       const [total, rows, unreadCount] = await repository.listPage(userId, {
         unreadOnly: query.status !== 'ALL',
         skip: (page - 1) * limit,
-        take: limit
+        take: limit + 1,
+        after
       });
+      const pageRows = rows.slice(0, limit);
       return {
-        notifications: rows.map(toNotificationDTO),
-        pagination: { page, limit, total, totalPages: total ? Math.ceil(total / limit) : 0 },
-        unreadCount
+        notifications: pageRows.map(toNotificationDTO),
+        pagination: {
+          page: after ? null : page,
+          limit,
+          total,
+          totalPages: total ? Math.ceil(total / limit) : 0
+        },
+        unreadCount,
+        nextCursor: rows.length > limit ? toNotificationCursor(pageRows.at(-1)) : null
       };
     },
 

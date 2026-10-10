@@ -1349,7 +1349,9 @@ nada como lido.
 item da página; `null` quando não há mais. Com `cursor`, a página seguinte começa depois desse
 item, na mesma ordem, e marcar notificações como lidas no caminho não desloca nada. `cursor` e
 `page` juntos, ou cursor malformado, respondem 400. O cursor só posiciona: não dá acesso a
-notificação de outra pessoa. A central usa o cursor; `page` continua aceito.
+notificação de outra pessoa. Com `cursor`, `pagination.page` vem `null`; `total`, `totalPages` e
+`unreadCount` continuam. A central usa o cursor; `page` continua aceito, e a resposta com `page`
+também traz `nextCursor`.
 
 **Data do prazo (RF59).** `deadline` aceita `YYYY-MM-DD` ou datetime ISO-8601 completo. A data do
 prazo é a data UTC do instante gravado: `2026-10-10T22:30:00-03:00` é gravado como
