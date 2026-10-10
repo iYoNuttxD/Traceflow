@@ -10,7 +10,10 @@ import {
   statusChangeDedupeKey,
   statusChangeExclusion
 } from '../../src/modules/notifications/notification.policy.js';
-import { parseOverdueNotificationArguments } from '../../scripts/notify-overdue-tasks.js';
+import {
+  parseOverdueNotificationArguments,
+  runOverdueNotifications
+} from '../../scripts/notify-overdue-tasks.js';
 
 const DAY = 86_400_000;
 const ZONES = [
@@ -237,6 +240,30 @@ describe('S2-02 bateria de unidade — argumentos do script (NT-J-02)', () => {
     [['--APPLY']]
   ])('recusa %j com a mensagem de uso', (args) => {
     expect(() => parseOverdueNotificationArguments(args)).toThrowError(/Uso/);
+  });
+
+  it.each([
+    [
+      'erro do banco com código',
+      Object.assign(new Error('senha=segredo em db:3306'), { code: 'P1001' })
+    ],
+    ['valor lançado que não é Error', 'texto cru com segredo']
+  ])('%s vira a mensagem genérica, sem o texto original, e código 1', async (_, failure) => {
+    const errors = [];
+    const code = await runOverdueNotifications({
+      args: ['--apply'],
+      service: {
+        notifyOverdueTasks: async () => {
+          throw failure;
+        }
+      },
+      databaseUrl: 'mysql://u:p@localhost:3306/traceflow_test',
+      write: () => {},
+      writeError: (text) => errors.push(text)
+    });
+
+    expect(code).toBe(1);
+    expect(errors).toEqual(['Varredura de vencimentos falhou.\n']);
   });
 });
 
