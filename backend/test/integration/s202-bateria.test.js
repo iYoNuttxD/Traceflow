@@ -553,6 +553,28 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
     expect(again).toMatchObject({ created: 0, alreadyNotified: 1 });
   });
 
+  it('NT-J-01b dry-run depois do apply reconhece as já notificadas pelo repository real', async () => {
+    const { project, responsible } = await overdueScenario('2026-10-15');
+    await createTask(prisma, project.id, {
+      responsibleUserId: responsible.id,
+      deadline: at('2026-10-16T00:00:00.000Z')
+    });
+    const empty = await createProject(prisma);
+    const now = at('2026-10-20T12:00:00.000Z');
+
+    await job({ projectId: project.id, now });
+    await createTask(prisma, project.id, {
+      responsibleUserId: responsible.id,
+      deadline: at('2026-10-17T00:00:00.000Z')
+    });
+    const dry = await job({ projectId: project.id, now, dryRun: true });
+    const nothing = await job({ projectId: empty.id, now, dryRun: true });
+
+    expect(dry).toMatchObject({ eligible: 3, alreadyNotified: 2, wouldCreate: 1, created: 0 });
+    expect(nothing).toMatchObject({ eligible: 0, alreadyNotified: 0, wouldCreate: 0 });
+    expect(await prisma.notification.count()).toBe(2);
+  });
+
   it('NT-J-04 falha de um projeto (repository real) não impede o outro', async () => {
     const ok = await overdueScenario('2026-10-15');
     const broken = await overdueScenario('2026-10-15');
