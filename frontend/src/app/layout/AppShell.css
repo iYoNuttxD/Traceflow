@@ -206,6 +206,22 @@ button.trace-shell__nav-item {
   width: 100%;
 }
 
+.trace-shell__badge {
+  display: inline-flex;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-primary);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
 .trace-shell__nav-item:hover,
 .trace-shell__quick-link:hover,
 .trace-shell__retry:hover {
@@ -441,6 +457,16 @@ button.trace-shell__nav-item {
   display: block;
 }
 
+.trace-shell[data-sidebar-state='collapsed'] .trace-shell__badge {
+  position: absolute;
+  top: 0.125rem;
+  right: 0.125rem;
+  min-width: 1rem;
+  height: 1rem;
+  margin: 0;
+  font-size: 0.625rem;
+}
+
 .trace-shell[data-sidebar-state='collapsed'] .trace-shell__quick-link {
   position: relative;
 }
@@ -652,6 +678,14 @@ button.trace-shell__nav-item {
 
   .trace-shell[data-sidebar-state='collapsed'] .trace-shell__collapsed-pin {
     display: none;
+  }
+
+  .trace-shell[data-sidebar-state='collapsed'] .trace-shell__badge {
+    position: static;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    margin-left: auto;
+    font-size: var(--font-size-1);
   }
 
   .trace-shell[data-sidebar-state='collapsed'] .trace-shell__user {

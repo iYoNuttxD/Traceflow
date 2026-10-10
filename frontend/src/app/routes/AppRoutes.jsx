@@ -72,6 +72,14 @@ const ProjectAuditPage = lazyNamed(
   () => import('../../pages/ProjectAuditPage.jsx'),
   'ProjectAuditPage'
 );
+const NotificationsPage = lazyNamed(
+  () => import('../../pages/NotificationsPage.jsx'),
+  'NotificationsPage'
+);
+const NotificationPreferencesPage = lazyNamed(
+  () => import('../../features/notifications/pages/NotificationPreferencesPage.jsx'),
+  'NotificationPreferencesPage'
+);
 const SettingsLayout = lazyNamed(
   () => import('../../features/settings/SettingsLayout.jsx'),
   'SettingsLayout'
@@ -194,7 +202,9 @@ export function AppRoutes() {
             <Route path="security" element={<SecuritySettingsPage />} />
             <Route path="privacy" element={<PrivacySettingsPage />} />
             <Route path="integrations" element={<IntegrationsSettingsPage />} />
+            <Route path="notifications" element={<NotificationPreferencesPage />} />
           </Route>
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />
         </Route>
         <Route

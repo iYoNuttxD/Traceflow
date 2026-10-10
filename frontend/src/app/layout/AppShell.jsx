@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useProjectsCatalog } from '../../features/projects/index.js';
+import {
+  unreadBadge,
+  unreadNavLabel,
+  useUnreadNotifications
+} from '../../features/notifications/index.js';
 import { useTheme } from '../theme/ThemeProvider.jsx';
 import {
   MOBILE_QUERY,
@@ -59,6 +64,12 @@ function activeProjectFromPath(pathname) {
 
 function ShellIcon({ name }) {
   const content = {
+    bell: (
+      <>
+        <path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z" />
+        <path d="M10.3 20a1.9 1.9 0 0 0 3.4 0" />
+      </>
+    ),
     chevron: <path d="m15 18-6-6 6-6" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     logout: (
@@ -157,6 +168,9 @@ export function AppShell({ user, onLogout, children }) {
   const contentRef = useRef(null);
   const previousPathRef = useRef(location.pathname);
   const activeProjectId = activeProjectFromPath(location.pathname);
+  const { unreadCount } = useUnreadNotifications();
+  const notificationBadge = unreadBadge(unreadCount);
+  const notificationLabel = unreadNavLabel(unreadCount);
   const { quickProjects, feedback, togglePinned } = useQuickProjects({
     projects,
     userId: user?.id,
@@ -297,6 +311,20 @@ export function AppShell({ user, onLogout, children }) {
             <NavLink className="trace-shell__nav-item" to="/projects" end data-tooltip="Projetos">
               <ShellIcon name="projects" />
               <span className="trace-shell__nav-label">Projetos</span>
+            </NavLink>
+            <NavLink
+              className="trace-shell__nav-item"
+              to="/notifications"
+              aria-label={notificationLabel}
+              data-tooltip={notificationLabel}
+            >
+              <ShellIcon name="bell" />
+              <span className="trace-shell__nav-label">Notificações</span>
+              {notificationBadge && (
+                <span className="trace-shell__badge" aria-hidden="true">
+                  {notificationBadge}
+                </span>
+              )}
             </NavLink>
           </nav>
 

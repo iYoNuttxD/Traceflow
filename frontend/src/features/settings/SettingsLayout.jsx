@@ -7,7 +7,8 @@ const sections = [
   ['/settings/account', 'Conta'],
   ['/settings/security', 'Segurança'],
   ['/settings/privacy', 'Privacidade'],
-  ['/settings/integrations', 'Integrações']
+  ['/settings/integrations', 'Integrações'],
+  ['/settings/notifications', 'Notificações']
 ];
 
 export function SettingsLayout() {
@@ -16,7 +17,7 @@ export function SettingsLayout() {
       <header className="settings-header">
         <p className="eyebrow">Configurações</p>
         <h1>Configurações</h1>
-        <p>Gerencie sua conta, segurança, privacidade e integrações.</p>
+        <p>Gerencie sua conta, segurança, privacidade, integrações e notificações.</p>
       </header>
       <nav className="internal-tabs settings-tabs" aria-label="Configurações da conta">
         {sections.map(([to, label]) => (
