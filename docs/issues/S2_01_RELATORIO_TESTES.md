@@ -509,6 +509,19 @@ falha) são agora C2-01, C5-01 e C4-01, verdes.
 | Gates do frontend | `lint`, `format:check` e `build` verdes |
 | Mutação dirigida | 15 de 15 mortos: M27 (conexão sem reconciliação), M28 (autor sem corte), M29 (URL sem validação), M30 e M31 (justificativa em `.length` no servidor e no frontend), M32 (`stale` invertido), M33 (registro no dry-run), M34 (erro do resumo ignorado), M35 (regex sem barra), M36 (snapshot em 191), M37 (código de erro sem limite), e M11, M13, M14 e M18 da campanha |
 
-**Pendente no ambiente do João:**
-- aplicar as três migrations no banco de desenvolvimento (`cd backend` e `npx prisma migrate deploy`);
-- conferir na tela a dispensa com emojis e o aviso de desatualização.
+**Conferência no ambiente do João (09/10/2026):**
+
+As três migrations foram aplicadas no banco de desenvolvimento (`traceflow`, `localhost:3306`)
+pelo João. Na primeira tentativa, o `migrate status` mostrou as três pendentes, sem falha
+registrada, e o `migrate deploy` seguinte as aplicou. Enquanto elas faltavam, o resumo respondia
+500 (tabela nova ausente). A tela já mostrava o estado de erro da correção A06 ("O TRACEFLOW
+encontrou um problema interno… Tentar novamente"), em vez da carga eterna.
+
+| Verificação | Resultado |
+|---|---|
+| Resumo com as migrations aplicadas | 200; `reconciliation: null` antes de qualquer reconciliação |
+| "Reprocessar alertas" pela tela | "0 novos, 0 resolvidos, 24 mantidos"; o registro passa a `{lastTrigger: 'MANUAL', stale: false}`, sem aviso |
+| Dispensa da Issue #105 com 5 emojis | contador "5 de 500 caracteres · mínimo 10" e a mensagem "A justificativa deve ter entre 10 e 500 caracteres." |
+| Dispensa com 10 emojis | aceita e gravada ("Dispensado por João Vitor Hernandes … “😀😀😀😀😀😀😀😀😀😀”"); o campo não tem mais `maxlength` |
+| Backend com 5 emojis (sonda direta num alerta resolvido) | 400 `VALIDATION_ERROR`, recusado pela contagem por caractere antes da regra de estado |
+| Aviso de alertas desatualizados na tela | não forçado: exigiria simular uma falha de reconciliação no banco de desenvolvimento. Coberto em jsdom (C4-02, C4-03) e na API (C2-02, AT-S-03) |
