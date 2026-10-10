@@ -743,3 +743,66 @@ carga de escala é proposta ao João (`s202-cleanup-escala-dev.mjs`, fora do rep
   conferido pela API.
 - **HTML em nomes na tela real (M-14):** não executado; coberto em jsdom.
 - **Logs em sistema separado (V16.4.2, V16.4.3):** pertencem ao ambiente (S2-10).
+
+## 17. Correções (10/10/2026)
+
+O enunciado está em [S2_02_PROMPT_CORRECOES.md](S2_02_PROMPT_CORRECOES.md). O João aprovou os dez
+⚑ com as recomendações ("pode seguir"). Cada correção nasceu com o teste de regressão vermelho pelo
+motivo do achado. As reproduções vermelhas da campanha (H1 na API e na tela, H9 e H11) são agora
+C2-01, C3-01, C5-01 e C4-01, verdes.
+
+| Achado | Correção | Commit | Testes de regressão |
+|---|---|---|---|
+| — | ADR-016 revisto; `TASK_NOTIFICATIONS.md` (exclusões, corte, prazo com hora, preferências, leitura, métrica com os oito itens, job, exportação); contrato; runbook; matriz RF; inventário de UI | `e3da602` | — |
+| S202-A14 | `startOfLocalDay` busca o primeiro instante do dia local que existe quando o dia pedido foi pulado | `52076a4` | C1-01 (Apia, Fakaofo, Kwajalein, Kiritimati), C1-02 (oráculo nos anos das transições) |
+| S202-A01 | `cursor` opaco e `nextCursor` na API; `cursor` e `page` exclusivos | `52100ec` | C2-01 (H1), C2-02 (empate e chegada nova), C2-03 (cursor inválido, com `page`, repetido, alheio) |
+| S202-A01, O-2, O-7, O-4 | "Carregar mais" pelo cursor; ocupado por cartão; ponto e rótulo no botão ☰; sem o `\|\| 60` | `d9ea88a` | C3-01 (H1 na tela), C3-02, C3-03; dois testes da bateria reescritos para o cursor |
+| S202-A02 | `lockUser` no `PUT` de preferências; só os tipos que mudam são gravados | `da4df65` | C4-01 (H11 em dez rodadas, `PUT` iguais, `PUT` sem mudança) |
+| S202-A03 | `enabledAt` (migration `20261011010000_notification_preference_enabled_at`); `preferenceAllowsOverdue` no job | `3aab6cd` | C5-01 (H9), C5-02 (antes do corte, no instante do corte, nunca desligada, prazo novo, quando `enabledAt` muda, tabela da política) |
+| S202-A04 | motivo `INACTIVE_ACCOUNT` no gatilho do RF30 e no job | `2111706` | C6-01 (NT-Z-02/H4 reescrito), C6-02 (tabela do RF30 com o estado da conta, reativação, ordem no job); tabelas de 32 combinações |
+| S202-A05 | `notifications.json` com todas as notificações do titular e `visible` | `d20d90a` | C7-01; teste de contrato da exportação atualizado |
+| S202-A08, S202-A12 | código 2 e aviso em `stderr` para `--project-id` sem projeto; sai `isValidTimeZone` | `6fb4968` | C8-01 (NT-J-09/H16 reescrito) e o caso sem `--project-id` |
+| S202-A06, A09, A10, A13 | documentação | `e3da602` e o commit deste registro | — |
+
+**Desvios do enunciado, todos sem mudança de decisão:**
+
+- **Regra de recuperação corrigida no meio da rodada.** A Fase 0 escreveu que reativar a conta ou
+  voltar ao projeto não recupera o que foi excluído. Isso vale só para o RF30. No RF59 o job avalia
+  conta e membership a cada varredura (ADR-016 D3), e só a preferência religada não recupera. Os
+  testes C6-02 provam os dois lados; ADR-016 e `TASK_NOTIFICATIONS.md` foram corrigidos em
+  `2111706`.
+- **Primeira página com `page=1`.** A central só usa o cursor no "Carregar mais"; a resposta da
+  primeira página já traz `nextCursor`. Com cursor, `pagination.page` vem `null` (contrato).
+- **Casos de cursor inválido nasceram verdes**, porque o parâmetro ainda não existia e o schema
+  estrito já devolvia 400. Eles protegem a validação nova: os mutantes M42 (sem a checagem da data)
+  e M43 (sem o teto do id) morreram com eles.
+- **M34 redefinido.** Depois da Fase 4, o `PUT` grava só os tipos que mudam; "regravar `enabledAt`
+  em todo `PUT`" virou "percorrer todos os tipos". Entrou também o M34b (religar sem gravar
+  `enabledAt`).
+- **`prisma format` reformatou um modelo fora do escopo** (`ProjectPurgeStorageCleanup`). O schema
+  foi restaurado e só o campo novo entrou.
+- **`prisma generate` falhou com `EPERM` no Windows**, porque o servidor de desenvolvimento do João
+  segurava a DLL do motor. O cliente JS foi gerado (o `enabledAt` está nele) e a DLL é a mesma.
+- **Contrato do repositório do job:** `disabledRecipientIds` virou `overduePreferences`, e entrou
+  `activeAccountIds`. Os dois repositories falsos dos testes ganharam os métodos novos.
+- **Testes que fixavam o contrato antigo**, atualizados no commit da correção: NT-J-05, NT-P-09, o
+  teste da política, o do script e o de contrato da exportação.
+
+**Verificação (Fase 10):**
+
+| Item | Resultado |
+|---|---|
+| Suíte completa do backend, duas vezes | 1916 verdes, 5 ignorados e a mesma falha de ambiente nas duas (`storage.test.js`, `EPERM` de symlink no Windows) |
+| Suítes do S2-02 | 233 no backend (191 antes das correções) e 71 no frontend, todas verdes, inclusive as baterias da campanha |
+| Gates do backend | `lint`, `format:check`, `architecture:check` e `security:secrets` verdes |
+| Cadeia de migrations em banco vazio | 63 de 63 aplicadas num banco temporário do servidor de teste, removido depois; `NotificationPreference.enabledAt datetime(3) null` (validador equivalente ao `db:test:validate-empty`, por causa do S201-F14) |
+| Auditoria de schema (`db:lr5:audit -- --test`) | `SCHEMA_CONSISTENT` |
+| Gates do frontend | arquivos das notificações e `AppShell.test.jsx` isolados (83 verdes); `lint`, `format:check` e `build` verdes |
+| Mutação dirigida | 22 de 22 mortos: M31 (cursor sem desempate), M32 ("Carregar mais" por página), M33 (`PUT` sem bloqueio), M34 (todos os tipos regravados), M34b (religar sem `enabledAt`), M35 (job ignora `enabledAt`), M36 e M37 (estado da conta ignorado no RF30 e no job), M38 (exportação filtrada), M39 (código 0), M40 (recurso `second`), M41 (guarda global), M42 e M43 (validação do cursor); M10, M11, M12, M13, M17, M23, M29 e M30 da campanha continuam mortos |
+| Tela, na conta do João (painel Browser) | botão ☰ com o ponto e "Abrir navegação, 1 notificação não lida" em 390 px, nos temas claro e escuro, sem rolagem horizontal; o cursor percorre as 6 notificações em páginas de 4 e 2 contra o backend real. A notificação marcada como não lida para a prova voltou a lida |
+
+**Conferência no ambiente do João:** a migration `20261011010000_notification_preference_enabled_at` precisa ser aplicada no banco
+de desenvolvimento (`npx prisma migrate deploy` em `backend`), pelo João. Até lá, a tela de
+preferências e o job falham no ambiente de desenvolvimento, porque o código já espera a coluna. O
+roteiro com a carga de escala (H1 na tela e H9 com a saída do job colada) fica para depois da
+migration, com aval para cada carga.

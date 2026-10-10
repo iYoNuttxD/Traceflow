@@ -68,16 +68,25 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | S202-F06 | `__proto__` descartado em silêncio pelo Zod 4 em toda a API | `strictObject` não acusa uma chave própria `__proto__`; não há poluição, mas a tentativa não vira erro de validação nem chega ao log. O S2-02 recusa a chave nos seus corpos | MÉDIA | ajuste no helper `strictObject` compartilhado, com teste de regressão nas rotas existentes |
 | S202-F07 | Fuso por usuário | o corte do vencimento usa um fuso único (`APP_TIMEZONE`), como a ADR-010 D15 já aceita para datas | BAIXA | preferência de fuso no perfil e decisão sobre o efeito na tela do Kanban |
 | S202-F08 | Barra de abas internas com 1 px de rolagem vertical | anterior ao S2-02: em `internal-tabs.css`, o indicador da aba ativa (`::after`, `bottom: -1px`) passa 1 px da borda de um contêiner com `overflow: auto`, e aparece uma barra de rolagem vertical na barra de abas das Configurações (visto em `/settings/account` e `/settings/notifications`) | BAIXA | ajuste no CSS compartilhado das abas, conferindo as outras telas que o usam |
-| S202-F09 | Paginação estável no filtro Não lidas | no filtro Não lidas, "Carregar mais" pula notificações depois que o usuário marca algumas como lidas, porque a página é por deslocamento (S202-A01 de `S2_02_RELATORIO_TESTES.md`); o item marcado continua na lista até recarregar, sem registro | MÉDIA | prompt de correções do S2-02: cursor (`createdAt`, `id`) ou desconto dos marcados na sessão |
-| S202-F10 | Auditoria das preferências sob concorrência | dois primeiros `PUT /api/settings/notifications` simultâneos gravam `changedTypes` sobre estado velho, e a trilha não chega ao estado final (S202-A02) | MÉDIA | prompt de correções do S2-02: leitura com bloqueio na transação do `PUT` |
-| S202-F11 | Regra do RF59 ao religar a preferência | religar `TASK_OVERDUE` dentro da janela de 7 dias notifica um vencimento excluído enquanto a preferência estava desligada, contra "sem efeito retroativo" (S202-A03) | MÉDIA | decisão do João: corrigir o código ou a regra publicada |
-| S202-F12 | Contas restritas como destinatárias | contas `DEACTIVATED` e `DELETION_PENDING` continuam recebendo notificações que não conseguem ler, e a métrica as conta como enviadas (S202-A04) | MÉDIA | decisão registrada no ADR-016: motivo de exclusão próprio ou guarda para a reativação |
-| S202-F13 | Notificações ocultas na exportação | a exportação do titular omite notificações ocultas que continuam guardadas por até 180 dias (S202-A05); a convenção vale para as demais seções da exportação | MÉDIA | decisão transversal de privacidade na campanha de conformidade |
-| S202-F14 | Definição completa da métrica do RF30/RF59 | faltam período, filtros, interpretação, limitações e forma de atualização (§10.5 do anexo); a saída do job é um retrato por execução, e somá-la distorce o indicador (S202-A06) | MÉDIA | antes do S3-01 (Capítulo 4): completar `TASK_NOTIFICATIONS.md` e entregar uma medição por eventos distintos |
-| S202-F15 | `--project-id` sem projeto no job de vencimento | id inexistente ou excluído termina com código 0 e sem aviso (S202-A08) | BAIXA | próxima mudança no script; aviso em `stderr` e código de uso |
-| S202-F16 | Formato de `deadline` na API | datetime com fuso negativo muda a data do prazo e o vencimento em um dia (S202-A09); a tela envia só a data | BAIXA | aceitar só `YYYY-MM-DD` ou documentar a regra no contrato |
-| S202-F17 | Documentação e código morto do S2-02 | diferença de fuso entre o Kanban e o corte (S202-A10); `ACCOUNT_*` fora da tabela de erros, faixa de commits da matriz RF e frase do inventário de UI (S202-A13); `isValidTimeZone` sem uso, que aceita deslocamento (S202-A12); no S2-03, decidir o `PUT` de preferências com tipos novos (S202-A11) | BAIXA | prompt de correções do S2-02; o item do `PUT` entra como critério do S2-03 |
-| S202-F18 | Corte do vencimento quando o dia seguinte não existe no fuso | `startOfLocalDay` devolve o início do dia anterior quando a data pedida foi pulada no fuso (Samoa, 30/12/2011), e o prazo venceria 24 horas antes (S202-A14); inalcançável com os fusos e a janela atuais | BAIXA | próxima mudança na política de vencimento, com o teste de `Pacific/Apia` |
+| S202-F14 | Medição do RF30/RF59 por eventos distintos | a definição com os oito itens da §10.5 entrou em `TASK_NOTIFICATIONS.md` (`e3da602`); falta o instrumento que conta pares (tarefa, data do prazo) e movimentos distintos num período, porque a saída do job é um retrato por execução e não se soma (S202-A06) | MÉDIA | antes do S3-01 (Capítulo 4), junto com o S202-F05 |
+| S202-F17 | `PUT` de preferências com tipos novos | o `PUT` exige todas as chaves; quando o S2-03 acrescentar tipos, uma aba aberta durante a publicação recebe 400 ao salvar (S202-A11). O resto do item (documentação e `isValidTimeZone`) foi fechado nas correções do S2-02 | BAIXA | critério do S2-03: aceitar chave ausente como "manter" ou registrar a mudança de contrato com data |
+| S202-F19 | Ator homônimo no cartão de notificação | o cartão do RF30 mostra só o nome do ator; com duas contas de mesmo nome, não se sabe quem moveu (O-8 de `S2_02_RELATORIO_TESTES.md`). O DTO tem o id, a tela não | BAIXA | decisão sobre levar o nome de usuário no DTO (`actor.username`) e mostrá-lo no cartão |
+| S202-F20 | Seletor de responsável com homônimos | fora do S2-02: o formulário de tarefa lista duas pessoas de mesmo nome sem nome de usuário nem e-mail (O-9) | BAIXA | próxima mudança no formulário de tarefa (S1) |
+
+## Fechadas pelas correções do S2-02 (10/10/2026)
+
+Origem: `docs/issues/S2_02_RELATORIO_TESTES.md`; enunciado em `docs/issues/S2_02_PROMPT_CORRECOES.md`.
+
+| ID | Pendência | Correção |
+|---|---|---|
+| S202-F09 | "Carregar mais" pulava não lidas depois de marcar como lidas | `52100ec` e `d9ea88a`: cursor estável na API (`cursor`, `nextCursor`) e na central |
+| S202-F10 | auditoria das preferências incoerente sob `PUT` simultâneos | `da4df65`: `PUT` serializado por usuário (`lockUser`), gravando só os tipos que mudam |
+| S202-F11 | religar a preferência do RF59 era retroativo | `3aab6cd`: `enabledAt` (migration `20261011010000_notification_preference_enabled_at`); vencimento com corte anterior não é notificado |
+| S202-F12 | contas restritas continuavam recebendo | `2111706`: motivo `INACTIVE_ACCOUNT` no RF30 e no RF59 |
+| S202-F13 | exportação omitia as notificações ocultas | `d20d90a`: `notifications.json` com todas as do titular e `visible` |
+| S202-F15 | `--project-id` sem projeto terminava com 0 | `6fb4968`: aviso em `stderr` e código 2 |
+| S202-F16 | `deadline` com hora mudava a data do prazo sem aviso | `e3da602`: regra documentada no contrato e em `TASK_NOTIFICATIONS.md`, com o exemplo |
+| S202-F18 | corte um dia antes quando o dia seguinte não existe no fuso | `52076a4`: busca do primeiro instante do dia local que existe |
 
 ## Fechadas pelas correções do S2-01 (09/10/2026)
 

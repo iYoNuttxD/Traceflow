@@ -182,11 +182,11 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 
 | Requisito | Nível | Aplicação ao S2-02 | Implementação | Evidência | Status |
 |---|---|---|---|---|---|
-| V1.2.1, V3.2.2 | L1 | título da tarefa, nome do ator e do projeto exibidos como texto | `NotificationCard` | `NotificationsPage.test.jsx` (título com `<img onerror>` literal) | ATENDIDO |
+| V1.2.1, V3.2.2 | L1 | título da tarefa, nome do ator e do projeto exibidos como texto | `NotificationCard` | `NotificationsPage.test.jsx` (título com `<img onerror>` literal); NT-U-06 da campanha (nome do projeto e do ator) | ATENDIDO |
 | V1.2.2 | L1 | link de contexto montado pelo servidor com ids inteiros | `notification.policy.js` (`notificationLink`), mapper | `notification.policy.test.js`; DTO em `s202-notifications.test.js` (API) | ATENDIDO |
 | V1.2.4 | L1 | consultas só pelo Prisma; o módulo não usa SQL bruto | `notification.repository.js` | inspeção; `architecture:check` | ATENDIDO |
 | V2.1.1, V2.1.3 | L1, L2 | regras e limites documentados: `limit` até 100, `status` enum, preferências estritas, janela de 7 dias, 15 min, título de 191 | `docs/data/TASK_NOTIFICATIONS.md`, `API_CONTRACTS.md` | documentos da Fase 0 e da Fase 6 | ATENDIDO |
-| V2.2.1, V2.2.2 | L1 | validação positiva no servidor (`strictObject`, enums, ids inteiros até 2³¹−1) | `notification.validation.js` | API: campo desconhecido, ids malformados e `limit=101` respondem 400, nunca 500 | ATENDIDO |
+| V2.2.1, V2.2.2 | L1 | validação positiva no servidor (`strictObject`, enums, ids inteiros até 2³¹−1) | `notification.validation.js` | API: campo desconhecido, ids malformados e `limit=101` respondem 400, nunca 500; cursor malformado, com `page` ou repetido responde 400 (C2-03) | ATENDIDO |
 | V2.3.2 | L2 | limites implementados como documentados | política e validação | `notification.policy.test.js` (janela nas duas pontas); API (`limit=101`) | ATENDIDO |
 | V2.3.3 | L2 | notificação de status na mesma transação do movimento e do histórico | `transitionStatus` | N4 (`test/integration/s202-notifications.test.js`) | ATENDIDO |
 | V2.3.4 | L2 | índice único (destinatário, chave) contra duplicidade sob concorrência | schema, `skipDuplicates` | N5, N8 | ATENDIDO |
@@ -199,7 +199,7 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 | V8.2.3, V15.3.1 | L2, L1 | DTO sem e-mail, `dedupeKey` nem destinatário | `notification.mapper.js` | API (chaves exatas do DTO) | ATENDIDO |
 | V8.3.1 | L1 | destinatário só da sessão; nenhum `userId` aceito | controller e validação | API: `userId` em query ou corpo responde 400 | ATENDIDO |
 | V8.4.1 | L2 | perder a membership oculta; contador e `read-all` respeitam a visibilidade | repository (`visibleWhere`) | API (membership removida e reativada, projeto excluído, `read-all`) | ATENDIDO |
-| V14.1.1, V14.1.2, V14.2.4 | L2 | notificação e preferência inventariadas, com retenção de 180 dias, exportação e anonimização | `PERSONAL_DATA_INVENTORY.md`, `DATA_RETENTION_POLICY.md` | `test/integration/s202-privacy.test.js`; exportação na API | ATENDIDO |
+| V14.1.1, V14.1.2, V14.2.4 | L2 | notificação e preferência inventariadas, com retenção de 180 dias, exportação e anonimização | `PERSONAL_DATA_INVENTORY.md`, `DATA_RETENTION_POLICY.md` | `test/integration/s202-privacy.test.js`; exportação na API com todas as notificações do titular e `visible` (C7-01, correção de 10/10); conta restrita não recebe dado novo (`INACTIVE_ACCOUNT`, C6-02) | ATENDIDO |
 | V14.2.1 | L1 | a query só leva `status`, `page` e `limit`; o link não leva dado pessoal | rotas e mapper | API (inspeção das rotas) | ATENDIDO |
 | V14.3.2 | L2 | `Cache-Control: no-store` nas respostas com nome e título | `noStoreApiResponses` global | API (cabeçalhos) | ATENDIDO |
 | V14.3.3 | L2 | nada de notificação em `localStorage` ou `sessionStorage` | feature `notifications` | `NotificationsPage.test.jsx` | ATENDIDO |
@@ -209,7 +209,7 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 | V16.2.1, V16.2.2 | L2 | log do job com evento, projeto, contagens e instante em UTC, e o fuso usado | `notification.service.js` | `notify-overdue-tasks.script.test.js` | ATENDIDO |
 | V16.2.5, V16.4.1 | L2 | log sem título, nome ou e-mail; título com `\r\n` não forja linha | `notification.service.js` | `notify-overdue-tasks.script.test.js` | ATENDIDO |
 | V16.3.2 | L2 | 404 por id alheio registrado pelo tratador de erros | tratador global | API (logger injetado) | ATENDIDO |
-| V16.3.3 | L2 | mudança de preferências auditada, só com `changedTypes` | `audit.service.js` | API (auditoria) | ATENDIDO |
+| V16.3.3 | L2 | mudança de preferências auditada, só com `changedTypes` | `audit.service.js` | API (auditoria); `PUT` serializado por usuário, trilha coerente sob concorrência (C4-01, correção de 10/10) | ATENDIDO |
 | V16.5.1 | L2 | erro genérico, sem eco da entrada nem stack | tratador global | API | ATENDIDO |
 | V16.5.2, V16.5.3 | L2 | falha de inserção desfaz a mudança de status; falha de um projeto no job conta em `failed` e o processo sai com código 1 | `transitionStatus`, script | N4; N15 e testes do script | ATENDIDO |
 | V16.4.2, V16.4.3 | L2 | proteção e envio dos logs para sistema separado | ambiente | — | NÃO VERIFICÁVEL LOCALMENTE (S2-10) |
@@ -239,3 +239,13 @@ recusa a chave nos próprios corpos; o restante da API está no backlog (S202-F0
 - Cadeia de 62 migrations aplicada num banco vazio temporário, com as colunas, os índices e as
   chaves estrangeiras esperados. O banco temporário foi removido em seguida.
 - `db:lr5:audit -- --test`: `SCHEMA_CONSISTENT`.
+
+**Correções de 10/10/2026** (campanha de testes do S2-02, `S2_02_RELATORIO_TESTES.md`, seção 17):
+- V14.1.1, V14.1.2 e V14.2.4: a exportação traz todas as notificações do titular, com `visible`, e
+  conta restrita não recebe dado novo (`INACTIVE_ACCOUNT`).
+- V16.3.3: o `PUT` de preferências é serializado por usuário; a trilha de auditoria chega ao estado
+  final sob concorrência.
+- V2.2.1 e V2.2.2: o cursor da central é validado no servidor (formato, data, faixa do id,
+  exclusividade com `page`).
+- Suíte completa do backend duas vezes com 1916 verdes (só o `EPERM` de ambiente); 22 mutantes
+  dirigidos, todos mortos; 63 migrations aplicadas num banco vazio; `SCHEMA_CONSISTENT`.
