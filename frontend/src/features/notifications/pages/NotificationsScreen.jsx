@@ -102,13 +102,15 @@ export function NotificationsScreen() {
           Marcar todas como lidas
         </button>
       </header>
-      <FeedbackRegion
-        success={feedback.success}
-        error={feedback.error}
-        info={feedback.info}
-        rateLimit={feedback.rateLimit}
-        retryAfterSeconds={feedback.retryAfterSeconds}
-      />
+      {(feedback.success || feedback.error || feedback.info || feedback.rateLimit) && (
+        <FeedbackRegion
+          success={feedback.success}
+          error={feedback.error}
+          info={feedback.info}
+          rateLimit={feedback.rateLimit}
+          retryAfterSeconds={feedback.retryAfterSeconds}
+        />
+      )}
       <fieldset className="notifications-filter">
         <legend>Mostrar</legend>
         {NOTIFICATION_FILTERS.map((filter) => (

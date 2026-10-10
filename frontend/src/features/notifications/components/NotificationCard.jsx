@@ -34,7 +34,7 @@ export function NotificationCard({ notification, busy, onToggleRead, onOpen }) {
       <div className="notification-card__actions">
         {notification.link ? (
           <Link
-            className="button button-secondary button-compact"
+            className="button button-secondary button-compact link-button"
             to={notification.link}
             aria-label={`Abrir tarefa ${task.code}`}
             onClick={() => onOpen(notification)}

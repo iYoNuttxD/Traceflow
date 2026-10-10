@@ -4,6 +4,10 @@
   min-width: 0;
 }
 
+.notifications-screen > .notifications-screen__header {
+  margin-bottom: 0;
+}
+
 .notifications-screen__header {
   display: flex;
   flex-wrap: wrap;
@@ -13,7 +17,8 @@
 }
 
 .notifications-screen__header > div {
-  flex: 1 1 28rem;
+  flex: 1 1 auto;
+  max-width: 48rem;
   min-width: 0;
 }
 
