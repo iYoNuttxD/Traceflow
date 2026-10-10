@@ -1,6 +1,6 @@
 # ADR-016 — Notificações de tarefa: mudança de status e vencimento de prazo
 
-- **Estado:** aceita para o cartão S2-02 (RF30, RF59)
+- **Estado:** aceita para o cartão S2-02 (RF30, RF59); revista em 10/10/2026
 - **Data:** 09/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 
@@ -42,6 +42,8 @@ Restrições do terreno:
      do cartão no roadmap ("notificar responsáveis por mudança de status e atraso"). O responsável
      está entre as "partes envolvidas" da §3.2.8.
    - Tarefa sem responsável não gera notificação.
+   - Responsável com a conta fora de `ACTIVE` (desativada, com exclusão pendente ou anonimizada)
+     não recebe (`INACTIVE_ACCOUNT`). Reativar a conta não recupera o que foi excluído.
 4. **RF30 nasce na transação da mudança (D4).** `transitionStatus` cria a notificação depois de
    gravar o movimento e o histórico, na mesma transação. Se a inserção falhar, a mudança de status
    também é desfeita. A chave é `TASK_STATUS_CHANGED:movement:<movementId>`.
@@ -52,9 +54,16 @@ Restrições do terreno:
    - Tarefa `CONCLUIDO` não vence.
    - A chave é `TASK_OVERDUE:<taskId>:<data do prazo>`: uma notificação por prazo e por pessoa.
    - Só entram cortes dos últimos `NOTIFICATIONS_DUE_LOOKBACK_DAYS` dias (padrão 7).
+   - Quando o dia seguinte ao prazo não existe no fuso (Samoa e Tokelau em 30/12/2011, Kwajalein
+     em 21/08/1993, Kiritimati em 31/12/1994), o corte é o instante em que o dia do prazo termina:
+     o início do primeiro dia local que existe depois dele.
 
    **Exceção à ADR-010 D15.** Aqui vale o dia no fuso de referência, não o dia UTC. O corte em UTC
    avisaria 3 horas antes de a tela marcar a tarefa como atrasada para quem está no Brasil.
+
+   **Diferença com a tela.** O Kanban marca "Atrasada" pelo fuso do navegador. Para quem está fora
+   do fuso de referência, a tela e a notificação discordam por algumas horas (até 17 h em
+   `Pacific/Kiritimati`, +14, em relação a `America/Sao_Paulo`). O fuso por usuário é o S202-F07.
 6. **Job externo (D6).** `npm run notifications:due` (script `notify-overdue-tasks.js`):
    - dry-run por padrão, `--apply` e `--confirm-production`;
    - deve ser chamado a cada 15 minutos por um agendador externo: timer do `systemd` ou `cron` na
@@ -64,8 +73,15 @@ Restrições do terreno:
    - termina com código diferente de zero quando algum projeto falha.
 7. **Preferências (D7).** Por usuário e por tipo, ligadas por padrão (sem linha = ligada). Valem no
    instante da criação, sem efeito retroativo. O canal é só a aplicação.
+   - No RF59, a notificação nasce no job, depois do corte. Para não ser retroativa, a preferência
+     guarda `enabledAt`, o instante da última passagem de desligada para ligada (nulo se nunca foi
+     desligada). Vencimento com corte anterior a `enabledAt` conta como `PREFERENCE_OFF`.
 8. **Leitura e contexto (D8).** O link é calculado (`/projects/:id/kanban?task=:taskId`). Se a
    tarefa for excluída, a notificação mantém o título copiado e fica sem link.
+   - A central pagina por cursor estável (instante de criação e id do último item). Marcar como
+     lida não desloca as páginas seguintes.
+   - No filtro Não lidas, o item marcado continua na tela, com o estado de lida, até recarregar:
+     assim dá para desfazer.
 9. **Visibilidade (D9).** Só o destinatário vê, e só enquanto tiver membership ativa num projeto
    não excluído. Perder o acesso oculta sem apagar. Id alheio ou oculto responde 404 opaco.
 10. **Interface (D12).**
@@ -73,13 +89,19 @@ Restrições do terreno:
     - Página `/notifications`.
     - Seção nas Configurações.
     - O contador é consultado ao navegar e a cada 60 s com a aba visível.
+    - No celular, o botão que abre a navegação mostra um ponto quando há não lidas, e o rótulo
+      acessível diz quantas.
 11. **Métrica oficial (D16).** O indicador é calculado sobre os eventos elegíveis. As exclusões
     aparecem ao lado, contadas por motivo:
-    - por regra: sem responsável, membership inativa, ator igual ao responsável, fora da janela;
+    - por regra: sem responsável, conta restrita, membership inativa, ator igual ao responsável,
+      fora da janela;
     - por escolha: preferência desligada.
 
     A medição reproduzível são os testes M1 e M2 e a saída do job. O S2-02 não cria tela para o
     indicador.
+
+    A definição completa, com os oito itens da §10.5 do contexto de arquitetura, está em
+    `TASK_NOTIFICATIONS.md`. As contagens do job são retratos de cada execução e não se somam.
 12. **Contrato HTTP (D17).** Segue o `API_CONTRACTS.md` do repositório. A divergência com o §12 do
     contexto de arquitetura (`/api/v1`, envelope `{data, meta}`, `pageSize`, erro aninhado) fica
     declarada como DR. O ADR de versão e contrato da API é da campanha de conformidade.
@@ -124,6 +146,8 @@ Restrições do terreno:
 - `transitionStatus` faz duas leituras a mais por mudança: a membership e a preferência do
   responsável.
 - Até haver agendador instalado (S2-09), o RF59 só roda à mão.
+- Notificação excluída por conta restrita ou por preferência desligada não volta quando a conta é
+  reativada ou a preferência é religada.
 
 ## Impactos de segurança e privacidade
 
@@ -136,8 +160,30 @@ Restrições do terreno:
 - **Dados pessoais:**
   - a notificação e a preferência são dados do titular;
   - a anonimização apaga as do titular;
-  - a exportação inclui as preferências e as notificações dos projetos com acesso atual, como as
-    demais seções da exportação, sem o ator;
+  - a exportação inclui as preferências e todas as notificações do titular, com `visible` dizendo
+    se ele ainda as vê, sem o ator. As outras seções da exportação seguem a convenção "projetos
+    com acesso atual";
   - notificações com mais de 180 dias são apagadas pelo `privacy:retention`.
 - Logs do job só com contagens e códigos de erro, sem título, nome ou e-mail. Só a mudança de
   preferências é auditada, com os tipos alterados.
+
+## Revisão de 10/10/2026 — correções da campanha de testes
+
+A campanha de [S2_02_RELATORIO_TESTES.md](../issues/S2_02_RELATORIO_TESTES.md) encontrou 14
+achados. As decisões abaixo foram aprovadas pelo João em 10/10/2026 e estão incorporadas no texto
+acima.
+
+| Achado | Decisão |
+| --- | --- |
+| S202-A01 | paginação por cursor estável (D8) |
+| S202-A03 | `enabledAt` mantém a regra "sem efeito retroativo" no RF59 (D7) |
+| S202-A04 | motivo `INACTIVE_ACCOUNT` (D3, D11) |
+| S202-A05 | exportação de todas as notificações do titular, com `visible` (impactos) |
+| S202-A06 | definição completa da métrica e aviso sobre as somas (D11) |
+| S202-A10, S202-A14 | diferença com a tela e corte em dia inexistente (D5) |
+
+Os outros achados mudam contrato, operação ou documentação sem alterar decisão:
+- S202-A02: o `PUT` de preferências é serializado por usuário;
+- S202-A08: projeto inexistente no job sai com código 2;
+- S202-A09: a regra do `deadline` com hora entra no contrato;
+- S202-A12 e S202-A13: código morto e documentação.

@@ -45,7 +45,8 @@ Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas co
 
 A autenticação recente de uma conta com senha é a confirmação da senha local. Para conta GitHub-only (`passwordHash=null`), o backend exige identidade vinculada e OAuth GitHub recente na mesma sessão; o token de usuário permanece somente em memória. O callback aceita `ACTIVE` e `DELETION_PENDING` apenas nesse purpose, valida state/sessão/GitHub ID e atualiza os timestamps da sessão e da identidade.
 
-A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arquivo. Conteúdo de projetos, requisitos, tarefas atribuídas e integrações entra somente para memberships atualmente ativas. Membership histórica/inativa não autoriza exportar conteúdo atual. Dados próprios incluem perfil, identidade GitHub, sessões sanitizadas, solicitações, histórico de e-mail sem token, metadata de exportações e auditoria permitida. IDs de sessão internos, senhas, cookies, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
+A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arquivo. Conteúdo de projetos, requisitos, tarefas atribuídas e integrações entra somente para memberships atualmente ativas. Membership histórica/inativa não autoriza exportar conteúdo atual. Dados próprios incluem as notificações recebidas (todas, com `visible`) e as preferências de
+notificação (S2-02), perfil, identidade GitHub, sessões sanitizadas, solicitações, histórico de e-mail sem token, metadata de exportações e auditoria permitida. IDs de sessão internos, senhas, cookies, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
 
 Ao vencer a carência, o processor faz claim e revalida ownership dentro da transação. Sem impedimento, anonimiza. Se o titular ainda for o único OWNER de projeto não excluído, encerra a solicitação como `REJECTED`, registra `SOLE_PROJECT_OWNER`, retorna a conta para `ACTIVE`, revoga sessões e preserva projeto/membership; uma nova solicitação será necessária após a regularização.
 
@@ -129,7 +130,8 @@ Todas as respostas incluem o header `X-Request-Id`. Erros de domínio preservam 
 }
 ```
 
-`details` nunca contém o valor recebido. Bodies mutáveis são estritos e rejeitam campos desconhecidos. Params numéricos aceitam somente inteiro decimal positivo e são convertidos para `number`. Datas de filtro usam `YYYY-MM-DD`; `deadline` aceita esse formato ou datetime ISO-8601 completo. Query `search` é opcional e limitada a 255 caracteres.
+`details` nunca contém o valor recebido. Bodies mutáveis são estritos e rejeitam campos desconhecidos. Params numéricos aceitam somente inteiro decimal positivo e são convertidos para `number`. Datas de filtro usam `YYYY-MM-DD`; `deadline` aceita esse formato ou datetime ISO-8601 completo
+(com hora e fuso, a data do prazo do RF59 é a data UTC do instante; ver S2-02). Query `search` é opcional e limitada a 255 caracteres.
 
 A API exige JSON para bodies, aplica limite padrão de 100kb, CORS por allowlist e rate limiting.
 Erros de infraestrutura usam o formato seguro `{message,code,requestId}`: origem proibida
@@ -1325,7 +1327,7 @@ vencimento, no job `notifications:due`.
 
 | Método | Rota                                 | Entrada                                                                                           | Resposta                                                 |
 | ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `page?`, `limit?` (máx. 100)                                     | `200`, `{notifications,pagination,unreadCount}`          |
+| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `cursor?` ou `page?` (exclusivos), `limit?` (máx. 100)           | `200`, `{notifications,pagination,unreadCount,nextCursor}` |
 | GET    | `/api/notifications/unread-count`    | —                                                                                                 | `200`, `{unreadCount}`                                   |
 | PATCH  | `/api/notifications/:notificationId` | `{read: boolean}` estrito                                                                         | `200`, `{notification}`                                  |
 | POST   | `/api/notifications/read-all`        | body vazio                                                                                        | `200`, `{updated}`                                       |
@@ -1342,6 +1344,16 @@ e `authenticatedReadSustained`).
 **Listagem.** Ordem `createdAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
 `totalPages`. `unreadCount` conta todas as não lidas visíveis, não só a página. Listar não marca
 nada como lido.
+
+**Cursor.** `nextCursor` é um texto opaco (base64url, até 128 caracteres) que aponta para o último
+item da página; `null` quando não há mais. Com `cursor`, a página seguinte começa depois desse
+item, na mesma ordem, e marcar notificações como lidas no caminho não desloca nada. `cursor` e
+`page` juntos, ou cursor malformado, respondem 400. O cursor só posiciona: não dá acesso a
+notificação de outra pessoa. A central usa o cursor; `page` continua aceito.
+
+**Data do prazo (RF59).** `deadline` aceita `YYYY-MM-DD` ou datetime ISO-8601 completo. A data do
+prazo é a data UTC do instante gravado: `2026-10-10T22:30:00-03:00` é gravado como
+`2026-10-11T01:30:00.000Z`, e a notificação traz `dueDate` `2026-10-11`. A tela envia só a data.
 
 **`NotificationDTO`.** Campos:
 
@@ -1376,5 +1388,7 @@ campanha de conformidade, não do S2-02.
 | `VALIDATION_ERROR`        | 400    | query, parâmetro ou corpo inválido, chave desconhecida ou `__proto__` |
 | `AUTHENTICATION_REQUIRED` | 401    | requisição sem sessão                                                 |
 | `CSRF_INVALID`            | 403    | `PATCH`, `POST` ou `PUT` sem token CSRF válido                        |
+| `ACCOUNT_DEACTIVATED`     | 403    | conta desativada; só a reativação é permitida                         |
+| `ACCOUNT_DELETION_PENDING` | 403   | conta com exclusão pendente                                           |
 | `NOTIFICATION_NOT_FOUND`  | 404    | notificação inexistente, de outra pessoa ou oculta                    |
 | `RATE_LIMITED`            | 429    | limitador de leitura autenticada ou global                            |

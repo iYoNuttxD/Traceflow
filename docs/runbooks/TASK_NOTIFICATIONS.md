@@ -106,14 +106,19 @@ A saída é um JSON:
 | `eligible` | ocorrências que devem gerar notificação |
 | `created` | notificações criadas nesta execução |
 | `alreadyNotified` | elegíveis que já tinham notificação (deduplicação) |
-| `excluded` | exclusões por motivo: `OUTSIDE_WINDOW`, `NO_RESPONSIBLE`, `INACTIVE_MEMBER`, `PREFERENCE_OFF` |
+| `excluded` | exclusões por motivo: `OUTSIDE_WINDOW`, `NO_RESPONSIBLE`, `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER`, `PREFERENCE_OFF` |
 | `updated` | sempre `NOT_APPLICABLE`: o job não atualiza linhas |
 | `failed` | projetos cujo lote falhou |
 | `wouldCreate` | só em dry-run |
 | `database` | host, porta e nome do banco, sem credencial |
 
-- **Código de saída:** 0 quando `failed = 0`; 1 quando algum projeto falha ou a execução não
-  começa.
+- **Contagens:** valem para a execução e não se somam entre execuções. A mesma tarefa aparece em
+  várias execuções, e `excluded.OUTSIDE_WINDOW` conta, a cada uma, toda tarefa aberta com corte
+  antes da janela. A métrica oficial não se calcula somando saídas (`TASK_NOTIFICATIONS.md`).
+- **Código de saída:**
+  - 0 quando `failed = 0`;
+  - 1 quando algum projeto falha ou a execução não começa;
+  - 2 quando `--project-id` aponta para projeto inexistente ou excluído, com aviso em `stderr`.
 - **Logs (JSON):**
   - `notifications_due_started`, com o fuso e o instante;
   - `notifications_due_project_failed`, com o projeto e o código do erro;
@@ -123,7 +128,7 @@ A saída é um JSON:
 
 **Alertar quando:**
 - o timer não roda no intervalo;
-- o código de saída é 1;
+- o código de saída é 1 ou 2;
 - `failed > 0` se repete.
 
 ## Falha e recuperação
