@@ -40,6 +40,7 @@ export function toNotificationExportItem(row) {
     type: row.type,
     projectId: row.projectId,
     taskId: row.taskId,
+    taskTitle: row.taskTitle,
     fromStatus: row.fromStatus,
     toStatus: row.toStatus,
     dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,

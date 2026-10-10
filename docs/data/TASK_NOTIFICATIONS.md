@@ -138,4 +138,4 @@ das exclusões por motivo. O valor nunca aparece sem as exclusões.
 | Tarefa excluída | `taskId` vira nulo; o título copiado permanece |
 | Ator removido | `actorUserId` vira nulo; o contexto mostra ator ausente |
 | Anonimização do titular | apaga as notificações e as preferências dele; como ator, aparece com o nome pseudonimizado |
-| Exportação do titular | `notifications.json` (tipo, projeto, tarefa, status, data do prazo, criação e leitura, sem título nem ator) e `notification-preferences.json` |
+| Exportação do titular | `notifications.json`, só das notificações visíveis (projetos com acesso atual, como as demais seções da exportação), com tipo, projeto, tarefa, título copiado, status, data do prazo, criação e leitura, sem o ator; e `notification-preferences.json` |

@@ -638,6 +638,25 @@ export const settingsRepository = {
             failureCode: true
           }
         },
+        notifications: {
+          where: {
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            type: true,
+            projectId: true,
+            taskId: true,
+            taskTitle: true,
+            fromStatus: true,
+            toStatus: true,
+            dueDate: true,
+            createdAt: true,
+            readAt: true
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+        },
+        notificationPreferences: { select: { type: true, enabled: true } },
         personalDataExports: {
           select: {
             id: true,

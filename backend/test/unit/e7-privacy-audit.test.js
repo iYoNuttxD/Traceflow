@@ -51,19 +51,25 @@ describe('E7 auditoria, privacidade e retenção', () => {
     const tx = {
       auditEvent: { deleteMany: vi.fn(), create: vi.fn() },
       privacyRequest: { deleteMany: vi.fn() },
-      personalDataExport: { deleteMany: vi.fn() }
+      personalDataExport: { deleteMany: vi.fn() },
+      notification: { deleteMany: vi.fn() }
     };
     const client = {
       auditEvent: { count: vi.fn().mockResolvedValue(2) },
       privacyRequest: { count: vi.fn().mockResolvedValue(1) },
       personalDataExport: { count: vi.fn().mockResolvedValue(3) },
+      notification: { count: vi.fn().mockResolvedValue(4) },
       $transaction: vi.fn(async (callback) => callback(tx))
     };
     expect(
       await runPrivacyRetention({
         client,
         apply: false,
-        configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
+        configuration: {
+          auditRetentionDays: 30,
+          privacyRequestRetentionDays: 30,
+          notificationRetentionDays: 180
+        }
       })
     ).toMatchObject({ mode: 'dry-run', counts: { auditEvents: 2 } });
     expect(client.$transaction).not.toHaveBeenCalled();
@@ -71,7 +77,11 @@ describe('E7 auditoria, privacidade e retenção', () => {
       await runPrivacyRetention({
         client,
         apply: true,
-        configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
+        configuration: {
+          auditRetentionDays: 30,
+          privacyRequestRetentionDays: 30,
+          notificationRetentionDays: 180
+        }
       })
     ).toMatchObject({ mode: 'apply' });
     expect(tx.auditEvent.create).toHaveBeenCalledWith(

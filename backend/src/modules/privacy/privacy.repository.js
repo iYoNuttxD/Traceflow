@@ -130,6 +130,8 @@ export const privacyRepository = {
         await tx.gitHubInstallationAuthorization.deleteMany({ where: { userId: request.userId } });
         await tx.emailChangeRequest.deleteMany({ where: { userId: request.userId } });
         await tx.accountReactivationToken.deleteMany({ where: { userId: request.userId } });
+        await tx.notification.deleteMany({ where: { recipientUserId: request.userId } });
+        await tx.notificationPreference.deleteMany({ where: { userId: request.userId } });
         await tx.projectInvitation.updateMany({
           where: {
             createdById: request.userId,

@@ -469,3 +469,83 @@ describe('S2-02 API: limitador de leitura (V2.4.1)', () => {
     }
   });
 });
+
+function readStoredJsonFiles(zip) {
+  const files = {};
+  let offset = 0;
+  while (zip.readUInt32LE(offset) === 0x04034b50) {
+    const size = zip.readUInt32LE(offset + 18);
+    const filenameLength = zip.readUInt16LE(offset + 26);
+    const extraLength = zip.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + filenameLength + extraLength;
+    const name = zip.subarray(nameStart, nameStart + filenameLength).toString('utf8');
+    files[name] = JSON.parse(zip.subarray(contentStart, contentStart + size).toString('utf8'));
+    offset = contentStart + size;
+  }
+  return files;
+}
+
+function parseBinary(response, callback) {
+  const chunks = [];
+  response.on('data', (chunk) => chunks.push(chunk));
+  response.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
+describe('S2-02 API: exportação do titular (D13)', () => {
+  it('inclui as preferências e as notificações dos projetos com acesso atual', async () => {
+    const project = await createProject(prisma, { name: 'Projeto exportado' });
+    const former = await createProject(prisma, { name: 'Projeto antigo' });
+    const owner = await register(project.id);
+    const actor = await register(project.id, 'MANAGER');
+    await prisma.projectMembership.create({
+      data: { projectId: former.id, userId: owner.user.id, role: 'MEMBER', isActive: false }
+    });
+    const visible = await notify(owner, project.id, {
+      type: 'TASK_STATUS_CHANGED',
+      dedupeKey: 'TASK_STATUS_CHANGED:movement:7',
+      fromStatus: 'A_FAZER',
+      toStatus: 'CONCLUIDO',
+      actorUserId: actor.user.id,
+      dueDate: null,
+      readAt: new Date('2026-10-09T10:00:00.000Z')
+    });
+    await notify(owner, former.id);
+    await owner
+      .mutate('put', '/api/settings/notifications')
+      .send({ preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false } });
+
+    const exported = await owner
+      .mutate('post', '/api/settings/privacy/export')
+      .buffer(true)
+      .parse(parseBinary)
+      .send({});
+
+    expect(exported.status).toBe(200);
+    const files = readStoredJsonFiles(exported.body);
+    expect(files['manifest.json'].files).toEqual(
+      expect.arrayContaining(['notifications.json', 'notification-preferences.json'])
+    );
+    expect(files['notification-preferences.json']).toEqual({
+      TASK_STATUS_CHANGED: true,
+      TASK_OVERDUE: false
+    });
+    expect(files['notifications.json']).toEqual([
+      {
+        id: visible.id,
+        type: 'TASK_STATUS_CHANGED',
+        projectId: project.id,
+        taskId: null,
+        taskTitle: visible.taskTitle,
+        fromStatus: 'A_FAZER',
+        toStatus: 'CONCLUIDO',
+        dueDate: null,
+        createdAt: visible.createdAt.toISOString(),
+        readAt: '2026-10-09T10:00:00.000Z'
+      }
+    ]);
+    const serialized = JSON.stringify(files['notifications.json']);
+    expect(serialized).not.toContain(actor.user.email);
+    expect(serialized).not.toContain('actor');
+  });
+});
