@@ -17,6 +17,7 @@ import {
   overdueCutoff,
   overdueDedupeKey,
   overdueExclusion,
+  preferenceAllowsOverdue,
   snapshotTitle
 } from './notification.policy.js';
 import { notificationRepository } from './notification.repository.js';
@@ -71,9 +72,9 @@ export function createNotificationService({
     const members = responsibleIds.length
       ? await repository.activeMemberIds(projectId, responsibleIds)
       : new Set();
-    const disabled = responsibleIds.length
-      ? await repository.disabledRecipientIds(responsibleIds, OVERDUE)
-      : new Set();
+    const preferences = responsibleIds.length
+      ? await repository.overduePreferences(responsibleIds)
+      : new Map();
 
     const rows = [];
     for (const task of due) {
@@ -81,7 +82,10 @@ export function createNotificationService({
         withinWindow: true,
         responsibleUserId: task.responsibleUserId,
         membershipActive: members.has(task.responsibleUserId),
-        preferenceEnabled: !disabled.has(task.responsibleUserId)
+        preferenceEnabled: preferenceAllowsOverdue(
+          preferences.get(task.responsibleUserId),
+          overdueCutoff(task.dueDate, timeZone)
+        )
       });
       if (exclusion) {
         counts.excluded[exclusion] += 1;
@@ -156,15 +160,19 @@ export function createNotificationService({
     },
 
     async updatePreferences(userId, preferences, { requestId } = {}) {
-      const rows = await repository.savePreferences(userId, preferences, (changed) =>
-        buildAuditEvent({
-          actorUserId: userId,
-          requestId,
-          action: 'NOTIFICATION_PREFERENCES_UPDATED',
-          resourceType: 'NotificationPreference',
-          resourceId: userId,
-          metadata: { changedTypes: changed.join(',') }
-        })
+      const rows = await repository.savePreferences(
+        userId,
+        preferences,
+        (changed) =>
+          buildAuditEvent({
+            actorUserId: userId,
+            requestId,
+            action: 'NOTIFICATION_PREFERENCES_UPDATED',
+            resourceType: 'NotificationPreference',
+            resourceId: userId,
+            metadata: { changedTypes: changed.join(',') }
+          }),
+        clock()
       );
       return { preferences: toPreferencesDTO(rows) };
     },

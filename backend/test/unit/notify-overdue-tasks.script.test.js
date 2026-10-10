@@ -28,7 +28,7 @@ function fakeRepository({ failingProjectId } = {}) {
     }),
     countOutsideWindow: vi.fn(async () => 0),
     activeMemberIds: vi.fn(async () => new Set([7])),
-    disabledRecipientIds: vi.fn(async () => new Set()),
+    overduePreferences: vi.fn(async () => new Map()),
     existingOverdueKeys: vi.fn(async () => new Set()),
     insertOverdue: vi.fn(async (rows) => rows.length)
   };

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { overdueCutoff } from '../../src/modules/notifications/notification.policy.js';
+import {
+  overdueCutoff,
+  preferenceAllowsOverdue
+} from '../../src/modules/notifications/notification.policy.js';
 
 const DAY = 86_400_000;
 
@@ -73,5 +76,33 @@ describe('S2-02 correções — corte quando o dia seguinte ao prazo não existe
         new Date(oracle).toISOString()
       ]);
     expect(divergent).toEqual([]);
+  });
+});
+
+describe('S2-02 correções — preferência religada e o corte (S202-A03)', () => {
+  const cutoff = new Date('2026-10-16T03:00:00.000Z');
+
+  it.each([
+    ['sem linha', undefined, true],
+    ['desligada', { enabled: false, enabledAt: null }, false],
+    ['ligada, nunca desligada', { enabled: true, enabledAt: null }, true],
+    [
+      'religada antes do corte',
+      { enabled: true, enabledAt: new Date('2026-10-15T12:00:00.000Z') },
+      true
+    ],
+    ['religada no instante do corte', { enabled: true, enabledAt: new Date(cutoff) }, true],
+    [
+      'religada 1 ms depois do corte',
+      { enabled: true, enabledAt: new Date(cutoff.getTime() + 1) },
+      false
+    ],
+    [
+      'desligada de novo depois de religar',
+      { enabled: false, enabledAt: new Date('2026-10-15T12:00:00.000Z') },
+      false
+    ]
+  ])('C5-02 %s → %s', (_, preference, allowed) => {
+    expect(preferenceAllowsOverdue(preference, cutoff)).toBe(allowed);
   });
 });

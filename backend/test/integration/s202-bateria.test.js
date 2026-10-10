@@ -403,7 +403,7 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
         findOverdueCandidates: async (_p, { from, to }) => tasks.filter((t) => t.deadline >= from && t.deadline < to),
         countOutsideWindow: async (_p, before) => tasks.filter((t) => t.deadline < before).length,
         activeMemberIds: async () => new Set([7]),
-        disabledRecipientIds: async () => new Set(),
+        overduePreferences: async () => new Map(),
         existingOverdueKeys: async () => new Set(),
         insertOverdue: async (rows) => { inserted.push(...rows.map((r) => [r.dedupeKey, r.dueDate.toISOString()])); return rows.length; }
       };

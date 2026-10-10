@@ -144,6 +144,12 @@ export function overdueDedupeKey(taskId, dueDate) {
   return `${OVERDUE}:${taskId}:${dueDate}`;
 }
 
+export function preferenceAllowsOverdue(preference, cutoff) {
+  if (!preference) return true;
+  if (!preference.enabled) return false;
+  return !preference.enabledAt || preference.enabledAt.getTime() <= cutoff.getTime();
+}
+
 function recipientExclusion({ responsibleUserId, membershipActive, preferenceEnabled }) {
   if (!membershipActive) return 'INACTIVE_MEMBER';
   if (!preferenceEnabled) return 'PREFERENCE_OFF';

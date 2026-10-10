@@ -922,6 +922,7 @@ model NotificationPreference {
   userId    Int
   type      NotificationType
   enabled   Boolean
+  enabledAt DateTime?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 

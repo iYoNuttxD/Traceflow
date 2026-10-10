@@ -3,6 +3,7 @@ import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import {
   NOTIFICATION_TYPES,
+  OVERDUE,
   STATUS_CHANGED,
   snapshotTitle,
   statusChangeDedupeKey,
@@ -97,12 +98,14 @@ export const notificationRepository = {
     return new Set(rows.map((row) => row.userId));
   },
 
-  async disabledRecipientIds(userIds, type) {
+  async overduePreferences(userIds) {
     const rows = await prisma.notificationPreference.findMany({
-      where: { userId: { in: unique(userIds) }, type, enabled: false },
-      select: { userId: true }
+      where: { userId: { in: unique(userIds) }, type: OVERDUE },
+      select: { userId: true, enabled: true, enabledAt: true }
     });
-    return new Set(rows.map((row) => row.userId));
+    return new Map(
+      rows.map((row) => [row.userId, { enabled: row.enabled, enabledAt: row.enabledAt }])
+    );
   },
 
   async existingOverdueKeys(rows) {
@@ -179,7 +182,7 @@ export const notificationRepository = {
     return prisma.notificationPreference.findMany({ where: { userId }, select: preferenceSelect });
   },
 
-  savePreferences(userId, preferences, auditFor) {
+  savePreferences(userId, preferences, auditFor, now = new Date()) {
     return prisma.$transaction(async (tx) => {
       await lockUser(tx, userId);
       const current = await tx.notificationPreference.findMany({
@@ -194,7 +197,7 @@ export const notificationRepository = {
         await tx.notificationPreference.upsert({
           where: { userId_type: { userId, type } },
           create: { userId, type, enabled: preferences[type] },
-          update: { enabled: preferences[type] }
+          update: { enabled: preferences[type], ...(preferences[type] ? { enabledAt: now } : {}) }
         });
       if (changed.length) await auditRepository.create(auditFor(changed), tx);
       return tx.notificationPreference.findMany({ where: { userId }, select: preferenceSelect });
