@@ -254,6 +254,7 @@ describe('S2-02 reteste — cursor na API (N-C)', () => {
 
     expect([withPadding.status, withPlus.status, withSlash.status]).toEqual([400, 400, 400]);
     expect(reference.status).toBe(200);
+    process.stdout.write(`RT-N-C-02 ${JSON.stringify({ variant, status: nonCanonical.status })}\n`);
     expect([200, 400]).toContain(nonCanonical.status);
     if (nonCanonical.status === 200) expect(ids(nonCanonical.body)).toEqual(ids(reference.body));
   });
@@ -323,12 +324,15 @@ describe('S2-02 reteste — cursor na API (N-C)', () => {
     ['ano 0999', '0999-12-31T00:00:00.000Z', 'nenhuma'],
     ['ano 0000', '0000-01-01T00:00:00.000Z', 'nenhuma']
   ])(
-    'RT-N-C-05 cursor com createdAt %s → 200 com %s, ou 400; nunca 500',
+    'RT-N-C-05 cursor com createdAt %s (%s) → 200 com %s, ou 400; nunca 500',
     async (_, instant, expected) => {
       const { owner, rows } = await seeded(3);
 
       const response = await list(owner, `status=ALL&cursor=${rawCursor(`${instant}|1`)}`);
 
+      process.stdout.write(
+        `RT-N-C-05 ${JSON.stringify({ instant, status: response.status, items: response.body.notifications?.length ?? null })}\n`
+      );
       expect(response.status).not.toBe(500);
       expect([200, 400]).toContain(response.status);
       if (response.status === 200)

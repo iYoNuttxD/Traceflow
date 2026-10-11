@@ -370,6 +370,7 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
 
   it('RT-N-L-05 PUT esperando um bloqueio além do tempo da transação responde erro genérico, sem detalhe técnico', async () => {
     const owner = await account();
+    const bystander = await account();
     let release;
     const holding = prisma.$transaction(
       async (tx) => {
@@ -384,10 +385,12 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     const response = await owner.put(OFF);
+    const other = await bystander.agent.get('/api/settings/notifications');
     const next = await owner.agent.get('/api/settings/notifications');
     const second = await owner.agent.get('/api/settings/notifications');
     release?.();
     await holding;
+    const afterRelease = await bystander.agent.get('/api/settings/notifications');
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         await prisma.$queryRaw`SELECT 1`;
@@ -398,7 +401,7 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
     }
 
     process.stdout.write(
-      `RT-N-L-05 ${JSON.stringify({ status: response.status, code: response.body.code, next: [next.status, next.body.code], second: second.status })}\n`
+      `RT-N-L-05 ${JSON.stringify({ status: response.status, code: response.body.code, other: [other.status, other.body.code], next: [next.status, next.body.code], second: second.status, otherAfterRelease: afterRelease.status })}\n`
     );
     expect(response.status).not.toBe(200);
     expect(JSON.stringify(response.body)).not.toMatch(/prisma|P20\d\d|transaction|SELECT|stack/i);
@@ -419,7 +422,7 @@ describe('S2-02 reteste — enabledAt (N-E)', () => {
     ['1 ms antes do corte', '2026-10-16T02:59:59.999Z', 1],
     ['no instante do corte', '2026-10-16T03:00:00.000Z', 1],
     ['1 ms depois do corte', '2026-10-16T03:00:00.001Z', 0]
-  ])('RT-N-E-01 religar %s → %i notificação', async (_, reenableAt, expected) => {
+  ])('RT-N-E-01 religar %s (%s) → %i notificação', async (_, reenableAt, expected) => {
     const { project, responsible } = await scenario();
     await serviceAt(reenableAt).updatePreferences(responsible.id, ON);
 
@@ -764,17 +767,24 @@ describe('S2-02 reteste — desempenho (⚑5)', () => {
       timings[status] = { pages, seen, worstMs: Math.round(worst) };
     }
     const middle = new Date(Date.UTC(2026, 0, 1) + 1000 * 60_000);
-    const explain = await prisma.$queryRawUnsafe(
-      'EXPLAIN SELECT n.id FROM Notification n WHERE n.recipientUserId = ? AND n.readAt IS NULL AND (n.createdAt < ? OR (n.createdAt = ? AND n.id < ?)) ORDER BY n.createdAt DESC, n.id DESC LIMIT 101',
-      owner.id,
-      middle,
-      middle,
-      5000
-    );
+    const explain = {};
+    for (const [status, unread] of [
+      ['UNREAD', 'AND n.readAt IS NULL '],
+      ['ALL', '']
+    ]) {
+      const rows = await prisma.$queryRawUnsafe(
+        `EXPLAIN SELECT n.id FROM Notification n WHERE n.recipientUserId = ? ${unread}AND (n.createdAt < ? OR (n.createdAt = ? AND n.id < ?)) ORDER BY n.createdAt DESC, n.id DESC LIMIT 101`,
+        owner.id,
+        middle,
+        middle,
+        5000
+      );
+      explain[status] = rows.map((row) =>
+        Object.values(row).map((value) => (typeof value === 'bigint' ? Number(value) : value))
+      );
+    }
 
-    process.stdout.write(
-      `RT-N-C-10 ${JSON.stringify({ timings, explain: explain.map((row) => Object.values(row).map((value) => (typeof value === 'bigint' ? Number(value) : value))) })}\n`
-    );
+    process.stdout.write(`RT-N-C-10 ${JSON.stringify({ timings, explain })}\n`);
     expect(timings.UNREAD.seen).toBe(5000);
     expect(timings.ALL.seen).toBe(10000);
     expect(Math.max(timings.UNREAD.worstMs, timings.ALL.worstMs)).toBeLessThanOrEqual(300);
@@ -803,15 +813,22 @@ describe('S2-02 reteste — desempenho (⚑5)', () => {
       });
     }
 
+    const selects = async () => {
+      const [row] = await prisma.$queryRawUnsafe("SHOW GLOBAL STATUS LIKE 'Com_select'");
+      return Number(Object.values(row)[1]);
+    };
+    const selectsBefore = await selects();
     const started = performance.now();
     const data = await settingsRepository.exportData(owner.id);
     const elapsed = performance.now() - started;
+    const queries = (await selects()) - selectsBefore;
 
     process.stdout.write(
-      `RT-N-X-02 ${JSON.stringify({ elapsedMs: Math.round(elapsed), notifications: data.notifications.length })}\n`
+      `RT-N-X-02 ${JSON.stringify({ elapsedMs: Math.round(elapsed), notifications: data.notifications.length, selects: queries })}\n`
     );
     expect(data.notifications).toHaveLength(5000);
     expect(elapsed).toBeLessThanOrEqual(5000);
+    expect(queries).toBeLessThan(500);
   }, 300000);
 });
 
