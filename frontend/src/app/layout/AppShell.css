@@ -133,6 +133,13 @@
   background: var(--color-accent-primary);
 }
 
+@media (forced-colors: active) {
+  .trace-shell__menu-dot {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
+
 .trace-shell__icon-button:hover,
 .trace-shell__pin-button:hover {
   border-color: var(--color-border-default);
