@@ -10,6 +10,7 @@ export const isActiveGithubRun = (run) => ['QUEUED', 'RUNNING'].includes(run?.st
 export function useProjectGithubIntegration(project, onIntegrationChange) {
   const [integration, setIntegration] = useState(project.githubIntegration || null);
   const [run, setRun] = useState(null);
+  const [automation, setAutomation] = useState(null);
   const [initialSyncError, setInitialSyncError] = useState('');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -85,6 +86,12 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
         setRun(result.run);
         setStatusError('');
         setCheckingStatus(false);
+        setAutomation(result.automation ?? null);
+        if (result.automation) {
+          setIntegration(
+            (current) => current && { ...current, nextSyncAt: result.automation.nextSyncAt }
+          );
+        }
         if (changed && (isActiveGithubRun(result.run) || result.run?.status === 'FAILED')) {
           setSuccess('');
           if (isActiveGithubRun(result.run)) setInitialSyncError('');
@@ -112,6 +119,7 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
           'Não foi possível consultar o progresso da sincronização.'
         );
         setStatusError(normalized.message);
+        setAutomation(null);
         setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       }
     }
@@ -195,6 +203,7 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
 
   return {
     integration,
+    automation,
     run,
     busy,
     error,

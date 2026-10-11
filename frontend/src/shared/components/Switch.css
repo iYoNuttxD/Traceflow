@@ -16,6 +16,19 @@
   opacity: 0;
   cursor: inherit;
 }
+.switch-control__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  color: var(--color-text-strong);
+  font-weight: var(--font-weight-semibold);
+}
+.switch-control__description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+}
 .switch-control__track {
   display: flex;
   align-items: center;

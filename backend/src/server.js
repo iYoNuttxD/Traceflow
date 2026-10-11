@@ -7,6 +7,13 @@ import { projectEventPublisher } from './shared/events/index.js';
 
 const server = app.listen(env.port, () => {
   logger.info('TRACEFLOW backend running.', { port: env.port });
+  logger.info(
+    'Sincronização automática requer o processo npm run github:worker em outro terminal.',
+    {
+      event: 'github_worker_startup_required',
+      schedulerEnabled: env.githubSchedulerEnabled
+    }
+  );
 });
 
 const shutdown = createGracefulShutdown({

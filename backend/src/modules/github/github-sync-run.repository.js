@@ -342,19 +342,30 @@ export const githubSyncRunRepository = {
               where: { projectId },
               data: { nextSyncAt }
             });
-            return { outcome: 'SCHEDULED', nextSyncAt };
+            return {
+              outcome: 'SCHEDULED',
+              reason:
+                cooldown > now
+                  ? 'INSTALLATION_COOLDOWN'
+                  : integration.nextSyncAt
+                    ? 'OVERDUE_RESTART_JITTER'
+                    : 'INITIAL_SCHEDULE',
+              previousNextSyncAt: integration.nextSyncAt,
+              nextSyncAt
+            };
           }
           const occupied = await tx.gitHubSyncRun.findMany({
             where: { automaticSlot: { not: null } },
             select: { automaticSlot: true, automaticInstallationId: true }
           });
           if (occupied.some((run) => run.automaticInstallationId === integration.installationId))
-            return { outcome: 'CAPACITY' };
-          if (occupied.length >= policy.concurrency) return { outcome: 'CAPACITY' };
+            return { outcome: 'CAPACITY', reason: 'INSTALLATION_BUSY' };
+          if (occupied.length >= policy.concurrency)
+            return { outcome: 'CAPACITY', reason: 'GLOBAL_CAPACITY' };
           const slots = new Set(occupied.map((run) => run.automaticSlot));
           let slot = 1;
           while (slot <= policy.concurrency && slots.has(slot)) slot++;
-          if (slot > policy.concurrency) return { outcome: 'CAPACITY' };
+          if (slot > policy.concurrency) return { outcome: 'CAPACITY', reason: 'GLOBAL_CAPACITY' };
           const run = await tx.gitHubSyncRun.create({
             data: {
               projectId,

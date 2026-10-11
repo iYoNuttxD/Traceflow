@@ -72,7 +72,10 @@ beforeEach(() => {
     data: { installations: [{ githubInstallationId: '77', accountLogin: 'team' }] }
   });
   api.listAllGithubRepositories.mockResolvedValue({ data: { repositories: [repository] } });
-  github.syncStatus.mockResolvedValue({ run: null });
+  github.syncStatus.mockResolvedValue({
+    run: null,
+    automation: { status: 'AVAILABLE', nextSyncAt: null }
+  });
   github.connectProject.mockResolvedValue({
     project: persisted,
     initialSync: { status: 'QUEUED', run: { status: 'QUEUED' } }
@@ -532,6 +535,44 @@ describe('configuração GitHub do projeto', () => {
       screen.queryByText(/execução automática ainda não está disponível/)
     ).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Automação' })).toBeVisible();
+  });
+  it('não promete um horário sem worker e reconcilia disponibilidade e nova agenda pelo polling', async () => {
+    vi.useFakeTimers();
+    persisted.githubIntegration.autoSyncEnabled = true;
+    persisted.githubIntegration.nextSyncAt = '2026-10-11T04:49:01.815Z';
+    github.syncStatus.mockResolvedValue({
+      run: null,
+      automation: {
+        status: 'UNAVAILABLE',
+        reason: 'WORKER_NOT_OBSERVED',
+        nextSyncAt: persisted.githubIntegration.nextSyncAt
+      }
+    });
+    render(view(persisted));
+    await act(async () => {});
+    expect(screen.getByText('Aguardando serviço de sincronização')).toBeVisible();
+    expect(screen.getByText(/Serviço de sincronização automática indisponível/)).toBeVisible();
+    expect(screen.getByRole('switch', { name: 'Sincronização automática' })).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Sincronizar agora' })).toBeEnabled();
+    github.syncStatus.mockResolvedValue({
+      run: null,
+      automation: { status: 'AVAILABLE', nextSyncAt: '2026-10-11T05:10:00Z' }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(
+      screen.queryByText(/Serviço de sincronização automática indisponível/)
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Próxima sincronização').nextElementSibling).toHaveTextContent(
+      new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
+        new Date('2026-10-11T05:10:00Z')
+      )
+    );
+    github.syncStatus.mockResolvedValue({
+      run: null,
+      automation: { status: 'UNAVAILABLE', nextSyncAt: '2026-10-11T05:10:00Z' }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(screen.getByText('Aguardando serviço de sincronização')).toBeVisible();
   });
   it('não mantém sucesso de uma execução anterior durante nova automática ou falha', async () => {
     vi.useFakeTimers();

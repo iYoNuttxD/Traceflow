@@ -55,6 +55,10 @@ Evidências e limites: [relatório GITHUB-04](../deliveries/GITHUB_04_INTEGRATIO
 
 ## Configuração e execução
 
+**O servidor HTTP não inicia o worker.** São processos separados. Definir a variável no `.env`
+sem executar o comando abaixo deixa a agenda persistida sem executor. A API registra
+`github_worker_startup_required` no startup para explicitar essa dependência.
+
 | Variável | Padrão | Uso |
 | --- | --- | --- |
 | GITHUB_SCHEDULER_ENABLED | false | Habilita o processo periódico; não inicia pelo servidor HTTP |
@@ -75,6 +79,13 @@ Use as variáveis já canônicas da GitHub App, nunca PAT. Nenhum token é persi
 não exige login nem sessão. A API mantém disparo manual imediato no processo HTTP; o worker
 independente também recupera runs QUEUED persistidos por uma API interrompida.
 
+Mantenha o processo aberto em desenvolvimento. Habilitado: espere `github_scheduler_started`;
+desabilitado: `github_scheduler_disabled` explica a configuração e o processo termina.
+Sem App configurada: `github_scheduler_unavailable`; erro no tick: `github_scheduler_operation_failed`.
+Exceções não capturadas terminam o processo pelo comportamento padrão do Node; recuperação
+posterior usa a lease, e operação supervisionada deve reiniciar o processo. Nenhum processo é
+iniciado automaticamente no banco de desenvolvimento por testes ou scripts de validação.
+
 SIGTERM/SIGINT bloqueia novos claims locais, cancela o tick e aguarda os jobs já iniciados antes
 de desconectar Prisma. Uma segunda chamada de shutdown não duplica trabalho. Se o supervisor
 precisar encerrar à força, a lease persistida e o fencing fazem a recuperação posterior.
@@ -93,14 +104,43 @@ GitHub/App/infraestrutura. Nenhum deploy foi realizado nesta entrega.
 
 ## Diagnóstico e recuperação
 
+GITHUB-04.1 adiciona somente liveness efêmera em `GitHubSchedulerWorker` (UUID do processo e
+heartbeat UTC). Não é fila, lock, monitoramento histórico ou segunda autoridade de execução.
+O worker verifica a tabela antes de reservar jobs e publica heartbeat após cada tick bem-sucedido
+com App configurada. O status considera recente até `max(60s, 3 × tick)`. Shutdown remove somente
+a própria entrada; outra réplica continua disponível. Crash perde disponibilidade após essa janela;
+entradas com mais de um dia são removidas pelo worker, sem tocar em histórico de sync.
+
+`GET .../github/sync/status` mantém `run` e acrescenta `automation`: status AVAILABLE/UNAVAILABLE,
+reason, lastHeartbeatAt, checkedAt e nextSyncAt. Não expõe IDs de workers nem credenciais.
+Sem tabela durante upgrade: SCHEMA_NOT_READY; sem heartbeat recente: WORKER_NOT_OBSERVED.
+Agenda não é garantia de execução pontual: concorrência, cooldown e recuperação podem adiá-la.
+A UI acompanha esse estado pelo polling existente; indisponibilidade não desliga a preferência
+nem bloqueia a sincronização manual. API/workers devem compartilhar a mesma configuração.
+
+Migration incremental: `20261011010000_github_scheduler_liveness`. Nesta entrega foi aplicada
+somente em schemas de teste. Validação: `npm run db:test:validate-github-sync -- --liveness`
+(upgrade com histórico e reaplicação), além de `db:test:validate-empty`. Não foi aplicada no banco
+de desenvolvimento. Para implantação autorizada, aplique migrations antes de iniciar o worker.
+
 Consulte o status autorizado por `GET /api/projects/:id/github/sync/status` e `githubIntegration`
 no detalhe do projeto. No banco operacional, consultas somente leitura de `GitHubSyncRun`
 (status/origin/step/heartbeatAt/errorCode), agenda da integração e cooldown da instalação bastam;
 não consulte chaves/tokens. Logs correlacionam projectId/runId e os eventos:
-`github_sync_scheduled`, `github_sync_claimed`, `github_sync_run_started`,
+`github_sync_eligible`, `github_sync_postponed`, `github_sync_claimed`, `github_sync_run_started`,
 `github_sync_run_completed`, `github_sync_run_failed`, `github_sync_skipped_running`,
 `github_sync_delayed_rate_limit`, `github_sync_recovered`, `github_sync_heartbeat_failed` e
-`github_scheduler_operation_failed`. Ticks vazios não produzem logs.
+`github_scheduler_operation_failed` e `github_scheduler_stopped`. Ticks vazios não produzem logs.
+Adiamentos incluem reason (INITIAL_SCHEDULE, OVERDUE_RESTART_JITTER, INSTALLATION_COOLDOWN,
+GLOBAL_CAPACITY, INSTALLATION_BUSY ou colisão), horário anterior/novo quando aplicável. A mesma
+decisão repetida não é registrada a cada tick. Logs de conclusão incluem runId e duração.
+
+A política manual permanece: ao reservar, nextSyncAt é limpo; ao concluir, a próxima automática
+é recalculada a partir do término, com base + jitter/backoff. Ela substitui o horário anterior
+porque o projeto acabou de ser atualizado. Restart preserva agenda futura; agenda atrasada mais
+de dois ticks é redistribuída uma vez, com motivo e horários registrados, sem reproduzir backlog.
+Instantes são Date/UTC na persistência e na comparação; a UI formata no fuso do navegador.
+01:49 America/Sao_Paulo em 11/10/2026 corresponde a 04:49Z. Não se compara string de data local.
 
 - Rate limit: aguarde syncNotBefore/nextSyncAt. Retry-After não é encurtado para caber no tempo
   de espera em memória; o worker persiste o adiamento. Outros projetos da mesma instalação

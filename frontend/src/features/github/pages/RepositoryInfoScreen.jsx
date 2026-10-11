@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
 import { membersApi } from '../../members/index.js';
@@ -376,14 +376,6 @@ function RepositoryInfoContent({ projectId }) {
                   >
                     <h3 id="repository-disconnected-title">Nenhum repositório conectado</h3>
                     <p>Este projeto ainda não possui integração com o GitHub.</p>
-                    {repositoryData.role === 'OWNER' && (
-                      <Link
-                        className="button button-secondary"
-                        to={`/projects/${projectId}/edit#github-integration`}
-                      >
-                        Configurar integração
-                      </Link>
-                    )}
                   </div>
                 ) : artifacts.length === 0 ? (
                   <div className="repository-empty-state">

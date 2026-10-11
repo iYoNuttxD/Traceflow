@@ -3,13 +3,19 @@ import { prisma } from './database/prismaClient.js';
 import { logger } from './shared/logger/index.js';
 
 const worker = createGithubSyncScheduler();
-if (!worker.start()) {
-  logger.info('Worker GitHub desabilitado.', { event: 'github_scheduler_disabled' });
-  await prisma.$disconnect();
-}
+if (!worker.start()) await prisma.$disconnect();
 let stopping;
 function stop() {
-  stopping ||= worker.stop().finally(() => prisma.$disconnect());
+  stopping ||= worker
+    .stop()
+    .finally(() => prisma.$disconnect())
+    .catch((error) => {
+      logger.error('Falha ao encerrar worker GitHub.', {
+        event: 'github_scheduler_shutdown_failed',
+        errorCode: error.code || 'WORKER_FAILED'
+      });
+      process.exitCode = 1;
+    });
   return stopping;
 }
 process.once('SIGINT', () => void stop());

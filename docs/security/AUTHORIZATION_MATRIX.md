@@ -224,3 +224,7 @@ CSRF e respostas opacas permanecem. O worker é processo de sistema, sem sessão
 executa uma preferência previamente autorizada com Project ativo no lifecycle e GitHub App /
 instalação / integração elegíveis. Runs automáticos usam requestedByUserId null e auditoria SYSTEM.
 Não existe novo endpoint público de agendamento nem parâmetros de origem/slots aceitos do cliente.
+
+GITHUB-04.1 acrescenta disponibilidade operacional minimizada ao GET de status já protegido por
+membership: status, motivo e instantes, sem identidade dos processos. Não há endpoint de gestão
+do worker. Liveness não altera papel, CSRF, autorização da App ou reserva de repositório.

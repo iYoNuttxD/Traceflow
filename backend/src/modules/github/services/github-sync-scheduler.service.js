@@ -4,9 +4,12 @@ import { githubAppCredentialProvider } from '../github-credential.provider.js';
 import { githubSyncRunRepository } from '../github-sync-run.repository.js';
 import { syncSchedulePolicy } from '../github-sync-schedule.js';
 import { executeGithubSyncRun } from './github-sync-run.service.js';
+import { randomUUID } from 'node:crypto';
+import { githubSchedulerRepository } from '../github-scheduler.repository.js';
 
 export function createGithubSyncScheduler({
   enabled = env.githubSchedulerEnabled,
+  log = logger,
   configured = () => githubAppCredentialProvider.isConfigured(),
   repository = githubSyncRunRepository,
   execute = executeGithubSyncRun,
@@ -18,8 +21,13 @@ export function createGithubSyncScheduler({
   let timer;
   let ticking;
   const running = new Map();
+  const workerId = randomUUID();
+  const decisions = new Map();
+  let stopping;
+  let registered = false;
+  let unavailable = false;
   const reportFailure = (error) =>
-    logger.error('Worker GitHub não concluiu a operação.', {
+    log.error('Worker GitHub não concluiu a operação.', {
       event: 'github_scheduler_operation_failed',
       errorCode: error.code || 'WORKER_FAILED'
     });
@@ -33,6 +41,7 @@ export function createGithubSyncScheduler({
   }
 
   async function tickWork() {
+    await githubSchedulerRepository.checkSchema();
     const time = now();
     const cutoff = new Date(time.getTime() - policy.leaseMs);
     for (const run of await repository.listRecoverable(cutoff)) {
@@ -40,34 +49,62 @@ export function createGithubSyncScheduler({
       if (run.status === 'RUNNING' || (run.heartbeatAt || run.updatedAt) < cutoff) {
         const expired = await repository.expireIfStillStale(run.id, run.projectId, cutoff, time);
         if (expired.count)
-          logger.warn('Execução GitHub interrompida recuperada.', {
+          log.warn('Execução GitHub interrompida recuperada.', {
             event: 'github_sync_recovered',
             runId: run.id,
             projectId: run.projectId
           });
       } else if (configured()) launch(run);
     }
-    if (stopped || !configured()) return;
+    if (stopped) return;
+    if (!configured()) {
+      if (!unavailable)
+        log.warn('Scheduler aguarda configuração da GitHub App.', {
+          event: 'github_scheduler_unavailable',
+          reason: 'GITHUB_APP_NOT_CONFIGURED'
+        });
+      unavailable = true;
+      if (registered) await githubSchedulerRepository.remove(workerId);
+      registered = false;
+      return;
+    }
+    unavailable = false;
     for (const candidate of await repository.listAutomaticCandidates(time)) {
       if (stopped) return;
       const result = await repository.reserveAutomatic(candidate.projectId, now(), policy);
+      const decision = `${result.outcome}:${result.reason || ''}:${result.nextSyncAt?.toISOString() || ''}`;
+      if (decisions.get(candidate.projectId) !== decision) {
+        decisions.set(candidate.projectId, decision);
+        log.info('Projeto avaliado pelo scheduler GitHub.', {
+          event: 'github_sync_eligible',
+          projectId: candidate.projectId,
+          outcome: result.outcome
+        });
+        if (result.outcome !== 'RESERVED')
+          log.info('Sincronização automática aguardando execução.', {
+            event:
+              result.outcome === 'ALREADY_RUNNING'
+                ? 'github_sync_skipped_running'
+                : 'github_sync_postponed',
+            projectId: candidate.projectId,
+            reason: result.reason || result.outcome,
+            previousNextSyncAt: result.previousNextSyncAt,
+            nextSyncAt: result.nextSyncAt
+          });
+      }
       if (result.outcome === 'RESERVED') {
-        logger.info('Sincronização automática reservada.', {
+        decisions.delete(candidate.projectId);
+        log.info('Sincronização automática reservada.', {
           event: 'github_sync_claimed',
           projectId: candidate.projectId,
           runId: result.run.id
         });
         launch(result.run);
-      } else if (result.outcome === 'SCHEDULED' || result.outcome === 'ALREADY_RUNNING') {
-        logger.info('Agenda GitHub atualizada.', {
-          event:
-            result.outcome === 'SCHEDULED'
-              ? 'github_sync_scheduled'
-              : 'github_sync_skipped_running',
-          projectId: candidate.projectId,
-          nextSyncAt: result.nextSyncAt
-        });
       }
+    }
+    if (!stopped) {
+      await githubSchedulerRepository.heartbeat(workerId, now());
+      registered = true;
     }
   }
 
@@ -92,9 +129,18 @@ export function createGithubSyncScheduler({
   return {
     tick,
     start() {
-      if (!enabled || started || stopped) return false;
+      if (started || stopped) return false;
+      if (!enabled) {
+        log.warn(
+          'Scheduler GitHub desabilitado; habilite GITHUB_SCHEDULER_ENABLED para executar a agenda.',
+          {
+            event: 'github_scheduler_disabled'
+          }
+        );
+        return false;
+      }
       started = true;
-      logger.info('Worker periódico GitHub iniciado.', {
+      log.info('Worker periódico GitHub iniciado.', {
         event: 'github_scheduler_started',
         intervalMs: policy.intervalMs,
         concurrency: policy.concurrency,
@@ -103,11 +149,16 @@ export function createGithubSyncScheduler({
       void loop();
       return true;
     },
-    async stop() {
-      stopped = true;
-      clearTimeout(timer);
-      await ticking?.catch(reportFailure);
-      await Promise.allSettled([...running.values()]);
+    stop() {
+      stopping ||= (async () => {
+        stopped = true;
+        clearTimeout(timer);
+        await ticking?.catch(reportFailure);
+        if (registered) await githubSchedulerRepository.remove(workerId).catch(reportFailure);
+        await Promise.allSettled([...running.values()]);
+        log.info('Worker periódico GitHub encerrado.', { event: 'github_scheduler_stopped' });
+      })();
+      return stopping;
     },
     async drain() {
       await Promise.allSettled([...running.values()]);

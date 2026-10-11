@@ -146,6 +146,13 @@ usando contexto assíncrono para alcançar também artifacts/sugestões. Recuper
 mesma ordem de locks e não reativa IDs expirados. Detalhes no
 [runbook operacional](../runbooks/GITHUB_AUTOMATIC_SYNC.md).
 
+GITHUB-04.1 distingue agenda de executor: `GitHubSchedulerWorker` guarda somente UUID e último
+heartbeat de cada processo. Status consulta essa liveness no mesmo banco, com janela limitada;
+shutdown remove apenas a própria entrada. Ela não decide claims, capacidade, lease ou fencing.
+O worker permanece separado da API, com comando explícito no README e aviso no startup HTTP.
+Uma agenda futura sem worker é apresentada como indisponibilidade operacional, sem desligar
+a preferência. Logs de adiamento identificam motivo e horários, mantendo a policy GITHUB-04.
+
 Sync pagina coleções, persiste por identificador externo e usa `GitHubSyncRun.activeProjectId` para
 exclusão mútua no banco, com stale detection. Webhook público usa raw body, HMAC e delivery ID, sem
 sessão/CSRF. Delivery possui claim `PROCESSING`, estado terminal e retry de `FAILED` ou processamento

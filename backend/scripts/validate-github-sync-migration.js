@@ -10,7 +10,10 @@ import { validateTestDatabaseUrl } from './lib/database-safety.js';
 dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: false, quiet: true });
 dotenv.config({ path: resolve(process.cwd(), '.env'), override: false, quiet: true });
 
-const migrations = ['20261011000000_github_automatic_sync'];
+const liveness = process.argv.includes('--liveness');
+const migrations = [
+  liveness ? '20261011010000_github_scheduler_liveness' : '20261011000000_github_automatic_sync'
+];
 const sourceUrl = validateTestDatabaseUrl(process.env.TEST_DATABASE_URL, process.env.DATABASE_URL);
 const sourceDatabase = new URL(sourceUrl).pathname.slice(1);
 const validationDatabase = `${sourceDatabase}_github_sync_upgrade_validation`;
@@ -127,11 +130,17 @@ try {
       }
     });
     assert.equal(run.requestedByUserId, null);
+    if (liveness) {
+      assert.equal(await afterClient.gitHubSchedulerWorker.count(), 0);
+      await afterClient.gitHubSchedulerWorker.create({
+        data: { id: '00000000-0000-0000-0000-000000000001', heartbeatAt: new Date() }
+      });
+    }
     const beforeReapply = await readHistory(afterClient);
     deploy();
     assert.deepEqual(await readHistory(afterClient), beforeReapply);
     process.stdout.write(
-      `${JSON.stringify({ database: validationDatabase, upgrade: 'PASS', preservedTables: tables, automaticActor: null, reapply: 'PASS' })}\n`
+      `${JSON.stringify({ database: validationDatabase, migrations, upgrade: 'PASS', preservedTables: tables, automaticActor: null, reapply: 'PASS' })}\n`
     );
   } finally {
     await afterClient.$disconnect();

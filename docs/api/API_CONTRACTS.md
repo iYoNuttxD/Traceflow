@@ -104,6 +104,14 @@ instalação ACTIVE. Agenda persistida, slots únicos, recuperação/fencing e b
 falha transitória preserva conexão e último sucesso. Perda confirmada de autorização/recurso
 (401/403 sem rate limit/404 externo) exige reconexão do mesmo repositório; não apaga artefatos.
 
+GITHUB-04.1 acrescenta `automation` à resposta de GET sync/status, preservando `run`:
+`{status:AVAILABLE|UNAVAILABLE, reason:null|WORKER_NOT_OBSERVED|SCHEMA_NOT_READY,
+lastHeartbeatAt:ISO|null, checkedAt:ISO, nextSyncAt:ISO|null}`. Datas representam instantes UTC.
+AVAILABLE significa heartbeat de executor recente (até max(60s, três ticks)), não garantia de
+execução pontual. nextSyncAt é agenda; não comprova executor ativo. Ausência/migration de liveness
+pendente não quebra a leitura ou sync manual. Nenhum ID de worker, instalação ou segredo é exposto.
+A autorização de membership e todos os contratos de mutação permanecem iguais.
+
 O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`.
 
 ## Persistência canônica sem ruptura HTTP

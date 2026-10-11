@@ -166,6 +166,16 @@ extraído da Overview para a API pública de github, serve também à edição; 
 paralelo. Switch compartilhado aplica os tokens C2 e confirmação da preferência. Overview sem
 integração contém apenas consulta, sem CTA de conexão.
 
+GITHUB-04.1 remove também o CTA de configuração do Repository, preservando seu resumo, filtros
+e catálogo. A edição mantém o ponto de configuração e aplica a anatomia Settings C2:
+identidade/status juntos, ação de sync próxima ao estado, par de datas e setting row com Switch
+e descrição. Reutiliza Switch, FeedbackRegion, TraceFlowIcon e buttons existentes; não importa
+CSS interno da feature Settings nem cria primitives paralelas.
+O mesmo polling lê `automation` para reconciliar disponibilidade e agenda mesmo sem mudança de
+SyncRun. Sem heartbeat recente, não anuncia um horário como execução operacional; falha de
+consulta mantém disponibilidade não confirmada. Generation/abort das mutations também protege
+esse estado. Desabilitada mostra Não agendada; ativa acompanha o progresso já compartilhado.
+
 ## Auth público e ciclo de conta
 
 Login, cadastro, recuperação e callbacks públicos reutilizam `PublicPageShell`, primitive shared

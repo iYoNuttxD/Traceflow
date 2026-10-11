@@ -95,7 +95,7 @@ describe('RepositoryInfoPage RF06', () => {
     expect(getProjectArtifacts).toHaveBeenCalledTimes(1);
   });
 
-  it('distingue ausência de integração de catálogo vazio e oferece configuração ao OWNER', async () => {
+  it('preserva resumo e filtros sem oferecer CTA de configuração mesmo ao OWNER', async () => {
     projectApi.get.mockResolvedValue({
       data: { project: { id: 1, name: 'Local', githubIntegration: null } }
     });
@@ -111,10 +111,7 @@ describe('RepositoryInfoPage RF06', () => {
     expect(screen.getByRole('heading', { name: 'Visão geral do repositório' })).toBeVisible();
     expect(screen.getAllByText('Não disponível')).toHaveLength(5);
     expect(screen.queryByText('0')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configurar integração' })).toHaveAttribute(
-      'href',
-      '/projects/1/edit#github-integration'
-    );
+    expect(screen.queryByRole('link', { name: 'Configurar integração' })).not.toBeInTheDocument();
   });
 
   it.each(['VIEWER', 'MEMBER', 'MANAGER'])('não oferece vinculação ao %s', async (role) => {

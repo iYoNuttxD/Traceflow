@@ -117,6 +117,21 @@ npm run dev
 - SPA: `http://localhost:5173`
 - Probes: `/health`, `/health/live` e `/health/ready`
 
+**Sincronização automática exige um terceiro processo.** Iniciar a API e a SPA não inicia
+o scheduler, mesmo com `GITHUB_SCHEDULER_ENABLED=true` no `.env`. Em outro terminal:
+
+```bash
+cd backend
+GITHUB_SCHEDULER_ENABLED=true npm run github:worker
+```
+
+Mantenha esse terminal aberto e confira `github_scheduler_started` e, quando houver execução,
+`github_sync_claimed` / `github_sync_run_completed`. API e worker usam o mesmo banco, GitHub App
+e policy. A migration `20261011010000_github_scheduler_liveness` permite confirmar a atividade
+do executor; a preferência e `nextSyncAt` sozinhos não comprovam que o worker está rodando.
+A UI informa indisponibilidade quando não observa atividade recente. Veja startup, shutdown e
+diagnóstico no [runbook](docs/runbooks/GITHUB_AUTOMATIC_SYNC.md).
+
 ## Gates de qualidade
 
 Backend:

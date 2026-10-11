@@ -9,7 +9,7 @@ const boundary = vi.hoisted(() => ({ client: null }));
 vi.mock('../../src/modules/github/github.client.js', () => ({
   githubInstallationClientFactory: { forInstallation: () => boundary.client }
 }));
-let prisma, runs, requestSync, execute, scheduler, projects, withGuard, commits;
+let prisma, runs, requestSync, execute, scheduler, projects, withGuard, commits, automationStatus;
 const gate = () => {
   let resolve;
   const promise = new Promise((r) => {
@@ -42,6 +42,8 @@ beforeAll(async () => {
   ({ withProjectWriteGuard: withGuard } =
     await import('../../src/modules/projects/project-write-context.js'));
   ({ commitRepository: commits } = await import('../../src/modules/commits/commit.repository.js'));
+  ({ getGithubAutomationStatus: automationStatus } =
+    await import('../../src/modules/github/services/github-scheduler-status.service.js'));
 });
 beforeEach(async () => {
   await cleanTestDatabase(prisma);
@@ -122,6 +124,107 @@ const integration = (id) =>
 const worker = (options = {}) => scheduler({ enabled: true, configured: () => true, ...options });
 
 describe('scheduler with real isolated persistence', () => {
+  it('keeps manual/status access available while the liveness migration is pending', async () => {
+    const {
+      items: [project]
+    } = await fixture();
+    const { githubSchedulerRepository } =
+      await import('../../src/modules/github/github-scheduler.repository.js');
+    vi.spyOn(githubSchedulerRepository, 'latest').mockRejectedValue({ code: 'P2021' });
+    expect(await automationStatus(project.id)).toMatchObject({
+      status: 'UNAVAILABLE',
+      reason: 'SCHEMA_NOT_READY'
+    });
+  });
+  it('distinguishes a persisted schedule from an operational worker and executes through the real start loop', async () => {
+    const {
+      items: [project]
+    } = await fixture();
+    const before = await automationStatus(project.id);
+    expect(before).toMatchObject({
+      status: 'UNAVAILABLE',
+      reason: 'WORKER_NOT_OBSERVED',
+      nextSyncAt: project.githubIntegration.nextSyncAt
+    });
+    expect(await runs.findLatest(project.id)).toBeNull();
+    const w = worker();
+    try {
+      expect(w.start()).toBe(true);
+      await vi.waitFor(async () =>
+        expect((await runs.findLatest(project.id))?.status).toBe('SUCCEEDED')
+      );
+      const run = await runs.findLatest(project.id);
+      expect(run.origin).toBe('AUTOMATIC');
+      expect(run.startedAt).toBeInstanceOf(Date);
+      expect((await integration(project.id)).nextSyncAt > run.finishedAt).toBe(true);
+      expect(await automationStatus(project.id)).toMatchObject({
+        status: 'AVAILABLE',
+        reason: null
+      });
+    } finally {
+      await w.stop();
+    }
+    expect(await automationStatus(project.id)).toMatchObject({ status: 'UNAVAILABLE' });
+  });
+
+  it('expires liveness after a crash, preserves other replicas on shutdown and uses the same UTC instant', async () => {
+    const {
+      items: [project]
+    } = await fixture();
+    await prisma.projectGitHubIntegration.update({
+      where: { projectId: project.id },
+      data: { nextSyncAt: new Date('2027-01-01T00:00:00Z') }
+    });
+    const a = worker(),
+      b = worker();
+    try {
+      await a.tick();
+      await b.tick();
+      expect(await prisma.gitHubSchedulerWorker.count()).toBe(2);
+      await a.stop();
+      const utc = await automationStatus(project.id, new Date('2026-10-11T04:49:00Z'));
+      const local = await automationStatus(project.id, new Date('2026-10-11T01:49:00-03:00'));
+      expect(local).toEqual(utc);
+      expect((await automationStatus(project.id)).status).toBe('AVAILABLE');
+      const latest = await prisma.gitHubSchedulerWorker.findFirst();
+      expect(
+        (await automationStatus(project.id, new Date(latest.heartbeatAt.getTime() + 60001))).status
+      ).toBe('UNAVAILABLE');
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+    expect(await prisma.gitHubSchedulerWorker.count()).toBe(0);
+  });
+
+  it('logs the reason for overdue redistribution instead of silently replacing the persisted time', async () => {
+    const logged = vi.fn();
+    const {
+      items: [project]
+    } = await fixture();
+    const overdue = new Date(Date.now() - 120000);
+    await prisma.projectGitHubIntegration.update({
+      where: { projectId: project.id },
+      data: { nextSyncAt: overdue }
+    });
+    const w = worker({ log: { info: logged, warn: vi.fn(), error: vi.fn() } });
+    try {
+      await w.tick();
+      expect(logged).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          event: 'github_sync_postponed',
+          reason: 'OVERDUE_RESTART_JITTER',
+          previousNextSyncAt: overdue
+        })
+      );
+      const rescheduled = (await integration(project.id)).nextSyncAt;
+      await w.tick();
+      expect((await integration(project.id)).nextSyncAt).toEqual(rescheduled);
+    } finally {
+      await w.stop();
+    }
+  });
   it('reserves the same project once across two scheduler instances and runs the canonical pipeline', async () => {
     const {
       items: [project]

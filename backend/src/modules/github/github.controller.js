@@ -4,6 +4,7 @@ import { issueService } from '../issues/issue.service.js';
 import { pullRequestService } from '../pullRequests/pullRequest.service.js';
 import { githubSyncService } from './githubSync.service.js';
 import { auditService } from '../audit/audit.service.js';
+import { getGithubAutomationStatus } from './services/github-scheduler-status.service.js';
 
 export const githubController = {
   syncProjectGithubData: asyncHandler(
@@ -47,7 +48,8 @@ export const githubController = {
   getProjectGithubSyncStatus: asyncHandler(
     async (req, res) => {
       const run = await githubSyncService.getProjectGithubSyncStatus(req.params.projectId);
-      return res.json({ run });
+      const automation = await getGithubAutomationStatus(req.params.projectId);
+      return res.json({ run, automation });
     },
     { fallbackMessage: 'Não foi possível consultar a sincronização do GitHub.' }
   ),

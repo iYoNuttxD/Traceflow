@@ -981,3 +981,11 @@ Worker independente com agenda persistida, jitter, slots globais, mesma reserva 
 fencing transacional e recuperação. UI agrupada, switch, progresso compartilhado e descoberta
 por polling. [Relatório e gates locais](docs/deliveries/GITHUB_04_INTEGRATION_UX_AUTOMATIC_SYNC_SCHEDULER_REPORT.md).
 OCI/deploy permanecem fora desta entrega; sem troca/desvinculação de repositório.
+
+### GITHUB-04.1 — Confiabilidade da automação e refinamento UX
+
+**PASS LOCAL**, em `daniel-dev`.
+Correção da distinção entre agenda e worker operacional, startup explícito, heartbeat mínimo,
+logs de adiamento e refinamento Settings C2. Repository preserva sua estrutura sem CTA.
+[Diagnóstico e validação local](docs/deliveries/GITHUB_04_1_AUTOSYNC_RELIABILITY_UX_REFINEMENT_REPORT.md).
+Sem OCI/deploy; migration aplicada somente em schemas isolados de teste.
