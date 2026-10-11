@@ -186,8 +186,15 @@ das exclusões por motivo. O valor nunca aparece sem as exclusões.
 - O cenário reproduzível é o instrumento entregue ao S3-01 (Capítulo 4). O S2-02 não cria tela para
   o indicador.
 
+**Resultado em 11/10/2026 (banco de teste), com os cinco motivos (`4219b19`):**
+
+| RF | Eventos ocorridos | Elegíveis | Enviadas corretamente | Cobertura | Exclusões |
+| --- | --- | --- | --- | --- | --- |
+| RF30 (M1) | 10 | 5 | 5 | 100% | `NO_RESPONSIBLE` 1, `SELF_CHANGE` 1, `INACTIVE_ACCOUNT` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 |
+| RF59 (M2) | 8 | 3 | 3 | 100% | `OUTSIDE_WINDOW` 1, `NO_RESPONSIBLE` 1, `INACTIVE_ACCOUNT` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 |
+
 **Resultado em 09/10/2026 (banco de teste), histórico:** anterior ao motivo `INACTIVE_ACCOUNT`
-(`2111706`); o resultado com os cinco motivos fica abaixo desta tabela quando for medido.
+(`2111706`).
 
 | RF | Eventos ocorridos | Elegíveis | Enviadas corretamente | Cobertura | Exclusões |
 | --- | --- | --- | --- | --- | --- |

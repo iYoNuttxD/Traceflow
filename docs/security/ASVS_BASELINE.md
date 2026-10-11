@@ -189,7 +189,7 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 | V2.2.1, V2.2.2 | L1 | validação positiva no servidor (`strictObject`, enums, ids inteiros até 2³¹−1) | `notification.validation.js` | API: campo desconhecido, ids malformados e `limit=101` respondem 400, nunca 500; cursor malformado, com `page` ou repetido responde 400 (C2-03) | ATENDIDO |
 | V2.3.2 | L2 | limites implementados como documentados | política e validação | `notification.policy.test.js` (janela nas duas pontas); API (`limit=101`) | ATENDIDO |
 | V2.3.3 | L2 | notificação de status na mesma transação do movimento e do histórico | `transitionStatus` | N4 (`test/integration/s202-notifications.test.js`) | ATENDIDO |
-| V2.3.4 | L2 | índice único (destinatário, chave) contra duplicidade sob concorrência | schema, `skipDuplicates` | N5, N8 | ATENDIDO |
+| V2.3.4 | L2 | índice único (destinatário, chave) contra duplicidade sob concorrência; `PUT` de preferências serializado por usuário, com espera limitada a 2 s (`FOR UPDATE NOWAIT`) | schema, `skipDuplicates`; `notification.repository.js` (`savePreferences`) | N5, N8; RT-V-02, RT-N-L-01, CR-02 (concorrência da mesma conta sem 409) | ATENDIDO |
 | V2.4.1 | L2 | as três leituras no limitador autenticado; mutações com CSRF e limitador global | `app.js` | API: 429 com `Retry-After` nas três leituras | ATENDIDO |
 | V3.5.1, V3.5.3 | L1 | CSRF em `PATCH`, `POST` e `PUT`; nenhuma `GET` muda estado | middleware CSRF existente | API: mutação sem token responde 403; `readAt` intacto depois das `GET` | ATENDIDO |
 | V4.1.1 | L1 | `Content-Type` com charset em sucesso e erro | resposta global | API (cabeçalhos das rotas novas) | ATENDIDO |
@@ -200,10 +200,10 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 | V8.3.1 | L1 | destinatário só da sessão; nenhum `userId` aceito | controller e validação | API: `userId` em query ou corpo responde 400 | ATENDIDO |
 | V8.4.1 | L2 | perder a membership oculta; contador e `read-all` respeitam a visibilidade | repository (`visibleWhere`) | API (membership removida e reativada, projeto excluído, `read-all`) | ATENDIDO |
 | V14.1.1, V14.1.2, V14.2.4 | L2 | notificação e preferência inventariadas, com retenção de 180 dias, exportação e anonimização | `PERSONAL_DATA_INVENTORY.md`, `DATA_RETENTION_POLICY.md` | `test/integration/s202-privacy.test.js`; exportação na API com todas as notificações do titular e `visible` (C7-01, correção de 10/10); conta restrita não recebe dado novo (`INACTIVE_ACCOUNT`, C6-02) | ATENDIDO |
-| V14.2.1 | L1 | a query só leva `status`, `page` e `limit`; o link não leva dado pessoal | rotas e mapper | API (inspeção das rotas) | ATENDIDO |
+| V14.2.1 | L1 | a query leva `status`, `cursor` (instante e id, sem dado pessoal), `page` e `limit`; o link não leva dado pessoal | rotas e mapper | API (inspeção das rotas); RT-N-C-01..09 | ATENDIDO |
 | V14.3.2 | L2 | `Cache-Control: no-store` nas respostas com nome e título | `noStoreApiResponses` global | API (cabeçalhos) | ATENDIDO |
 | V14.3.3 | L2 | nada de notificação em `localStorage` ou `sessionStorage` | feature `notifications` | `NotificationsPage.test.jsx` | ATENDIDO |
-| V15.1.3, V15.2.2 | L2 | custo do job documentado e limitado (janela, lote por projeto, índices) | runbook e script | medição em banco de teste, num projeto: 2.000 tarefas, 47 ms; 10.000 tarefas, 171 ms; a segunda execução não cria nada (154 ms) | ATENDIDO |
+| V15.1.3, V15.2.2 | L2 | custo do job, da lista e da exportação documentado e limitado (janela, lote por projeto, keyset, índices) | runbook, script, `listPage`, exportação | job em banco de teste, num projeto: 2.000 tarefas, 47 ms; 10.000 tarefas, 171 ms. Lista por cursor com 10.000 notificações: pior página 98 ms (RT-N-C-10). Exportação de 5.000 notificações: até 173 ms, 24 SELECTs (RT-N-X-02). "Carregar mais" sem refazer os cartões já exibidos (CR-08) | ATENDIDO |
 | V15.3.3, V15.3.5, V15.3.7 | L2 | `PATCH` aceita só `read`; `"true"` responde 400; `status` repetido responde 400 | validação | API | ATENDIDO |
 | V15.3.6 | L2 | `__proto__` em qualquer nível do corpo responde 400; `constructor` também | `notification.validation.js` | API (preferências) | ATENDIDO |
 | V16.2.1, V16.2.2 | L2 | log do job com evento, projeto, contagens e instante em UTC, e o fuso usado | `notification.service.js` | `notify-overdue-tasks.script.test.js` | ATENDIDO |
@@ -211,7 +211,7 @@ evidência e status. O mapeamento descreve controles exercitados; não é certif
 | V16.3.2 | L2 | 404 por id alheio registrado pelo tratador de erros | tratador global | API (logger injetado) | ATENDIDO |
 | V16.3.3 | L2 | mudança de preferências auditada, só com `changedTypes` | `audit.service.js` | API (auditoria); `PUT` serializado por usuário, trilha coerente sob concorrência (C4-01, correção de 10/10) | ATENDIDO |
 | V16.5.1 | L2 | erro genérico, sem eco da entrada nem stack | tratador global | API | ATENDIDO |
-| V16.5.2, V16.5.3 | L2 | falha de inserção desfaz a mudança de status; falha de um projeto no job conta em `failed` e o processo sai com código 1 | `transitionStatus`, script | N4; N15 e testes do script | ATENDIDO |
+| V16.5.2, V16.5.3 | L2 | falha de inserção desfaz a mudança de status; falha de um projeto no job conta em `failed` e o processo sai com código 1, e `--project-id` sem projeto sai com código 2; `PUT` de preferências com a conta ocupada responde 409 sem afetar outras requisições | `transitionStatus`, script, `savePreferences` | N4; N15 e testes do script; RT-V-06; RT-N-L-05 e CR-01..04 (correção de 11/10) | ATENDIDO |
 | V16.4.2, V16.4.3 | L2 | proteção e envio dos logs para sistema separado | ambiente | — | NÃO VERIFICÁVEL LOCALMENTE (S2-10) |
 
 **Não aplicáveis:**
@@ -249,3 +249,13 @@ recusa a chave nos próprios corpos; o restante da API está no backlog (S202-F0
   exclusividade com `page`).
 - Suíte completa do backend duas vezes com 1916 verdes (só o `EPERM` de ambiente); 22 mutantes
   dirigidos, todos mortos; 63 migrations aplicadas num banco vazio; `SCHEMA_CONSISTENT`.
+
+**Correções de 11/10/2026** (reteste do S2-02, `S2_02_RELATORIO_RETESTE.md`, seção 19):
+- V2.3.4, V16.5.2 e V16.5.3: o `PUT` de preferências não espera mais que 2 s pelo bloqueio da conta
+  e responde 409 `NOTIFICATION_PREFERENCES_BUSY`; a espera longa deixou de derrubar requisições de
+  outras pessoas (RT-N-L-05, CR-01..04).
+- V2.2.1 e V2.2.2: o cursor só vale na forma canônica (CR-05, CR-06).
+- V14.2.1 e V15.1.3/V15.2.2: linhas revistas com o cursor e as medições do reteste; "Carregar mais"
+  sem refazer os cartões já exibidos (CR-08).
+- Suíte completa do backend duas vezes com 1995 verdes (só o `EPERM` de ambiente); 17 mutantes
+  dirigidos, 15 mortos e 2 equivalentes justificados (F9, MR14); sem migration nesta rodada.

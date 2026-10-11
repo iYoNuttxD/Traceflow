@@ -702,3 +702,82 @@ Itens novos em `TECHNICAL_BACKLOG.md`:
 | S202-F27 | índice para o filtro "Todas" | O-R1 |
 
 O S202-R03 foi resolvido nesta campanha, com a nota no topo do relatório anterior.
+
+## 19. Correções (11/10/2026)
+
+O enunciado está em [S2_02_PROMPT_CORRECOES_RETESTE.md](S2_02_PROMPT_CORRECOES_RETESTE.md). O João
+aprovou os nove ⚑ com as recomendações ("pode seguir"). Cada correção de código nasceu com o teste de
+regressão vermelho pelo motivo do achado.
+
+| Achado | Correção | Commit | Testes |
+|---|---|---|---|
+| — | ADR-016 revisto (D7, D8, D10, consequências); regra executável, contrato, runbooks e inventário de UI | `901a9cf` | — |
+| S202-R01 | `FOR UPDATE NOWAIT`, cada tentativa numa transação curta, nova tentativa de 20 a 40 ms até 2 s; esgotado, 409 `NOTIFICATION_PREFERENCES_BUSY` sem gravar | `6c7365c` | RT-N-L-05 endurecido; CR-01..04 |
+| S202-R02 | M1 e M2 com um evento de cada um dos cinco motivos; resultado republicado | `4219b19` | M1, M2 |
+| S202-R06 (item 1) | cursor só na forma canônica | `50d4905` | CR-05, CR-06 |
+| S202-R08 | `forced-color-adjust: none` com `CanvasText` no ponto do ☰ | `cadb897` | CR-07 |
+| S202-R09 | cartão com `memo`; `toggleRead` e `open` estáveis | `0eba0e0` | CR-08 |
+| S202-R04, S202-R05, S202-R06 (itens 2 a 6), S202-R07 | baseline ASVS, D8, frases e convenção de migrations | `901a9cf` e o commit deste registro | — |
+
+**Testes vermelhos antes da correção:**
+- RT-N-L-05: `{"status":500,"code":"INTERNAL_ERROR","elapsedMs":6715,"other":[401,"AUTHENTICATION_REQUIRED"],"next":[500,"INTERNAL_ERROR"],"second":500,"otherAfterRelease":500}`;
+  CR-01 e CR-04 com 500, CR-03 com 200. Depois: `{"status":409,"code":"NOTIFICATION_PREFERENCES_BUSY","elapsedMs":1988,"other":[200,null],"next":[200,null],"second":200,"otherAfterRelease":200}`,
+  em três rodadas;
+- CR-05 e CR-06: 200 nas variantes não canônicas; depois, 400;
+- CR-07: nenhum bloco `forced-colors` no `AppShell.css`;
+- CR-08: razão `actualDuration / baseDuration` de 1,04 a 1,08 nas últimas páginas, em cinco rodadas;
+  depois, 0,13 a 0,17.
+
+**Medição do ⚑3.** Uma mudança de status com o projeto seguro por 7 s esperou 6,7 s e terminou com 200,
+sem afetar outra conta, nas três rodadas: a `traceabilityTransaction` usa `timeout: 15000`. A cascata
+só voltaria com o bloqueio seguro por mais de 15 s, porque o MySQL espera até 50 s. O S202-F21 foi
+fechado para o `PUT`; o resto ficou no S202-F29.
+
+**Desvios do enunciado:**
+- **Nova tentativa fora da transação.** O prompt previa as tentativas dentro de uma mesma transação. Cada
+  tentativa passou a ser uma transação curta: assim nenhuma conexão fica presa esperando, e a
+  correção não depende de o MySQL manter a transação usável depois do erro 3572.
+- **20 a 40 ms entre tentativas, não 100 ms.** Com 100 ms, 20 `PUT` simultâneos da mesma conta
+  esgotavam os 2 s e alguns recebiam 409 (RT-N-L-01 e CR-02 vermelhos). Com 20 a 40 ms, com variação
+  aleatória, os dois ficaram verdes em três rodadas.
+- **`lockUser` removido.** Só o `PUT` o usava; ficou `lockUserNoWait`.
+- **Critério do CR-08.** A razão entre o custo das últimas e das primeiras páginas, prevista no
+  prompt, deu 1,97 a 2,81 antes da correção, abaixo do limite de 3, por causa do JIT. O critério
+  passou a ser a razão `actualDuration / baseDuration` do `Profiler` (limite 0,5), que separa os dois
+  estados com folga.
+
+**Mutação dirigida:** 17 mutantes.
+- 15 mortos:
+  - MC01 a MC04, M33 e MR06 (bloqueio e 409);
+  - MC05, M42 e M43 (cursor);
+  - MC06 (alto contraste);
+  - MC07 e MC08 (memorização);
+  - M41, F4 e MR13 (marcação por cartão).
+- 2 equivalentes já justificados na seção 8: F9 e MR14, a deduplicação defensiva no append.
+
+**Verificação:**
+- **Suíte completa do backend, duas vezes:** 1995 verdes, 5 ignorados e a falha `EPERM` de
+  ambiente, iguais nas duas;
+- **as 15 baterias do S2-02 no backend:** verdes, só com as mudanças de esperado previstas
+  (RT-N-L-05, M1, M2);
+- **frontend das notificações:** 7 arquivos, 99 verdes. O RT-N-U-09 caiu de 18,3 s para 8,1 s;
+- **gates do backend e do frontend, e `build`:** verdes;
+- **sem migration nesta rodada.**
+
+**Ambiente do João:**
+- servidores reiniciados por ele;
+- carga de 1.000 notificações para a conta 1 e para a conta 9, rodada com o aval dele;
+- **"Carregar mais" (S202-R09)** no painel Browser, com o mesmo método do reteste (painel oculto
+  para a página, sem pintura): 49 cliques até 1.000 cartões em 3,55 s, de 47 ms a 154 ms por clique
+  (mediana 62 ms), heap de 11 MB para 38 MB, nenhum cartão repetido. Antes: 55 cliques, 21,7 s, de
+  cerca de 160 ms a 750 ms por clique, heap até 106 MB;
+- **alto contraste (S202-R08)** no Chrome da conta 9, com `forced-colors: active` e 347 px:
+  - o CSS novo carregado;
+  - ponto `rgb(255, 255, 255)` sobre o cabeçalho `rgb(0, 0, 0)`; antes, preto sobre preto;
+  - rótulo "Abrir navegação, 1000 notificações não lidas";
+- **limpeza** (`s202-cleanup-escala-dev.mjs --apply`, com aval): 2.000 notificações excluídas. A
+  conta 1 voltou às 6 notificações de antes, com as preferências ligadas; o tema do painel não foi
+  alterado.
+
+**Backlog:** S202-F21 a F26 fechados; S202-F27 aberto; S202-F28 (lista de membros com
+`user.isActive` legado) e S202-F29 (espera de bloqueio nas outras transações) novos.
