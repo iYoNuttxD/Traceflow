@@ -1,6 +1,6 @@
 # ADR-016 — Notificações de tarefa: mudança de status e vencimento de prazo
 
-- **Estado:** aceita para o cartão S2-02 (RF30, RF59); revista em 10/10/2026
+- **Estado:** aceita para o cartão S2-02 (RF30, RF59); revista em 10/10/2026 e em 11/10/2026
 - **Data:** 09/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 
@@ -77,12 +77,16 @@ Restrições do terreno:
    - No RF59, a notificação nasce no job, depois do corte. Para não ser retroativa, a preferência
      guarda `enabledAt`, o instante da última passagem de desligada para ligada (nulo se nunca foi
      desligada). Vencimento com corte anterior a `enabledAt` conta como `PREFERENCE_OFF`.
+   - O `PUT` de preferências é serializado por usuário e não espera mais que 2 s pelo bloqueio da
+     conta. Com outra alteração em andamento, responde 409 `NOTIFICATION_PREFERENCES_BUSY`, e nenhuma
+     outra requisição é afetada.
 8. **Leitura e contexto (D8).** O link é calculado (`/projects/:id/kanban?task=:taskId`). Se a
    tarefa for excluída, a notificação mantém o título copiado e fica sem link.
    - A central pagina por cursor estável (instante de criação e id do último item). Marcar como
      lida não desloca as páginas seguintes.
    - No filtro Não lidas, o item marcado continua na tela, com o estado de lida, até recarregar:
      assim dá para desfazer.
+   - A marcação é por cartão: enquanto um cartão espera a resposta, os outros continuam marcáveis.
 9. **Visibilidade (D9).** Só o destinatário vê, e só enquanto tiver membership ativa num projeto
    não excluído. Perder o acesso oculta sem apagar. Id alheio ou oculto responde 404 opaco.
 10. **Interface (D12).**
@@ -91,7 +95,7 @@ Restrições do terreno:
     - Seção nas Configurações.
     - O contador é consultado ao navegar e a cada 60 s com a aba visível.
     - No celular, o botão que abre a navegação mostra um ponto quando há não lidas, e o rótulo
-      acessível diz quantas.
+      acessível diz quantas. O ponto continua visível em alto contraste (`forced-colors`).
 11. **Métrica oficial (D16).** O indicador é calculado sobre os eventos elegíveis. As exclusões
     aparecem ao lado, contadas por motivo:
     - por regra: sem responsável, conta restrita, membership inativa, ator igual ao responsável,
@@ -137,6 +141,8 @@ Restrições do terreno:
 - O mesmo modelo de linha por destinatário recebe os eventos de issue e PR do S2-03 sem migration
   nova.
 - O job não depende da nuvem: qualquer agendador chama o mesmo comando.
+- O custo de "Carregar mais" não cresce com as páginas já exibidas: os cartões já carregados não
+  são refeitos.
 
 ## Consequências negativas
 
@@ -191,3 +197,23 @@ Os outros achados mudam contrato, operação ou documentação sem alterar decis
 - S202-A08: projeto inexistente no job sai com código 2;
 - S202-A09: a regra do `deadline` com hora entra no contrato;
 - S202-A12 e S202-A13: código morto e documentação.
+
+## Revisão de 11/10/2026 — correções do reteste
+
+O reteste em [S2_02_RELATORIO_RETESTE.md](../issues/S2_02_RELATORIO_RETESTE.md) encontrou 9
+achados. As decisões abaixo foram aprovadas pelo João em 11/10/2026 e estão incorporadas no texto
+acima.
+
+| Achado | Decisão |
+| --- | --- |
+| S202-R01 | o `PUT` de preferências espera o bloqueio da conta por no máximo 2 s (`FOR UPDATE NOWAIT` com nova tentativa) e responde 409 `NOTIFICATION_PREFERENCES_BUSY` (D7) |
+| S202-R05 | marcação por cartão escrita na decisão (D8) |
+| S202-R08 | o ponto do botão de navegação continua visível em alto contraste (D10) |
+| S202-R09 | "Carregar mais" não refaz os cartões já exibidos (consequências) |
+
+Os outros achados mudam contrato, operação ou documentação sem alterar decisão:
+- S202-R02: M1 e M2 passam a ter um evento de cada um dos cinco motivos;
+- S202-R06: cursor só na forma canônica; frases sobre o relógio da API, o item desmarcado acima do
+  cursor, a precedência dos códigos de saída, as exclusões que contam pares já notificados e os dias
+  saltados;
+- S202-R04 e S202-R07: baseline ASVS e convenção de nome das migrations.

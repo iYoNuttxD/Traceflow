@@ -66,6 +66,11 @@ que existe depois dele:
 | `Pacific/Fakaofo` | `2011-12-29` | `2011-12-30` | `2011-12-30T11:00:00.000Z` |
 | `Pacific/Kwajalein` | `1993-08-20` | `1993-08-21` | `1993-08-21T12:00:00.000Z` |
 | `Pacific/Kiritimati` | `1994-12-30` | `1994-12-31` | `1994-12-31T10:00:00.000Z` |
+| `Pacific/Enderbury` (hoje `Pacific/Kanton`) | `1994-12-30` | `1994-12-31` | `1994-12-31T11:00:00.000Z` |
+
+A tabela traz todos os dias saltados do tzdata 2025b entre 1900 e 2037, achados por varredura dos
+418 fusos do Node 22.18 (ICU 77.1). Em todos, o novo deslocamento é de pelo menos +12 h, e o corte
+cai no máximo 12 h depois da meia-noite UTC do dia pulado.
 
 **Diferença com a tela.** O Kanban marca "Atrasada" comparando a data do prazo com a data de hoje
 no fuso do navegador; a notificação usa `APP_TIMEZONE`. Para quem está fora do fuso de referência,
@@ -113,6 +118,12 @@ Exemplo com `America/Sao_Paulo` e `agora = 2026-10-20T12:00:00.000Z` (início da
   - desligada antes do corte e religada em `2026-10-17T12:00:00.000Z`: nenhuma notificação para
     esse prazo;
   - desligada e religada antes do corte: a notificação nasce na execução seguinte ao corte.
+- `enabledAt` vem do relógio do servidor da API, que precisa estar sincronizado (NTP). O corte é
+  calendário (início do dia local seguinte ao prazo) e não depende do relógio do job. Com o relógio
+  da API desviado em `s`, uma religação a menos de `s` do corte cai do lado errado.
+- O `PUT` de preferências é serializado por usuário e espera o bloqueio da conta por no máximo 2 s.
+  Com outra alteração em andamento, responde 409 `NOTIFICATION_PREFERENCES_BUSY`, e a pessoa tenta
+  de novo; nenhuma outra requisição é afetada.
 - O canal é só a aplicação.
 
 ## Visibilidade e leitura
@@ -128,8 +139,13 @@ Exemplo com `America/Sao_Paulo` e `agora = 2026-10-20T12:00:00.000Z` (início da
 - A lista pagina por cursor estável (`createdAt` e `id` do último item, em ordem decrescente).
   Marcar como lida não desloca as páginas seguintes, e nada se repete quando uma notificação nova
   chega entre duas páginas; a nova aparece ao ler do início.
+- Item desmarcado (volta a não lido) acima do cursor não reaparece na continuação; ele aparece numa
+  leitura do início. Na central não há perda, porque o cartão continua na tela.
+- O cursor só vale na forma canônica, a que o servidor devolve em `nextCursor`. Outra codificação do
+  mesmo conteúdo responde 400.
 - No filtro Não lidas, o item marcado como lido continua na tela, com o estado de lida, até
   recarregar. Assim dá para desfazer.
+- A marcação é por cartão: enquanto um cartão espera a resposta, os outros continuam marcáveis.
 
 ## Métrica oficial (RF30 e RF59)
 
@@ -157,19 +173,21 @@ das exclusões por motivo. O valor nunca aparece sem as exclusões.
 | Período | intervalo fechado de datas, no fuso `APP_TIMEZONE`. O RF30 conta pelo instante do movimento; o RF59, pelo instante do corte. Na validação do Capítulo 4 (S3-01), é o período da aplicação |
 | Filtros | projeto (um ou todos os não excluídos) e tipo. Não há filtro por pessoa na publicação, para não expor dado pessoal |
 | Interpretação | 100% significa que todo evento elegível gerou uma notificação correta. Abaixo disso, cada evento sem notificação é defeito a investigar. As exclusões não são falhas: mostram o que a regra ou a escolha do usuário retirou |
-| Limitações | (1) as contagens do job são retratos de cada execução e **não se somam**: a mesma tarefa aparece como elegível em várias execuções, e `excluded.OUTSIDE_WINDOW` conta, a cada execução, toda tarefa aberta com corte antes da janela, notificada ou não; (2) o RF59 depende do agendador (até 15 min de atraso; sem agendador, só roda à mão); (3) o fuso é único; (4) tarefa vencida há mais que a janela na primeira execução não vira evento elegível; (5) a medição lê o estado atual: prazo ou conclusão mudados depois alteram os pares |
+| Limitações | (1) as contagens do job são retratos de cada execução e **não se somam**: a mesma tarefa aparece como elegível em várias execuções, e `excluded` conta, a cada execução, pares já notificados: `OUTSIDE_WINDOW` conta toda tarefa aberta com corte antes da janela, e os outros motivos contam o par cuja situação mudou depois do aviso (preferência religada depois do corte, conta restrita, membership inativa); (2) o RF59 depende do agendador (até 15 min de atraso; sem agendador, só roda à mão); (3) o fuso é único; (4) tarefa vencida há mais que a janela na primeira execução não vira evento elegível; (5) a medição lê o estado atual: prazo ou conclusão mudados depois alteram os pares |
 | Forma de atualização | sob demanda. No repositório, os testes M1 e M2 (cenário reproduzível). Com dados reais, a medição por pares distintos é entregue ao S3-01 (S202-F05); somar as saídas do job não é medição |
 
 **Medição.**
 - RF30: a notificação nasce na transação do movimento, então uma mudança elegível sem notificação
-  não persiste. O teste M1 mede a cobertura num cenário com um evento elegível e um de cada
-  exclusão.
+  não persiste. O teste M1 mede a cobertura num cenário com eventos elegíveis e um evento de cada
+  um dos cinco motivos de exclusão do RF30.
 - RF59: a saída do job traz `eligible`, `created`, `alreadyNotified`, `excluded` e `failed`. O teste
-  M2 mede a cobertura num cenário com um evento de cada exclusão.
+  M2 mede a cobertura num cenário com eventos elegíveis e um evento de cada um dos cinco motivos de
+  exclusão do RF59.
 - O cenário reproduzível é o instrumento entregue ao S3-01 (Capítulo 4). O S2-02 não cria tela para
   o indicador.
 
-**Resultado em 09/10/2026 (banco de teste):**
+**Resultado em 09/10/2026 (banco de teste), histórico:** anterior ao motivo `INACTIVE_ACCOUNT`
+(`2111706`); o resultado com os cinco motivos fica abaixo desta tabela quando for medido.
 
 | RF | Eventos ocorridos | Elegíveis | Enviadas corretamente | Cobertura | Exclusões |
 | --- | --- | --- | --- | --- | --- |

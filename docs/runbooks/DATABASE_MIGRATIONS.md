@@ -25,6 +25,12 @@ npm run db:test:status
 `db:test:validate-lr9` exercitam contratos de evolução históricos específicos. Não fixe a quantidade
 de migrations em normas permanentes e não use `prisma migrate reset` em desenvolvimento.
 
+**Nome da migration.** `AAAAMMDDhhmmss_descricao`, com a **data UTC do dia da criação** e a hora
+como sequência do dia (`010000`, `020000`; `010100` para uma intermediária). Nunca use uma data
+futura: uma migration criada noutra branch no intervalo ficaria antes dela na ordem. Migration já
+aplicada em algum banco não é renomeada; o desvio fica registrado no relatório do cartão (caso
+`20261011010000_notification_preference_enabled_at`, criada em 10/10/2026, S202-R07).
+
 ## LR.3.1 — evidência de autorização pessoal GitHub
 
 > Histórico: este modelo foi aplicado na LR.3.1 e substituído pela LR.9. Não editar nem remover

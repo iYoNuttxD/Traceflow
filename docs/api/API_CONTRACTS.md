@@ -1348,7 +1348,9 @@ nada como lido.
 **Cursor.** `nextCursor` é um texto opaco (base64url, até 128 caracteres) que aponta para o último
 item da página; `null` quando não há mais. Com `cursor`, a página seguinte começa depois desse
 item, na mesma ordem, e marcar notificações como lidas no caminho não desloca nada. `cursor` e
-`page` juntos, ou cursor malformado, respondem 400. O cursor só posiciona: não dá acesso a
+`page` juntos, ou cursor malformado, respondem 400. O cursor só vale na forma canônica, a que o
+servidor devolve: outra codificação base64url do mesmo conteúdo responde 400. Item desmarcado acima
+do cursor só reaparece numa leitura do início. O cursor só posiciona: não dá acesso a
 notificação de outra pessoa. Com `cursor`, `pagination.page` vem `null`; `total`, `totalPages` e
 `unreadCount` continuam. A central usa o cursor; `page` continua aceito, e a resposta com `page`
 também traz `nextCursor`.
@@ -1375,7 +1377,10 @@ ou nada: `updated` é a contagem, e não há item que falhe ou seja ignorado iso
 
 **Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as duas chaves, só
 booleanos; chave fora do enum, `__proto__` ou `constructor` respondem 400. A auditoria
-`NOTIFICATION_PREFERENCES_UPDATED` só é gravada quando algo muda e guarda apenas `changedTypes`.
+`NOTIFICATION_PREFERENCES_UPDATED` só é gravada quando algo muda e guarda apenas `changedTypes`. O
+`PUT` é serializado por usuário e espera o bloqueio da conta por no máximo 2 s; com outra alteração
+em andamento, responde 409 `NOTIFICATION_PREFERENCES_BUSY` sem gravar nada, e o cliente tenta de
+novo.
 
 **Divergência declarada com o contexto de arquitetura (§12, classe DR).** As rotas seguem a
 convenção deste documento, não a do anexo: base `/api` em vez de `/api/v1`; objeto nomeado em vez
@@ -1393,4 +1398,5 @@ campanha de conformidade, não do S2-02.
 | `ACCOUNT_DEACTIVATED`     | 403    | conta desativada; só a reativação é permitida                         |
 | `ACCOUNT_DELETION_PENDING` | 403   | conta com exclusão pendente                                           |
 | `NOTIFICATION_NOT_FOUND`  | 404    | notificação inexistente, de outra pessoa ou oculta                    |
+| `NOTIFICATION_PREFERENCES_BUSY` | 409 | `PUT` de preferências com outra alteração da mesma conta em andamento por mais de 2 s |
 | `RATE_LIMITED`            | 429    | limitador de leitura autenticada ou global                            |

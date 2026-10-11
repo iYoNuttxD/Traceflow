@@ -119,6 +119,8 @@ A saída é um JSON:
   - 0 quando `failed = 0`;
   - 1 quando algum projeto falha ou a execução não começa;
   - 2 quando `--project-id` aponta para projeto inexistente ou excluído, com aviso em `stderr`.
+  - A recusa de produção (apply sem `--confirm-production`) acontece antes da varredura: com ela,
+    sai 1 mesmo que o `--project-id` não exista. Em dry-run, o mesmo `--project-id` sai 2.
 - **Logs (JSON):**
   - `notifications_due_started`, com o fuso e o instante;
   - `notifications_due_project_failed`, com o projeto e o código do erro;
