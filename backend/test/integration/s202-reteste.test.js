@@ -368,7 +368,7 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
     expect((await service.preferences(user.id)).preferences).toEqual(ON);
   });
 
-  it('RT-N-L-05 PUT esperando um bloqueio além do tempo da transação responde erro genérico, sem detalhe técnico', async () => {
+  it('RT-N-L-05 PUT com a conta bloqueada além do tempo da transação responde 409 rápido, sem detalhe técnico e sem afetar outras requisições', async () => {
     const owner = await account();
     const bystander = await account();
     let release;
@@ -384,7 +384,9 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
     );
     await new Promise((resolve) => setTimeout(resolve, 300));
 
+    const started = performance.now();
     const response = await owner.put(OFF);
+    const elapsedMs = Math.round(performance.now() - started);
     const other = await bystander.agent.get('/api/settings/notifications');
     const next = await owner.agent.get('/api/settings/notifications');
     const second = await owner.agent.get('/api/settings/notifications');
@@ -401,11 +403,17 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
     }
 
     process.stdout.write(
-      `RT-N-L-05 ${JSON.stringify({ status: response.status, code: response.body.code, other: [other.status, other.body.code], next: [next.status, next.body.code], second: second.status, otherAfterRelease: afterRelease.status })}\n`
+      `RT-N-L-05 ${JSON.stringify({ status: response.status, code: response.body.code, elapsedMs, other: [other.status, other.body.code], next: [next.status, next.body.code], second: second.status, otherAfterRelease: afterRelease.status })}\n`
     );
-    expect(response.status).not.toBe(200);
-    expect(JSON.stringify(response.body)).not.toMatch(/prisma|P20\d\d|transaction|SELECT|stack/i);
+    expect([response.status, response.body.code]).toEqual([409, 'NOTIFICATION_PREFERENCES_BUSY']);
+    expect(elapsedMs).toBeLessThan(3000);
+    expect(JSON.stringify(response.body)).not.toMatch(
+      /prisma|P20\d\d|transaction|SELECT|NOWAIT|3572|stack/i
+    );
     expect(response.body.requestId).toEqual(expect.any(String));
+    expect([other.status, next.status, second.status, afterRelease.status]).toEqual([
+      200, 200, 200, 200
+    ]);
   }, 30000);
 });
 

@@ -39,6 +39,15 @@ function notificationNotFound() {
   });
 }
 
+function preferencesBusy() {
+  return new AppError({
+    message: 'Outra alteração das suas preferências está em andamento. Tente de novo em instantes.',
+    statusCode: 409,
+    code: ERROR_CODES.NOTIFICATION_PREFERENCES_BUSY,
+    exposeTechnicalDetails: true
+  });
+}
+
 function errorCodeOf(error) {
   return String(error?.code || 'NOTIFICATIONS_DUE_FAILED').slice(0, 64);
 }
@@ -184,6 +193,7 @@ export function createNotificationService({
           }),
         clock()
       );
+      if (!rows) throw preferencesBusy();
       return { preferences: toPreferencesDTO(rows) };
     },
 

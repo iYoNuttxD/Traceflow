@@ -1,4 +1,4 @@
-import { lockUser } from '../../database/locks.js';
+import { isLockBusy, lockUserNoWait } from '../../database/locks.js';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import {
@@ -12,6 +12,9 @@ import {
 
 const unique = (values) => [...new Set(values)];
 const ACTIVE_ACCOUNT = 'ACTIVE';
+const LOCK_WAIT_LIMIT_MS = 2000;
+const LOCK_RETRY_MS = 20;
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms + Math.random() * ms));
 const dtoInclude = {
   project: { select: { id: true, name: true } },
   actor: { select: { id: true, name: true } }
@@ -197,25 +200,40 @@ export const notificationRepository = {
     return prisma.notificationPreference.findMany({ where: { userId }, select: preferenceSelect });
   },
 
-  savePreferences(userId, preferences, auditFor, now = new Date()) {
-    return prisma.$transaction(async (tx) => {
-      await lockUser(tx, userId);
-      const current = await tx.notificationPreference.findMany({
-        where: { userId },
-        select: preferenceSelect
-      });
-      const enabledBefore = new Map(current.map((row) => [row.type, row.enabled]));
-      const changed = NOTIFICATION_TYPES.filter(
-        (type) => (enabledBefore.get(type) ?? true) !== preferences[type]
-      );
-      for (const type of changed)
-        await tx.notificationPreference.upsert({
-          where: { userId_type: { userId, type } },
-          create: { userId, type, enabled: preferences[type] },
-          update: { enabled: preferences[type], ...(preferences[type] ? { enabledAt: now } : {}) }
+  async savePreferences(userId, preferences, auditFor, now = new Date()) {
+    const deadline = Date.now() + LOCK_WAIT_LIMIT_MS;
+    for (;;) {
+      try {
+        return await prisma.$transaction(async (tx) => {
+          await lockUserNoWait(tx, userId);
+          const current = await tx.notificationPreference.findMany({
+            where: { userId },
+            select: preferenceSelect
+          });
+          const enabledBefore = new Map(current.map((row) => [row.type, row.enabled]));
+          const changed = NOTIFICATION_TYPES.filter(
+            (type) => (enabledBefore.get(type) ?? true) !== preferences[type]
+          );
+          for (const type of changed)
+            await tx.notificationPreference.upsert({
+              where: { userId_type: { userId, type } },
+              create: { userId, type, enabled: preferences[type] },
+              update: {
+                enabled: preferences[type],
+                ...(preferences[type] ? { enabledAt: now } : {})
+              }
+            });
+          if (changed.length) await auditRepository.create(auditFor(changed), tx);
+          return tx.notificationPreference.findMany({
+            where: { userId },
+            select: preferenceSelect
+          });
         });
-      if (changed.length) await auditRepository.create(auditFor(changed), tx);
-      return tx.notificationPreference.findMany({ where: { userId }, select: preferenceSelect });
-    });
+      } catch (error) {
+        if (!isLockBusy(error)) throw error;
+        if (Date.now() + 2 * LOCK_RETRY_MS > deadline) return null;
+        await pause(LOCK_RETRY_MS);
+      }
+    }
   }
 };
