@@ -1,0 +1,47 @@
+.switch-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-height: var(--size-touch-target);
+  cursor: pointer;
+}
+.switch-control input {
+  position: absolute;
+  right: 0;
+  width: var(--size-touch-target);
+  height: var(--size-touch-target);
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.switch-control__track {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 1.5rem;
+  padding: 0.1875rem;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  pointer-events: none;
+}
+.switch-control__track > span {
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-secondary);
+}
+.switch-control input:checked + .switch-control__track {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-surface);
+  justify-content: flex-end;
+}
+.switch-control input:checked + .switch-control__track > span { background: var(--color-accent-strong); }
+.switch-control input:focus-visible + .switch-control__track {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+.switch-control:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }

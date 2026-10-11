@@ -41,3 +41,4 @@ export { DetailSurface, DescriptionSurface } from './components/DetailSurface.js
 export { SelectControl } from './components/SelectControl.jsx';
 
 export { LifecycleTrail } from './components/LifecycleTrail.jsx';
+export { Switch } from './components/Switch.jsx';

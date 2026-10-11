@@ -1,6 +1,10 @@
 import { env } from '../../config/env.js';
 import { ERROR_CODES, ExternalServiceError } from '../../shared/errors/index.js';
-import { isGithubRateLimitError, normalizeGithubError } from './github-error.js';
+import {
+  githubRetryNotBefore,
+  isGithubRateLimitError,
+  normalizeGithubError
+} from './github-error.js';
 
 const retryableStatuses = new Set([429, 502, 503, 504]);
 const retryableCodes = new Set(['ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT']);
@@ -17,6 +21,8 @@ export function calculateGithubRetryDelay(
   random = Math.random,
   maxDelayMs = env.githubRetryMaxDelayMs || 60_000
 ) {
+  const notBefore = githubRetryNotBefore(error);
+  if (notBefore) return Math.max(0, notBefore.getTime() - Date.now());
   const retryAfter = Number(error?.response?.headers?.['retry-after']);
   if (Number.isFinite(retryAfter) && retryAfter >= 0) {
     return Math.min(retryAfter * 1000, maxDelayMs);
@@ -52,6 +58,7 @@ function toExternalServiceError(error) {
     exposeTechnicalDetails: isRateLimit
   });
   externalError.externalStatus = normalized.externalStatus;
+  externalError.retryAt = githubRetryNotBefore(error);
   return externalError;
 }
 
@@ -74,6 +81,9 @@ export async function executeGithubRequest(
         throw toExternalServiceError(error);
       }
       const delayMs = calculateGithubRetryDelay(error, attempt, random, maxDelayMs);
+      // Never shorten GitHub's Retry-After to fit the in-request wait budget.
+      // The persisted scheduler cooldown takes over when the wait is longer.
+      if (delayMs > maxDelayMs) throw toExternalServiceError(error);
       attempt += 1;
       await wait(delayMs);
     }

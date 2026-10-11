@@ -107,7 +107,10 @@ describe('RepositoryInfoPage RF06', () => {
     expect(
       screen.queryByRole('heading', { name: 'Nenhum artefato importado.' })
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Filtrar artefatos/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Filtrar artefatos/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Visão geral do repositório' })).toBeVisible();
+    expect(screen.getAllByText('Não disponível')).toHaveLength(5);
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Configurar integração' })).toHaveAttribute(
       'href',
       '/projects/1/edit#github-integration'

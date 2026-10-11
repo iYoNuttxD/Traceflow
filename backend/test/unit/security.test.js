@@ -391,7 +391,7 @@ describe('GitHub, SSRF e segredos', () => {
       executeGithubRequest(secondaryRateLimit, { maxRetries: 1, wait, random: () => 0 })
     ).resolves.toEqual({ data: 'ok' });
     expect(wait).toHaveBeenCalledWith(1000);
-    expect(calculateGithubRetryDelay({ status: 429 }, 0, () => 0)).toBe(250);
+    expect(calculateGithubRetryDelay({ status: 429 }, 0, () => 0)).toBe(60000);
   });
 
   it('scanner detecta fixture controlada e ignora placeholder permitido', () => {

@@ -138,8 +138,13 @@ Integração ACTIVE repetida retorna 409, sem sobrescrever estado ou agendar syn
 RECONNECT_REQUIRED mantém o mesmo repositório e não substitui instalação já persistida.
 O resultado da conexão distingue o vínculo confirmado do run assíncrono, inclusive quando
 solicitação/execução de sync falha. GITHUB-03 consome esse resultado na seção GitHub da edição do projeto, com seleção compartilhada,
-reconciliação independente e navegação contextual de Overview/Repository. A preferência
-autoSyncEnabled é persistida, sem scheduler periódico adicional; a UI explicita essa limitação.
+reconciliação independente e navegação contextual do Repository. GITHUB-04 organiza a seção
+em Repositório/Sincronização/Automação e executa a preferência pelo worker independente.
+A agenda e os slots globais residem no mesmo banco; activeProjectId continua a autoridade
+por projeto. As escritas da pipeline verificam o run ativo dentro da transação de Project,
+usando contexto assíncrono para alcançar também artifacts/sugestões. Recuperação segue a
+mesma ordem de locks e não reativa IDs expirados. Detalhes no
+[runbook operacional](../runbooks/GITHUB_AUTOMATIC_SYNC.md).
 
 Sync pagina coleções, persiste por identificador externo e usa `GitHubSyncRun.activeProjectId` para
 exclusão mútua no banco, com stale detection. Webhook público usa raw body, HMAC e delivery ID, sem

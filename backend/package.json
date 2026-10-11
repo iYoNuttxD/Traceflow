@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "github:worker": "node src/github-worker.js",
     "lint": "eslint src test scripts vitest.config.js",
     "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\" \"*.js\" package.json",
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\" \"*.js\" package.json",
@@ -41,6 +42,7 @@
     "lr2:recovery": "node scripts/lr2-legacy-recovery.js --apply",
     "db:test:migrate": "node scripts/test-database.js migrate",
     "db:test:status": "node scripts/test-database.js status",
+    "db:test:validate-github-sync": "node scripts/validate-github-sync-migration.js",
     "db:test:validate-empty": "node scripts/validate-empty-migrations.js",
     "db:test:validate-lr2-legacy": "node scripts/validate-lr2-legacy-migration.js",
     "db:test:validate-lr2-recovery": "node scripts/validate-lr2-recovery.js",

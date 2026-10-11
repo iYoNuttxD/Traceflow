@@ -17,7 +17,7 @@ Nenhuma variável `VITE_*` pode conter private key, client secret, webhook secre
 1. Usuário com e-mail verificado inicia a instalação pela tela de Projetos.
 2. O backend cria state curto, hashado e ligado à sessão/intenção.
 3. Após instalar, o callback troca `code` por token de usuário efêmero, comprova `installation_id` em `GET /user/installations`, confirma a mesma Installation com JWT da App e valida o Installation Token com uma única consulta mínima (`per_page=1`), que aceita zero repositórios. O callback salva somente metadados e redireciona; a listagem completa ocorre apenas nos endpoints de descoberta. Não consulta nem cria `GitHubIdentity`.
-4. Para projeto existente, somente OWNER conclui `PUT /api/projects/:projectId/github/integration`, com `githubInstallationId` e `githubRepositoryId`. GITHUB-02 reutiliza essa rota para a primeira vinculação; a interface completa fica em GITHUB-03, ainda sem liberação.
+4. Para projeto existente, somente OWNER conclui `PUT /api/projects/:projectId/github/integration`, com `githubInstallationId` e `githubRepositoryId`. GITHUB-02 reutiliza essa rota para a primeira vinculação; GITHUB-03 implementa a interface na edição do projeto.
 5. Criação por repositório usa `POST /api/projects/from-github` com installation/repository IDs; o backend consulta o DTO real.
 6. Reutilize a mesma instalação para todos os projetos/repositórios autorizados. Não reinstale a App por projeto; use “Gerenciar acesso da instalação no GitHub” somente para adicionar ou remover repositórios do escopo.
 
@@ -60,4 +60,4 @@ GitHub deve enviar `Content-Type: application/json`, `X-Hub-Signature-256`, `X-G
 5. Rate limit/5xx: respeite retry limitado e aguarde recuperação.
 6. Após correção, execute um sync manual e confira contagens/vínculos.
 
-Store de rate limit, lock distribuído, secret manager e monitoramento pertencem ao ambiente operacional.
+GITHUB-04 acrescenta agenda/worker persistente e coordenação distribuída no mesmo SyncRun. Consulte o [runbook automático](GITHUB_AUTOMATIC_SYNC.md). Store de rate limit HTTP, secret manager e monitoramento permanecem operacionais.

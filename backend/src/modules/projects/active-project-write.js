@@ -1,5 +1,6 @@
 import { prisma } from '../../database/prismaClient.js';
 import { ProjectServiceError } from './project.schema.js';
+import { assertProjectWriteGuard } from './project-write-context.js';
 
 export async function lockActiveProject(tx, projectId) {
   // A locking read observes the current row even after an earlier RR snapshot.
@@ -22,6 +23,7 @@ export function withActiveProjectWrite(projectId, write, { inactiveResult, timeo
         }
         throw error;
       }
+      await assertProjectWriteGuard(tx, projectId);
       return write(tx);
     },
     timeout ? { timeout } : undefined

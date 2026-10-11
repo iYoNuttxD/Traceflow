@@ -540,16 +540,13 @@ describe('ProjectDetailsPage E9', () => {
     );
     expect(within(githubCard).getByText('Não conectado')).toBeInTheDocument();
     expect(
-      within(githubCard).getByText('Este projeto ainda não possui um repositório GitHub vinculado.')
+      within(githubCard).getByText('Nenhum repositório GitHub vinculado.')
     ).toBeInTheDocument();
     expect(within(githubCard).getByText('Repositório')).toBeInTheDocument();
     expect(within(githubCard).queryByText('Última sincronização')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Conectar GitHub/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Conectar repositório' })).toHaveAttribute(
-      'href',
-      '/projects/1/edit#github-integration'
-    );
+    expect(screen.queryByRole('link', { name: 'Conectar repositório' })).not.toBeInTheDocument();
     expect(mocks.getProjectGithubSyncStatus).not.toHaveBeenCalled();
   });
 
@@ -778,5 +775,17 @@ describe('ProjectDetailsPage E9', () => {
     expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeInTheDocument();
     expect(screen.queryByText(/Sincronização GitHub concluída/)).not.toBeInTheDocument();
     expect(screen.queryByText('Branches: 1/6')).not.toBeInTheDocument();
+  });
+  it('descobre sync automática com a Overview aberta e bloqueia a manual', async () => {
+    vi.useFakeTimers();
+    renderPage();
+    await act(async () => {});
+    mocks.getProjectGithubSyncStatus.mockResolvedValue({
+      run: { id: 301, origin: 'AUTOMATIC', status: 'RUNNING', step: 'COMMITS' }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(screen.getByText('Sincronizando automaticamente')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Sincronizando/ })).toBeDisabled();
+    expect(mocks.syncProjectGithub).not.toHaveBeenCalled();
   });
 });

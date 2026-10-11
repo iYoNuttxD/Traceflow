@@ -144,7 +144,7 @@ externa.
 
 A edição existente `/projects/:projectId/edit` continua OWNER-only e compõe Dados do projeto,
 `ProjectGitHubIntegration` e zona de perigo. `#github-integration` é o destino contextual dos
-CTAs autorizados de Overview/Repository, com foco no heading. MANAGER continua sincronizando
+CTA autorizado de Repository, com foco no heading. MANAGER continua sincronizando
 pela Visão Geral; os demais membros consultam os resumos e o catálogo sem ações OWNER-only.
 
 Os owners permanecem em `features/projects`: `GitHubRepositorySelector` é compartilhado por
@@ -156,12 +156,15 @@ paralelo. A API GitHub é consumida pelo barrel público de `features/github`.
 `useProjectGithubIntegration` coordena vínculo, preferência e sync separadamente do formulário
 geral. Aplica a mutation confirmada antes da reconciliação, usa gerações/abort e GET `fresh:true`
 para não reaproveitar leitura anterior à escrita. Erro no refresh oferece retry de consulta,
-sem desfazer o vínculo; polling só acompanha execução ativa e erro de consulta pede ação
-explícita. Edição e Repository remontam por projectId, descartando estado transitório anterior.
+sem desfazer o vínculo; polling consulta o estado persistido em 2,5s durante execução e 15s
+quando ocioso, com pausa em aba oculta. Erro de consulta pede ação explícita. Edição e Repository remontam por projectId, descartando estado transitório anterior.
 
 Repository consulta Project/membership pelos contratos existentes para distinguir integração
-ausente de catálogo vazio. A preferência autoSyncEnabled é persistida, mas a interface comunica
-que execução automática periódica ainda não existe. Nenhuma nova policy/backend foi introduzida.
+ausente de catálogo vazio, preservando summary/filtros/catálogo sem contagens artificiais.
+GITHUB-04 usa a agenda nextSyncAt do backend e apresenta a origem do run. GitHubSyncProgress,
+extraído da Overview para a API pública de github, serve também à edição; não há progresso
+paralelo. Switch compartilhado aplica os tokens C2 e confirmação da preferência. Overview sem
+integração contém apenas consulta, sem CTA de conexão.
 
 ## Auth público e ciclo de conta
 

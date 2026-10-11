@@ -240,28 +240,9 @@ function RepositoryInfoContent({ projectId }) {
 
         {!repositoryData && loading ? (
           <LoadingState message="Carregando artefatos do repositório..." />
-        ) : repositoryData && !project.githubIntegration ? (
-          <section
-            className="repository-disconnected"
-            aria-labelledby="repository-disconnected-title"
-          >
-            <h2 id="repository-disconnected-title">Nenhum repositório conectado</h2>
-            <p>
-              Este projeto ainda não possui integração com o GitHub. Conecte um repositório para
-              importar e acompanhar commits, Pull Requests e Issues.
-            </p>
-            {repositoryData.role === 'OWNER' && (
-              <Link
-                className="button button-secondary"
-                to={`/projects/${projectId}/edit#github-integration`}
-              >
-                Configurar integração
-              </Link>
-            )}
-          </section>
         ) : repositoryData ? (
           <>
-            {project.githubIntegration.lastSyncStatus === 'FALHA' && (
+            {project.githubIntegration?.lastSyncStatus === 'FALHA' && (
               <FeedbackRegion warning="A última sincronização falhou. Os artefatos já importados continuam disponíveis." />
             )}
             <section className="repository-overview" aria-labelledby="repository-summary-title">
@@ -292,7 +273,7 @@ function RepositoryInfoContent({ projectId }) {
                 ].map(([label, value]) => (
                   <div key={label}>
                     <dt>{label}</dt>
-                    <dd>{value}</dd>
+                    <dd>{project.githubIntegration ? value : 'Não disponível'}</dd>
                   </div>
                 ))}
               </dl>
@@ -301,14 +282,18 @@ function RepositoryInfoContent({ projectId }) {
             <CollapsibleFilterPanel
               onClear={clearFilters}
               canClear={activeFilterCount > 0}
-              clearDisabled={loading}
+              clearDisabled={loading || !project.githubIntegration}
               id="repository-filters"
               className="repository-filters"
               title="Filtrar artefatos"
-              resultLabel={artifactCountLabel(summary.total ?? artifacts.length)}
+              resultLabel={
+                project.githubIntegration
+                  ? artifactCountLabel(summary.total ?? artifacts.length)
+                  : 'Aguardando integração'
+              }
               activeCount={activeFilterCount}
             >
-              <div className="repository-filter-form">
+              <fieldset className="repository-filter-form" disabled={!project.githubIntegration}>
                 <div className="repository-filter-grid">
                   <label className="repository-filter-field">
                     <span>Tipo de artefato</span>
@@ -361,7 +346,7 @@ function RepositoryInfoContent({ projectId }) {
                 {filters.type === 'issue' && filters.branch && (
                   <FeedbackRegion info="Issues pertencem ao repositório como um todo; o filtro de branch não se aplica a elas." />
                 )}
-              </div>
+              </fieldset>
             </CollapsibleFilterPanel>
 
             {loading ? (
@@ -377,12 +362,30 @@ function RepositoryInfoContent({ projectId }) {
                 <header>
                   <h2 id="repository-catalog-title">Artefatos do repositório</h2>
                   <span aria-live="polite">
-                    {artifactCountLabel(summary.total ?? artifacts.length)}
+                    {project.githubIntegration
+                      ? artifactCountLabel(summary.total ?? artifacts.length)
+                      : 'Aguardando integração'}
                     {showFilteredEmptyState ? ' no conjunto filtrado' : ''}
                   </span>
                 </header>
 
-                {artifacts.length === 0 ? (
+                {!project.githubIntegration ? (
+                  <div
+                    className="repository-empty-state"
+                    aria-labelledby="repository-disconnected-title"
+                  >
+                    <h3 id="repository-disconnected-title">Nenhum repositório conectado</h3>
+                    <p>Este projeto ainda não possui integração com o GitHub.</p>
+                    {repositoryData.role === 'OWNER' && (
+                      <Link
+                        className="button button-secondary"
+                        to={`/projects/${projectId}/edit#github-integration`}
+                      >
+                        Configurar integração
+                      </Link>
+                    )}
+                  </div>
+                ) : artifacts.length === 0 ? (
                   <div className="repository-empty-state">
                     <h3>
                       {showFilteredEmptyState

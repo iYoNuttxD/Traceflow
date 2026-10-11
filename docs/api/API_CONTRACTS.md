@@ -85,6 +85,25 @@ Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e
 
 O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização assíncrona cria ou reutiliza uma execução persistida com `POST /projects/:projectId/github/sync`, responde `202 {message,run}` e expõe progresso/resultado em `GET /projects/:projectId/github/sync/status`. A execução pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca `SUCCEEDED` após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos.
 
+GITHUB-04 mantém os mesmos endpoints. `run.origin` distingue `MANUAL` e `AUTOMATIC`;
+`requestedByUserId`, slots e dados da instalação não entram no DTO público. `githubIntegration`
+acrescenta `nextSyncAt: ISO-8601 UTC | null`, sempre calculado/persistido pelo servidor.
+PATCH sync-settings continua aceitando exclusivamente `{githubAutoSyncEnabled:boolean}` (OWNER).
+Habilitar cria a agenda futura; desabilitar remove a agenda, sem cancelar RUNNING. A resposta
+confirmada contém a preferência e o horário, quando elegível. GET de projeto/status continua
+exigindo membership; MANAGER+ mantém POST manual e CSRF/e-mail verificado.
+
+POST durante qualquer run ativo devolve `202` com o mesmo `run.id`, `origin` e
+`alreadyRunning:true`; não inicia outra execução. Durante cooldown da instalação, uma nova
+solicitação sem run ativo recebe `429 GITHUB_RATE_LIMITED`. Status terminal FAILED continua
+sendo uma leitura HTTP 200, sem converter falha da execução em 500 na consulta.
+
+O worker independente considera apenas projetos elegíveis, com App configurada, integração e
+instalação ACTIVE. Agenda persistida, slots únicos, recuperação/fencing e backoff estão no
+[runbook do scheduler](../runbooks/GITHUB_AUTOMATIC_SYNC.md). Rate limit preserva Retry-After/reset;
+falha transitória preserva conexão e último sucesso. Perda confirmada de autorização/recurso
+(401/403 sem rate limit/404 externo) exige reconexão do mesmo repositório; não apaga artefatos.
+
 O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`.
 
 ## Persistência canônica sem ruptura HTTP

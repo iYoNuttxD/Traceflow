@@ -105,6 +105,11 @@ enum GitHubIntegrationStatus {
   DISCONNECTED
 }
 
+enum GitHubSyncOrigin {
+  MANUAL
+  AUTOMATIC
+}
+
 enum GitHubSyncRunStatus {
   QUEUED
   RUNNING
@@ -412,6 +417,7 @@ model GitHubInstallation {
   accountLogin         String
   accountType          String
   status               GitHubInstallationStatus @default(PENDING)
+  syncNotBefore        DateTime?
   suspendedAt          DateTime?
   installedAt          DateTime
   createdAt            DateTime                 @default(now())
@@ -450,6 +456,8 @@ model ProjectGitHubIntegration {
   repositoryPrivate                Boolean?
   integratedAt                     DateTime?
   autoSyncEnabled                  Boolean                 @default(false)
+  nextSyncAt                       DateTime?
+  consecutiveSyncFailures          Int                     @default(0)
   status                           GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
   lastValidatedAt                  DateTime?
   lastSyncAt                       DateTime?
@@ -465,6 +473,7 @@ model ProjectGitHubIntegration {
   installation GitHubInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
 
   @@index([installationId, status])
+  @@index([autoSyncEnabled, status, nextSyncAt])
 }
 
 model GitHubAppConnectionState {
@@ -1017,37 +1026,40 @@ model GitBranch {
 
 // Execução persistida permite polling, recuperação após reload e exclusão mútua no banco.
 model GitHubSyncRun {
-  id                  Int                 @id @default(autoincrement())
-  projectId           Int
-  requestedByUserId   Int
-  activeProjectId     Int?                @unique
-  status              GitHubSyncRunStatus @default(QUEUED)
-  step                GitHubSyncStep      @default(QUEUED)
-  currentBranch       String?
-  startedAt           DateTime?
-  heartbeatAt         DateTime?
-  finishedAt          DateTime?
-  durationMs          Int?
-  branchCount         Int                 @default(0)
-  processedBranches   Int                 @default(0)
-  commitPages         Int                 @default(0)
-  commitsFound        Int                 @default(0)
-  commitsObserved     Int                 @default(0)
-  commitsCreated      Int                 @default(0)
-  commitLinksCreated  Int                 @default(0)
-  pullRequestsFound   Int                 @default(0)
-  pullRequestsCreated Int                 @default(0)
-  pullRequestsUpdated Int                 @default(0)
-  issuesFound         Int                 @default(0)
-  issuesCreated       Int                 @default(0)
-  issuesUpdated       Int                 @default(0)
-  errorCode           String?
-  errorMessage        String?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                      Int                 @id @default(autoincrement())
+  projectId               Int
+  requestedByUserId       Int?
+  origin                  GitHubSyncOrigin    @default(MANUAL)
+  automaticSlot           Int?                @unique
+  automaticInstallationId Int?                @unique
+  activeProjectId         Int?                @unique
+  status                  GitHubSyncRunStatus @default(QUEUED)
+  step                    GitHubSyncStep      @default(QUEUED)
+  currentBranch           String?
+  startedAt               DateTime?
+  heartbeatAt             DateTime?
+  finishedAt              DateTime?
+  durationMs              Int?
+  branchCount             Int                 @default(0)
+  processedBranches       Int                 @default(0)
+  commitPages             Int                 @default(0)
+  commitsFound            Int                 @default(0)
+  commitsObserved         Int                 @default(0)
+  commitsCreated          Int                 @default(0)
+  commitLinksCreated      Int                 @default(0)
+  pullRequestsFound       Int                 @default(0)
+  pullRequestsCreated     Int                 @default(0)
+  pullRequestsUpdated     Int                 @default(0)
+  issuesFound             Int                 @default(0)
+  issuesCreated           Int                 @default(0)
+  issuesUpdated           Int                 @default(0)
+  errorCode               String?
+  errorMessage            String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
 
   project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  requestedByUser User    @relation(fields: [requestedByUserId], references: [id])
+  requestedByUser User?   @relation(fields: [requestedByUserId], references: [id])
 
   @@index([projectId, createdAt])
   @@index([status, updatedAt])

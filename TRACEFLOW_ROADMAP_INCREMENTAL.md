@@ -965,11 +965,19 @@ Incrementos complementares de RF01/RF02, sem alterar o texto acadêmico oficial.
 
 **GITHUB OPTIONAL INTEGRATION — COMPLETE LOCAL.** Fluxos A/B/C/D validados em aplicação real,
 banco isolado, desktop/tablet/mobile e Light/Dark. GITHUB-01/02 já compõem o baseline
-`1abb750`; GITHUB-03 permanece no working tree de `daniel-dev`, sem commit/push/deploy.
+`1abb750`; GITHUB-01/02/03 já integram o HEAD `50cb7af` auditado na entrega GITHUB-04.
 
 O bloqueio funcional de disponibilizar criação opcional sem UI de vinculação foi resolvido
 localmente. Liberação externa continua condicionada à revisão final, integração, CI e deploy.
-Isso não conclui S2-09/S2-10, OCI ou homologação em produção. A preferência de sincronização
-automática é persistida; execução periódica ainda não existe e é indicada como indisponível
-na interface. Troca/desvinculação de repositório permanecem fora desta sequência sem decisão
-específica de domínio. Nenhuma feature flag complexa foi introduzida.
+Isso não conclui S2-09/S2-10, OCI ou homologação em produção. GITHUB-03 persistia somente a
+preferência automática; GITHUB-04 acrescenta a execução periódica descrita abaixo.
+Troca/desvinculação de repositório permanecem fora desta sequência sem decisão específica de
+domínio. Nenhuma feature flag complexa foi introduzida.
+
+### GITHUB-04 — UX e sincronização periódica
+
+**PASS LOCAL**, em `daniel-dev`, sem commit/push/deploy.
+Worker independente com agenda persistida, jitter, slots globais, mesma reserva manual/automática,
+fencing transacional e recuperação. UI agrupada, switch, progresso compartilhado e descoberta
+por polling. [Relatório e gates locais](docs/deliveries/GITHUB_04_INTEGRATION_UX_AUTOMATIC_SYNC_SCHEDULER_REPORT.md).
+OCI/deploy permanecem fora desta entrega; sem troca/desvinculação de repositório.

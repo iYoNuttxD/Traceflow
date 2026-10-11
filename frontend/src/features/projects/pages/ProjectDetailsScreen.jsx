@@ -1,6 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { getProjectGithubSyncStatus, syncProjectGithub } from '../../github/index.js';
+import {
+  GitHubSyncProgress,
+  syncStepLabels,
+  getProjectGithubSyncStatus,
+  syncProjectGithub
+} from '../../github/index.js';
 import { membersApi } from '../../members/index.js';
 import {
   BackButton,
@@ -63,17 +68,6 @@ function formatSyncSummary(summary) {
   }
   return parts.join(' ');
 }
-
-const syncStepLabels = {
-  QUEUED: 'aguardando início',
-  REPOSITORY: 'repositório',
-  BRANCHES: 'branches',
-  COMMITS: 'commits',
-  PULL_REQUESTS: 'pull requests',
-  ISSUES: 'issues',
-  PERSIST: 'persistência',
-  COMPLETED: 'concluída'
-};
 
 function isActiveSyncRun(run) {
   return run && ['QUEUED', 'RUNNING'].includes(run.status);
@@ -143,6 +137,14 @@ export function ProjectDetailsScreen() {
   const { run: runSyncStatusProbe, cancel: cancelSyncStatusProbe } = useAbortableRequest();
   const routeProjectIdRef = useRef(id);
   const syncLock = useRef(null);
+  const syncProbeGeneration = useRef(0);
+  const observedIdleRun = useRef(null);
+  const [pageVisible, setPageVisible] = useState(document.visibilityState !== 'hidden');
+  useEffect(() => {
+    const change = () => setPageVisible(document.visibilityState !== 'hidden');
+    document.addEventListener('visibilitychange', change);
+    return () => document.removeEventListener('visibilitychange', change);
+  }, []);
   routeProjectIdRef.current = id;
   const syncStateBelongsToRoute = String(githubSyncState.projectId) === String(id);
   const githubSyncRun = syncStateBelongsToRoute ? githubSyncState.run : null;
@@ -219,23 +221,54 @@ export function ProjectDetailsScreen() {
   }, [loadProject]);
 
   useEffect(() => {
-    if (!hasGithubIntegration || String(project?.id) !== String(id)) return undefined;
+    if (
+      !hasGithubIntegration ||
+      !pageVisible ||
+      githubSyncStatus === 'syncing' ||
+      isActiveSyncRun(githubSyncRun) ||
+      String(project?.id) !== String(id)
+    )
+      return undefined;
     const requestedProjectId = id;
-    void runSyncStatusProbe((signal) => getProjectGithubSyncStatus(requestedProjectId, { signal }))
-      .then((result) => {
-        if (!result || routeProjectIdRef.current !== requestedProjectId) return;
+    const version = syncProbeGeneration.current;
+    let cancelled = false;
+    let timer;
+    async function probe() {
+      try {
+        const result = await runSyncStatusProbe((signal) =>
+          getProjectGithubSyncStatus(requestedProjectId, { signal, fresh: true })
+        );
+        if (
+          !result ||
+          cancelled ||
+          version !== syncProbeGeneration.current ||
+          routeProjectIdRef.current !== requestedProjectId
+        )
+          return;
         if (isActiveSyncRun(result.run)) {
-          setGithubSyncState({
-            projectId: requestedProjectId,
-            run: result.run,
-            status: 'syncing'
-          });
+          setSuccess('');
+          setError('');
+          setGithubSyncState({ projectId: requestedProjectId, run: result.run, status: 'syncing' });
         } else {
-          setGithubSyncState({ projectId: requestedProjectId, run: null, status: 'idle' });
+          const key = `${requestedProjectId}:${result.run?.id}:${result.run?.status}`;
+          if (
+            observedIdleRun.current !== key &&
+            ['SUCCEEDED', 'FAILED'].includes(result.run?.status) &&
+            !(githubSyncRun?.id === result.run.id && githubSyncRun?.status === result.run.status)
+          ) {
+            observedIdleRun.current = key;
+            await refreshProjectDetails();
+            if (!cancelled && routeProjectIdRef.current === requestedProjectId)
+              setDashboardRefreshVersion((value) => value + 1);
+          }
+          if (!cancelled) timer = window.setTimeout(() => void probe(), 15000);
         }
-      })
-      .catch((requestError) => {
-        if (routeProjectIdRef.current === requestedProjectId) {
+      } catch (requestError) {
+        if (
+          !cancelled &&
+          version === syncProbeGeneration.current &&
+          routeProjectIdRef.current === requestedProjectId
+        ) {
           const normalized = normalizeApiError(
             requestError,
             'Não foi possível consultar o estado atual da sincronização.'
@@ -243,21 +276,36 @@ export function ProjectDetailsScreen() {
           setError(normalized.message);
           setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
         }
-      });
+      }
+    }
+    void probe();
     return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
       cancelSyncStatusProbe();
     };
-  }, [cancelSyncStatusProbe, hasGithubIntegration, id, project?.id, runSyncStatusProbe]);
+  }, [
+    cancelSyncStatusProbe,
+    hasGithubIntegration,
+    id,
+    project?.id,
+    runSyncStatusProbe,
+    githubSyncRun,
+    githubSyncStatus,
+    pageVisible,
+    refreshProjectDetails
+  ]);
 
   useEffect(() => {
-    if (!isActiveSyncRun(githubSyncRun)) return undefined;
+    if (!isActiveSyncRun(githubSyncRun) || !pageVisible) return undefined;
     const requestedProjectId = id;
     let cancelled = false;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
         const { run } = await getProjectGithubSyncStatus(requestedProjectId, {
-          signal: controller.signal
+          signal: controller.signal,
+          fresh: true
         });
         if (
           cancelled ||
@@ -315,12 +363,14 @@ export function ProjectDetailsScreen() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [githubSyncRun, id, refreshProjectDetails]);
+  }, [githubSyncRun, id, refreshProjectDetails, pageVisible]);
 
   async function handleGithubSync() {
     if (syncLock.current?.projectId === id || isActiveSyncRun(githubSyncRun) || cooldown > 0)
       return;
     const requestedProjectId = id;
+    syncProbeGeneration.current += 1;
+    cancelSyncStatusProbe();
     const operation = Symbol('github-sync');
     syncLock.current = { projectId: requestedProjectId, operation };
     setGithubSyncState({ projectId: requestedProjectId, run: null, status: 'syncing' });
@@ -478,17 +528,7 @@ export function ProjectDetailsScreen() {
         />
       </div>
 
-      {githubSyncRun && syncingGithub && (
-        <div className="github-sync-progress" role="status" aria-live="polite">
-          <strong>Sincronizando GitHub...</strong>
-          <span>
-            Branches: {githubSyncRun.progress?.processedBranches ?? 0}/
-            {githubSyncRun.progress?.branchCount ?? 0}
-          </span>
-          <span>Etapa atual: {syncStepLabels[githubSyncRun.step] || githubSyncRun.step}</span>
-          {githubSyncRun.currentBranch && <span>Branch: {githubSyncRun.currentBranch}</span>}
-        </div>
-      )}
+      <GitHubSyncProgress run={syncingGithub ? githubSyncRun : null} />
 
       <section className="project-overview-surface" aria-labelledby="project-overview-title">
         <header className="project-overview-surface__intro">
@@ -592,18 +632,10 @@ export function ProjectDetailsScreen() {
               {!repositoryName && (
                 <div>
                   <dt>Repositório</dt>
-                  <dd>Este projeto ainda não possui um repositório GitHub vinculado.</dd>
+                  <dd>Nenhum repositório GitHub vinculado.</dd>
                 </div>
               )}
             </dl>
-            {!githubIntegration && isOwner && (
-              <Link
-                className="button button-secondary"
-                to={`/projects/${project.id}/edit#github-integration`}
-              >
-                Conectar repositório
-              </Link>
-            )}
           </section>
 
           <section className="project-overview-group project-overview-group--team">

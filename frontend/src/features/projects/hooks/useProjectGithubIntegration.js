@@ -16,6 +16,7 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
   const [success, setSuccess] = useState('');
   const [refreshWarning, setRefreshWarning] = useState('');
   const [statusError, setStatusError] = useState('');
+  const [checkingStatus, setCheckingStatus] = useState(Boolean(project.githubIntegration));
   const [refreshing, setRefreshing] = useState(false);
   const [revision, setRevision] = useState(0);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
@@ -71,24 +72,39 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
     let cancelled = false;
     let timer;
     async function probe() {
+      if (document.visibilityState === 'hidden') return;
       try {
         const result = await readStatus((signal) =>
           githubApi.syncStatus(project.id, { signal, fresh: true })
         );
         if (!result || cancelled || !mounted.current || version !== generation.current) return;
-        const wasActive = isActiveGithubRun(runRef.current);
+        const previous = runRef.current;
+        const wasActive = isActiveGithubRun(previous);
+        const changed = previous?.id !== result.run?.id || previous?.status !== result.run?.status;
         runRef.current = result.run;
         setRun(result.run);
         setStatusError('');
-        if (isActiveGithubRun(result.run)) {
-          timer = window.setTimeout(() => void probe(), 2500);
-        } else if (wasActive && ['SUCCEEDED', 'FAILED'].includes(result.run?.status)) {
+        setCheckingStatus(false);
+        if (changed && (isActiveGithubRun(result.run) || result.run?.status === 'FAILED')) {
+          setSuccess('');
+          if (isActiveGithubRun(result.run)) setInitialSyncError('');
+        }
+        if (
+          !isActiveGithubRun(result.run) &&
+          (wasActive || changed) &&
+          ['SUCCEEDED', 'FAILED'].includes(result.run?.status)
+        ) {
           if (result.run?.status === 'SUCCEEDED') {
             setSuccess('Sincronização GitHub concluída com sucesso.');
             setInitialSyncError('');
           }
           await refresh();
         }
+        if (!cancelled)
+          timer = window.setTimeout(
+            () => void probe(),
+            isActiveGithubRun(result.run) ? 2500 : 15000
+          );
       } catch (value) {
         if (cancelled || !mounted.current || version !== generation.current) return;
         const normalized = normalizeApiError(
@@ -99,8 +115,15 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
         setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       }
     }
+    function onVisibility() {
+      window.clearTimeout(timer);
+      cancelStatus();
+      if (document.visibilityState !== 'hidden') void probe();
+    }
+    document.addEventListener('visibilitychange', onVisibility);
     void probe();
     return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
       cancelled = true;
       window.clearTimeout(timer);
       cancelStatus();
@@ -125,7 +148,8 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
         // This mutation owns only the preference, not concurrent worker metadata.
         setIntegration((current) => ({
           ...current,
-          autoSyncEnabled: result.project.githubIntegration.autoSyncEnabled
+          autoSyncEnabled: result.project.githubIntegration.autoSyncEnabled,
+          nextSyncAt: result.project.githubIntegration.nextSyncAt
         }));
         setSuccess('Preferência de sincronização automática salva.');
       } else if (kind === 'connect') {
@@ -177,6 +201,7 @@ export function useProjectGithubIntegration(project, onIntegrationChange) {
     success,
     refreshWarning,
     statusError,
+    checkingStatus,
     refreshing,
     initialSyncError,
     cooldown,

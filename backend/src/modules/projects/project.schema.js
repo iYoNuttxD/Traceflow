@@ -40,6 +40,7 @@ export function publicProject(project) {
       repositoryPrivate: githubIntegration.repositoryPrivate,
       integratedAt: githubIntegration.integratedAt,
       autoSyncEnabled: githubIntegration.autoSyncEnabled,
+      nextSyncAt: githubIntegration.nextSyncAt ?? null,
       lastSyncAt: githubIntegration.lastSyncAt,
       lastSyncStatus: githubIntegration.lastSyncStatus,
       lastSyncError: githubIntegration.lastSyncError,

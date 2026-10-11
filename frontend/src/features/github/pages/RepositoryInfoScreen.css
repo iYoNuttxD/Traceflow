@@ -404,22 +404,4 @@
     padding-top: var(--space-6);
   }
 }
-.repository-disconnected {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-4);
-  padding: var(--space-6);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-primary);
-}
-
-.repository-disconnected h2,
-.repository-disconnected p {
-  margin: 0;
-}
-
-.repository-disconnected p {
-  color: var(--color-text-secondary);
-  line-height: var(--line-height-body);
-}
+.repository-filter-form { margin: 0; padding: 0; border: 0; min-width: 0; }

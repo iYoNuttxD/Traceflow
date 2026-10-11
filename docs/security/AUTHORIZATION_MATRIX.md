@@ -215,3 +215,12 @@ Autoridades: [rotas](../../backend/src/modules/indicators/indicators.routes.js),
 [controller](../../backend/src/modules/indicators/indicators.controller.js),
 [repository de preferência](../../backend/src/modules/indicators/dashboard-preference.repository.js)
 e [testes HTTP](../../backend/test/api/indicators-p9.test.js).
+
+## GITHUB-04 — execução periódica
+
+Preferência/agendamento continua OWNER-only no PATCH existente. MANAGER/OWNER solicitam sync;
+VIEWER+ consulta run/origem e nextSyncAt apenas no seu projeto. Sessão, verificação de e-mail,
+CSRF e respostas opacas permanecem. O worker é processo de sistema, sem sessão/usuário fictício:
+executa uma preferência previamente autorizada com Project ativo no lifecycle e GitHub App /
+instalação / integração elegíveis. Runs automáticos usam requestedByUserId null e auditoria SYSTEM.
+Não existe novo endpoint público de agendamento nem parâmetros de origem/slots aceitos do cliente.

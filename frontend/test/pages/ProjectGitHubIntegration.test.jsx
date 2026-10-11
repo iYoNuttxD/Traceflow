@@ -109,7 +109,7 @@ describe('configuração GitHub do projeto', () => {
       ).not.toBeInTheDocument();
       rendered.rerender(view({ ...persisted, id: 8 }, role));
       expect(screen.getByRole('link', { name: 'team/repo' })).toBeVisible();
-      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument();
       expect(Boolean(screen.queryByRole('button', { name: 'Sincronizar agora' }))).toBe(
         role === 'MANAGER'
       );
@@ -303,7 +303,7 @@ describe('configuração GitHub do projeto', () => {
         githubIntegration: { ...integration, autoSyncEnabled: !enabled }
       };
       render(view(project));
-      const checkbox = screen.getByRole('checkbox', { name: 'Sincronização automática' });
+      const checkbox = screen.getByRole('switch', { name: 'Sincronização automática' });
       await user.click(checkbox);
       expect(checkbox.checked).toBe(!enabled);
       expect(checkbox).toBeDisabled();
@@ -319,9 +319,9 @@ describe('configuração GitHub do projeto', () => {
     const user = userEvent.setup();
     github.updateSyncSettings.mockRejectedValue(httpError(403, 'Sem permissão.'));
     render(view(persisted));
-    await user.click(screen.getByRole('checkbox', { name: 'Sincronização automática' }));
+    await user.click(screen.getByRole('switch', { name: 'Sincronização automática' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Sem permissão.');
-    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    expect(screen.getByRole('switch')).not.toBeChecked();
     expect(
       screen.queryByText('Preferência de sincronização automática salva.')
     ).not.toBeInTheDocument();
@@ -342,12 +342,12 @@ describe('configuração GitHub do projeto', () => {
         await user.click(screen.getByRole('button', { name: 'Vincular repositório' }));
       } else if (operation === 'settings') {
         github.updateSyncSettings.mockReturnValue(pending.promise);
-        await user.click(screen.getByRole('checkbox'));
+        await user.click(screen.getByRole('switch'));
       } else {
         github.syncStatus.mockReturnValue(pending.promise);
         // A new mutation starts a fresh probe after invalidating the initial read.
         github.updateSyncSettings.mockResolvedValue({ project: persisted });
-        await user.click(screen.getByRole('checkbox'));
+        await user.click(screen.getByRole('switch'));
       }
       rendered.rerender(view({ ...local, id: 8, name: 'Projeto B' }));
       await act(async () =>
@@ -374,12 +374,12 @@ describe('configuração GitHub do projeto', () => {
     await screen.findByText('Conectado');
     persisted = { ...persisted, githubIntegration: { ...integration, autoSyncEnabled: true } };
     github.updateSyncSettings.mockResolvedValue({ project: persisted });
-    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('switch'));
     await act(async () => stale.resolve({ data: { project: local } }));
     expect(screen.getByText('Conectado')).toBeVisible();
-    expect(screen.getByRole('checkbox')).toBeChecked();
+    expect(screen.getByRole('switch')).toBeChecked();
     await act(async () => fresh.resolve({ data: { project: persisted } }));
-    expect(screen.getByRole('checkbox')).toBeChecked();
+    expect(screen.getByRole('switch')).toBeChecked();
   });
 
   it('request de sync não significa conclusão; polling mostra falha e depois sucesso', async () => {
@@ -404,7 +404,7 @@ describe('configuração GitHub do projeto', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Tentar sincronizar novamente' }));
     await act(async () => {});
-    expect(screen.getByText('Branches processadas: 1 de 2')).toBeVisible();
+    expect(screen.getByText('Branches: 1/2')).toBeVisible();
     github.syncStatus.mockResolvedValue({ run: { status: 'SUCCEEDED' } });
     await act(async () => vi.advanceTimersByTimeAsync(2500));
     expect(screen.getByText('Sincronização GitHub concluída com sucesso.')).toBeVisible();
@@ -424,5 +424,135 @@ describe('configuração GitHub do projeto', () => {
     expect(
       within(screen.getByRole('region', { name: 'Integração GitHub' })).getByText('Conectado')
     ).toBeVisible();
+  });
+  it('detecta execução automática iniciada em outra instância e acompanha as mesmas etapas', async () => {
+    vi.useFakeTimers();
+    render(view(persisted));
+    await act(async () => {});
+    const automatic = {
+      id: 91,
+      origin: 'AUTOMATIC',
+      status: 'RUNNING',
+      step: 'BRANCHES',
+      startedAt: '2026-10-11T12:00:00Z',
+      progress: { branchCount: 2, processedBranches: 0 }
+    };
+    github.syncStatus.mockResolvedValue({ run: automatic });
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(screen.getByText('Sincronizando automaticamente')).toBeVisible();
+    expect(screen.getByText('Etapa atual: branches')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Sincronizando...' })).toBeDisabled();
+    expect(github.syncProject).not.toHaveBeenCalled();
+    github.syncStatus.mockResolvedValue({
+      run: { ...automatic, step: 'ISSUES', progress: { branchCount: 2, processedBranches: 2 } }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByText('Etapa atual: issues')).toBeVisible();
+    persisted.githubIntegration = {
+      ...integration,
+      autoSyncEnabled: true,
+      lastSyncStatus: 'SINCRONIZADO',
+      lastSyncAt: '2026-10-11T12:01:00Z',
+      nextSyncAt: '2026-10-11T12:35:00Z'
+    };
+    github.syncStatus.mockResolvedValue({
+      run: { ...automatic, status: 'SUCCEEDED', step: 'COMPLETED' }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByRole('button', { name: 'Sincronizar agora' })).toBeEnabled();
+    expect(screen.getByText('Próxima sincronização').nextElementSibling).not.toHaveTextContent(
+      'Agendamento indisponível'
+    );
+    expect(screen.queryByText('Sincronizando automaticamente')).not.toBeInTheDocument();
+  });
+
+  it('refresh durante execução automática restaura bloqueio e permite desligar somente execuções futuras', async () => {
+    vi.useFakeTimers();
+    persisted.githubIntegration.autoSyncEnabled = true;
+    github.syncStatus.mockResolvedValue({
+      run: { id: 92, origin: 'AUTOMATIC', status: 'RUNNING', step: 'COMMITS' }
+    });
+    github.updateSyncSettings.mockImplementation(async () => {
+      persisted.githubIntegration.autoSyncEnabled = false;
+      return { project: persisted };
+    });
+    render(view(persisted));
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'Sincronizando...' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('switch'));
+    await act(async () => {});
+    expect(screen.getByRole('switch')).not.toBeChecked();
+    expect(screen.getByText(/A execução atual continuará/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Sincronizando...' })).toBeDisabled();
+    expect(github.syncProject).not.toHaveBeenCalled();
+  });
+
+  it('reconcilia também uma execução curta concluída entre duas consultas ociosas', async () => {
+    vi.useFakeTimers();
+    render(view(persisted));
+    await act(async () => {});
+    github.syncStatus.mockResolvedValue({
+      run: { id: 93, origin: 'AUTOMATIC', status: 'FAILED', step: 'ISSUES' }
+    });
+    persisted.githubIntegration = {
+      ...integration,
+      autoSyncEnabled: true,
+      lastSyncStatus: 'FALHA',
+      nextSyncAt: '2026-10-11T14:00:00Z'
+    };
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(screen.getByText('Falha na última sincronização')).toBeVisible();
+    expect(screen.getByText('Conectado')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Tentar sincronizar novamente' })).toBeEnabled();
+    expect(screen.getByText('Próxima sincronização')).toBeVisible();
+  });
+
+  it('pausa consultas em aba oculta e reconcilia ao retornar', async () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    render(view(persisted));
+    await act(async () => {});
+    const calls = github.syncStatus.mock.calls.length;
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(github.syncStatus).toHaveBeenCalledTimes(calls);
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => {});
+    expect(github.syncStatus).toHaveBeenCalledTimes(calls + 1);
+    visibility.mockRestore();
+  });
+
+  it('apresenta agenda indisponível sem calcular horário no cliente', async () => {
+    persisted.githubIntegration.autoSyncEnabled = true;
+    render(view(persisted));
+    expect(await screen.findByText('Agendamento indisponível')).toBeVisible();
+    expect(
+      screen.queryByText(/execução automática ainda não está disponível/)
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Automação' })).toBeVisible();
+  });
+  it('não mantém sucesso de uma execução anterior durante nova automática ou falha', async () => {
+    vi.useFakeTimers();
+    github.syncStatus.mockResolvedValue({ run: { id: 100, status: 'SUCCEEDED' } });
+    render(view(persisted));
+    await act(async () => {});
+    expect(screen.getByText('Sincronização GitHub concluída com sucesso.')).toBeVisible();
+    github.syncStatus.mockResolvedValue({
+      run: { id: 101, origin: 'AUTOMATIC', status: 'RUNNING', step: 'COMMITS' }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(
+      screen.queryByText('Sincronização GitHub concluída com sucesso.')
+    ).not.toBeInTheDocument();
+    github.syncStatus.mockResolvedValue({
+      run: { id: 101, origin: 'AUTOMATIC', status: 'FAILED' }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByText('Falha na última sincronização')).toBeVisible();
+    expect(
+      screen.queryByText('Sincronização GitHub concluída com sucesso.')
+    ).not.toBeInTheDocument();
   });
 });

@@ -596,11 +596,17 @@ A edição do projeto aplica a composição Settings C2: uma surface com seçõe
 Dados do projeto e Integração GitHub; zona de perigo separada. Cada seção mantém suas ações
 independentes. Estado não conectado é compacto, com texto e ação autorizada; conectado usa
 metadata legível, badge textual e controles de sincronização. Falha de sync não remove o badge
-de vínculo. Os CTAs contextuais levam ao heading da seção existente.
+de vínculo. O CTA autorizado de Repository leva ao heading da seção existente; Overview mantém apenas consulta.
 
 Cadastro e vínculo compartilham o mesmo seletor nativo, busca textual, filtro por conta,
-feedback e estado de reserva. Preferência automática usa checkbox nativo com label clicável de
-44px; o valor só muda após confirmação. Não há novos tokens, variantes globais ou dialogs.
+feedback e estado de reserva. GITHUB-04 agrupa Repositório, Sincronização e Automação com
+divisores internos, metadados compactos e ação de sync secundária próxima ao progresso.
+Preferência usa `shared/Switch` (input checkbox com role switch, foco visível, label/target 44px,
+Space e disabled); o valor só muda após confirmação. A auditoria do HEAD não encontrou switch
+canônico anterior em Settings; esta primitive reutiliza tokens sem criar outra identidade.
+Próxima execução vem do backend, com estado indisponível quando null. O progresso extraído da
+Overview identifica manual/automática e etapas, sem percentuais estimados. Não há novos tokens
+ou dialogs. [Evidências GITHUB-04](../deliveries/GITHUB_04_INTEGRATION_UX_AUTOMATIC_SYNC_SCHEDULER_REPORT.md).
 Evidência runtime textual e limites no [relatório GITHUB-03](../deliveries/GITHUB_03_PROJECT_GITHUB_INTEGRATION_MANAGEMENT_UX_REPORT.md).
 
 ## Linhas de entidades, histórico e confirmação

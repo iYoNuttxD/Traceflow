@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { FeedbackRegion } from '../../../shared/index.js';
+import { GitHubSyncProgress } from '../../github/index.js';
+import { FeedbackRegion, Switch } from '../../../shared/index.js';
 import { GitHubRepositorySelector } from './GitHubRepositorySelector.jsx';
 import { useGithubRepositoryCatalog } from '../hooks/useGithubRepositoryCatalog.js';
 import {
@@ -153,11 +154,6 @@ export function ProjectGitHubIntegration({ project, role, onIntegrationChange })
           </h2>
           <p>Repositório e sincronização das evidências técnicas do projeto.</p>
         </div>
-        <span
-          className={`project-github__badge ${integration?.status === 'ACTIVE' ? 'project-github__badge--connected' : ''}`}
-        >
-          {integrationLabel}
-        </span>
       </header>
       <FeedbackRegion success={state.success} />
       <FeedbackRegion
@@ -178,143 +174,172 @@ export function ProjectGitHubIntegration({ project, role, onIntegrationChange })
           </button>
         </div>
       )}
-      {!integration ? (
-        <p>
-          Este projeto ainda não possui um repositório GitHub vinculado. Conecte um repositório para
-          importar commits, Pull Requests e Issues.
-        </p>
-      ) : (
+      <div className="project-github__group" aria-labelledby="project-github-repository-title">
+        <h3 id="project-github-repository-title">Repositório</h3>
+        <dl className="project-github__metadata">
+          <div>
+            <dt>Status</dt>
+            <dd>
+              <span
+                className={`project-github__badge ${integration?.status === 'ACTIVE' ? 'project-github__badge--connected' : ''}`}
+              >
+                {integrationLabel}
+              </span>
+            </dd>
+          </div>
+          {integration && (
+            <>
+              <div>
+                <dt>Repositório</dt>
+                <dd>
+                  <a href={integration.repositoryUrl} target="_blank" rel="noopener noreferrer">
+                    {integration.repositoryFullName}
+                  </a>
+                </dd>
+              </div>
+              <div>
+                <dt>Branch padrão</dt>
+                <dd>{integration.defaultBranch || 'Não informada'}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+        {!integration && <p>Este projeto ainda não possui um repositório GitHub vinculado.</p>}
+        {integration && integration.status !== 'ACTIVE' && (
+          <p>
+            O repositório permanece vinculado. Verifique o acesso ao GitHub antes de sincronizar.
+          </p>
+        )}
+        {canConnect && !selecting && (
+          <div className="project-github__actions">
+            <button
+              ref={trigger}
+              className="button button-primary"
+              type="button"
+              onClick={() => setSelecting(true)}
+            >
+              {integration ? 'Reconectar repositório' : 'Conectar repositório'}
+            </button>
+          </div>
+        )}
+        {canConnect && selecting && (
+          <ConnectRepositoryForm
+            projectId={project.id}
+            busy={busy}
+            cooldown={cooldown}
+            onCancel={closeSelector}
+            onConnect={async (repository) => {
+              if (await state.connect(repository)) {
+                setSelecting(false);
+                heading.current?.focus();
+              }
+            }}
+          />
+        )}
+      </div>
+      {integration && (
         <>
-          <dl className="project-github__metadata">
-            <div>
-              <dt>Repositório</dt>
-              <dd>
-                <a href={integration.repositoryUrl} target="_blank" rel="noopener noreferrer">
-                  {integration.repositoryFullName}
-                </a>
-              </dd>
-            </div>
-            <div>
-              <dt>Branch padrão</dt>
-              <dd>{integration.defaultBranch || 'Não informada'}</dd>
-            </div>
-            <div>
-              <dt>Último sucesso</dt>
-              <dd>{dateTime(integration.lastSyncAt)}</dd>
-            </div>
-            <div>
-              <dt>Última tentativa</dt>
-              <dd>{dateTime(integration.lastSyncAttemptAt)}</dd>
-            </div>
-          </dl>
-          <div className="project-github__sync" role="status" aria-live="polite">
-            <strong>{syncLabel}</strong>
-            {activeRun && (
-              <p>
-                {run.status === 'QUEUED'
-                  ? 'Aguardando início.'
-                  : 'Importando os dados do repositório. Aguarde a conclusão.'}
-              </p>
-            )}
-            {run?.status === 'RUNNING' && run.progress?.branchCount > 0 && (
-              <p>
-                Branches processadas: {run.progress.processedBranches ?? 0} de{' '}
-                {run.progress.branchCount}
-              </p>
-            )}
+          <div className="project-github__group" aria-labelledby="project-github-sync-title">
+            <h3 id="project-github-sync-title">Sincronização</h3>
+            <dl className="project-github__metadata">
+              <div>
+                <dt>Estado atual</dt>
+                <dd>{activeRun && run.status !== 'QUEUED' ? 'Em andamento' : syncLabel}</dd>
+              </div>
+              <div>
+                <dt>Último sucesso</dt>
+                <dd>{dateTime(integration.lastSyncAt)}</dd>
+              </div>
+              <div>
+                <dt>Última tentativa</dt>
+                <dd>{dateTime(integration.lastSyncAttemptAt)}</dd>
+              </div>
+            </dl>
+            <GitHubSyncProgress run={run} />
             {failed && (
-              <p>
-                {state.initialSyncError ||
-                  'Não foi possível concluir a última sincronização. O repositório e os dados já importados foram preservados.'}
-              </p>
+              <FeedbackRegion
+                warning={
+                  state.initialSyncError ||
+                  'Não foi possível concluir a última sincronização. O repositório e os dados já importados foram preservados.'
+                }
+              />
             )}
-            {integration.status !== 'ACTIVE' && (
-              <p>
-                O repositório permanece vinculado. Verifique o acesso ao GitHub antes de
-                sincronizar.
-              </p>
+            {state.statusError && (
+              <div>
+                <FeedbackRegion warning={state.statusError} />
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  disabled={Boolean(busy) || cooldown > 0}
+                  onClick={state.retryStatus}
+                >
+                  Consultar sincronização novamente
+                </button>
+              </div>
+            )}
+            {canSync && (
+              <div className="project-github__actions">
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  disabled={
+                    Boolean(busy) ||
+                    activeRun ||
+                    cooldown > 0 ||
+                    state.checkingStatus ||
+                    Boolean(state.statusError)
+                  }
+                  aria-busy={busy === 'sync' || activeRun}
+                  onClick={() => void state.sync()}
+                >
+                  {busy === 'sync' || activeRun
+                    ? 'Sincronizando...'
+                    : failed
+                      ? 'Tentar sincronizar novamente'
+                      : 'Sincronizar agora'}
+                </button>
+              </div>
             )}
           </div>
-          {state.statusError && (
-            <div>
-              <FeedbackRegion warning={state.statusError} />
-              <button
-                className="button button-secondary"
-                type="button"
-                disabled={Boolean(busy) || cooldown > 0}
-                onClick={state.retryStatus}
-              >
-                Consultar sincronização novamente
-              </button>
-            </div>
-          )}
-          {canSync && (
-            <div className="project-github__actions">
-              <button
-                className="button button-primary"
-                type="button"
-                disabled={Boolean(busy) || activeRun || cooldown > 0}
-                aria-busy={busy === 'sync' || activeRun}
-                onClick={() => void state.sync()}
-              >
-                {busy === 'sync' || activeRun
-                  ? 'Sincronizando...'
-                  : failed
-                    ? 'Tentar sincronizar novamente'
-                    : 'Sincronizar agora'}
-              </button>
-            </div>
-          )}
-          <div className="project-github__automatic">
-            {owner ? (
-              <label className="project-github__checkbox">
-                <input
-                  type="checkbox"
+          <div className="project-github__group" aria-labelledby="project-github-automation-title">
+            <h3 id="project-github-automation-title">Automação</h3>
+            <div className="project-github__automatic">
+              {owner ? (
+                <Switch
+                  label="Sincronização automática"
                   checked={integration.autoSyncEnabled === true}
                   disabled={Boolean(busy) || cooldown > 0}
                   onChange={(event) => void state.saveAutomatic(event.target.checked)}
-                  aria-describedby="project-github-auto-help"
+                  describedBy="project-github-auto-help"
                 />
-                <span>Sincronização automática</span>
-              </label>
-            ) : (
+              ) : (
+                <strong>Sincronização automática</strong>
+              )}
+              <p id="project-github-auto-help">Permitir atualizações periódicas do repositório.</p>
               <p>
-                Sincronização automática: {integration.autoSyncEnabled ? 'Ativada' : 'Desativada'}
+                {integration.autoSyncEnabled ? 'Ativada' : 'Desativada'}
+                {activeRun && !integration.autoSyncEnabled
+                  ? '. A execução atual continuará até a conclusão.'
+                  : ''}
               </p>
+            </div>
+            {integration.autoSyncEnabled && (
+              <dl className="project-github__metadata">
+                <div>
+                  <dt>Próxima sincronização</dt>
+                  <dd>
+                    {integration.nextSyncAt
+                      ? dateTime(integration.nextSyncAt)
+                      : activeRun
+                        ? 'Será agendada após esta execução.'
+                        : 'Agendamento indisponível'}
+                  </dd>
+                </div>
+              </dl>
             )}
-            <p id="project-github-auto-help">
-              A execução automática ainda não está disponível. Você pode salvar sua preferência e
-              sincronizar manualmente.
-            </p>
             {busy === 'settings' && <p role="status">Salvando preferência...</p>}
           </div>
         </>
-      )}
-      {canConnect && !selecting && (
-        <div className="project-github__actions">
-          <button
-            ref={trigger}
-            className="button button-primary"
-            type="button"
-            onClick={() => setSelecting(true)}
-          >
-            {integration ? 'Reconectar repositório' : 'Conectar repositório'}
-          </button>
-        </div>
-      )}
-      {canConnect && selecting && (
-        <ConnectRepositoryForm
-          projectId={project.id}
-          busy={busy}
-          cooldown={cooldown}
-          onCancel={closeSelector}
-          onConnect={async (repository) => {
-            if (await state.connect(repository)) {
-              setSelecting(false);
-              heading.current?.focus();
-            }
-          }}
-        />
       )}
     </section>
   );
