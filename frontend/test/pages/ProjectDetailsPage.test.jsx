@@ -100,6 +100,7 @@ describe('ProjectDetailsPage E9', () => {
     cleanup();
     vi.clearAllTimers();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -787,5 +788,126 @@ describe('ProjectDetailsPage E9', () => {
     expect(screen.getByText('Sincronizando automaticamente')).toBeVisible();
     expect(screen.getByRole('button', { name: /Sincronizando/ })).toBeDisabled();
     expect(mocks.syncProjectGithub).not.toHaveBeenCalled();
+  });
+
+  it('recupera o probe ocioso após erros transitórios repetidos e acompanha a automática', async () => {
+    vi.useFakeTimers();
+    mocks.getProjectGithubSyncStatus
+      .mockRejectedValueOnce({ response: { status: 503 } })
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue({
+        run: { id: 401, origin: 'AUTOMATIC', status: 'RUNNING', step: 'COMMITS' }
+      });
+    renderPage();
+    await act(async () => {});
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(14999));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(3);
+    expect(screen.getByText('Sincronizando automaticamente')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Sincronizando/ })).toBeDisabled();
+    mocks.getProjectGithubSyncStatus.mockResolvedValue({
+      run: {
+        id: 401,
+        origin: 'AUTOMATIC',
+        status: 'SUCCEEDED',
+        step: 'COMPLETED'
+      }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByText(/Sincronização GitHub concluída com sucesso/)).toBeVisible();
+  });
+
+  it.each([401, 403, 404])(
+    'não repete automaticamente erro terminal %s do probe',
+    async (status) => {
+      vi.useFakeTimers();
+      mocks.getProjectGithubSyncStatus.mockRejectedValue({ response: { status } });
+      renderPage();
+      await act(async () => {});
+      await act(async () => vi.advanceTimersByTimeAsync(120000));
+      expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledOnce();
+    }
+  );
+
+  it('respeita Retry-After inclusive ao ocultar e reabrir a aba', async () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    mocks.getProjectGithubSyncStatus
+      .mockRejectedValueOnce({
+        response: { status: 429, headers: { 'retry-after': '45' } }
+      })
+      .mockResolvedValue({ run: null });
+    renderPage();
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(24999));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledOnce();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(3);
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(120000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(3);
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => {});
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it('aborta retry em voo na troca de projeto e ignora resposta antiga mesmo sem cancelamento do transporte', async () => {
+    vi.useFakeTimers();
+    const pending = deferred();
+    mocks.getProjectGithubSyncStatus
+      .mockRejectedValueOnce({ response: { status: 500 } })
+      .mockImplementationOnce(() => pending.promise)
+      .mockResolvedValue({ run: null });
+    renderPage();
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    const signal = mocks.getProjectGithubSyncStatus.mock.calls[1][1].signal;
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(2);
+    mocks.api.get.mockResolvedValue({
+      data: { project: { ...project, id: 2, name: 'Projeto B' } }
+    });
+    await act(async () => navigateDetails('/projects/2'));
+    expect(signal.aborted).toBe(true);
+    await act(async () =>
+      pending.resolve({
+        run: {
+          id: 777,
+          origin: 'AUTOMATIC',
+          status: 'RUNNING',
+          step: 'ISSUES'
+        }
+      })
+    );
+    expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeVisible();
+    expect(screen.queryByText('Sincronizando automaticamente')).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(mocks.getProjectGithubSyncStatus.mock.calls.filter(([id]) => id === '1')).toHaveLength(
+      2
+    );
+  });
+
+  it('cancela o timer de recuperação no unmount', async () => {
+    vi.useFakeTimers();
+    mocks.getProjectGithubSyncStatus.mockRejectedValue({ response: { status: 503 } });
+    const view = renderPage();
+    await act(async () => {});
+    view.unmount();
+    await act(async () => vi.advanceTimersByTimeAsync(120000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledOnce();
   });
 });

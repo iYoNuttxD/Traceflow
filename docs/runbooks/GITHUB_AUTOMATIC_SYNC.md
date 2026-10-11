@@ -34,8 +34,11 @@ Evidências e limites: [relatório GITHUB-04](../deliveries/GITHUB_04_INTEGRATIO
 
 - Primeira ativação, backfill e recuperação de agenda atrasada: hash SHA-256 de projectId,
   fase estável distribuída na janela UTC do intervalo. Instantes são persistidos; cada tick
-  consulta a agenda, sem sortear novamente. Atraso maior que dois ticks redistribui a próxima
-  execução; não reproduz todos os ciclos perdidos.
+  consulta a agenda, sem sortear novamente. No startup sem outro heartbeat recente, o worker
+  fixa um corte em início menos dois ticks; somente agendas anteriores a esse corte recebem
+  redistribuição. Uma réplica que encontra executor recente não redistribui suas agendas.
+  O corte não avança nos ticks seguintes: aguardar capacidade não perde elegibilidade.
+  Não reproduz todos os ciclos perdidos.
 - Conclusão: intervalo-base mais jitter estável de 0 a 20% (padrão: 30 a menos de 36 min).
   Falhas aplicam base × 2^falhas, limitada a 6h, mais jitter. Sucesso zera o contador.
   Retry-After/reset do provedor prevalece mesmo quando ultrapassa o teto do backoff local.
@@ -44,6 +47,11 @@ Evidências e limites: [relatório GITHUB-04](../deliveries/GITHUB_04_INTEGRATIO
   installation. MANUAL continua usando a mesma reserva por Project e não consome slot automático.
 - Colisão de slot/transação não confirma nenhum run parcial: o próximo tick reavalia candidatos
   por horário/ID. Falhas saem da disputa até o backoff; não existe backlog de tentativas por ciclo.
+- Candidatos usam cursor por valores `(nextSyncAt, projectId)`, com NULL antes de datas,
+  páginas de 100 e até 10 páginas por tick. Um prefixo ocupado não impede buscar instalações
+  livres: o cursor continua entre páginas e, ao esgotar o orçamento, no tick seguinte.
+  Ao esgotar a lista ou capacidade global, a busca volta ao início no próximo tick.
+  Cada reserva revalida elegibilidade e mantém as mesmas constraints transacionais.
 - Integração sem relação, desabilitada, RECONNECT_REQUIRED/DISCONNECTED, instalação não ACTIVE,
   Project excluído/em purge ou App sem configuração não inicia. Exclusão lógica termina/fenceia
   o run e libera os slots na mesma transação; restore reinicializa a agenda distribuída.
@@ -137,14 +145,18 @@ decisão repetida não é registrada a cada tick. Logs de conclusão incluem run
 
 A política manual permanece: ao reservar, nextSyncAt é limpo; ao concluir, a próxima automática
 é recalculada a partir do término, com base + jitter/backoff. Ela substitui o horário anterior
-porque o projeto acabou de ser atualizado. Restart preserva agenda futura; agenda atrasada mais
-de dois ticks é redistribuída uma vez, com motivo e horários registrados, sem reproduzir backlog.
+porque o projeto acabou de ser atualizado. Restart preserva agenda futura; recuperação de parada
+redistribui somente agendas anteriores ao corte fixado no startup sem executor recente, com
+motivo e horários registrados. Espera por capacidade em operação conserva o instante devido.
 Instantes são Date/UTC na persistência e na comparação; a UI formata no fuso do navegador.
 01:49 America/Sao_Paulo em 11/10/2026 corresponde a 04:49Z. Não se compara string de data local.
 
 - Rate limit: aguarde syncNotBefore/nextSyncAt. Retry-After não é encurtado para caber no tempo
   de espera em memória; o worker persiste o adiamento. Outros projetos da mesma instalação
-  respeitam o cooldown. A política segue as [orientações oficiais do GitHub](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
+  respeitam o cooldown. Um 403 com mensagem estruturada reconhecida (`secondary rate limit`,
+  `rate limit exceeded`, `abuse detection`) também é transitório mesmo sem headers. Sem prazo
+  válido aplica o fallback existente de pelo menos 60s e o backoff persistido; texto externo não
+  é exposto. A política segue as [orientações oficiais do GitHub](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#rate-limit-errors).
 - 5xx/timeout: conferir último sucesso preservado e próxima tentativa com backoff. Falha não
   remove commits, PRs, issues, branches ou vínculos.
 - 401/403 sem rate limit ou 404 do provedor: RECONNECT_REQUIRED; OWNER revalida o mesmo repo
@@ -164,3 +176,8 @@ Polling REST: 2,5s ativo / 15s ocioso, somente enquanto a aba está visível. Um
 externamente aparece na próxima consulta; refresh recupera o run persistido. Execuções curtas
 concluídas entre consultas também reconciliam metadata. Origem é textual e não há percentual
 inventado. O backend continua a impedir duplicação durante a janela entre consultas.
+No Overview, falhas transitórias do probe ocioso reagendam a consulta em pelo menos 15s,
+respeitando Retry-After inclusive após ocultar/reabrir a aba. Erros terminais 401/403/404
+interrompem o retry automático. Troca de projeto e unmount cancelam timer/request e descartam
+respostas antigas. Repositório carrega metadata uma vez por contexto, sem leitura de memberships;
+filtros renovam somente os artefatos, com a mesma proteção contra respostas obsoletas.

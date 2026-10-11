@@ -293,7 +293,7 @@ export const githubSyncRunRepository = {
     });
   },
 
-  listAutomaticCandidates(now, limit = 100) {
+  listAutomaticCandidates(now, limit = 100, after = null) {
     return prisma.projectGitHubIntegration.findMany({
       where: {
         autoSyncEnabled: true,
@@ -304,15 +304,36 @@ export const githubSyncRunRepository = {
           purgeStartedAt: null,
           githubSyncRuns: { none: { activeProjectId: { not: null } } }
         },
-        OR: [{ nextSyncAt: null }, { nextSyncAt: { lte: now } }]
+        OR: [{ nextSyncAt: null }, { nextSyncAt: { lte: now } }],
+        // Value-based keyset: reserving/rescheduling/deleting the cursor row must
+        // not move the next page. MySQL sorts NULL schedules before dated ones.
+        ...(after && {
+          AND: {
+            OR:
+              after.nextSyncAt === null
+                ? [
+                    { nextSyncAt: null, projectId: { gt: after.projectId } },
+                    { nextSyncAt: { not: null } }
+                  ]
+                : [
+                    { nextSyncAt: { gt: after.nextSyncAt } },
+                    { nextSyncAt: after.nextSyncAt, projectId: { gt: after.projectId } }
+                  ]
+          }
+        })
       },
-      select: { projectId: true },
+      select: { projectId: true, nextSyncAt: true },
       orderBy: [{ nextSyncAt: 'asc' }, { projectId: 'asc' }],
       take: limit
     });
   },
 
-  async reserveAutomatic(projectId, now = new Date(), policy = syncSchedulePolicy()) {
+  async reserveAutomatic(
+    projectId,
+    now = new Date(),
+    policy = syncSchedulePolicy(),
+    recoveryBefore = null
+  ) {
     try {
       return await withActiveProjectWrite(
         projectId,
@@ -330,7 +351,7 @@ export const githubSyncRunRepository = {
           const cooldown = integration.installation.syncNotBefore;
           if (
             !integration.nextSyncAt ||
-            now - integration.nextSyncAt > policy.tickMs * 2 ||
+            (recoveryBefore && integration.nextSyncAt < recoveryBefore) ||
             cooldown > now
           ) {
             const nextSyncAt = distributedSyncAt(

@@ -156,6 +156,18 @@ describe('GITHUB-01 — projeto sem integração', () => {
       repository: { defaultBranch: null, branches: [] },
       summary: { total: 0 }
     });
+    const status = await owner.agent.get(`${path}/github/sync/status`);
+    expect(status.status).toBe(200);
+    expect(status.body).toEqual({
+      run: null,
+      automation: {
+        status: 'UNAVAILABLE',
+        reason: 'WORKER_NOT_OBSERVED',
+        nextSyncAt: null,
+        lastHeartbeatAt: null,
+        checkedAt: expect.any(String)
+      }
+    });
     expect((await owner.mutate('post', `${path}/github/sync`).send({})).status).toBe(400);
     expect(
       (

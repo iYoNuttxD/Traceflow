@@ -191,7 +191,9 @@ caminhos. A App revalida a instalação, o acesso e a reserva/unicidade; Project
 integração são persistidos atomicamente. Não existe fallback automático para criação
 local quando o cadastro integrado falha. Ambos os endpoints exigem sessão, e-mail
 verificado, CSRF e payload estrito. GITHUB-02 acrescenta a vinculação posterior conforme
-o contrato abaixo; GITHUB-03 permanece pendente e bloqueia a disponibilização ao usuário final.
+o contrato abaixo. GITHUB-01 a GITHUB-04.1 têm implementação concluída localmente, incluindo
+gerenciamento na UI e worker periódico. Isso não comprova CI remota aprovada nem deploy:
+a CI #138 falhou no validador LR.2 e exige nova execução após publicação das correções da PR #24.
 
 | Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                                                       |
 | -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
@@ -472,7 +474,9 @@ vinculação permanece `200`, com `initialSync: {status: FAILED, run: null, erro
 o projeto conserva integração/reserva. Falha posterior do worker é consultada em
 `GET /projects/:projectId/github/sync/status` e em `project.githubIntegration.lastSyncStatus` /
 `lastSyncError`. Retry usa `POST /projects/:projectId/github/sync` (MANAGER+), nunca novo PUT.
-Um run enfileirado não significa importação concluída. GITHUB-03 ainda é necessário para liberação.
+Um run enfileirado não significa importação concluída. A UI GITHUB-03 e as etapas GITHUB-04/04.1
+estão implementadas localmente; a liberação depende da validação remota da PR e da operação do
+worker no ambiente de implantação. Não há evidência de deploy ou homologação em produção.
 
 | Método | Caminho                                                  | Entrada                                        | Sucesso                                                          |
 | ------ | -------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
@@ -482,7 +486,7 @@ Um run enfileirado não significa importação concluída. GITHUB-03 ainda é ne
 | GET    | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?`            | `200`, `{repositories}` da Installation                          |
 | PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`, `{message,project,integration,initialSync}`; conflitos `409` |
 | POST   | `/projects/:projectId/github/sync`                       | `projectId` positivo; body vazio               | `202`, `{message,run}`; execução persistida iniciada ou já ativa |
-| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run}` com status, progresso, summary e erro sanitizado  |
+| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run,automation}`; `run` nullable com origin/status/progresso/summary/erro; `automation` obrigatório conforme contrato acima |
 | GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                               |
 | GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                          |
 | GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                |

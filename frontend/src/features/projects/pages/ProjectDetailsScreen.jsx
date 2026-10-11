@@ -139,6 +139,7 @@ export function ProjectDetailsScreen() {
   const syncLock = useRef(null);
   const syncProbeGeneration = useRef(0);
   const observedIdleRun = useRef(null);
+  const idleProbeRetry = useRef({ projectId: null, notBefore: 0 });
   const [pageVisible, setPageVisible] = useState(document.visibilityState !== 'hidden');
   useEffect(() => {
     const change = () => setPageVisible(document.visibilityState !== 'hidden');
@@ -233,7 +234,17 @@ export function ProjectDetailsScreen() {
     const version = syncProbeGeneration.current;
     let cancelled = false;
     let timer;
+    const isCurrent = () =>
+      !cancelled &&
+      version === syncProbeGeneration.current &&
+      routeProjectIdRef.current === requestedProjectId;
+    function scheduleProbe(delay) {
+      if (!isCurrent()) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void probe(), delay);
+    }
     async function probe() {
+      if (!isCurrent()) return;
       try {
         const result = await runSyncStatusProbe((signal) =>
           getProjectGithubSyncStatus(requestedProjectId, { signal, fresh: true })
@@ -245,6 +256,7 @@ export function ProjectDetailsScreen() {
           routeProjectIdRef.current !== requestedProjectId
         )
           return;
+        idleProbeRetry.current = { projectId: requestedProjectId, notBefore: 0 };
         if (isActiveSyncRun(result.run)) {
           setSuccess('');
           setError('');
@@ -261,7 +273,7 @@ export function ProjectDetailsScreen() {
             if (!cancelled && routeProjectIdRef.current === requestedProjectId)
               setDashboardRefreshVersion((value) => value + 1);
           }
-          if (!cancelled) timer = window.setTimeout(() => void probe(), 15000);
+          scheduleProbe(15000);
         }
       } catch (requestError) {
         if (
@@ -275,10 +287,28 @@ export function ProjectDetailsScreen() {
           );
           setError(normalized.message);
           setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+          if (
+            normalized.isNetworkError ||
+            normalized.status === 408 ||
+            normalized.status === 429 ||
+            normalized.status >= 500
+          ) {
+            const delay = Math.max(15000, (normalized.retryAfterSeconds || 0) * 1000);
+            idleProbeRetry.current = {
+              projectId: requestedProjectId,
+              notBefore: Date.now() + delay
+            };
+            scheduleProbe(delay);
+          }
         }
       }
     }
-    void probe();
+    const remaining =
+      idleProbeRetry.current.projectId === requestedProjectId
+        ? idleProbeRetry.current.notBefore - Date.now()
+        : 0;
+    if (remaining > 0) scheduleProbe(remaining);
+    else void probe();
     return () => {
       cancelled = true;
       window.clearTimeout(timer);

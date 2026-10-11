@@ -859,7 +859,18 @@ describe('Projetos e integração GitHub E9', () => {
 
     const running = await owner.agent.get(`/api/projects/${project.id}/github/sync/status`);
     expect(running.status, JSON.stringify(running.body)).toBe(200);
-    expect(running.body.run).toMatchObject({ id: started.body.run.id, status: 'RUNNING' });
+    expect(running.body.run).toMatchObject({
+      id: started.body.run.id,
+      status: 'RUNNING',
+      origin: 'MANUAL'
+    });
+    expect(running.body.automation).toEqual({
+      status: 'UNAVAILABLE',
+      reason: 'WORKER_NOT_OBSERVED',
+      nextSyncAt: null,
+      lastHeartbeatAt: null,
+      checkedAt: expect.any(String)
+    });
 
     const polls = Array.from({ length: 8 }, () =>
       owner.agent.get(`/api/projects/${project.id}/github/sync/status`)

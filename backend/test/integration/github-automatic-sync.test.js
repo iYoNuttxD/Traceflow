@@ -306,6 +306,106 @@ describe('scheduler with real isolated persistence', () => {
     expect(await prisma.gitHubSyncRun.count()).toBe(1);
   });
 
+  it.each([false, true])(
+    'pages past 150 busy-installation waiters, respecting cooldown=%s and shared slots',
+    async (cooldown) => {
+      const { items } = await fixture(153, { sameInstallation: true });
+      const time = new Date();
+      await prisma.projectGitHubIntegration.updateMany({ data: { nextSyncAt: time } });
+      const free = items.slice(-2);
+      for (const [index, project] of free.entries()) {
+        const installation = await prisma.gitHubInstallation.create({
+          data: {
+            githubInstallationId: String(index + 2),
+            accountId: String(index + 2),
+            accountLogin: 'free',
+            accountType: 'User',
+            installedAt: time,
+            status: 'ACTIVE',
+            syncNotBefore: cooldown && index === 1 ? new Date(time.getTime() + 7200000) : null
+          }
+        });
+        await prisma.projectGitHubIntegration.update({
+          where: { projectId: project.id },
+          data: { installationId: installation.id }
+        });
+      }
+      const testPolicy = { ...policy, concurrency: 3 };
+      await runs.reserveAutomatic(items[0].id, time, testPolicy);
+      const release = gate();
+      const a = worker({ policy: testPolicy, now: () => time, execute: () => release.promise });
+      const b = worker({ policy: testPolicy, now: () => time, execute: () => release.promise });
+      try {
+        await Promise.all([a.tick(), b.tick()]);
+        await a.tick(); // A contended slot is reconsidered without changing the schedule.
+        const active = await prisma.gitHubSyncRun.findMany({
+          where: { activeProjectId: { not: null } }
+        });
+        expect(active).toHaveLength(cooldown ? 2 : 3);
+        expect(active.some((run) => run.projectId === free[0].id)).toBe(true);
+        expect(active.some((run) => run.projectId === free[1].id)).toBe(!cooldown);
+        expect(new Set(active.map((run) => run.automaticInstallationId)).size).toBe(active.length);
+        expect(new Set(active.map((run) => run.automaticSlot)).size).toBe(active.length);
+        expect((await integration(items[1].id)).nextSyncAt).toEqual(time);
+        if (cooldown)
+          expect((await integration(free[1].id)).nextSyncAt.getTime()).toBeGreaterThan(
+            time.getTime() + 7200000
+          );
+      } finally {
+        release.resolve();
+        await Promise.all([a.stop(), b.stop()]);
+      }
+    }
+  );
+
+  it('pages equal and NULL dates without gaps after the cursor row is rescheduled', async () => {
+    const { items } = await fixture(7, { sameInstallation: true });
+    const time = new Date();
+    await prisma.projectGitHubIntegration.updateMany({ data: { nextSyncAt: time } });
+    await prisma.projectGitHubIntegration.updateMany({
+      where: { projectId: { in: items.slice(0, 3).map((p) => p.id) } },
+      data: { nextSyncAt: null }
+    });
+    let cursor = null;
+    const seen = [];
+    for (;;) {
+      const page = await runs.listAutomaticCandidates(time, 2, cursor);
+      if (!page.length) break;
+      seen.push(...page.map((item) => item.projectId));
+      cursor = page.at(-1);
+      await prisma.projectGitHubIntegration.update({
+        where: { projectId: cursor.projectId },
+        data: { nextSyncAt: new Date(time.getTime() + 60000) }
+      });
+    }
+    expect(seen).toEqual(items.map((p) => p.id));
+  });
+
+  it('keeps capacity waiters due beyond two ticks, including when another replica joins', async () => {
+    const { items } = await fixture(3);
+    let time = new Date();
+    const due = time;
+    await prisma.projectGitHubIntegration.updateMany({ data: { nextSyncAt: due } });
+    const release = gate();
+    const a = worker({ now: () => time, execute: () => release.promise });
+    const b = worker({ now: () => time, execute: () => release.promise });
+    try {
+      await a.tick();
+      expect((await integration(items[2].id)).nextSyncAt).toEqual(due);
+      time = new Date(time.getTime() + policy.tickMs * 4);
+      await a.tick();
+      await b.tick();
+      expect((await integration(items[2].id)).nextSyncAt).toEqual(due);
+      await execute((await runs.findActive(items[0].id)).id);
+      await b.tick();
+      expect(await runs.findActive(items[2].id)).toMatchObject({ origin: 'AUTOMATIC' });
+      expect(await prisma.gitHubSyncRun.count()).toBe(3);
+    } finally {
+      release.resolve();
+      await Promise.all([a.stop(), b.stop()]);
+    }
+  });
+
   it('initializes and preserves distributed schedules across restart; overdue work is redistributed', async () => {
     const { items } = await fixture(12);
     await prisma.projectGitHubIntegration.updateMany({ data: { nextSyncAt: null } });
@@ -488,7 +588,7 @@ describe('scheduler with real isolated persistence', () => {
     }
   });
 
-  it.each([429, 503, 'ETIMEDOUT', 401])(
+  it.each([429, 500, 503, 'ETIMEDOUT', 401, 403, 404, 'secondary', 'secondary-retry'])(
     'persists bounded retry/auth policy after provider failure %s and preserves history',
     async (failure) => {
       const {
@@ -500,12 +600,27 @@ describe('scheduler with real isolated persistence', () => {
         data: { lastSyncAt: previous }
       });
       boundary.client.listIssuePages = async function* () {
-        throw Object.assign(
+        const error = Object.assign(
           new Error('private external details'),
           typeof failure === 'number'
-            ? { status: failure, response: { headers: { 'retry-after': '7200' } } }
-            : { code: failure }
+            ? {
+                status: failure,
+                response: { headers: failure === 403 ? {} : { 'retry-after': '7200' } }
+              }
+            : String(failure).startsWith('secondary')
+              ? {
+                  status: 403,
+                  response: {
+                    data: {
+                      message: 'You have exceeded a secondary rate limit. private external details'
+                    },
+                    headers: failure === 'secondary-retry' ? { 'retry-after': '7200' } : {}
+                  }
+                }
+              : { code: failure }
         );
+        const { executeGithubRequest } = await import('../../src/modules/github/github-request.js');
+        await executeGithubRequest(() => Promise.reject(error), { maxRetries: 0 });
       };
       const w = worker();
       await w.tick();
@@ -517,11 +632,16 @@ describe('scheduler with real isolated persistence', () => {
       expect(data.lastSyncStatus).toBe('FALHA');
       expect(await prisma.commit.count()).toBe(1);
       expect(await prisma.gitHubSyncRun.count()).toBe(1);
-      expect(data.status).toBe(failure === 401 ? 'RECONNECT_REQUIRED' : 'ACTIVE');
-      if (failure === 401) expect(data.nextSyncAt).toBeNull();
+      const permanent = [401, 403, 404].includes(failure);
+      expect(data.status).toBe(permanent ? 'RECONNECT_REQUIRED' : 'ACTIVE');
+      expect(data.autoSyncEnabled).toBe(true); // Preference survives; permanent errors block eligibility.
+      if (permanent) expect(data.nextSyncAt).toBeNull();
       else expect(data.nextSyncAt.getTime()).toBeGreaterThan(Date.now() + policy.intervalMs);
-      if (failure === 429) {
-        expect(data.nextSyncAt.getTime()).toBeGreaterThan(Date.now() + 7199000);
+      if (failure === 429 || String(failure).startsWith('secondary')) {
+        expect((await runs.findLatest(p.id)).errorCode).toBe('GITHUB_RATE_LIMITED');
+        expect(data.lastSyncError).not.toContain('private external details');
+        if (failure !== 'secondary')
+          expect(data.nextSyncAt.getTime()).toBeGreaterThan(Date.now() + 7199000);
         expect(
           (
             await prisma.gitHubInstallation.findUnique({

@@ -11,13 +11,24 @@ export function isGithubRateLimitError(error) {
   if (externalStatus === 429) return true;
   if (externalStatus !== 403) return false;
 
-  const remaining = Number(header(error, 'x-ratelimit-remaining'));
+  const remainingHeader = header(error, 'x-ratelimit-remaining');
+  const remaining =
+    remainingHeader == null || remainingHeader === '' ? NaN : Number(remainingHeader);
   const retryHeader = header(error, 'retry-after');
-  const retryAfter = Number(retryHeader);
+  const retryAfter = retryHeader == null || retryHeader === '' ? NaN : Number(retryHeader);
+  // GitHub may identify secondary limits only in its structured response message.
+  // Never pass provider text through to clients or logs.
+  const message = error?.response?.data?.message;
+  const providerRateLimit =
+    typeof message === 'string' &&
+    /\b(?:secondary rate limit|(?:api )?rate limit exceeded|abuse detection)\b/i.test(message);
   return (
+    providerRateLimit ||
     remaining === 0 ||
     (Number.isFinite(retryAfter) && retryAfter >= 0) ||
-    (typeof retryHeader === 'string' && Number.isFinite(Date.parse(retryHeader)))
+    (typeof retryHeader === 'string' &&
+      !Number.isFinite(retryAfter) &&
+      Number.isFinite(Date.parse(retryHeader)))
   );
 }
 
@@ -35,9 +46,13 @@ export function githubRetryNotBefore(error, now = new Date()) {
     !transientWithRetry
   )
     return null;
-  const seconds = retry == null ? NaN : Number(retry);
+  const seconds = retry == null || retry === '' ? NaN : Number(retry);
   const parsed = typeof retry === 'string' ? Date.parse(retry) : NaN;
-  const retryMs = Number.isFinite(seconds) ? now.getTime() + Math.max(0, seconds) * 1000 : parsed;
+  const retryMs = Number.isFinite(seconds)
+    ? seconds >= 0
+      ? now.getTime() + seconds * 1000
+      : NaN
+    : parsed;
   const reset = Number(header(error, 'x-ratelimit-reset')) * 1000;
   const explicit = Number.isFinite(retryMs) || (Number.isFinite(reset) && reset > 0);
   return new Date(

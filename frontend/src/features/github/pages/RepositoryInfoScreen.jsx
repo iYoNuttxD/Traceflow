@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
-import { membersApi } from '../../members/index.js';
 import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import {
   compactParams,
@@ -122,6 +121,8 @@ export function RepositoryInfoScreen() {
 
 function RepositoryInfoContent({ projectId }) {
   const { run: runArtifactsRequest, cancel: cancelArtifactsRequest } = useAbortableRequest();
+  const { run: runProjectRequest } = useAbortableRequest();
+  const projectRequest = useRef(null);
   const filtersRef = useRef(emptyFilters);
   const requestSequenceRef = useRef(0);
   const [repositoryData, setRepositoryData] = useState(null);
@@ -131,6 +132,29 @@ function RepositoryInfoContent({ projectId }) {
   const [error, setError] = useState('');
   const [pageError, setPageError] = useState(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+
+  useEffect(
+    () => () => {
+      // StrictMode replays effects after aborting the first load. Its cancelled
+      // promise cannot be reused by the next effect in the same mounted context.
+      projectRequest.current = null;
+    },
+    []
+  );
+
+  // The keyed project context owns metadata; changing filters only cancels artifacts.
+  const loadProject = useCallback(() => {
+    if (!projectRequest.current) {
+      const pending = runProjectRequest((signal) => projectsApi.get(projectId, { signal })).catch(
+        (requestError) => {
+          if (projectRequest.current === pending) projectRequest.current = null;
+          throw requestError;
+        }
+      );
+      projectRequest.current = pending;
+    }
+    return projectRequest.current;
+  }, [projectId, runProjectRequest]);
 
   const loadArtifacts = useCallback(
     async (nextFilters = emptyFilters) => {
@@ -153,15 +177,13 @@ function RepositoryInfoContent({ projectId }) {
 
       try {
         const data = await runArtifactsRequest(async (signal) => {
-          const [artifactsData, projectResponse, membership] = await Promise.all([
+          const [artifactsData, projectResponse] = await Promise.all([
             getProjectArtifacts(projectId, requestParams, { signal }),
-            projectsApi.get(projectId, { signal }),
-            membersApi.list(projectId, { signal }).catch(() => null)
+            loadProject()
           ]);
           return {
             ...artifactsData,
-            project: projectResponse.data.project,
-            role: membership?.currentMembership?.role
+            project: projectResponse.data.project
           };
         });
         if (!data || requestSequence !== requestSequenceRef.current) return;
@@ -181,7 +203,7 @@ function RepositoryInfoContent({ projectId }) {
         if (requestSequence === requestSequenceRef.current) setLoading(false);
       }
     },
-    [cancelArtifactsRequest, projectId, runArtifactsRequest]
+    [cancelArtifactsRequest, projectId, runArtifactsRequest, loadProject]
   );
 
   useEffect(() => {

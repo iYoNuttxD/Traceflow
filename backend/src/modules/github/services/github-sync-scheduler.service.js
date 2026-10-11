@@ -26,6 +26,9 @@ export function createGithubSyncScheduler({
   let stopping;
   let registered = false;
   let unavailable = false;
+  let recoveryInitialized = false;
+  let recoveryBefore = null;
+  let candidateCursor = null;
   const reportFailure = (error) =>
     log.error('Worker GitHub não concluiu a operação.', {
       event: 'github_scheduler_operation_failed',
@@ -69,37 +72,65 @@ export function createGithubSyncScheduler({
       return;
     }
     unavailable = false;
-    for (const candidate of await repository.listAutomaticCandidates(time)) {
-      if (stopped) return;
-      const result = await repository.reserveAutomatic(candidate.projectId, now(), policy);
-      const decision = `${result.outcome}:${result.reason || ''}:${result.nextSyncAt?.toISOString() || ''}`;
-      if (decisions.get(candidate.projectId) !== decision) {
-        decisions.set(candidate.projectId, decision);
-        log.info('Projeto avaliado pelo scheduler GitHub.', {
-          event: 'github_sync_eligible',
-          projectId: candidate.projectId,
-          outcome: result.outcome
-        });
-        if (result.outcome !== 'RESERVED')
-          log.info('Sincronização automática aguardando execução.', {
-            event:
-              result.outcome === 'ALREADY_RUNNING'
-                ? 'github_sync_skipped_running'
-                : 'github_sync_postponed',
+    if (!recoveryInitialized) {
+      const latest = await githubSchedulerRepository.latest();
+      // A joining replica must not redistribute another live worker's capacity
+      // waiters. On cold startup the fixed cutoff never ages with subsequent ticks.
+      if (!latest || time - latest.heartbeatAt > Math.max(60000, policy.tickMs * 3))
+        recoveryBefore = new Date(time.getTime() - policy.tickMs * 2);
+      recoveryInitialized = true;
+    }
+    const pageSize = 100;
+    // Bound work/memory per tick; continue from the last value cursor next tick
+    // if a large blocked prefix exhausts this budget.
+    candidatePages: for (let page = 0; page < 10; page++) {
+      const candidates = await repository.listAutomaticCandidates(time, pageSize, candidateCursor);
+      for (const candidate of candidates) {
+        if (stopped) return;
+        candidateCursor = candidate;
+        const result = await repository.reserveAutomatic(
+          candidate.projectId,
+          now(),
+          policy,
+          recoveryBefore
+        );
+        const decision = `${result.outcome}:${result.reason || ''}:${result.nextSyncAt?.toISOString() || ''}`;
+        if (decisions.get(candidate.projectId) !== decision) {
+          decisions.set(candidate.projectId, decision);
+          log.info('Projeto avaliado pelo scheduler GitHub.', {
+            event: 'github_sync_eligible',
             projectId: candidate.projectId,
-            reason: result.reason || result.outcome,
-            previousNextSyncAt: result.previousNextSyncAt,
-            nextSyncAt: result.nextSyncAt
+            outcome: result.outcome
           });
+          if (result.outcome !== 'RESERVED')
+            log.info('Sincronização automática aguardando execução.', {
+              event:
+                result.outcome === 'ALREADY_RUNNING'
+                  ? 'github_sync_skipped_running'
+                  : 'github_sync_postponed',
+              projectId: candidate.projectId,
+              reason: result.reason || result.outcome,
+              previousNextSyncAt: result.previousNextSyncAt,
+              nextSyncAt: result.nextSyncAt
+            });
+        }
+        if (result.outcome === 'RESERVED') {
+          decisions.delete(candidate.projectId);
+          log.info('Sincronização automática reservada.', {
+            event: 'github_sync_claimed',
+            projectId: candidate.projectId,
+            runId: result.run.id
+          });
+          launch(result.run);
+        }
+        if (result.reason === 'GLOBAL_CAPACITY') {
+          candidateCursor = null;
+          break candidatePages;
+        }
       }
-      if (result.outcome === 'RESERVED') {
-        decisions.delete(candidate.projectId);
-        log.info('Sincronização automática reservada.', {
-          event: 'github_sync_claimed',
-          projectId: candidate.projectId,
-          runId: result.run.id
-        });
-        launch(result.run);
+      if (candidates.length < pageSize) {
+        candidateCursor = null;
+        break;
       }
     }
     if (!stopped) {

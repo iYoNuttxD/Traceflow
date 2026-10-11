@@ -989,3 +989,13 @@ Correção da distinção entre agenda e worker operacional, startup explícito,
 logs de adiamento e refinamento Settings C2. Repository preserva sua estrutura sem CTA.
 [Diagnóstico e validação local](docs/deliveries/GITHUB_04_1_AUTOSYNC_RELIABILITY_UX_REFINEMENT_REPORT.md).
 Sem OCI/deploy; migration aplicada somente em schemas isolados de teste.
+
+### PR24-FIX-01 — Correções de review e CI
+
+**PASS LOCAL**, em `daniel-dev`, sobre o HEAD revisado `6b739433da`.
+Oito comentários de Copilot/Codex e o validador LR.2 corrigidos: fairness por paginação,
+elegibilidade durante espera por capacidade, secondary rate limit, recuperação do polling,
+requests do Repository e contratos/rastreabilidade. Gates locais completos e migrations PASS.
+[Matriz de fechamento e evidências](docs/deliveries/PR24_FIX_01_CODE_REVIEW_CI_CORRECTIONS_REPORT.md).
+CI #138 continua falha no HEAD publicado; exige nova execução após publicação autorizada.
+Sem commit/push ou deploy nesta rodada.

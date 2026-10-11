@@ -151,7 +151,11 @@ heartbeat de cada processo. Status consulta essa liveness no mesmo banco, com ja
 shutdown remove apenas a própria entrada. Ela não decide claims, capacidade, lease ou fencing.
 O worker permanece separado da API, com comando explícito no README e aviso no startup HTTP.
 Uma agenda futura sem worker é apresentada como indisponibilidade operacional, sem desligar
-a preferência. Logs de adiamento identificam motivo e horários, mantendo a policy GITHUB-04.
+a preferência. PR24-FIX-01 usa essa observação também para distinguir recuperação de parada
+da entrada de uma réplica com executor recente; ela não substitui locks/claims/leases.
+O corte de recuperação permanece fixo durante o processo, preservando quem aguarda capacidade.
+A busca avança por páginas/cursor estável entre ticks, sob limites de trabalho e as mesmas
+reservas transacionais. Logs de adiamento identificam motivo e horários.
 
 Sync pagina coleções, persiste por identificador externo e usa `GitHubSyncRun.activeProjectId` para
 exclusão mútua no banco, com stale detection. Webhook público usa raw body, HMAC e delivery ID, sem
