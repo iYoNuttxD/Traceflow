@@ -6,6 +6,7 @@ import {
   configureTestDatabaseEnvironment,
   deployTestMigrations
 } from '../helpers/test-database.js';
+import { createProject } from '../fixtures/factories.js';
 
 let app;
 let prisma;
@@ -56,6 +57,63 @@ async function register() {
     mutate: (method, path) => agent[method](path).set('X-CSRF-Token', response.body.csrfToken)
   };
 }
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const rawCursor = (text) => Buffer.from(text, 'utf8').toString('base64url');
+const list = (person, query) => person.agent.get(`/api/notifications?${query}`);
+
+async function withNotifications(count) {
+  const project = await createProject(prisma);
+  const owner = await register();
+  await prisma.projectMembership.create({
+    data: { projectId: project.id, userId: owner.user.id, role: 'MEMBER' }
+  });
+  for (let index = 0; index < count; index += 1)
+    await prisma.notification.create({
+      data: {
+        recipientUserId: owner.user.id,
+        projectId: project.id,
+        type: 'TASK_OVERDUE',
+        dedupeKey: `TASK_OVERDUE:cr${index}:2026-10-10`,
+        taskTitle: `Correção do reteste ${index}`,
+        dueDate: new Date('2026-10-10T00:00:00.000Z'),
+        createdAt: new Date(Date.UTC(2026, 8, 1, index))
+      }
+    });
+  return owner;
+}
+
+describe('S2-02 correções do reteste — cursor só na forma canônica (S202-R06)', () => {
+  it('CR-05 cursor com os bits de sobra trocados no último caractere → 400; o canônico → 200', async () => {
+    const owner = await withNotifications(3);
+    const canonical = rawCursor('2026-09-01T02:30:00.000Z|7');
+    const last = canonical.at(-1);
+    const variant = canonical.slice(0, -1) + ALPHABET[ALPHABET.indexOf(last) ^ 1];
+
+    const accepted = await list(owner, `status=ALL&cursor=${canonical}`);
+    const refused = await list(owner, `status=ALL&cursor=${variant}`);
+
+    expect(canonical.length % 4).not.toBe(0);
+    expect(Buffer.from(variant, 'base64url').toString('utf8')).toBe('2026-09-01T02:30:00.000Z|7');
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.notifications).toHaveLength(3);
+    expect([refused.status, refused.body.code]).toEqual([400, 'VALIDATION_ERROR']);
+  });
+
+  it('CR-06 cursor com um caractere a mais que decodifica para o mesmo texto → 400', async () => {
+    const owner = await withNotifications(2);
+    const canonical = rawCursor('2026-09-01T02:30:00.000Z|42');
+    const variant = `${canonical}A`;
+
+    const accepted = await list(owner, `status=ALL&cursor=${canonical}`);
+    const refused = await list(owner, `status=ALL&cursor=${variant}`);
+
+    expect(canonical.length % 4).toBe(0);
+    expect(Buffer.from(variant, 'base64url').toString('utf8')).toBe('2026-09-01T02:30:00.000Z|42');
+    expect(accepted.status).toBe(200);
+    expect([refused.status, refused.body.code]).toEqual([400, 'VALIDATION_ERROR']);
+  });
+});
 
 describe('S2-02 correções do reteste — contrato do PUT ocupado (S202-R01)', () => {
   it('CR-04 o 409 tem code, requestId, JSON com charset e no-store', async () => {

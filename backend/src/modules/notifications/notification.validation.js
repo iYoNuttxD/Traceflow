@@ -14,13 +14,15 @@ const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const CURSOR_CONTENT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\|([1-9]\d{0,9})$/;
 
 function decodeCursor(value, context) {
-  const match = CURSOR_PATTERN.test(value)
-    ? CURSOR_CONTENT.exec(Buffer.from(value, 'base64url').toString('utf8'))
+  const content = CURSOR_PATTERN.test(value)
+    ? Buffer.from(value, 'base64url').toString('utf8')
     : null;
+  const match = content ? CURSOR_CONTENT.exec(content) : null;
   const createdAt = match ? new Date(match[1]) : null;
   const id = match ? Number(match[2]) : null;
   if (
     !match ||
+    Buffer.from(content, 'utf8').toString('base64url') !== value ||
     Number.isNaN(createdAt.getTime()) ||
     createdAt.toISOString() !== match[1] ||
     id > MAX_ID
