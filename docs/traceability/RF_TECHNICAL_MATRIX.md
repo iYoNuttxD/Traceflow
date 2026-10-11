@@ -17,8 +17,8 @@ webhooks de produção. As evidências e limitações atuais estão no
 
 | RF | Fluxo funcional | Endpoint principal | Service | Persistência | Frontend | Evidência de teste | Estado |
 |---|---|---|---|---|---|---|---|
-| RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | mvp-contracts, ProjectsPage | IMPLEMENTADO |
-| RF02 | integrar repositório GitHub | GitHub App callback + Installation Token + `POST /api/projects/from-github`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, ProjectsPage, SettingsPages | IMPLEMENTADO; HOMOLOGAÇÃO GITHUB EXTERNA PENDENTE |
+| RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | projects-without-github, mvp-contracts, ProjectsPage, ProjectForm | IMPLEMENTADO LOCALMENTE (GITHUB-01); liberação depende de GITHUB-02/GITHUB-03 |
+| RF02 | integrar repositório GitHub | GitHub App callback + Installation Token + `POST /api/projects/from-github`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, ProjectsPage, SettingsPages | CRIAÇÃO INTEGRADA PRESERVADA; vinculação posterior GITHUB-02/GITHUB-03 pendente; homologação GitHub externa separada |
 | RF03 | importar commits | `POST .../github/sync` | sync-project-commits | Commit | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF04 | importar Pull Requests | `POST .../github/sync` | sync-project-pull-requests | PullRequest | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF05 | importar Issues | `POST .../github/sync` | sync-project-issues | Issue | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
@@ -168,3 +168,13 @@ Privacidade/retenção: [inventário](../privacy/PERSONAL_DATA_INVENTORY.md) e
 Evidência executável: [API e preferências](../../backend/test/api/indicators-p9.test.js),
 [privacidade](../../backend/test/api/privacy-governance.test.js) e
 [inventário canônico](../design/UI_SURFACE_INVENTORY.md).
+
+## GITHUB-01 — Criação opcional de projetos (2026-10-10)
+
+RF01 passa a oferecer na mesma interface o cadastro básico por `POST /projects` e o
+cadastro integrado existente de RF02 por `POST /projects/from-github`. Ausência de
+integração é `githubIntegration: null`, sem novo status administrativo ou migration.
+RF21 continua exigindo integração; RF22 preserva edição dos dados básicos. A entrega
+faz parte de uma sequência ainda não liberada: GITHUB-02 (vinculação posterior) e
+GITHUB-03 (gerenciamento/UX) permanecem pendentes. Evidências e limites no
+[relatório GITHUB-01](../deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md).

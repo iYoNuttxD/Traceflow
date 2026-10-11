@@ -150,6 +150,22 @@ identifica apenas a categoria pública da quota, sem expor sua chave, usuário o
 
 ## Projects e memberships
 
+GITHUB-01 reutiliza os dois cadastros existentes. `POST /projects` exige `name` e
+`responsibleTeam` não vazios; aceita `description` e `status` (`ATIVO`, `INATIVO`,
+`ARQUIVADO`, padrão `ATIVO`) opcionais. Não recebe identidade GitHub, não consulta a
+GitHub App e cria Project + membership OWNER na mesma transação, sem criar integração.
+Criação, listagem, detalhe e edição de dados básicos retornam `githubIntegration: null`
+quando não há vínculo. Esse estado técnico não altera `Project.status`.
+
+`POST /projects/from-github` continua exigindo `githubInstallationId` e
+`githubRepositoryId`, com `name`, `description` e `responsibleTeam` opcionais no HTTP
+(defaults atuais do repositório/equipe). A interface exige nome e equipe nos dois
+caminhos. A App revalida a instalação, o acesso e a reserva/unicidade; Project, OWNER e
+integração são persistidos atomicamente. Não existe fallback automático para criação
+local quando o cadastro integrado falha. Ambos os endpoints exigem sessão, e-mail
+verificado, CSRF e payload estrito. GITHUB-02/GITHUB-03 permanecem pendentes; GITHUB-01
+isolado não autoriza disponibilização ao usuário final.
+
 | Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                                                       |
 | -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | POST     | `/projects`                                             | —                    | `name`, `responsibleTeam`; opcionais `description`, `status`                                     | `201`, `{message,project}`                                                                                    |

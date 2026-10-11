@@ -247,7 +247,12 @@ export function RepositoryInfoScreen() {
                   ['Commits', summary.commits ?? 0],
                   ['Pull Requests', summary.pullRequests ?? 0],
                   ['Issues', summary.issues ?? 0],
-                  ['Completude', formatCompleteness(summary.metadataCompletenessPercentage)]
+                  [
+                    'Completude',
+                    summary.total > 0
+                      ? formatCompleteness(summary.metadataCompletenessPercentage)
+                      : 'Sem dados'
+                  ]
                 ].map(([label, value]) => (
                   <div key={label}>
                     <dt>{label}</dt>

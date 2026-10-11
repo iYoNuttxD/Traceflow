@@ -537,10 +537,15 @@ describe('ProjectDetailsPage E9', () => {
     const githubCard = (await screen.findByRole('heading', { name: 'GitHub' })).closest(
       '.project-overview-group--github'
     );
-    expect(within(githubCard).getByText('Não integrado')).toBeInTheDocument();
-    expect(within(githubCard).getByText('Nenhum repositório conectado.')).toBeInTheDocument();
+    expect(within(githubCard).getByText('Não conectado')).toBeInTheDocument();
+    expect(
+      within(githubCard).getByText('Este projeto ainda não possui um repositório GitHub vinculado.')
+    ).toBeInTheDocument();
     expect(within(githubCard).getByText('Repositório')).toBeInTheDocument();
     expect(within(githubCard).queryByText('Última sincronização')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Conectar GitHub/ })).not.toBeInTheDocument();
+    expect(mocks.getProjectGithubSyncStatus).not.toHaveBeenCalled();
   });
 
   it('oculta a ação de sync para MEMBER', async () => {

@@ -376,6 +376,15 @@ describe('Projetos e integração GitHub E9', () => {
       await prisma.projectMembership.findFirst({ where: { projectId: project.id, role: 'OWNER' } })
     ).toMatchObject({ userId: owner.user.id });
 
+    const edited = await owner
+      .mutate('put', `/api/projects/${project.id}`)
+      .send({ name: 'Projeto GitHub editado' });
+    expect(edited.status).toBe(200);
+    expect(edited.body.project.githubIntegration).toMatchObject({
+      githubRepositoryId: repository.githubRepositoryId
+    });
+    expect(edited.body.project.githubIntegration).not.toHaveProperty('installation');
+
     const repositoryChange = await owner.mutate('put', `/api/projects/${project.id}`).send({
       githubOwner: 'outro',
       githubRepo: 'outro',

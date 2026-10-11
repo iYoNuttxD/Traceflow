@@ -102,7 +102,7 @@ function getGithubSyncDisplay(project, syncStatus) {
   if (integration?.status === 'RECONNECT_REQUIRED') {
     return { label: 'Reconexão necessária', variant: 'warning' };
   }
-  if (!hasRepository) return { label: 'Não integrado', variant: 'neutral' };
+  if (!hasRepository) return { label: 'Não conectado', variant: 'neutral' };
   if (syncStatus === 'syncing' || persistedStatus === 'SINCRONIZANDO') {
     return { label: 'Sincronizando...', variant: 'info' };
   }
@@ -147,6 +147,7 @@ export function ProjectDetailsScreen() {
   const syncStateBelongsToRoute = String(githubSyncState.projectId) === String(id);
   const githubSyncRun = syncStateBelongsToRoute ? githubSyncState.run : null;
   const githubSyncStatus = syncStateBelongsToRoute ? githubSyncState.status : 'idle';
+  const hasGithubIntegration = Boolean(project?.githubIntegration);
 
   const refreshProjectDetails = useCallback(async () => {
     const requestedProjectId = id;
@@ -218,7 +219,7 @@ export function ProjectDetailsScreen() {
   }, [loadProject]);
 
   useEffect(() => {
-    if (!project?.id || String(project.id) !== String(id)) return undefined;
+    if (!hasGithubIntegration || String(project?.id) !== String(id)) return undefined;
     const requestedProjectId = id;
     void runSyncStatusProbe((signal) => getProjectGithubSyncStatus(requestedProjectId, { signal }))
       .then((result) => {
@@ -246,7 +247,7 @@ export function ProjectDetailsScreen() {
     return () => {
       cancelSyncStatusProbe();
     };
-  }, [cancelSyncStatusProbe, id, project?.id, runSyncStatusProbe]);
+  }, [cancelSyncStatusProbe, hasGithubIntegration, id, project?.id, runSyncStatusProbe]);
 
   useEffect(() => {
     if (!isActiveSyncRun(githubSyncRun)) return undefined;
@@ -411,7 +412,8 @@ export function ProjectDetailsScreen() {
     githubSyncStatus === 'error' || githubIntegration?.lastSyncStatus === 'FALHA';
   const memberCount = activeMembers?.length ?? null;
   const isOwner = currentMembership?.role === 'OWNER';
-  const canSync = ['MANAGER', 'OWNER'].includes(currentMembership?.role);
+  const canSync =
+    Boolean(githubIntegration) && ['MANAGER', 'OWNER'].includes(currentMembership?.role);
 
   return (
     <main className="page-container project-details-screen">
@@ -589,7 +591,7 @@ export function ProjectDetailsScreen() {
               {!repositoryName && (
                 <div>
                   <dt>Repositório</dt>
-                  <dd>Nenhum repositório conectado.</dd>
+                  <dd>Este projeto ainda não possui um repositório GitHub vinculado.</dd>
                 </div>
               )}
             </dl>

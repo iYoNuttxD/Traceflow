@@ -80,6 +80,7 @@ export function ProjectForm({
   submitDisabled = false,
   submitting,
   repositoryContext,
+  repositoryRequired = false,
   showRepositoryField = true,
   showStatusField = true
 }) {
@@ -128,7 +129,9 @@ export function ProjectForm({
         <>
           <div className="field field-full project-form__repository-field">
             <div className="project-form__repository-heading">
-              <label htmlFor={repositoryFieldId}>Repositório GitHub *</label>
+              <label htmlFor={repositoryFieldId}>
+                Repositório GitHub {repositoryRequired ? '*' : '(opcional)'}
+              </label>
               {repositoryContext}
             </div>
             <select
@@ -137,10 +140,15 @@ export function ProjectForm({
               value={currentRepositoryFullName}
               onChange={(event) => onRepositoryChange(event.target.value)}
               disabled={repositoryDisabled || loadingRepositories || Boolean(repositoriesError)}
-              required
+              required={repositoryRequired}
+              aria-describedby={repositoryRequired ? undefined : `${repositoryFieldId}-help`}
             >
               <option value="">
-                {loadingRepositories ? 'Carregando repositórios...' : 'Selecione um repositório'}
+                {loadingRepositories
+                  ? 'Carregando repositórios...'
+                  : repositoryRequired
+                    ? 'Selecione um repositório'
+                    : 'Não vincular repositório agora'}
               </option>
               {!hasCurrentRepository && currentRepositoryFullName && (
                 <option value={currentRepositoryFullName}>{currentRepositoryFullName}</option>
@@ -176,6 +184,22 @@ export function ProjectForm({
                 );
               })}
             </select>
+            {!repositoryRequired && (
+              <p className="field-help" id={`${repositoryFieldId}-help`}>
+                Você pode cadastrar o projeto sem GitHub ou selecionar um repositório autorizado
+                agora.
+              </p>
+            )}
+            {!repositoryRequired && currentRepositoryFullName && (
+              <button
+                type="button"
+                className="button button-secondary button-compact"
+                disabled={submitting}
+                onClick={() => onRepositoryChange('')}
+              >
+                Não vincular repositório agora
+              </button>
+            )}
           </div>
 
           {repositoriesError && (

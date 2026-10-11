@@ -4,9 +4,9 @@ import { withActiveProjectWrite } from './active-project-write.js';
 
 export const projectRepository = {
   async createProject(data, ownerUserId) {
-    if (!ownerUserId) return prisma.project.create({ data });
+    if (!ownerUserId) return prisma.project.create({ data, include: { githubIntegration: true } });
     return prisma.$transaction(async (tx) => {
-      const project = await tx.project.create({ data });
+      const project = await tx.project.create({ data, include: { githubIntegration: true } });
       await tx.projectMembership.create({
         data: { projectId: project.id, userId: ownerUserId, role: 'OWNER' }
       });
@@ -74,7 +74,9 @@ export const projectRepository = {
   },
 
   async updateProject(id, data) {
-    return withActiveProjectWrite(id, (tx) => tx.project.update({ where: { id }, data }));
+    return withActiveProjectWrite(id, (tx) =>
+      tx.project.update({ where: { id }, data, include: { githubIntegration: true } })
+    );
   },
 
   async findById(id) {

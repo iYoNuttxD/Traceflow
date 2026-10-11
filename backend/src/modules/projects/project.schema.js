@@ -45,6 +45,8 @@ export function publicProject(project) {
       lastSyncError: githubIntegration.lastSyncError,
       lastSyncAttemptAt: githubIntegration.lastSyncAttemptAt
     };
+  } else if (githubIntegration === null) {
+    data.githubIntegration = null;
   }
   return data;
 }

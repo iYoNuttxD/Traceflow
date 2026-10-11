@@ -952,3 +952,20 @@ todos os requisitos de ambos os cartões.
 **P8.6C desambiguado:** IND-P8.6C-1 é a validação de 28/09/2026; IND-P8.6C-2 é o hardening posterior
 registrado em 03/10/2026. Para decisões posteriores de UI (incluindo Overview compacto), consultar
 IND-P8.6C-2 e suas sucessoras, sem atribuí-las retroativamente à rodada -1.
+
+## GITHUB — Criação opcional e vinculação posterior
+
+Incrementos complementares de RF01/RF02, sem alterar o texto acadêmico oficial.
+
+| Entrega | Escopo | Estado |
+| --- | --- | --- |
+| GITHUB-01 — Criação opcional de projetos | Cadastro com dados básicos ou com repositório autorizado, OWNER atômico e ausência legítima de integração | Implementado localmente; gates e limites no [relatório](docs/deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md) |
+| GITHUB-02 — Vinculação posterior | Vinculação segura de repositório a projeto existente e sincronização inicial | PENDENTE |
+| GITHUB-03 — Gerenciamento e UX | Configuração e gerenciamento da integração pelos componentes canônicos | PENDENTE |
+
+**Release gate:** GITHUB-01 não deve ser disponibilizado isoladamente. O incremento
+permanece apenas no working tree de `daniel-dev`, sem commit/push/deploy nesta rodada.
+Integrar GITHUB-02 e GITHUB-03 antes da disponibilização. Nenhuma feature flag complexa
+foi introduzida; distribuição antecipada exigiria manter a nova opção oculta até
+existir vinculação posterior funcional. Troca/desvinculação de repositório continuam
+fora desta sequência sem decisão específica de domínio.

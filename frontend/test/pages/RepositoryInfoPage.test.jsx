@@ -76,6 +76,20 @@ describe('RepositoryInfoPage RF06', () => {
     expect(getProjectArtifacts).toHaveBeenCalledTimes(1);
   });
 
+  it('aceita projeto sem integração e não apresenta completude percentual sem artefatos', async () => {
+    getProjectArtifacts.mockResolvedValue(
+      artifactsResponse({ repository: { defaultBranch: null, branches: [] } })
+    );
+    renderPage();
+    expect(
+      await screen.findByRole('heading', { name: 'Nenhum artefato importado.' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Sem dados')).toBeInTheDocument();
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Branch padrão:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Conectar GitHub/ })).not.toBeInTheDocument();
+  });
+
   it('aplica tipo e datas válidas automaticamente, sem ação de submit', async () => {
     const user = userEvent.setup();
     renderPage();

@@ -242,6 +242,7 @@ export function ProjectsScreen() {
   }
 
   function handleRepositoryChange(fullName) {
+    setOperationError('');
     const selectedRepository = repositories.find(
       (repository) => normalizeRepository(repository).fullName === fullName
     );
@@ -290,9 +291,21 @@ export function ProjectsScreen() {
   }
 
   function creationValidationError() {
+    if (!formData.name.trim() || !formData.responsibleTeam.trim()) {
+      return 'Preencha o nome e a equipe responsável pelo projeto.';
+    }
+    if (duplicateRepository) {
+      return 'Este repositório já está vinculado a outro projeto.';
+    }
     if (
-      !formData.name.trim() ||
-      !formData.responsibleTeam.trim() ||
+      !reconnectProjectId &&
+      !formData.selectedRepositoryId &&
+      !formData.selectedInstallationId &&
+      !formData.selectedRepositoryFullName
+    ) {
+      return '';
+    }
+    if (
       !formData.selectedInstallationId ||
       !formData.selectedRepositoryId ||
       !formData.selectedRepositoryFullName ||
@@ -313,20 +326,26 @@ export function ProjectsScreen() {
 
   async function createSelectedProject({ afterPurge = false } = {}) {
     try {
-      const response = await projectsApi.createFromGithub({
-        githubInstallationId: formData.selectedInstallationId,
-        githubRepositoryId: formData.selectedRepositoryId,
+      const data = {
         name: formData.name,
         description: formData.description,
         responsibleTeam: formData.responsibleTeam
-      });
+      };
+      const withGithub = Boolean(formData.selectedRepositoryId);
+      const response = withGithub
+        ? await projectsApi.createFromGithub({
+            ...data,
+            githubInstallationId: formData.selectedInstallationId,
+            githubRepositoryId: formData.selectedRepositoryId
+          })
+        : await projectsApi.create(data);
       setSuccess(response.data.message);
       purgedRepositoriesRef.current.delete(formData.selectedRepositoryId);
       setFormData(emptyProjectForm);
       setPurgedRepositoryId(null);
-      await refreshProjects({ fresh: true });
-      await loadRepositories({ fresh: true });
       setNewProjectDialogOpen(false);
+      void refreshProjects({ fresh: true });
+      if (withGithub) void loadRepositories({ fresh: true });
     } catch (requestError) {
       const pendingProject = requestError.response?.data?.details?.pendingProject;
       if (requestError.response?.data?.code === 'PROJECT_PENDING_DELETION' && pendingProject) {
@@ -577,13 +596,17 @@ export function ProjectsScreen() {
         onRepositoryChange={handleRepositoryChange}
         onSubmit={handleSubmit}
         submitLabel="Cadastrar projeto"
-        submitDisabled={installations.length === 0}
+        submitDisabled={operationCooldown > 0}
+        repositoryRequired={Boolean(reconnectProjectId)}
         submitting={submitting}
         showStatusField={false}
       />
       {installations.length === 0 && !installationsError && (
         <aside className="repository-authorization-callout" role="status">
-          <p>Para criar um projeto, conecte a GitHub App e escolha um repositório.</p>
+          <p>
+            Para vincular um repositório agora, conecte a GitHub App. Você também pode cadastrar o
+            projeto sem GitHub.
+          </p>
           <Link className="button button-secondary" to="/settings/integrations">
             Conectar GitHub App
           </Link>
