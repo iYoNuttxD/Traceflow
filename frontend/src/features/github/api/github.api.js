@@ -21,6 +21,13 @@ export const githubApi = {
   syncProject(projectId) {
     return data(httpClient.post(`/projects/${projectId}/github/sync`));
   },
+  updateSyncSettings(projectId, enabled) {
+    return data(
+      httpClient.patch(`/projects/${projectId}/github/sync-settings`, {
+        githubAutoSyncEnabled: enabled
+      })
+    );
+  },
   syncStatus(projectId, options = {}) {
     return data(httpClient.get(`/projects/${projectId}/github/sync/status`, options));
   },

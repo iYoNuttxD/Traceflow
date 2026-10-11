@@ -961,12 +961,15 @@ Incrementos complementares de RF01/RF02, sem alterar o texto acadêmico oficial.
 | --- | --- | --- |
 | GITHUB-01 — Criação opcional de projetos | Cadastro com dados básicos ou com repositório autorizado, OWNER atômico e ausência legítima de integração | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md) |
 | GITHUB-02 — Vinculação posterior | PUT de integração existente reutilizado; OWNER, reserva concorrente, auditoria atômica e sync inicial após commit | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_02_POST_CREATION_REPOSITORY_LINKING_REPORT.md) |
-| GITHUB-03 — Gerenciamento e UX | Configuração e gerenciamento da integração pelos componentes canônicos | PENDENTE |
+| GITHUB-03 — Gerenciamento e UX | Seção GitHub na edição, seleção compartilhada, vínculo posterior, sync/preferência e navegação contextual | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_03_PROJECT_GITHUB_INTEGRATION_MANAGEMENT_UX_REPORT.md) |
 
-**Release gate:** GITHUB-01/GITHUB-02 não devem ser disponibilizados sem GITHUB-03.
-GITHUB-01 já integra o baseline `997e987`; GITHUB-02 permanece apenas no working tree de
-`daniel-dev`, sem commit/push/deploy nesta rodada. Integrar e validar GITHUB-03 antes da
-disponibilização. Nenhuma feature flag complexa
-foi introduzida; distribuição antecipada exigiria manter a nova opção oculta até
-existir vinculação posterior funcional. Troca/desvinculação de repositório continuam
-fora desta sequência sem decisão específica de domínio.
+**GITHUB OPTIONAL INTEGRATION — COMPLETE LOCAL.** Fluxos A/B/C/D validados em aplicação real,
+banco isolado, desktop/tablet/mobile e Light/Dark. GITHUB-01/02 já compõem o baseline
+`1abb750`; GITHUB-03 permanece no working tree de `daniel-dev`, sem commit/push/deploy.
+
+O bloqueio funcional de disponibilizar criação opcional sem UI de vinculação foi resolvido
+localmente. Liberação externa continua condicionada à revisão final, integração, CI e deploy.
+Isso não conclui S2-09/S2-10, OCI ou homologação em produção. A preferência de sincronização
+automática é persistida; execução periódica ainda não existe e é indicada como indisponível
+na interface. Troca/desvinculação de repositório permanecem fora desta sequência sem decisão
+específica de domínio. Nenhuma feature flag complexa foi introduzida.

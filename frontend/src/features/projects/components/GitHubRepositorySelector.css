@@ -1,0 +1,49 @@
+.github-repository-selector {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.github-repository-selector__field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.github-repository-selector__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.github-repository-selector__heading > label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.github-repository-selector input,
+.github-repository-selector select {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--size-touch-target);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+}
+
+.github-repository-selector .field-help {
+  margin: 0;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.github-repository-selector .field-error {
+  color: var(--color-danger-text);
+}
+
+.github-repository-selector__heading > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-touch-target);
+}

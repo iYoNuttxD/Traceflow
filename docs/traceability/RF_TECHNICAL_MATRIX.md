@@ -17,8 +17,8 @@ webhooks de produção. As evidências e limitações atuais estão no
 
 | RF | Fluxo funcional | Endpoint principal | Service | Persistência | Frontend | Evidência de teste | Estado |
 |---|---|---|---|---|---|---|---|
-| RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | projects-without-github, mvp-contracts, ProjectsPage, ProjectForm | PASS LOCAL (GITHUB-01); liberação depende da sequência GITHUB-02/GITHUB-03 |
-| RF02 | integrar repositório GitHub | GitHub App + `POST /api/projects/from-github` + `PUT /api/projects/:projectId/github/integration`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, github-project-connect, github-cardinality, ProjectsPage, SettingsPages | CRIAÇÃO INTEGRADA PRESERVADA; GITHUB-02 PASS LOCAL; UI GITHUB-03 pendente; homologação GitHub externa separada |
+| RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | projects-without-github, mvp-contracts, ProjectsPage, ProjectForm | PASS LOCAL (GITHUB-01/02/03); liberação externa depende de integração/CI/deploy |
+| RF02 | integrar repositório GitHub | GitHub App + `POST /api/projects/from-github` + `PUT /api/projects/:projectId/github/integration`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, ProjectGitHubIntegration, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, github-project-connect, github-cardinality, ProjectsPage, SettingsPages, ProjectGitHubIntegration | GITHUB-01/02/03 PASS LOCAL; homologação GitHub externa separada |
 | RF03 | importar commits | `POST .../github/sync` | sync-project-commits | Commit | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF04 | importar Pull Requests | `POST .../github/sync` | sync-project-pull-requests | PullRequest | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF05 | importar Issues | `POST .../github/sync` | sync-project-issues | Issue | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
@@ -38,8 +38,8 @@ webhooks de produção. As evidências e limitações atuais estão no
 | RF54 | qualidade: I04 e taxa de PRs mescladas da mesma coorte fechada | `GET /api/projects/:projectId/indicators/github` (I06) | indicators / github-analytics | PullRequestLifecycleEvent, PullRequest.mergedAtGithub | I06 nas visões GitHub e Qualidade | indicators-p3 API/unit; fundação P1; P8.1 GitHub real | PARCIAL — BACKEND E VISUALIZAÇÃO I06 IMPLEMENTADOS; COBERTURA TEMPORAL E I19 REVIEWS SEPARADO AINDA EXIGEM AVALIAÇÃO |
 | RF55 | painel consolidado com fórmula, fonte e horário/frescor por indicador sob demanda | `GET /api/projects/:projectId/indicators/dashboard`, `.../catalog` | dashboard aggregate + services de indicadores | projeções existentes, sem tabela de Dashboard | `IndicatorsScreen` → `DashboardPanel` → `IndicatorCard`/`DashboardHelp`; disclosure “Detalhes do cálculo” (PR23-FIX-02) fechado por padrão | `DashboardPanel.test.jsx`, `indicator-audit-display.test.js` (catálogo backend real), contrato `IndicatorResult` em API_CONTRACTS; inspeção real PR23-FIX-02 no Visual Validation Log e `evidence/pr23-fix-02` | IMPLEMENTADO LOCALMENTE — critério de auditabilidade RF55 corrigido na PR23-FIX-02; P8.4 visual histórica não promovida |
 | RF56 | filtro temporal comum sobre indicadores compatíveis | `GET /api/projects/:projectId/indicators/dashboard` | dashboard aggregate + indicator-period.policy | fatos temporais canônicos de cada service | filtro global recolhível em `DashboardPanel`; URL preservada entre oito categorias e Meu painel; De/Até/Sprint, aplicação automática e compatibilidade por indicador | dashboard-view unit; indicators-p7 API/DST; DashboardPanel P8; P8.1 período/Sprint/responsável reais na UI | IMPLEMENTADO PARA RECORTES COMPATÍVEIS — período e Sprint conforme fonte; responsável sem controle na UI enquanto não houver aplicação segura |
-| RF21 | atualizar sync GitHub | `POST .../github/sync` | sync-project-github | Project + artefatos | ProjectDetails | projects-github-e9 | IMPLEMENTADO |
-| RF22 | editar projeto | `PUT /api/projects/:id` | project-crud | Project | ProjectDetails/ProjectForm | mvp-contracts, ProjectDetailsPage | IMPLEMENTADO |
+| RF21 | atualizar sync GitHub | `POST .../github/sync` | sync-project-github | Project + artefatos | ProjectDetails, ProjectGitHubIntegration | projects-github-e9, ProjectGitHubIntegration | IMPLEMENTADO; preferência automática persistida, sem scheduler periódico |
+| RF22 | editar projeto | `PUT /api/projects/:id` | project-crud | Project | ProjectEditScreen/ProjectForm | mvp-contracts, ProjectAdminPages | IMPLEMENTADO; ações GitHub independentes |
 | RF23 | cadastrar usuário | `POST /api/auth/register`, `POST /api/auth/email-verification/verify` | auth/email | User, Session, EmailVerificationToken | RegisterScreen, VerifyEmailScreen, EmailVerificationBanner | `backend/test/api/auth-authorization.test.js`, `backend/test/unit/identity-policy.test.js`, `frontend/test/pages/AuthForms.test.jsx`, `frontend/test/auth/EmailVerification.test.jsx` | IMPLEMENTADO; SMTP EXTERNO PENDENTE PARA VERIFICAÇÃO REAL |
 | RF24 | vincular usuário ao projeto | convite por token; convites pessoais `GET .../invitations/mine` e respostas por ID; membership; ingresso por código/link como capacidade adicional | project-invitation/project-membership/project-access-code | ProjectInvitation, ProjectMembership | AcceptInvitationPage, PendingProjectInvitations, JoinProjectPage, ProjectMembersPanel | `backend/test/api/auth-authorization.test.js`, `backend/test/api/project-access-l5-1.test.js`, `frontend/test/pages/AcceptInvitationPage.test.jsx`, `frontend/test/pages/ProjectsPage.test.jsx`, `frontend/test/pages/ProjectAccessFlows.test.jsx` | IMPLEMENTADO; SMTP EXTERNO PENDENTE PARA CONVITE REAL |
 | RF25 | definir perfil contextual ao projeto | `PATCH .../members/:membershipId`, reativação, saída e transferência de ownership | project-membership | ProjectMembership.role | ProjectMembersPanel | `backend/test/api/auth-authorization.test.js`, `frontend/test/features/ProjectMembersPanel.test.jsx` | IMPLEMENTADO; OWNER NÃO É ADMINISTRADOR GLOBAL |
@@ -175,8 +175,8 @@ RF01 passa a oferecer na mesma interface o cadastro básico por `POST /projects`
 cadastro integrado existente de RF02 por `POST /projects/from-github`. Ausência de
 integração é `githubIntegration: null`, sem novo status administrativo ou migration.
 RF21 continua exigindo integração; RF22 preserva edição dos dados básicos. A entrega
-faz parte de uma sequência ainda não liberada. A evolução backend consta em GITHUB-02 abaixo;
-GITHUB-03 (gerenciamento/UX) permanece pendente. Evidências e limites da primeira entrega no
+faz parte da sequência GITHUB-01/02/03 concluída localmente; a liberação externa depende de
+integração, CI e deploy. A evolução backend e a UI estão registradas abaixo. Evidências e limites da primeira entrega no
 [relatório GITHUB-01](../deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md).
 
 
@@ -190,8 +190,19 @@ impedem duas integrações para projeto/repositório. A auditoria participa da t
 RF01 e RF22 permanecem preservados, incluindo dados locais, memberships e histórico. RF21 recebe
 o sync inicial somente depois do commit; sua falha não desfaz o vínculo e retry usa o serviço
 canônico. Contrato HTTP distingue conexão confirmada e run pendente/falho. Não há troca ou
-desvinculação, migration ou UI de gerenciamento nesta etapa. GITHUB-03 ainda bloqueia a liberação.
+desvinculação, migration ou UI de gerenciamento naquela etapa. A UI foi concluída em GITHUB-03,
+sem substituir a validação externa de integração, CI e deploy.
 
 Evidências: `github-project-connect.test.js` (HTTP real, preservação, autorização, reservas,
 concorrência, rollback, sync/retry), `github-cardinality.test.js`, suítes existentes e
 [relatório GITHUB-02](../deliveries/GITHUB_02_POST_CREATION_REPOSITORY_LINKING_REPORT.md).
+
+### GITHUB-03 — fechamento local da experiência (2026-10-10)
+
+RF02 recebe seção de integração na edição existente, com vinculação OWNER pela UI e seletor
+compartilhado com RF01. Overview/Repository oferecem navegação contextual autorizada; RF21
+reutiliza sync assíncrono e configuração persistida; RF22 mantém o formulário geral independente.
+Preferência automática não implica scheduler periódico, ausente no backend atual. Runtime
+A/B/C/D preserva dados locais e integração após falha de sync. Evidência e limites no
+[relatório GITHUB-03](../deliveries/GITHUB_03_PROJECT_GITHUB_INTEGRATION_MANAGEMENT_UX_REPORT.md).
+Nenhum requisito acadêmico oficial foi reescrito; COMPLETE LOCAL não significa implantação OCI.

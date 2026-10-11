@@ -867,7 +867,7 @@ describe('ProjectsPage', () => {
       screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/GitHub App conectada/).closest('.project-form__repository-field')
+      screen.getByText(/GitHub App conectada/).closest('.github-repository-selector__field')
     ).toBeInTheDocument();
   });
 

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { getProjectArtifacts } from '../index.js';
-import { ProjectSectionNav } from '../../projects/index.js';
+import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
+import { membersApi } from '../../members/index.js';
 import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import {
   compactParams,
@@ -116,6 +117,10 @@ function validateFilters(filters) {
 
 export function RepositoryInfoScreen() {
   const { projectId } = useParams();
+  return <RepositoryInfoContent key={projectId} projectId={projectId} />;
+}
+
+function RepositoryInfoContent({ projectId }) {
   const { run: runArtifactsRequest, cancel: cancelArtifactsRequest } = useAbortableRequest();
   const filtersRef = useRef(emptyFilters);
   const requestSequenceRef = useRef(0);
@@ -147,9 +152,18 @@ export function RepositoryInfoScreen() {
       setRetryAfterSeconds(0);
 
       try {
-        const data = await runArtifactsRequest((signal) =>
-          getProjectArtifacts(projectId, requestParams, { signal })
-        );
+        const data = await runArtifactsRequest(async (signal) => {
+          const [artifactsData, projectResponse, membership] = await Promise.all([
+            getProjectArtifacts(projectId, requestParams, { signal }),
+            projectsApi.get(projectId, { signal }),
+            membersApi.list(projectId, { signal }).catch(() => null)
+          ]);
+          return {
+            ...artifactsData,
+            project: projectResponse.data.project,
+            role: membership?.currentMembership?.role
+          };
+        });
         if (!data || requestSequence !== requestSequenceRef.current) return;
         setRepositoryData(data);
         setAppliedFilters({ ...emptyFilters, ...nextFilters });
@@ -226,8 +240,30 @@ export function RepositoryInfoScreen() {
 
         {!repositoryData && loading ? (
           <LoadingState message="Carregando artefatos do repositório..." />
+        ) : repositoryData && !project.githubIntegration ? (
+          <section
+            className="repository-disconnected"
+            aria-labelledby="repository-disconnected-title"
+          >
+            <h2 id="repository-disconnected-title">Nenhum repositório conectado</h2>
+            <p>
+              Este projeto ainda não possui integração com o GitHub. Conecte um repositório para
+              importar e acompanhar commits, Pull Requests e Issues.
+            </p>
+            {repositoryData.role === 'OWNER' && (
+              <Link
+                className="button button-secondary"
+                to={`/projects/${projectId}/edit#github-integration`}
+              >
+                Configurar integração
+              </Link>
+            )}
+          </section>
         ) : repositoryData ? (
           <>
+            {project.githubIntegration.lastSyncStatus === 'FALHA' && (
+              <FeedbackRegion warning="A última sincronização falhou. Os artefatos já importados continuam disponíveis." />
+            )}
             <section className="repository-overview" aria-labelledby="repository-summary-title">
               <header>
                 <div>

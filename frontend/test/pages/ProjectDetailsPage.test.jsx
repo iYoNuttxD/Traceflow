@@ -54,6 +54,7 @@ const project = {
   responsibleTeam: 'Equipe',
   status: 'ATIVO',
   githubIntegration: {
+    status: 'ACTIVE',
     repositoryFullName: 'owner/repo',
     repositoryUrl: 'https://github.com/owner/repo',
     lastSyncStatus: null,
@@ -545,6 +546,10 @@ describe('ProjectDetailsPage E9', () => {
     expect(within(githubCard).queryByText('Última sincronização')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Conectar GitHub/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Conectar repositório' })).toHaveAttribute(
+      'href',
+      '/projects/1/edit#github-integration'
+    );
     expect(mocks.getProjectGithubSyncStatus).not.toHaveBeenCalled();
   });
 

@@ -413,7 +413,8 @@ export function ProjectDetailsScreen() {
   const memberCount = activeMembers?.length ?? null;
   const isOwner = currentMembership?.role === 'OWNER';
   const canSync =
-    Boolean(githubIntegration) && ['MANAGER', 'OWNER'].includes(currentMembership?.role);
+    githubIntegration?.status === 'ACTIVE' &&
+    ['MANAGER', 'OWNER'].includes(currentMembership?.role);
 
   return (
     <main className="page-container project-details-screen">
@@ -595,6 +596,14 @@ export function ProjectDetailsScreen() {
                 </div>
               )}
             </dl>
+            {!githubIntegration && isOwner && (
+              <Link
+                className="button button-secondary"
+                to={`/projects/${project.id}/edit#github-integration`}
+              >
+                Conectar repositório
+              </Link>
+            )}
           </section>
 
           <section className="project-overview-group project-overview-group--team">

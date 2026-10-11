@@ -1,0 +1,120 @@
+.project-github {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-6);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  scroll-margin-top: var(--space-6);
+}
+
+.project-github__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.project-github h2,
+.project-github p,
+.project-github dl,
+.project-github dd {
+  margin: 0;
+}
+
+.project-github h2 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-4);
+}
+
+.project-github p {
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-body);
+}
+
+.project-github__heading p {
+  margin-top: var(--space-2);
+}
+
+.project-github__badge {
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-secondary);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-semibold);
+}
+
+.project-github__badge--connected {
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
+}
+
+.project-github__metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-4);
+}
+
+.project-github__metadata > div,
+.project-github__sync,
+.project-github__automatic {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.project-github__metadata dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+
+.project-github__metadata dd {
+  overflow-wrap: anywhere;
+}
+
+.project-github__metadata a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-touch-target);
+}
+
+.project-github__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.project-github__connection-form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.project-github__checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: fit-content;
+  min-height: var(--size-touch-target);
+  cursor: pointer;
+}
+
+.project-github__checkbox input {
+  width: var(--space-5);
+  height: var(--space-5);
+  accent-color: var(--color-accent-strong);
+}
+
+@media (max-width: 560px) {
+  .project-github,
+  .project-settings-surface .project-admin-surface {
+    padding: var(--space-4);
+  }
+
+  .project-github__actions > .button {
+    flex: 1 1 auto;
+  }
+}

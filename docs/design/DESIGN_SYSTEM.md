@@ -590,6 +590,19 @@ em uma row detalhada. As duas usam a mesma linguagem de surface, mas a densidade
 reais e não força alturas iguais. Desvincular OAuth não implica desconectar App, e desconectar App
 não implica remover OAuth.
 
+### Configuração GitHub do projeto — GITHUB-03
+
+A edição do projeto aplica a composição Settings C2: uma surface com seções internas para
+Dados do projeto e Integração GitHub; zona de perigo separada. Cada seção mantém suas ações
+independentes. Estado não conectado é compacto, com texto e ação autorizada; conectado usa
+metadata legível, badge textual e controles de sincronização. Falha de sync não remove o badge
+de vínculo. Os CTAs contextuais levam ao heading da seção existente.
+
+Cadastro e vínculo compartilham o mesmo seletor nativo, busca textual, filtro por conta,
+feedback e estado de reserva. Preferência automática usa checkbox nativo com label clicável de
+44px; o valor só muda após confirmação. Não há novos tokens, variantes globais ou dialogs.
+Evidência runtime textual e limites no [relatório GITHUB-03](../deliveries/GITHUB_03_PROJECT_GITHUB_INTEGRATION_MANAGEMENT_UX_REPORT.md).
+
 ## Linhas de entidades, histórico e confirmação
 
 `EntityRow` é a primitive compartilhada para entidades internas em categorias de

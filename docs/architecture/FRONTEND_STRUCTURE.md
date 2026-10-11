@@ -140,6 +140,29 @@ autorizada; convites e código/link permanecem disponíveis somente conforme a a
 `TraceFlowIcon` centraliza a família outline utilizada por essas ações sem introduzir biblioteca
 externa.
 
+## Configuração GitHub do projeto — GITHUB-03
+
+A edição existente `/projects/:projectId/edit` continua OWNER-only e compõe Dados do projeto,
+`ProjectGitHubIntegration` e zona de perigo. `#github-integration` é o destino contextual dos
+CTAs autorizados de Overview/Repository, com foco no heading. MANAGER continua sincronizando
+pela Visão Geral; os demais membros consultam os resumos e o catálogo sem ações OWNER-only.
+
+Os owners permanecem em `features/projects`: `GitHubRepositorySelector` é compartilhado por
+ProjectForm e vínculo posterior; `useGithubRepositoryCatalog` concentra a descoberta existente
+por GitHub App, normalização e reservas. Busca e filtro de conta usam o catálogo agregado
+canônico, conservando a instalação de cada opção. Não existe seletor, endpoint ou fluxo por URL
+paralelo. A API GitHub é consumida pelo barrel público de `features/github`.
+
+`useProjectGithubIntegration` coordena vínculo, preferência e sync separadamente do formulário
+geral. Aplica a mutation confirmada antes da reconciliação, usa gerações/abort e GET `fresh:true`
+para não reaproveitar leitura anterior à escrita. Erro no refresh oferece retry de consulta,
+sem desfazer o vínculo; polling só acompanha execução ativa e erro de consulta pede ação
+explícita. Edição e Repository remontam por projectId, descartando estado transitório anterior.
+
+Repository consulta Project/membership pelos contratos existentes para distinguir integração
+ausente de catálogo vazio. A preferência autoSyncEnabled é persistida, mas a interface comunica
+que execução automática periódica ainda não existe. Nenhuma nova policy/backend foi introduzida.
+
 ## Auth público e ciclo de conta
 
 Login, cadastro, recuperação e callbacks públicos reutilizam `PublicPageShell`, primitive shared

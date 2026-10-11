@@ -4,6 +4,11 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getProjectArtifacts = vi.hoisted(() => vi.fn());
+const projectApi = vi.hoisted(() => ({ get: vi.fn() }));
+const membersApi = vi.hoisted(() => ({ list: vi.fn() }));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({ projectsApi: projectApi }));
+vi.mock('../../src/features/members/members.api.js', () => ({ membersApi }));
+
 vi.mock('../../src/features/github/api/github.api.js', () => ({ getProjectArtifacts }));
 
 import { RepositoryInfoPage } from '../../src/pages/RepositoryInfoPage.jsx';
@@ -45,6 +50,20 @@ async function expandFilters(user) {
 describe('RepositoryInfoPage RF06', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    projectApi.get.mockResolvedValue({
+      data: {
+        project: {
+          id: 1,
+          name: 'Projeto E9',
+          githubIntegration: {
+            status: 'ACTIVE',
+            repositoryFullName: 'owner/repo',
+            lastSyncStatus: 'PENDENTE'
+          }
+        }
+      }
+    });
+    membersApi.list.mockResolvedValue({ currentMembership: { role: 'OWNER' } });
     getProjectArtifacts.mockResolvedValue(artifactsResponse());
   });
 
@@ -76,18 +95,53 @@ describe('RepositoryInfoPage RF06', () => {
     expect(getProjectArtifacts).toHaveBeenCalledTimes(1);
   });
 
-  it('aceita projeto sem integração e não apresenta completude percentual sem artefatos', async () => {
-    getProjectArtifacts.mockResolvedValue(
-      artifactsResponse({ repository: { defaultBranch: null, branches: [] } })
-    );
+  it('distingue ausência de integração de catálogo vazio e oferece configuração ao OWNER', async () => {
+    projectApi.get.mockResolvedValue({
+      data: { project: { id: 1, name: 'Local', githubIntegration: null } }
+    });
     renderPage();
     expect(
-      await screen.findByRole('heading', { name: 'Nenhum artefato importado.' })
-    ).toBeInTheDocument();
-    expect(screen.getByText('Sem dados')).toBeInTheDocument();
+      await screen.findByRole('heading', { name: 'Nenhum repositório conectado' })
+    ).toBeVisible();
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Branch padrão:/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Conectar GitHub/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Nenhum artefato importado.' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Filtrar artefatos/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configurar integração' })).toHaveAttribute(
+      'href',
+      '/projects/1/edit#github-integration'
+    );
+  });
+
+  it.each(['VIEWER', 'MEMBER', 'MANAGER'])('não oferece vinculação ao %s', async (role) => {
+    projectApi.get.mockResolvedValue({
+      data: { project: { id: 1, name: 'Local', githubIntegration: null } }
+    });
+    membersApi.list.mockResolvedValue({ currentMembership: { role } });
+    renderPage();
+    await screen.findByRole('heading', { name: 'Nenhum repositório conectado' });
+    expect(screen.queryByRole('link', { name: 'Configurar integração' })).not.toBeInTheDocument();
+  });
+
+  it('falha de sincronização conserva o catálogo integrado', async () => {
+    projectApi.get.mockResolvedValue({
+      data: {
+        project: {
+          id: 1,
+          name: 'Integrado',
+          githubIntegration: { status: 'ACTIVE', lastSyncStatus: 'FALHA' }
+        }
+      }
+    });
+    renderPage();
+    expect(
+      await screen.findByText(/Os artefatos já importados continuam disponíveis/)
+    ).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Artefatos do repositório' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Nenhum repositório conectado' })
+    ).not.toBeInTheDocument();
   });
 
   it('aplica tipo e datas válidas automaticamente, sem ação de submit', async () => {
