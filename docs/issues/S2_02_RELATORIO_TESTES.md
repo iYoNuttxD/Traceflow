@@ -1,5 +1,9 @@
 # Relatório de testes do S2-02 — notificações de tarefa (RF30, RF59)
 
+> **Histórico.** Os vereditos das seções 1, 2, 9, 10 e 12 são de antes das correções de 10/10/2026
+> (seção 17). Os vereditos atuais, com o reteste de cada correção, estão em
+> [S2_02_RELATORIO_RETESTE.md](S2_02_RELATORIO_RETESTE.md).
+
 Campanha descrita em [S2_02_PROMPT_TESTES_NOTIFICACOES.md](S2_02_PROMPT_TESTES_NOTIFICACOES.md),
 com o mapa de casos em [S2_02_MAPA_TESTES.md](S2_02_MAPA_TESTES.md).
 
