@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router';
 import {
   formatInstant,
@@ -6,7 +7,12 @@ import {
 } from '../model/notification-view.js';
 import './NotificationCard.css';
 
-export function NotificationCard({ notification, busy, onToggleRead, onOpen }) {
+export const NotificationCard = memo(function NotificationCard({
+  notification,
+  busy,
+  onToggleRead,
+  onOpen
+}) {
   const unread = !notification.readAt;
   const { task, project } = notification;
   const typeLabel = notificationTypeLabel(notification.type);
@@ -57,4 +63,4 @@ export function NotificationCard({ notification, busy, onToggleRead, onOpen }) {
       </div>
     </article>
   );
-}
+});

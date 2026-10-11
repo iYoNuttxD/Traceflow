@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   EmptyState,
   ErrorState,
@@ -33,33 +33,40 @@ export function NotificationsScreen() {
   const [busyIds, setBusyIds] = useState(() => new Set());
   const [markingAll, setMarkingAll] = useState(false);
   const headingRef = useRef(null);
+  const listRef = useRef(list);
+  const busyRef = useRef(busyIds);
+  listRef.current = list;
+  busyRef.current = busyIds;
   const items = list.data?.notifications || [];
   const unreadCount = list.data?.unreadCount ?? 0;
 
-  async function toggleRead(notification) {
-    if (busyIds.has(notification.id)) return;
-    setBusyIds((previous) => new Set(previous).add(notification.id));
-    setFeedback({});
-    try {
-      const response = await markNotification(notification.id, !notification.readAt);
-      list.replace(response.notification);
-      await refreshCount();
-    } catch (failure) {
-      const next = failureFeedback(failure, 'Não foi possível atualizar a notificação.');
-      setFeedback(next);
-      if (next.unavailable) {
-        await list.reload();
-        void refreshCount();
-        headingRef.current?.focus();
+  const toggleRead = useCallback(
+    async (notification) => {
+      if (busyRef.current.has(notification.id)) return;
+      setBusyIds((previous) => new Set(previous).add(notification.id));
+      setFeedback({});
+      try {
+        const response = await markNotification(notification.id, !notification.readAt);
+        listRef.current.replace(response.notification);
+        await refreshCount();
+      } catch (failure) {
+        const next = failureFeedback(failure, 'Não foi possível atualizar a notificação.');
+        setFeedback(next);
+        if (next.unavailable) {
+          await listRef.current.reload();
+          void refreshCount();
+          headingRef.current?.focus();
+        }
+      } finally {
+        setBusyIds((previous) => {
+          const next = new Set(previous);
+          next.delete(notification.id);
+          return next;
+        });
       }
-    } finally {
-      setBusyIds((previous) => {
-        const next = new Set(previous);
-        next.delete(notification.id);
-        return next;
-      });
-    }
-  }
+    },
+    [refreshCount]
+  );
 
   async function markAll() {
     if (markingAll || unreadCount === 0) return;
@@ -78,12 +85,15 @@ export function NotificationsScreen() {
     }
   }
 
-  function open(notification) {
-    if (notification.readAt) return;
-    markNotification(notification.id, true)
-      .then(() => refreshCount())
-      .catch(() => {});
-  }
+  const open = useCallback(
+    (notification) => {
+      if (notification.readAt) return;
+      markNotification(notification.id, true)
+        .then(() => refreshCount())
+        .catch(() => {});
+    },
+    [refreshCount]
+  );
 
   return (
     <main className="page-container notifications-screen">
