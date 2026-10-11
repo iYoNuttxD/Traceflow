@@ -574,8 +574,9 @@ Medido no MySQL de teste, com os casos de desempenho da Fase 3 e da Fase 4, e no
 Executada em 10 e 11/10/2026 no ambiente do João:
 - backend na 3001 e frontend na 5173, subidos por ele;
 - a conta 1 (João, OWNER do `[S2-01] Escala`, id 4) rodou no painel Browser do aplicativo;
-- a conta 9 (`@jvhernandes`, MEMBER) rodou no Chrome dele. O Claude in Chrome estava desconectado,
-  então a conta 9 foi lida por trechos de console só de leitura, rodados e colados pelo João;
+- a conta 9 (`@jvhernandes`, MEMBER) rodou no Chrome dele. A automação do Chrome estava
+  indisponível, então a conta 9 foi lida por trechos de console só de leitura, rodados e colados
+  pelo João;
 - as duas contas têm o mesmo nome de exibição; a evidência separa pelos ids;
 - cargas rodadas por ele, com aval: `s202-seed-escala-dev.mjs` (120 tarefas e 120 notificações de
   mudança de status) e `s202-seed-mil-dev.mjs` (1.000 notificações de vencimento sem tarefa), num
@@ -683,9 +684,10 @@ alterados; a conta 9 está ativa e MEMBER do `[S2-01] Escala`. Fica o `enabledAt
   isso.
 - **RT-N-C-10 incompleto na Fase 3.** O `EXPLAIN` saiu só para "Não lidas"; o do "Todas" entrou na
   Fase 6.
-- **Saídas do job.** Rodadas por mim, a pedido do João, porque o terminal dele não era legível pela
-  campanha.
-- **Claude in Chrome desconectado.** A conta 9 foi lida por trechos de console, a pedido do João.
+- **Saídas do job.** Capturadas numa execução feita com a autorização do João, porque o terminal em
+  que ele rodou não era legível pela campanha.
+- **Automação do Chrome indisponível.** A conta 9 foi lida por trechos de console, rodados pelo
+  João.
 
 ## 18. Backlog
 
