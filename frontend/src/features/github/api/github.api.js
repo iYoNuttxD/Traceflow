@@ -15,8 +15,8 @@ export const githubApi = {
   startInstallation(payload) {
     return data(httpClient.post('/github/app/installations/start', payload));
   },
-  connectProject(projectId, data) {
-    return data(httpClient.put(`/projects/${projectId}/github/integration`, data));
+  connectProject(projectId, payload) {
+    return data(httpClient.put(`/projects/${projectId}/github/integration`, payload));
   },
   syncProject(projectId) {
     return data(httpClient.post(`/projects/${projectId}/github/sync`));

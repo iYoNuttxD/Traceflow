@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { asyncHandler } from '../../shared/http/index.js';
 import { auditService } from '../audit/audit.service.js';
 import { githubAppService } from './github-app.service.js';
+import { publicProject } from '../projects/project.schema.js';
 
 export const githubAppController = {
   start: asyncHandler(async (req, res) =>
@@ -60,20 +61,23 @@ export const githubAppController = {
     res.json(await githubAppService.listAllRepositories(req.auth.user.id, req.query?.projectId))
   ),
   connectProject: asyncHandler(async (req, res) => {
-    const integration = await githubAppService.connectProject({
+    const result = await githubAppService.connectProject({
       projectId: req.params.projectId,
       userId: req.auth.user.id,
+      requestId: req.requestId,
       ...req.body
     });
-    await auditService.recordOperational({
-      actorUserId: req.auth.user.id,
-      projectId: req.params.projectId,
-      requestId: req.requestId,
-      action: 'GITHUB_PROJECT_CONNECTED',
-      resourceType: 'ProjectGitHubIntegration',
-      resourceId: integration.id
+    const project = publicProject(result.project);
+    return res.json({
+      message: 'Repositório conectado pela GitHub App.',
+      project,
+      integration: {
+        id: result.integration.id,
+        projectId: result.integration.projectId,
+        ...project.githubIntegration
+      },
+      initialSync: result.initialSync
     });
-    return res.json({ message: 'Repositório conectado pela GitHub App.', integration });
   })
 };
 

@@ -131,6 +131,14 @@ GitHub OAuth pertence ao módulo Auth e cria `GitHubIdentity` somente para cadas
 
 Uma `GitHubInstallation` pode alimentar várias `ProjectGitHubIntegration`. Cada integração aponta para um projeto e um repositório únicos; `installationId` é apenas FK/index, nunca unique. Reconectar o mesmo repositório revalida a conexão; trocar para outro repositório retorna `409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`, preservando artifacts e histórico. O lifecycle da instalação é `PENDING`, `ACTIVE`, `SUSPENDED` ou `REMOVED`; somente `ACTIVE` seleciona e sincroniza. Callback não reativa `SUSPENDED`/`REMOVED`.
 
+GITHUB-02 completa a vinculação posterior na rota PUT existente. Integração ausente é criada
+sem recriar Project/membership, sob lock de lifecycle/OWNER e constraints únicas. Auditoria e
+integração compartilham a transação; consulta externa a precede e sync inicial a sucede.
+Integração ACTIVE repetida retorna 409, sem sobrescrever estado ou agendar sync. A reconexão
+RECONNECT_REQUIRED mantém o mesmo repositório e não substitui instalação já persistida.
+O resultado da conexão distingue o vínculo confirmado do run assíncrono, inclusive quando
+solicitação/execução de sync falha. A UI completa e a liberação dependem de GITHUB-03.
+
 Sync pagina coleções, persiste por identificador externo e usa `GitHubSyncRun.activeProjectId` para
 exclusão mútua no banco, com stale detection. Webhook público usa raw body, HMAC e delivery ID, sem
 sessão/CSRF. Delivery possui claim `PROCESSING`, estado terminal e retry de `FAILED` ou processamento

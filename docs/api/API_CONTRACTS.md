@@ -163,8 +163,8 @@ quando não há vínculo. Esse estado técnico não altera `Project.status`.
 caminhos. A App revalida a instalação, o acesso e a reserva/unicidade; Project, OWNER e
 integração são persistidos atomicamente. Não existe fallback automático para criação
 local quando o cadastro integrado falha. Ambos os endpoints exigem sessão, e-mail
-verificado, CSRF e payload estrito. GITHUB-02/GITHUB-03 permanecem pendentes; GITHUB-01
-isolado não autoriza disponibilização ao usuário final.
+verificado, CSRF e payload estrito. GITHUB-02 acrescenta a vinculação posterior conforme
+o contrato abaixo; GITHUB-03 permanece pendente e bloqueia a disponibilização ao usuário final.
 
 | Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                                                       |
 | -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
@@ -408,13 +408,52 @@ Ver [histórico de esforço](../data/TASK_EFFORT_HISTORY.md) para retenção, ad
 
 ## GitHub e Artifacts
 
+### GITHUB-02 — Vinculação posterior
+
+O endpoint canônico existente `PUT /api/projects/:projectId/github/integration` também
+atende à primeira vinculação de um projeto local. Não há um segundo endpoint `/github/connect`.
+Exige sessão, conta ativa, e-mail verificado, CSRF e membership OWNER. Ausência de membership
+ou projeto excluído/inexistente retorna `404` opaco; MEMBER/MANAGER/VIEWER recebem `403`.
+O corpo estrito recebe somente `githubInstallationId` (string numérica) e `githubRepositoryId`
+(string numérica ou inteiro). Metadados vêm do escopo vivo da GitHub App, sem GitHubIdentity.
+Falhas do client externo são traduzidas em 403 GITHUB_AUTH_FAILED, 404 RESOURCE_NOT_FOUND,
+429 GITHUB_RATE_LIMITED ou 503 EXTERNAL_SERVICE_ERROR, com mensagens públicas constantes.
+Falha temporária antes do vínculo não altera Project, integração ou dados locais.
+
+Projeto sem integração recebe uma integração `ACTIVE`, `lastSyncStatus: PENDENTE`, mantendo
+Project, memberships e dados locais. A transação revalida lifecycle, OWNER e autorização da
+instalação; as constraints únicas de projeto/repositório protegem a reserva, inclusive durante
+a carência de exclusão. Nenhuma chamada GitHub ocorre dentro dessa transação.
+
+Integração já `ACTIVE` retorna `409 GITHUB_PROJECT_ALREADY_CONNECTED` para repetição do mesmo
+repositório, sem escrita, auditoria de sucesso ou sync adicional. Outro repositório retorna
+`409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`. Reconexão legada `RECONNECT_REQUIRED` permanece na
+mesma rota, para a identidade de repositório existente; não permite substituir uma instalação
+já associada. Ela não é uma nova vinculação nem dispara sync inicial automaticamente.
+Legado sem repository ID precisa corresponder ao `repositoryFullName` persistido; ausência
+de identidade conhecida não autoriza escolher arbitrariamente outro repositório.
+
+Sucesso continua `200`, com `{message, project, integration, initialSync}`. `project` usa
+`publicProject`; `integration` contém somente os campos públicos dessa relação mais `id` e
+`projectId`, sem credenciais ou metadados internos da instalação. Na primeira vinculação,
+`initialSync` contém `{status, run, error}`: `status` é o estado real do run canônico
+(`QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`), `run` tem o mesmo DTO de `/github/sync/status`.
+Na reconexão, `initialSync` é `null`.
+
+A vinculação é confirmada antes de solicitar sync. Se o agendamento falhar, o sucesso da
+vinculação permanece `200`, com `initialSync: {status: FAILED, run: null, error}` sanitizado;
+o projeto conserva integração/reserva. Falha posterior do worker é consultada em
+`GET /projects/:projectId/github/sync/status` e em `project.githubIntegration.lastSyncStatus` /
+`lastSyncError`. Retry usa `POST /projects/:projectId/github/sync` (MANAGER+), nunca novo PUT.
+Um run enfileirado não significa importação concluída. GITHUB-03 ainda é necessário para liberação.
+
 | Método | Caminho                                                  | Entrada                                        | Sucesso                                                          |
 | ------ | -------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
 | POST   | `/github/app/installations/start`                        | `intendedAction`; `projectId?`                 | `200`, `{url,expiresInMs}` para autorização da GitHub App        |
 | GET    | `/github/app/installations`                              | sessão                                         | `200`, `{installations}` autorizadas ao usuário                  |
 | GET    | `/github/app/repositories`                               | `projectId?`                                   | `200`, `{repositories}` da Installation                          |
 | GET    | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?`            | `200`, `{repositories}` da Installation                          |
-| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`; troca de repositório recebe `409`                         |
+| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`, `{message,project,integration,initialSync}`; conflitos `409` |
 | POST   | `/projects/:projectId/github/sync`                       | `projectId` positivo; body vazio               | `202`, `{message,run}`; execução persistida iniciada ou já ativa |
 | GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run}` com status, progresso, summary e erro sanitizado  |
 | GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                               |

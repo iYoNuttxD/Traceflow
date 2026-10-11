@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   logger: { info: vi.fn(), warn: vi.fn() },
+  sync: { requestProjectGithubSync: vi.fn() },
   repository: {
     createConnectionState: vi.fn(),
     findConnectionState: vi.fn(),
@@ -52,6 +53,9 @@ vi.mock('../../src/modules/authorization/authorization.service.js', () => ({
   authorizationService: mocks.authorization
 }));
 vi.mock('../../src/shared/logger/index.js', () => ({ logger: mocks.logger }));
+vi.mock('../../src/modules/github/githubSync.service.js', () => ({
+  githubSyncService: mocks.sync
+}));
 
 const { githubAppService } = await import('../../src/modules/github/github-app.service.js');
 
@@ -739,7 +743,16 @@ describe('autorização e webhooks da GitHub App L1', () => {
           ];
         })()
     });
-    mocks.repository.connectProject.mockResolvedValue({ id: 14, projectId: 9 });
+    mocks.repository.connectProject.mockResolvedValue({
+      outcome: 'CONNECTED',
+      project: { id: 9 },
+      integration: { id: 14, projectId: 9 }
+    });
+    mocks.sync.requestProjectGithubSync.mockResolvedValue({
+      id: 15,
+      status: 'QUEUED',
+      error: null
+    });
 
     await expect(
       githubAppService.connectProject({
@@ -748,11 +761,18 @@ describe('autorização e webhooks da GitHub App L1', () => {
         githubInstallationId: '77',
         githubRepositoryId: '501'
       })
-    ).resolves.toMatchObject({ id: 14, projectId: 9 });
+    ).resolves.toMatchObject({
+      integration: { id: 14, projectId: 9 },
+      initialSync: { status: 'QUEUED' }
+    });
     expect(mocks.repository.connectProject).toHaveBeenCalledWith(
       9,
       12,
-      expect.objectContaining({ githubRepositoryId: '501', repositoryPrivate: true })
+      expect.objectContaining({ githubRepositoryId: '501', repositoryPrivate: true }),
+      expect.objectContaining({
+        userId: 7,
+        auditData: expect.objectContaining({ action: 'GITHUB_PROJECT_CONNECTED' })
+      })
     );
   });
 

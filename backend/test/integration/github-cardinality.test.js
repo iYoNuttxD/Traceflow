@@ -539,32 +539,62 @@ describe('cardinalidade persistida da GitHub App', () => {
   });
 
   it('reconecta repo X, rejeita repo Y e preserva integração e artifacts', async () => {
-    const { installation, projects } = await createFixture(['501']);
+    const { user, installation, projects } = await createFixture(['501']);
     const project = projects[0];
+    await prisma.gitHubInstallationAuthorization.create({
+      data: { userId: user.id, installationId: installation.id, verifiedAt: new Date() }
+    });
+    await prisma.projectGitHubIntegration.update({
+      where: { projectId: project.id },
+      data: { status: 'RECONNECT_REQUIRED' }
+    });
+    const actor = {
+      userId: user.id,
+      auditData: {
+        actorUserId: user.id,
+        projectId: project.id,
+        action: 'GITHUB_PROJECT_CONNECTED',
+        resourceType: 'ProjectGitHubIntegration',
+        retentionUntil: new Date('2035-01-01')
+      }
+    };
     await prisma.commit.create({
       data: { projectId: project.id, hash: 'history-before-reconnect', message: 'Preservar' }
     });
 
     await expect(
-      githubRepository.connectProject(project.id, installation.id, {
-        githubRepositoryId: '501',
-        repositoryName: 'repo-501',
-        repositoryFullName: 'traceflow/repo-501',
-        repositoryUrl: 'https://github.com/traceflow/repo-501',
-        defaultBranch: 'main',
-        repositoryPrivate: false
-      })
-    ).resolves.toMatchObject({ githubRepositoryId: '501', status: 'ACTIVE' });
+      githubRepository.connectProject(
+        project.id,
+        installation.id,
+        {
+          githubRepositoryId: '501',
+          repositoryName: 'repo-501',
+          repositoryFullName: 'traceflow/repo-501',
+          repositoryUrl: 'https://github.com/traceflow/repo-501',
+          defaultBranch: 'main',
+          repositoryPrivate: false
+        },
+        actor
+      )
+    ).resolves.toMatchObject({
+      outcome: 'RECONNECTED',
+      integration: { githubRepositoryId: '501', status: 'ACTIVE' }
+    });
 
     await expect(
-      githubRepository.connectProject(project.id, installation.id, {
-        githubRepositoryId: '502',
-        repositoryName: 'repo-502',
-        repositoryFullName: 'traceflow/repo-502',
-        repositoryUrl: 'https://github.com/traceflow/repo-502',
-        defaultBranch: 'main',
-        repositoryPrivate: false
-      })
+      githubRepository.connectProject(
+        project.id,
+        installation.id,
+        {
+          githubRepositoryId: '502',
+          repositoryName: 'repo-502',
+          repositoryFullName: 'traceflow/repo-502',
+          repositoryUrl: 'https://github.com/traceflow/repo-502',
+          defaultBranch: 'main',
+          repositoryPrivate: false
+        },
+        actor
+      )
     ).rejects.toMatchObject({ code: 'GITHUB_REPOSITORY_SWAP_FORBIDDEN' });
     await expect(
       prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } })

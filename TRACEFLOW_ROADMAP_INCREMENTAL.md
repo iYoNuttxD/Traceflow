@@ -959,13 +959,14 @@ Incrementos complementares de RF01/RF02, sem alterar o texto acadêmico oficial.
 
 | Entrega | Escopo | Estado |
 | --- | --- | --- |
-| GITHUB-01 — Criação opcional de projetos | Cadastro com dados básicos ou com repositório autorizado, OWNER atômico e ausência legítima de integração | Implementado localmente; gates e limites no [relatório](docs/deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md) |
-| GITHUB-02 — Vinculação posterior | Vinculação segura de repositório a projeto existente e sincronização inicial | PENDENTE |
+| GITHUB-01 — Criação opcional de projetos | Cadastro com dados básicos ou com repositório autorizado, OWNER atômico e ausência legítima de integração | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md) |
+| GITHUB-02 — Vinculação posterior | PUT de integração existente reutilizado; OWNER, reserva concorrente, auditoria atômica e sync inicial após commit | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_02_POST_CREATION_REPOSITORY_LINKING_REPORT.md) |
 | GITHUB-03 — Gerenciamento e UX | Configuração e gerenciamento da integração pelos componentes canônicos | PENDENTE |
 
-**Release gate:** GITHUB-01 não deve ser disponibilizado isoladamente. O incremento
-permanece apenas no working tree de `daniel-dev`, sem commit/push/deploy nesta rodada.
-Integrar GITHUB-02 e GITHUB-03 antes da disponibilização. Nenhuma feature flag complexa
+**Release gate:** GITHUB-01/GITHUB-02 não devem ser disponibilizados sem GITHUB-03.
+GITHUB-01 já integra o baseline `997e987`; GITHUB-02 permanece apenas no working tree de
+`daniel-dev`, sem commit/push/deploy nesta rodada. Integrar e validar GITHUB-03 antes da
+disponibilização. Nenhuma feature flag complexa
 foi introduzida; distribuição antecipada exigiria manter a nova opção oculta até
 existir vinculação posterior funcional. Troca/desvinculação de repositório continuam
 fora desta sequência sem decisão específica de domínio.

@@ -17,8 +17,8 @@ webhooks de produção. As evidências e limitações atuais estão no
 
 | RF | Fluxo funcional | Endpoint principal | Service | Persistência | Frontend | Evidência de teste | Estado |
 |---|---|---|---|---|---|---|---|
-| RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | projects-without-github, mvp-contracts, ProjectsPage, ProjectForm | IMPLEMENTADO LOCALMENTE (GITHUB-01); liberação depende de GITHUB-02/GITHUB-03 |
-| RF02 | integrar repositório GitHub | GitHub App callback + Installation Token + `POST /api/projects/from-github`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, ProjectsPage, SettingsPages | CRIAÇÃO INTEGRADA PRESERVADA; vinculação posterior GITHUB-02/GITHUB-03 pendente; homologação GitHub externa separada |
+| RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | projects-without-github, mvp-contracts, ProjectsPage, ProjectForm | PASS LOCAL (GITHUB-01); liberação depende da sequência GITHUB-02/GITHUB-03 |
+| RF02 | integrar repositório GitHub | GitHub App + `POST /api/projects/from-github` + `PUT /api/projects/:projectId/github/integration`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, github-project-connect, github-cardinality, ProjectsPage, SettingsPages | CRIAÇÃO INTEGRADA PRESERVADA; GITHUB-02 PASS LOCAL; UI GITHUB-03 pendente; homologação GitHub externa separada |
 | RF03 | importar commits | `POST .../github/sync` | sync-project-commits | Commit | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF04 | importar Pull Requests | `POST .../github/sync` | sync-project-pull-requests | PullRequest | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF05 | importar Issues | `POST .../github/sync` | sync-project-issues | Issue | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
@@ -175,6 +175,23 @@ RF01 passa a oferecer na mesma interface o cadastro básico por `POST /projects`
 cadastro integrado existente de RF02 por `POST /projects/from-github`. Ausência de
 integração é `githubIntegration: null`, sem novo status administrativo ou migration.
 RF21 continua exigindo integração; RF22 preserva edição dos dados básicos. A entrega
-faz parte de uma sequência ainda não liberada: GITHUB-02 (vinculação posterior) e
-GITHUB-03 (gerenciamento/UX) permanecem pendentes. Evidências e limites no
+faz parte de uma sequência ainda não liberada. A evolução backend consta em GITHUB-02 abaixo;
+GITHUB-03 (gerenciamento/UX) permanece pendente. Evidências e limites da primeira entrega no
 [relatório GITHUB-01](../deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md).
+
+
+## GITHUB-02 — Vinculação posterior (2026-10-10)
+
+RF02 reutiliza `PUT /api/projects/:projectId/github/integration` para adicionar uma integração
+a Project existente. A mesma resolução autorizada da App e a mesma reserva da criação integrada
+são utilizadas. OWNER/lifecycle/autorização são revalidados sob locks e as constraints únicas
+impedem duas integrações para projeto/repositório. A auditoria participa da transação.
+
+RF01 e RF22 permanecem preservados, incluindo dados locais, memberships e histórico. RF21 recebe
+o sync inicial somente depois do commit; sua falha não desfaz o vínculo e retry usa o serviço
+canônico. Contrato HTTP distingue conexão confirmada e run pendente/falho. Não há troca ou
+desvinculação, migration ou UI de gerenciamento nesta etapa. GITHUB-03 ainda bloqueia a liberação.
+
+Evidências: `github-project-connect.test.js` (HTTP real, preservação, autorização, reservas,
+concorrência, rollback, sync/retry), `github-cardinality.test.js`, suítes existentes e
+[relatório GITHUB-02](../deliveries/GITHUB_02_POST_CREATION_REPOSITORY_LINKING_REPORT.md).

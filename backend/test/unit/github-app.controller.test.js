@@ -151,8 +151,15 @@ describe('controllers da GitHub App L1', () => {
     }
   });
 
-  it('encaminha conexão autorizada e audita ator, projeto e request', async () => {
-    mocks.service.connectProject.mockResolvedValue({ id: 14, status: 'ACTIVE' });
+  it('encaminha conexão e request para auditoria transacional e apresenta DTO público', async () => {
+    mocks.service.connectProject.mockResolvedValue({
+      project: {
+        id: 9,
+        githubIntegration: { id: 14, projectId: 9, status: 'ACTIVE', installationId: 12 }
+      },
+      integration: { id: 14, projectId: 9, status: 'ACTIVE', installationId: 12 },
+      initialSync: { status: 'QUEUED', run: { id: 15, status: 'QUEUED' }, error: null }
+    });
     const res = await invoke(githubAppController.connectProject, {
       auth: { user: { id: 7 } },
       params: { projectId: '9' },
@@ -162,20 +169,18 @@ describe('controllers da GitHub App L1', () => {
     expect(mocks.service.connectProject).toHaveBeenCalledWith({
       projectId: '9',
       userId: 7,
+      requestId: 'request-2',
       githubInstallationId: '77',
       githubRepositoryId: '501'
     });
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ integration: { id: 14, status: 'ACTIVE' } })
+      expect.objectContaining({
+        integration: expect.objectContaining({ id: 14, status: 'ACTIVE' }),
+        initialSync: expect.objectContaining({ status: 'QUEUED' })
+      })
     );
-    expect(mocks.audit.recordOperational).toHaveBeenCalledWith({
-      action: 'GITHUB_PROJECT_CONNECTED',
-      resourceId: 14,
-      actorUserId: 7,
-      projectId: '9',
-      requestId: 'request-2',
-      resourceType: 'ProjectGitHubIntegration'
-    });
+    expect(res.json.mock.calls[0][0].integration).not.toHaveProperty('installationId');
+    expect(mocks.audit.recordOperational).not.toHaveBeenCalled();
   });
 
   it('aceita webhook novo com 202 e duplicado com 200', async () => {

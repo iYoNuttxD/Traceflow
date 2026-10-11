@@ -23,6 +23,7 @@ const allowedMetadata = new Set([
   'sprintId',
   'milestoneId',
   'projectId',
+  'githubRepositoryId',
   'scheduledFor',
   // S1-06: origem (TIMER/MANUAL) e duração da sessão de tempo; técnicos, sem PII.
   'source',

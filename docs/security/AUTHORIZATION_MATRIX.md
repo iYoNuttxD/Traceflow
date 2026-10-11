@@ -54,7 +54,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `PATCH/DELETE /api/tasks/:id/sprint`                                                                           |     401 |    403 |           E |       E |     E | tarefa e sprint no mesmo projeto; recurso alheio recebe 404 opaco                                              |
 | `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |           E |       E |     E | start exige e-mail verificado; lista usa App ACTIVE e Installation Token                                       |
 | `GET /api/github-app/callback`                                                                                 |     302 |    302 |         302 |     302 |   302 | state/sessão/conta/instalação; não exige GitHubIdentity; tokens efêmeros                                       |
-| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; mesma repo reconecta, repo diferente retorna 409                                                        |
+| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; vínculo inicial; ACTIVE repetido e troca retornam 409                                                        |
 | `POST /api/webhooks/github-app`                                                                                |       E |      E |           E |       E |     E | público; HMAC/raw body/delivery ID, sem sessão ou CSRF                                                         |
 | `POST /api/projects/:projectId/github/sync`                                                                    |     401 |    403 |         403 |       E |     E | MANAGER+, e-mail verificado, integração ACTIVE e trava por projeto                                             |
 | `PATCH /api/projects/:projectId/github/sync-settings`                                                          |     401 |    403 |         403 |     403 |     A | OWNER                                                                                                          |
@@ -139,6 +139,27 @@ Caso excluído fica indisponível em rotas operacionais, inclusive criação de 
 Execução histórica e seu download continuam autorizados por projeto, sem recuperar
 permissão a partir de um ID ou de um caminho de storage. Arquivos não são públicos.
 Evidências: `backend/test/api/test-cases-s1-07.test.js` e bateria de integração S1-07.
+
+## GITHUB-02 — Vinculação de projeto existente
+
+Reutiliza `PUT /api/projects/:projectId/github/integration`; não adiciona rota equivalente
+`POST .../github/connect`. Somente OWNER ativo do projeto, com sessão válida, conta ativa,
+e-mail verificado e CSRF, pode vincular. VIEWER/MEMBER/MANAGER recebem `403`; sem membership,
+projeto inexistente ou excluído recebe `404` opaco, antes de qualquer consulta externa.
+
+A transação revalida lifecycle e papel sob locks `Project → ProjectMembership` e mantém locks
+compartilhados na instalação/autorizações locais até o commit. Revogação da membership ou da
+autorização da instalação durante a consulta externa impede a escrita. A validação ao vivo da
+GitHub App acontece antes da transação. GitHubIdentity não concede acesso a repositórios.
+
+Repetição de integração ACTIVE retorna `409 GITHUB_PROJECT_ALREADY_CONNECTED`. Reconexão
+RECONNECT_REQUIRED permanece restrita ao mesmo repositório, sem substituição de instalação
+já associada. O sync inicial da primeira vinculação reutiliza a operação canônica após commit;
+retry manual permanece MANAGER+. Nenhuma permissão de sincronização foi ampliada.
+
+`INATIVO`/`ARQUIVADO` são estados administrativos, não bloqueios de escrita na política central
+vigente. GITHUB-02 preserva essa distinção; `deletedAt` bloqueia vinculação, inclusive em corrida
+com exclusão/purge. Evidência: `backend/test/api/github-project-connect.test.js`.
 
 ## S1-08 — Defeitos e retestes
 

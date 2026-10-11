@@ -17,7 +17,7 @@ Nenhuma variável `VITE_*` pode conter private key, client secret, webhook secre
 1. Usuário com e-mail verificado inicia a instalação pela tela de Projetos.
 2. O backend cria state curto, hashado e ligado à sessão/intenção.
 3. Após instalar, o callback troca `code` por token de usuário efêmero, comprova `installation_id` em `GET /user/installations`, confirma a mesma Installation com JWT da App e valida o Installation Token com uma única consulta mínima (`per_page=1`), que aceita zero repositórios. O callback salva somente metadados e redireciona; a listagem completa ocorre apenas nos endpoints de descoberta. Não consulta nem cria `GitHubIdentity`.
-4. Para projeto existente, somente OWNER escolhe o repositório e conclui `PUT /api/projects/:projectId/github/integration`.
+4. Para projeto existente, somente OWNER conclui `PUT /api/projects/:projectId/github/integration`, com `githubInstallationId` e `githubRepositoryId`. GITHUB-02 reutiliza essa rota para a primeira vinculação; a interface completa fica em GITHUB-03, ainda sem liberação.
 5. Criação por repositório usa `POST /api/projects/from-github` com installation/repository IDs; o backend consulta o DTO real.
 6. Reutilize a mesma instalação para todos os projetos/repositórios autorizados. Não reinstale a App por projeto; use “Gerenciar acesso da instalação no GitHub” somente para adicionar ou remover repositórios do escopo.
 
@@ -28,6 +28,15 @@ User e installation access tokens são temporários e nunca persistidos. O prime
 A migration L1 cria integração `RECONNECT_REQUIRED` para projetos com metadados GitHub anteriores. Requisitos, tarefas, commits, PRs, issues, vínculos, histórico e auditoria permanecem intactos. Um OWNER deve instalar a App e selecionar novamente o repositório. Não altere o status manualmente nem delete artifacts.
 
 ## Sincronização
+
+- Primeira vinculação confirma integração e auditoria antes de solicitar o run inicial. Resposta
+  `200` com `initialSync.status = QUEUED` confirma vínculo e agendamento, não conclusão.
+- Se o sync inicial falhar, consulte o run pelo endpoint de status e solicite novo sync pela rota
+  existente. Não repita a conexão: integração/reserva continuam válidas e repetição retorna
+  `409 GITHUB_PROJECT_ALREADY_CONNECTED`. Uma falha ao solicitar o run retorna conexão `200`,
+  `initialSync.status = FAILED`, `run = null` e erro público seguro.
+- Repositório sem commits pode permanecer conectado. Se o GitHub não retornar branches, o sync
+  canônico registra falha de leitura de branches; o vínculo permanece confirmado.
 
 - `POST /api/projects/:projectId/github/sync` exige MANAGER+, e-mail verificado e integração/instalação `ACTIVE`.
 - Duas solicitações concorrentes para o mesmo projeto retornam `202` e o mesmo `run.id`; somente a criadora informa `alreadyRunning=false` e agenda o worker.
