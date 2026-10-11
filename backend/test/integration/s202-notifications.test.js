@@ -343,6 +343,11 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
   it('M1 RF30: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo', async () => {
     const { project, actor, responsible } = await scenario();
     const inactive = await person(project.id, { isActive: false });
+    const restricted = await person(project.id);
+    await prisma.user.update({
+      where: { id: restricted.id },
+      data: { accountStatus: 'DEACTIVATED' }
+    });
     const optedOut = await person(project.id);
     await prisma.notificationPreference.create({
       data: { userId: optedOut.id, type: 'TASK_STATUS_CHANGED', enabled: false }
@@ -355,6 +360,7 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
     const excludedMoves = [
       [await createTask(prisma, project.id), actor],
       [await createTask(prisma, project.id, { responsibleUserId: inactive.id }), actor],
+      [await createTask(prisma, project.id, { responsibleUserId: restricted.id }), actor],
       [await createTask(prisma, project.id, { responsibleUserId: responsible.id }), responsible],
       [await createTask(prisma, project.id, { responsibleUserId: optedOut.id }), actor]
     ];
@@ -382,11 +388,15 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
           `/projects/${project.id}/kanban?task=${eligibleTasks[index].id}`
     ).length;
 
-    expect(occurred).toBe(9);
+    process.stdout.write(
+      `M1 ${JSON.stringify({ occurred, eligible, delivered, exclusions: exclusions.map((item) => item.outcome).sort() })}\n`
+    );
+    expect(occurred).toBe(10);
     expect(eligible).toBe(5);
     expect(rows).toHaveLength(5);
     expect(policy.notificationCoverage({ delivered, eligible })).toBe(100);
     expect(exclusions.map((item) => item.outcome).sort()).toEqual([
+      'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
       'NO_RESPONSIBLE',
       'PREFERENCE_OFF',
@@ -397,6 +407,11 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
   it('M2 RF59: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo', async () => {
     const { project, responsible } = await scenario();
     const inactive = await person(project.id, { isActive: false });
+    const restricted = await person(project.id);
+    await prisma.user.update({
+      where: { id: restricted.id },
+      data: { accountStatus: 'DEACTIVATED' }
+    });
     const optedOut = await person(project.id);
     await prisma.notificationPreference.create({
       data: { userId: optedOut.id, type: 'TASK_OVERDUE', enabled: false }
@@ -411,6 +426,10 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
       );
     await createTask(prisma, project.id, { deadline: IN_WINDOW });
     await createTask(prisma, project.id, { responsibleUserId: inactive.id, deadline: IN_WINDOW });
+    await createTask(prisma, project.id, {
+      responsibleUserId: restricted.id,
+      deadline: IN_WINDOW
+    });
     await createTask(prisma, project.id, { responsibleUserId: optedOut.id, deadline: IN_WINDOW });
     await createTask(prisma, project.id, {
       responsibleUserId: responsible.id,
@@ -437,6 +456,9 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
         row.dueDate.toISOString().slice(0, 10) === task.deadline.toISOString().slice(0, 10)
       );
     }).length;
+    process.stdout.write(
+      `M2 ${JSON.stringify({ eligible: report.eligible, created: report.created, delivered, excluded: report.excluded })}\n`
+    );
     expect(report).toMatchObject({
       eligible: 3,
       created: 3,
@@ -444,6 +466,7 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
       excluded: {
         OUTSIDE_WINDOW: 1,
         NO_RESPONSIBLE: 1,
+        INACTIVE_ACCOUNT: 1,
         INACTIVE_MEMBER: 1,
         PREFERENCE_OFF: 1
       }
