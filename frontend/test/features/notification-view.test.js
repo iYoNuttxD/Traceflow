@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   POLL_INTERVAL_MS,
+  PREFERENCE_GROUPS,
+  PREFERENCE_OPTIONS,
   formatDueDate,
+  formatInstant,
+  githubLinkLabel,
   notificationContextText,
   notificationEmptyTitle,
   notificationTypeLabel,
@@ -59,5 +63,71 @@ describe('S2-02 modelo de exibição das notificações', () => {
 
   it('consulta o contador a cada 60 segundos', () => {
     expect(POLL_INTERVAL_MS).toBe(60_000);
+  });
+});
+
+describe('S2-03 modelo de exibição dos eventos do GitHub', () => {
+  const event = (type, eventName, number, overrides = {}) => ({
+    type,
+    context: {
+      event: eventName,
+      occurredAt: '2026-10-12T13:03:00.000Z',
+      artifact: {
+        kind: type === 'ISSUE_EVENT' ? 'ISSUE' : 'PULL_REQUEST',
+        number,
+        title: 'Título',
+        url: 'https://github.com/o/r/issues/1'
+      },
+      ...overrides
+    }
+  });
+  const when = formatInstant('2026-10-12T13:03:00.000Z');
+
+  it('descreve os quatro eventos com número e data da ocorrência', () => {
+    expect(notificationContextText(event('ISSUE_EVENT', 'ISSUE_CLOSED', 45))).toBe(
+      `Issue #45 fechada no GitHub em ${when}`
+    );
+    expect(notificationContextText(event('ISSUE_EVENT', 'ISSUE_REOPENED', 45))).toBe(
+      `Issue #45 reaberta no GitHub em ${when}`
+    );
+    expect(notificationContextText(event('PULL_REQUEST_EVENT', 'PULL_REQUEST_MERGED', 8))).toBe(
+      `Pull request #8 mesclada no GitHub em ${when}`
+    );
+    expect(notificationContextText(event('PULL_REQUEST_EVENT', 'PULL_REQUEST_CLOSED', 8))).toBe(
+      `Pull request #8 fechada sem merge no GitHub em ${when}`
+    );
+  });
+
+  it('sem data omite o instante; evento desconhecido usa texto genérico', () => {
+    expect(
+      notificationContextText(event('ISSUE_EVENT', 'ISSUE_CLOSED', 45, { occurredAt: null }))
+    ).toBe('Issue #45 fechada no GitHub');
+    expect(notificationContextText(event('ISSUE_EVENT', 'OUTRO', 45))).toBe(
+      `Issue #45 mudou no GitHub em ${when}`
+    );
+    expect(notificationContextText(event('ISSUE_EVENT', '__proto__', 45))).toBe(
+      `Issue #45 mudou no GitHub em ${when}`
+    );
+  });
+
+  it('rotula os tipos, o link externo e os dois grupos de preferências', () => {
+    expect(notificationTypeLabel('ISSUE_EVENT')).toBe('Issue');
+    expect(notificationTypeLabel('PULL_REQUEST_EVENT')).toBe('Pull request');
+    expect(githubLinkLabel(event('ISSUE_EVENT', 'ISSUE_CLOSED', 45))).toBe(
+      'Abrir no GitHub a issue #45 (abre em nova aba)'
+    );
+    expect(githubLinkLabel(event('PULL_REQUEST_EVENT', 'PULL_REQUEST_MERGED', 8))).toBe(
+      'Abrir no GitHub a pull request #8 (abre em nova aba)'
+    );
+    expect(PREFERENCE_GROUPS.map((group) => group.legend)).toEqual([
+      'Avisos sobre as suas tarefas',
+      'Avisos do GitHub'
+    ]);
+    expect(PREFERENCE_OPTIONS.map((option) => [option.type, option.group])).toEqual([
+      ['TASK_STATUS_CHANGED', 'TASKS'],
+      ['TASK_OVERDUE', 'TASKS'],
+      ['ISSUE_EVENT', 'GITHUB'],
+      ['PULL_REQUEST_EVENT', 'GITHUB']
+    ]);
   });
 });

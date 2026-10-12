@@ -9,7 +9,7 @@ import {
   getNotificationPreferences,
   saveNotificationPreferences
 } from '../api/notifications.api.js';
-import { PREFERENCE_OPTIONS } from '../model/notification-view.js';
+import { PREFERENCE_GROUPS, PREFERENCE_OPTIONS } from '../model/notification-view.js';
 import './NotificationPreferencesPage.css';
 
 export function NotificationPreferencesPage() {
@@ -98,27 +98,32 @@ export function NotificationPreferencesPage() {
             </div>
           </div>
           <form className="notification-preferences" onSubmit={save} noValidate>
-            <fieldset className="notification-preferences__options">
-              <legend>Avisos sobre as suas tarefas</legend>
-              {PREFERENCE_OPTIONS.map((option) => (
-                <label key={option.type} className="notification-preferences__option">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(draft?.[option.type])}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, [option.type]: event.target.checked }))
-                    }
-                    aria-describedby={`notification-preference-${option.type}`}
-                  />
-                  <span>
-                    <strong>{option.label}</strong>
-                    <small id={`notification-preference-${option.type}`}>
-                      {option.description}
-                    </small>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
+            {PREFERENCE_GROUPS.map((group) => (
+              <fieldset key={group.key} className="notification-preferences__options">
+                <legend>{group.legend}</legend>
+                {PREFERENCE_OPTIONS.filter((option) => option.group === group.key).map((option) => (
+                  <label key={option.type} className="notification-preferences__option">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(draft?.[option.type])}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          [option.type]: event.target.checked
+                        }))
+                      }
+                      aria-describedby={`notification-preference-${option.type}`}
+                    />
+                    <span>
+                      <strong>{option.label}</strong>
+                      <small id={`notification-preference-${option.type}`}>
+                        {option.description}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            ))}
             <FeedbackRegion
               success={feedback.success}
               error={feedback.error}

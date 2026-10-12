@@ -8,8 +8,29 @@ export const NOTIFICATION_FILTERS = Object.freeze([
 
 const TYPE_LABELS = Object.freeze({
   TASK_STATUS_CHANGED: 'Mudança de status',
-  TASK_OVERDUE: 'Prazo vencido'
+  TASK_OVERDUE: 'Prazo vencido',
+  ISSUE_EVENT: 'Issue',
+  PULL_REQUEST_EVENT: 'Pull request'
 });
+
+const GITHUB_TYPES = new Set(['ISSUE_EVENT', 'PULL_REQUEST_EVENT']);
+
+const GITHUB_EVENT_VERBS = new Map([
+  ['ISSUE_CLOSED', 'fechada'],
+  ['ISSUE_REOPENED', 'reaberta'],
+  ['PULL_REQUEST_MERGED', 'mesclada'],
+  ['PULL_REQUEST_CLOSED', 'fechada sem merge']
+]);
+
+const ARTIFACT_LABELS = new Map([
+  ['ISSUE', 'Issue'],
+  ['PULL_REQUEST', 'Pull request']
+]);
+
+const ARTIFACT_REFERENCES = new Map([
+  ['ISSUE', 'a issue'],
+  ['PULL_REQUEST', 'a pull request']
+]);
 
 const STATUS_LABELS = Object.freeze({
   A_FAZER: 'A fazer',
@@ -17,18 +38,39 @@ const STATUS_LABELS = Object.freeze({
   CONCLUIDO: 'Concluído'
 });
 
+export const PREFERENCE_GROUPS = Object.freeze([
+  { key: 'TASKS', legend: 'Avisos sobre as suas tarefas' },
+  { key: 'GITHUB', legend: 'Avisos do GitHub' }
+]);
+
 export const PREFERENCE_OPTIONS = Object.freeze([
   {
     type: 'TASK_STATUS_CHANGED',
+    group: 'TASKS',
     label: 'Mudança de status das minhas tarefas',
     description:
       'Avisa quando alguém muda o status de uma tarefa da qual você é responsável. Mudanças feitas por você não geram aviso.'
   },
   {
     type: 'TASK_OVERDUE',
+    group: 'TASKS',
     label: 'Prazo vencido das minhas tarefas',
     description:
       'Avisa uma vez quando uma tarefa da qual você é responsável passa do prazo sem estar concluída.'
+  },
+  {
+    type: 'ISSUE_EVENT',
+    group: 'GITHUB',
+    label: 'Issues vinculadas às tarefas de que você participa',
+    description:
+      'Avisa quando uma issue vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é fechada ou reaberta no GitHub.'
+  },
+  {
+    type: 'PULL_REQUEST_EVENT',
+    group: 'GITHUB',
+    label: 'Pull requests vinculadas às tarefas de que você participa',
+    description:
+      'Avisa quando uma pull request vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é mesclada ou fechada sem merge no GitHub.'
   }
 ]);
 
@@ -55,8 +97,26 @@ export function formatInstant(value) {
   })}`;
 }
 
+function githubEventText(context) {
+  const artifact = context.artifact || {};
+  const subject = `${ARTIFACT_LABELS.get(artifact.kind) || 'Artefato'} #${artifact.number}`;
+  const change = GITHUB_EVENT_VERBS.has(context.event)
+    ? `${GITHUB_EVENT_VERBS.get(context.event)} no GitHub`
+    : 'mudou no GitHub';
+  return context.occurredAt
+    ? `${subject} ${change} em ${formatInstant(context.occurredAt)}`
+    : `${subject} ${change}`;
+}
+
+export function githubLinkLabel(notification) {
+  const artifact = notification.context?.artifact || {};
+  const reference = ARTIFACT_REFERENCES.get(artifact.kind) || 'o artefato';
+  return `Abrir no GitHub ${reference} #${artifact.number} (abre em nova aba)`;
+}
+
 export function notificationContextText(notification) {
   const context = notification.context || {};
+  if (GITHUB_TYPES.has(notification.type)) return githubEventText(context);
   if (notification.type === 'TASK_STATUS_CHANGED') {
     const actor = context.actor?.name || 'Pessoa removida';
     return `${actor} moveu de ${taskStatusLabel(context.fromStatus)} para ${taskStatusLabel(context.toStatus)}`;

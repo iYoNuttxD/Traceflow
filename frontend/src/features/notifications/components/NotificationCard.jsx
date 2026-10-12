@@ -1,7 +1,9 @@
 import { memo } from 'react';
 import { Link } from 'react-router';
+import { GithubExternalAction } from '../../../shared/index.js';
 import {
   formatInstant,
+  githubLinkLabel,
   notificationContextText,
   notificationTypeLabel
 } from '../model/notification-view.js';
@@ -15,6 +17,7 @@ export const NotificationCard = memo(function NotificationCard({
 }) {
   const unread = !notification.readAt;
   const { task, project } = notification;
+  const artifact = notification.context?.artifact;
   const typeLabel = notificationTypeLabel(notification.type);
   const subject = task.code ? `${task.code} ${task.title}` : task.title;
   const readAction = unread ? 'Marcar como lida' : 'Marcar como não lida';
@@ -34,6 +37,7 @@ export const NotificationCard = memo(function NotificationCard({
         <span className="notification-card__title">{task.title}</span>
       </h3>
       <p className="notification-card__context">{notificationContextText(notification)}</p>
+      {artifact?.title && <p className="notification-card__artifact">{artifact.title}</p>}
       <p className="notification-card__meta">
         Projeto {project.name} · Recebida em {formatInstant(notification.createdAt)}
       </p>
@@ -49,6 +53,9 @@ export const NotificationCard = memo(function NotificationCard({
           </Link>
         ) : (
           <span className="notification-card__unavailable">Tarefa excluída</span>
+        )}
+        {artifact?.url && (
+          <GithubExternalAction href={artifact.url} ariaLabel={githubLinkLabel(notification)} />
         )}
         <button
           type="button"

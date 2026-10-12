@@ -320,7 +320,12 @@ describe('S2-02 bateria frontend — central (NT-U-04, NT-U-05)', () => {
 describe('S2-02 bateria frontend — preferências e datas (NT-U-08, NT-U-09)', () => {
   it('cada interruptor tem nome e descrição ligada por aria-describedby', async () => {
     api.getNotificationPreferences.mockResolvedValue({
-      preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true }
+      preferences: {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: true,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      }
     });
     render(
       <MemoryRouter>
@@ -329,7 +334,7 @@ describe('S2-02 bateria frontend — preferências e datas (NT-U-08, NT-U-09)', 
     );
 
     const boxes = await screen.findAllByRole('checkbox');
-    expect(boxes).toHaveLength(2);
+    expect(boxes).toHaveLength(4);
     for (const box of boxes) {
       const description = document.getElementById(box.getAttribute('aria-describedby'));
       expect(description?.textContent).toMatch(/Avisa/);

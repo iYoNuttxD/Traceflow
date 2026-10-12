@@ -37,12 +37,23 @@ const statusSwitch = () =>
   screen.getByRole('checkbox', { name: /Mudança de status das minhas tarefas/ });
 const overdueSwitch = () =>
   screen.getByRole('checkbox', { name: /Prazo vencido das minhas tarefas/ });
+const issueSwitch = () =>
+  screen.getByRole('checkbox', { name: /Issues vinculadas às tarefas de que você participa/ });
+const pullRequestSwitch = () =>
+  screen.getByRole('checkbox', {
+    name: /Pull requests vinculadas às tarefas de que você participa/
+  });
 const saveButton = () => screen.getByRole('button', { name: 'Salvar preferências' });
 
 beforeEach(() => {
   vi.clearAllMocks();
   api.getNotificationPreferences.mockResolvedValue({
-    preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false }
+    preferences: {
+      TASK_STATUS_CHANGED: true,
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
+    }
   });
 });
 
@@ -65,7 +76,12 @@ describe('S2-02 preferências de notificação (D7)', () => {
   it('salva, confirma e devolve o foco ao botão', async () => {
     const user = userEvent.setup();
     api.saveNotificationPreferences.mockResolvedValue({
-      preferences: { TASK_STATUS_CHANGED: false, TASK_OVERDUE: false }
+      preferences: {
+        TASK_STATUS_CHANGED: false,
+        TASK_OVERDUE: false,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      }
     });
     renderPage();
     await waitFor(() => expect(statusSwitch()).toBeChecked());
@@ -75,7 +91,9 @@ describe('S2-02 preferências de notificação (D7)', () => {
 
     expect(api.saveNotificationPreferences).toHaveBeenCalledWith({
       TASK_STATUS_CHANGED: false,
-      TASK_OVERDUE: false
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     expect(await screen.findByText('Preferências salvas.')).toBeInTheDocument();
     expect(statusSwitch()).not.toBeChecked();
@@ -120,5 +138,38 @@ describe('S2-02 preferências de notificação (D7)', () => {
     const alert = await screen.findByRole('alert');
     await user.click(within(alert).getByRole('button', { name: 'Tentar novamente' }));
     await waitFor(() => expect(statusSwitch()).toBeChecked());
+  });
+});
+
+describe('S2-03 preferências dos avisos do GitHub (D7, D13)', () => {
+  it('F5 mostra dois grupos com quatro interruptores e salva as quatro chaves', async () => {
+    const user = userEvent.setup();
+    api.saveNotificationPreferences.mockImplementation(async (preferences) => ({ preferences }));
+    renderPage();
+    await waitFor(() => expect(issueSwitch()).toBeChecked());
+
+    const tasks = screen.getByRole('group', { name: 'Avisos sobre as suas tarefas' });
+    const github = screen.getByRole('group', { name: 'Avisos do GitHub' });
+    expect(within(tasks).getAllByRole('checkbox')).toHaveLength(2);
+    expect(within(github).getAllByRole('checkbox')).toHaveLength(2);
+    expect(issueSwitch()).toHaveAccessibleDescription(
+      /responsável, em que comentou ou registrou esforço é fechada ou reaberta no GitHub/
+    );
+    expect(pullRequestSwitch()).toHaveAccessibleDescription(
+      /é mesclada ou fechada sem merge no GitHub/
+    );
+
+    await user.click(issueSwitch());
+    await user.click(saveButton());
+
+    expect(api.saveNotificationPreferences).toHaveBeenCalledWith({
+      TASK_STATUS_CHANGED: true,
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: false,
+      PULL_REQUEST_EVENT: true
+    });
+    expect(await screen.findByText('Preferências salvas.')).toBeInTheDocument();
+    expect(issueSwitch()).not.toBeChecked();
+    expect(pullRequestSwitch()).toBeChecked();
   });
 });

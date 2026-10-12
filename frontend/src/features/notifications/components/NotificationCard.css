@@ -57,6 +57,13 @@
   overflow-wrap: anywhere;
 }
 
+.notification-card__artifact {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
 .notification-card__meta {
   margin: 0;
   color: var(--color-text-secondary);
