@@ -43,6 +43,7 @@
     "db:test:migrate": "node scripts/test-database.js migrate",
     "db:test:status": "node scripts/test-database.js status",
     "db:test:validate-github-sync": "node scripts/validate-github-sync-migration.js",
+    "db:test:validate-schema-drift": "node scripts/validate-schema-drift.js",
     "db:test:validate-empty": "node scripts/validate-empty-migrations.js",
     "db:test:validate-lr2-legacy": "node scripts/validate-lr2-legacy-migration.js",
     "db:test:validate-lr2-recovery": "node scripts/validate-lr2-recovery.js",

@@ -26,6 +26,46 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | e-mails técnicos                                           | provedor SMTP                       |                                              política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação                                                                                                     |
 | backup                                                     | infraestrutura                      |                                        a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros                                |
 
+## GitHub SyncRun — PR24-FIX-02
+
+`GitHubSyncRun` é registro operacional de execução, distinto de commits, PRs, issues, branches,
+requisitos, tarefas, vínculos, snapshots e auditoria. Guarda origem, progresso/contadores,
+timestamps, códigos/mensagens sanitizados e `requestedByUserId` nullable. Não guarda token,
+payload integral GitHub nem cópia do nome/e-mail do ator. AUTOMATIC tem ator nulo; MANUAL conserva
+referência ao User pseudonimizado após anonimização (ADR-010). A FK SET NULL/CASCADE preserva o run
+em eventual remoção física do User, sem autorizar um novo fluxo de exclusão de conta.
+
+**D-A / M4 — DECISION REQUIRED:** não existe prazo numérico aprovado para descarte de SyncRuns.
+Até a decisão, são preservados durante o ciclo do projeto; soft delete preserva, hard purge do
+projeto remove por cascade conforme a política vigente. Não há limpeza periódica desses runs.
+O intervalo nominal de 30 minutos representa até cerca de 48 runs/dia e 17.520/ano por projeto;
+jitter, duração e backoff reduzem a frequência efetiva. A operação deve acompanhar o crescimento.
+
+| Categoria | Proposta em avaliação, sem execução automática |
+| --- | --- |
+| AUTOMATIC SUCCEEDED | 90 dias |
+| MANUAL concluído | 180 dias |
+| FAILED de qualquer origem | 180 dias |
+| QUEUED/RUNNING, lease/reserva ativa | Excluídos da seleção; devem terminar ou ser recuperados |
+| Run necessário ao status atual | Preservar a referência, inclusive o último run por projeto |
+| Artefatos, vínculos, snapshots e AuditEvent | Políticas próprias; não serão apagados por expurgo de SyncRun |
+
+Esses números são propostas do review, não decisão jurídica ou aprovação operacional. A equipe e
+o controlador devem confirmar finalidade, prazo, exceções e efeitos em backup/auditoria antes de
+implementar descarte. Esta entrega registra a decisão pendente, sem afirmar conformidade LGPD.
+
+Backlog objetivo: integrar ao `privacy:retention` existente, após aprovação; não criar outro daemon.
+Exigir dry-run de contagens sanitizadas, seleção explícita por origem/estado/finishedAt UTC,
+limites por lote, logs sem PII, idempotência, revalidação transacional da elegibilidade e proteção
+contra cleanup concorrente. Provar que nenhuma reserva/lease ativa é removida, que GET sync/status
+mantém a referência necessária e que artefatos/joins/snapshots/auditoria permanecem iguais.
+`AuditEvent.resourceId` pode referenciar um ID de run sem FK; sua retenção de 365 dias deve continuar
+independente. Validar fixtures legadas com finishedAt ausente e obter critério explícito para elas.
+Executar testes somente em `TEST_DATABASE_URL` e validar dry-run antes de operação autorizada.
+
+`GitHubSchedulerWorker` é liveness efêmera sem ator pessoal: o worker remove sua própria entrada
+no shutdown e entradas com mais de 24h durante operação. Essa limpeza não se aplica a SyncRuns.
+
 ## Exclusão e recuperação de projeto
 
 A solicitação feita por OWNER torna o projeto imediatamente indisponível, mas preserva todo o seu

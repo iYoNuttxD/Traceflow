@@ -182,6 +182,30 @@ jobs:
           TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
         run: npm run db:test:validate-lr2-legacy
 
+      - name: Validate GitHub automatic sync upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-github-sync
+
+      - name: Validate GitHub scheduler liveness upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-github-sync -- --liveness
+
+      - name: Validate GitHub sync actor FK upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-github-sync -- --actor
+
+      - name: Validate Prisma schema against complete SQL migration chain
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-schema-drift
+
       - name: Check architecture
         working-directory: backend
         run: npm run architecture:check

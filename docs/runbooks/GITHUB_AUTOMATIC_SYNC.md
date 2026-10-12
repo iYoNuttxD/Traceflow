@@ -2,6 +2,8 @@
 
 ## Decisão e responsabilidades
 
+Decisão formal: [ADR-017](../architecture/ADR-017-GITHUB-ASYNC-SYNC.md).
+
 Requisito autorizado GITHUB-04: scheduler backend independente, agenda UTC persistida,
 intervalo-base de 30 minutos, distribuição estável e uma execução por projeto, qualquer origem.
 O worker reutiliza `GitHubSyncRun` e a mesma pipeline de branches/commits/PRs/issues.
@@ -65,7 +67,8 @@ Evidências e limites: [relatório GITHUB-04](../deliveries/GITHUB_04_INTEGRATIO
 
 **O servidor HTTP não inicia o worker.** São processos separados. Definir a variável no `.env`
 sem executar o comando abaixo deixa a agenda persistida sem executor. A API registra
-`github_worker_startup_required` no startup para explicitar essa dependência.
+`github_worker_startup_required` somente quando GITHUB_SCHEDULER_ENABLED=true, com mensagem
+neutra sobre o processo independente, aplicável também a supervisores de produção.
 
 | Variável | Padrão | Uso |
 | --- | --- | --- |
@@ -126,10 +129,23 @@ Agenda não é garantia de execução pontual: concorrência, cooldown e recuper
 A UI acompanha esse estado pelo polling existente; indisponibilidade não desliga a preferência
 nem bloqueia a sincronização manual. API/workers devem compartilhar a mesma configuração.
 
-Migration incremental: `20261011010000_github_scheduler_liveness`. Nesta entrega foi aplicada
-somente em schemas de teste. Validação: `npm run db:test:validate-github-sync -- --liveness`
-(upgrade com histórico e reaplicação), além de `db:test:validate-empty`. Não foi aplicada no banco
-de desenvolvimento. Para implantação autorizada, aplique migrations antes de iniciar o worker.
+Migration incremental: `20261011010000_github_scheduler_liveness`. Na entrega GITHUB-04.1 o agente
+a validou somente em schemas de teste. A consulta somente leitura da PR24-FIX-02 confirmou que
+ela e `20261011000000_github_automatic_sync` já constam no desenvolvimento; ambas são imutáveis.
+`20261012000000_github_sync_run_actor_set_null` corrige a FK de ator por migration adicional.
+Valide `db:test:validate-github-sync` (automação), `-- --liveness`, `-- --actor`,
+`db:test:validate-schema-drift` e `db:test:validate-empty`. O gate de drift aplica a cadeia SQL
+inteira em schema descartável e a compara ao datamodel com Prisma 6.12; não usa o desenvolvimento
+como shadow. Para implantação autorizada, aplique migrations antes de iniciar o worker.
+
+PR24-FIX-02 limita a espera de Project/SyncRun nos caminhos de coordenação por NOWAIT. Reserva
+ocupada retorna CONTENDED, claim permanece QUEUED e recovery não altera o run naquele ciclo.
+Heartbeat/progresso adiado não atualiza o relógio nem inventa autoridade; a próxima escrita ainda
+confere lease/fencing. Requisição manual coalesce corridas curtas em até três transações novas,
+com pausas de 50 ms fora delas; persistindo a disputa, responde 503. Conclusão que não consegue
+persistir deixa a reserva para recuperação da lease. A pipeline com contexto de fencing também
+usa NOWAIT no Project. Não há aumento de timeout global nem retry ilimitado. Monitorar contenção
+em outras linhas/DDL, saturação do pool e indisponibilidade do banco continua necessário.
 
 Consulte o status autorizado por `GET /api/projects/:id/github/sync/status` e `githubIntegration`
 no detalhe do projeto. No banco operacional, consultas somente leitura de `GitHubSyncRun`
@@ -157,6 +173,10 @@ Instantes são Date/UTC na persistência e na comparação; a UI formata no fuso
   `rate limit exceeded`, `abuse detection`) também é transitório mesmo sem headers. Sem prazo
   válido aplica o fallback existente de pelo menos 60s e o backoff persistido; texto externo não
   é exposto. A política segue as [orientações oficiais do GitHub](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#rate-limit-errors).
+  Pedido manual durante o cooldown retorna 429 com Retry-After em segundos, arredondado para
+  cima a partir de syncNotBefore; não cria run. A UI reutiliza o countdown, sem retry de sync
+  automático. O histórico operacional tem decisão de retenção pendente na política de dados;
+  não apagar runs/artefatos manualmente como manutenção improvisada.
 - 5xx/timeout: conferir último sucesso preservado e próxima tentativa com backoff. Falha não
   remove commits, PRs, issues, branches ou vínculos.
 - 401/403 sem rate limit ou 404 do provedor: RECONNECT_REQUIRED; OWNER revalida o mesmo repo

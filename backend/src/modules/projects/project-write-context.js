@@ -4,8 +4,13 @@ const writeContext = new AsyncLocalStorage();
 
 // An async job can attach a fence to every canonical Project transaction,
 // including nested artifact/suggestion writes, without holding locks over HTTP.
-export function withProjectWriteGuard(projectId, assertCanWrite, work) {
-  return writeContext.run({ projectId, assertCanWrite }, work);
+export function withProjectWriteGuard(projectId, assertCanWrite, work, { nowait = false } = {}) {
+  return writeContext.run({ projectId, assertCanWrite, nowait }, work);
+}
+
+export function projectWriteUsesNowait(projectId) {
+  const context = writeContext.getStore();
+  return context?.projectId === projectId && context.nowait;
 }
 
 export async function assertProjectWriteGuard(tx, projectId) {

@@ -117,6 +117,31 @@ test("bloqueia ausência do upgrade representativo S2 P1", () => {
   );
 });
 
+for (const command of [
+  "npm run db:test:validate-github-sync",
+  "npm run db:test:validate-github-sync -- --liveness",
+  "npm run db:test:validate-github-sync -- --actor",
+  "npm run db:test:validate-schema-drift",
+]) {
+  test(`exige o gate executável ${command}`, () => {
+    for (const replacement of [
+      "run: echo removed",
+      `run: echo removed # ${command}`,
+      `if: false\n        run: ${command}`,
+    ]) {
+      const workflow = baseline.workflow.replace(
+        `run: ${command}\n`,
+        `${replacement}\n`,
+      );
+      assert.notEqual(workflow, baseline.workflow);
+      assert.throws(
+        () => validateCi({ ...baseline, workflow }),
+        /Gate obrigatório ausente|Step desabilitado/,
+      );
+    }
+  });
+}
+
 for (const phase of ["p3", "p5-1"]) {
   test(`exige execução do upgrade representativo S2 ${phase}`, () => {
     const command = `npm run db:test:validate-s2-${phase}`;

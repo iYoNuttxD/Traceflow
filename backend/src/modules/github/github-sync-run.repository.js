@@ -2,7 +2,7 @@ import { prisma } from '../../database/prismaClient.js';
 
 const activeStatuses = ['QUEUED', 'RUNNING'];
 
-import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { isProjectWriteBusy, withActiveProjectWrite } from '../projects/active-project-write.js';
 import { ProjectServiceError } from '../projects/project.schema.js';
 import {
   distributedSyncAt,
@@ -14,8 +14,24 @@ import {
 const leaseLost = () =>
   new ProjectServiceError('A execução não está mais ativa.', 409, 'GITHUB_SYNC_LEASE_LOST');
 
+// Coordination never waits behind a long Project writer. Each next tick/progress
+// call gets a fresh transaction; BUSY is distinct from inactive/lost authority.
+async function withSyncWrite(projectId, write, { busyResult, inactiveResult } = {}) {
+  try {
+    return await withActiveProjectWrite(projectId, write, { nowait: true, inactiveResult });
+  } catch (error) {
+    if (!isProjectWriteBusy(error)) throw error;
+    if (busyResult !== undefined) return busyResult;
+    throw new ProjectServiceError(
+      'O projeto está ocupado. Tente novamente em instantes.',
+      503,
+      'GITHUB_SYNC_BUSY'
+    );
+  }
+}
+
 async function lockedRun(tx, id) {
-  const rows = await tx.$queryRaw`SELECT * FROM GitHubSyncRun WHERE id = ${id} FOR UPDATE`;
+  const rows = await tx.$queryRaw`SELECT * FROM GitHubSyncRun WHERE id = ${id} FOR UPDATE NOWAIT`;
   return rows[0] || null;
 }
 function ownsLease(run, now, policy = syncSchedulePolicy()) {
@@ -33,7 +49,7 @@ async function updateOwnedRun(
 ) {
   const found = await prisma.gitHubSyncRun.findUnique({ where: { id } });
   if (!found) return false;
-  return withActiveProjectWrite(
+  return withSyncWrite(
     found.projectId,
     async (tx) => {
       const run = await lockedRun(tx, id);
@@ -49,7 +65,7 @@ async function updateOwnedRun(
       });
       return true;
     },
-    { inactiveResult: false }
+    { inactiveResult: false, ...(!terminal && { busyResult: null }) }
   );
 }
 
@@ -87,7 +103,7 @@ async function reschedule(tx, run, now, { failed, retryAt, permanent = false }) 
 
 export const githubSyncRunRepository = {
   create(projectId, requestedByUserId) {
-    return withActiveProjectWrite(projectId, async (tx) => {
+    return withSyncWrite(projectId, async (tx) => {
       const integration = await tx.projectGitHubIntegration.findUnique({
         where: { projectId },
         include: { installation: true }
@@ -97,12 +113,15 @@ export const githubSyncRunRepository = {
           'Reconecte a GitHub App antes de sincronizar este projeto.',
           409
         );
-      if (integration.installation.syncNotBefore > new Date())
-        throw new ProjectServiceError(
+      if (integration.installation.syncNotBefore > new Date()) {
+        const error = new ProjectServiceError(
           'Aguarde a liberação do limite de requisições do GitHub.',
           429,
           'GITHUB_RATE_LIMITED'
         );
+        error.retryAt = integration.installation.syncNotBefore;
+        throw error;
+      }
       const run = await tx.gitHubSyncRun.create({
         data: { projectId, requestedByUserId, activeProjectId: projectId }
       });
@@ -140,7 +159,7 @@ export const githubSyncRunRepository = {
   async claim(id, now = new Date()) {
     const found = await this.findById(id);
     if (!found) return false;
-    return withActiveProjectWrite(
+    return withSyncWrite(
       found.projectId,
       async (tx) => {
         const run = await lockedRun(tx, id);
@@ -183,7 +202,7 @@ export const githubSyncRunRepository = {
         });
         return true;
       },
-      { inactiveResult: false }
+      { inactiveResult: false, busyResult: false }
     );
   },
 
@@ -240,41 +259,46 @@ export const githubSyncRunRepository = {
   },
 
   async expireIfStillStale(id, projectId, cutoff, now = new Date()) {
-    return prisma.$transaction(async (tx) => {
-      // Same lock order as artifact transactions. No old writer can cross this commit.
-      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
-      const run = await lockedRun(tx, id);
-      if (
-        !run ||
-        run.activeProjectId !== projectId ||
-        !activeStatuses.includes(run.status) ||
-        (run.heartbeatAt || run.updatedAt) >= cutoff
-      )
-        return { count: 0 };
-      const message = 'A execução foi interrompida antes da conclusão.';
-      await tx.gitHubSyncRun.update({
-        where: { id },
-        data: {
-          status: 'FAILED',
-          activeProjectId: null,
-          automaticSlot: null,
-          automaticInstallationId: null,
-          heartbeatAt: now,
-          finishedAt: now,
-          errorCode: 'GITHUB_SYNC_STALE',
-          errorMessage: message
-        }
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // Same lock order as artifact transactions. No old writer can cross this commit.
+        await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE NOWAIT`;
+        const run = await lockedRun(tx, id);
+        if (
+          !run ||
+          run.activeProjectId !== projectId ||
+          !activeStatuses.includes(run.status) ||
+          (run.heartbeatAt || run.updatedAt) >= cutoff
+        )
+          return { count: 0 };
+        const message = 'A execução foi interrompida antes da conclusão.';
+        await tx.gitHubSyncRun.update({
+          where: { id },
+          data: {
+            status: 'FAILED',
+            activeProjectId: null,
+            automaticSlot: null,
+            automaticInstallationId: null,
+            heartbeatAt: now,
+            finishedAt: now,
+            errorCode: 'GITHUB_SYNC_STALE',
+            errorMessage: message
+          }
+        });
+        await tx.projectGitHubIntegration.updateMany({
+          where: { projectId },
+          data: {
+            lastSyncStatus: 'FALHA',
+            lastSyncError: message
+          }
+        });
+        await reschedule(tx, run, now, { failed: true });
+        return { count: 1 };
       });
-      await tx.projectGitHubIntegration.updateMany({
-        where: { projectId },
-        data: {
-          lastSyncStatus: 'FALHA',
-          lastSyncError: message
-        }
-      });
-      await reschedule(tx, run, now, { failed: true });
-      return { count: 1 };
-    });
+    } catch (error) {
+      if (isProjectWriteBusy(error)) return { count: 0 };
+      throw error;
+    }
   },
 
   listRecoverable(cutoff, limit = 100) {
@@ -335,7 +359,7 @@ export const githubSyncRunRepository = {
     recoveryBefore = null
   ) {
     try {
-      return await withActiveProjectWrite(
+      return await withSyncWrite(
         projectId,
         async (tx) => {
           const integration = await tx.projectGitHubIntegration.findUnique({
@@ -402,7 +426,7 @@ export const githubSyncRunRepository = {
           });
           return { outcome: 'RESERVED', run };
         },
-        { inactiveResult: { outcome: 'INELIGIBLE' } }
+        { inactiveResult: { outcome: 'INELIGIBLE' }, busyResult: { outcome: 'CONTENDED' } }
       );
     } catch (error) {
       // Unique slots arbitrate workers across different projects/installations.

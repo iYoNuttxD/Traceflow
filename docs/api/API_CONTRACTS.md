@@ -85,6 +85,12 @@ Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e
 
 O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização assíncrona cria ou reutiliza uma execução persistida com `POST /projects/:projectId/github/sync`, responde `202 {message,run}` e expõe progresso/resultado em `GET /projects/:projectId/github/sync/status`. A execução pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca `SUCCEEDED` após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos.
 
+PR24-FIX-02: pedido manual durante cooldown da instalação responde `429` com `Retry-After`
+em segundos inteiros, `max(1, ceil((syncNotBefore - agora) / 1000))`, sem iniciar execução.
+O corpo de erro canônico é preservado; não expõe metadados internos da instalação. Contenção
+persistente do Project responde `503` após até três tentativas curtas fora de uma transação
+bloqueada. Corridas curtas continuam coalescendo no mesmo run com `202`/`alreadyRunning`.
+
 GITHUB-04 mantém os mesmos endpoints. `run.origin` distingue `MANUAL` e `AUTOMATIC`;
 `requestedByUserId`, slots e dados da instalação não entram no DTO público. `githubIntegration`
 acrescenta `nextSyncAt: ISO-8601 UTC | null`, sempre calculado/persistido pelo servidor.
@@ -192,8 +198,9 @@ integração são persistidos atomicamente. Não existe fallback automático par
 local quando o cadastro integrado falha. Ambos os endpoints exigem sessão, e-mail
 verificado, CSRF e payload estrito. GITHUB-02 acrescenta a vinculação posterior conforme
 o contrato abaixo. GITHUB-01 a GITHUB-04.1 têm implementação concluída localmente, incluindo
-gerenciamento na UI e worker periódico. Isso não comprova CI remota aprovada nem deploy:
-a CI #138 falhou no validador LR.2 e exige nova execução após publicação das correções da PR #24.
+gerenciamento na UI e worker periódico. A cronologia de CI e os limites de disponibilização
+estão no [relatório PR24-FIX-02](../deliveries/PR24_FIX_02_FINAL_ARCHITECTURE_DATABASE_REVIEW_CLOSURE_REPORT.md);
+implementação funcional não comprova implantação nem operação do worker em produção.
 
 | Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                                                       |
 | -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |

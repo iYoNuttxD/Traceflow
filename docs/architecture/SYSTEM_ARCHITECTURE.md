@@ -178,6 +178,19 @@ autorizações, pois essas entidades podem ser compartilhadas.
 
 ## Assíncronos e concorrência
 
+O [ADR-017](ADR-017-GITHUB-ASYNC-SYNC.md) formaliza o worker GitHub independente, alternativas,
+agenda/slots/leases/fencing, privacidade e operação pretendida na OCI. Na coordenação GitHub,
+Project e SyncRun usam NOWAIT: reserva/claim/recovery adiam disputa; heartbeat adiado não renova
+a lease nem é tratado como perda imediata. O contexto de fencing estende o lock imediato às
+escritas da pipeline. Sync manual coalesce corridas com até três tentativas curtas em transações
+novas e retorna 503 se continuar ocupado. Não altera o timeout global ou todos os escritores.
+
+Projects consome a política de agenda GitHub para atualizar preferência atomicamente com
+`nextSyncAt`; GitHub consome o guard de lifecycle de Projects. São dependências entre domínios,
+sem ciclo de imports de arquivo no grafo verificado na PR24-FIX-02. A política depende somente de
+configuração e crypto, e o guard de Prisma/erros/contexto. Mantêm-se essas dependências pequenas;
+não se move regra GitHub para shared nem se separa agenda da transação para ocultar o acoplamento.
+
 O lifecycle de exclusão usa `Project.purgeStartedAt` e um `purgeClaimId` de fencing persistido.
 Delete, restore e purge manual tomam o lock do Project antes do lock da membership relevante e
 revalidam OWNER dentro da transação. Workers concorrentes só avançam quando possuem o token atual;

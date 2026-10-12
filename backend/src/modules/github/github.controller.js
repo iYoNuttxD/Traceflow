@@ -29,6 +29,10 @@ export const githubController = {
           run
         });
       } catch (error) {
+        if (error.code === 'GITHUB_RATE_LIMITED' && error.retryAt instanceof Date) {
+          const seconds = Math.max(1, Math.ceil((error.retryAt.getTime() - Date.now()) / 1000));
+          res.setHeader('Retry-After', String(seconds));
+        }
         await auditService.recordOperational({
           actorUserId: req.auth.user.id,
           projectId: req.params.projectId,

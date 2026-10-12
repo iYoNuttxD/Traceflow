@@ -173,6 +173,34 @@ afterAll(async () => {
 });
 
 describe('Projetos e integração GitHub E9', () => {
+  it('informa Retry-After a partir do cooldown real sem iniciar execução e permite sync após expirar', async () => {
+    const owner = await register('cooldown-owner@example.invalid');
+    const project = await createIntegratedProject(owner);
+    const deadline = new Date(Date.now() + 3600123);
+    await prisma.gitHubInstallation.update({
+      where: { id: githubBoundary.installation.id },
+      data: { syncNotBefore: deadline }
+    });
+    const before = Date.now();
+    const response = await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
+    const after = Date.now();
+    expect(response.status).toBe(429);
+    const seconds = Number(response.headers['retry-after']);
+    expect(seconds).toBeGreaterThanOrEqual(
+      Math.max(1, Math.ceil((deadline.getTime() - after) / 1000))
+    );
+    expect(seconds).toBeLessThanOrEqual(Math.ceil((deadline.getTime() - before) / 1000));
+    expect(await prisma.gitHubSyncRun.count({ where: { projectId: project.id } })).toBe(0);
+    expect(githubBoundary.client.getRepository).not.toHaveBeenCalled();
+    await prisma.gitHubInstallation.update({
+      where: { id: githubBoundary.installation.id },
+      data: { syncNotBefore: new Date(Date.now() - 1) }
+    });
+    const { started, run } = await startAndWaitForSync(owner, project.id);
+    expect(started.headers['retry-after']).toBeUndefined();
+    expect(run.status).toBe('SUCCEEDED');
+  });
+
   it('atualiza o Dashboard P7 após sync interna confirmada e persistida', async () => {
     const owner = await register('owner-dashboard-p81@example.invalid');
     const project = await createIntegratedProject(owner);

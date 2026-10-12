@@ -11,8 +11,13 @@ dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: false, quie
 dotenv.config({ path: resolve(process.cwd(), '.env'), override: false, quiet: true });
 
 const liveness = process.argv.includes('--liveness');
+const actor = process.argv.includes('--actor');
 const migrations = [
-  liveness ? '20261011010000_github_scheduler_liveness' : '20261011000000_github_automatic_sync'
+  actor
+    ? '20261012000000_github_sync_run_actor_set_null'
+    : liveness
+      ? '20261011010000_github_scheduler_liveness'
+      : '20261011000000_github_automatic_sync'
 ];
 const sourceUrl = validateTestDatabaseUrl(process.env.TEST_DATABASE_URL, process.env.DATABASE_URL);
 const sourceDatabase = new URL(sourceUrl).pathname.slice(1);
@@ -22,7 +27,7 @@ if (!/^[a-zA-Z0-9_]+_test_github_sync_upgrade_validation$/.test(validationDataba
 }
 const validationUrl = new URL(sourceUrl);
 validationUrl.pathname = `/${validationDatabase}`;
-const databaseUrl = validationUrl.toString();
+const databaseUrl = validateTestDatabaseUrl(validationUrl.toString(), process.env.DATABASE_URL);
 const admin = new PrismaClient({ datasourceUrl: sourceUrl });
 const root = mkdtempSync(join(tmpdir(), 'traceflow-github-sync-'));
 const prismaDirectory = join(root, 'prisma');
@@ -70,6 +75,14 @@ async function seed(client) {
   await client.$executeRaw`INSERT INTO ProjectGitHubIntegration (projectId,installationId,githubRepositoryId,repositoryName,repositoryFullName,status,autoSyncEnabled,lastSyncAt,createdAt,updatedAt) VALUES (1,1,'1','repo','fixture/repo','ACTIVE',true,NOW(3),NOW(3),NOW(3))`;
   await client.$executeRaw`INSERT INTO GitHubSyncRun (projectId,requestedByUserId,status,step,createdAt,updatedAt) VALUES (1,1,'SUCCEEDED','COMPLETED',NOW(3),NOW(3))`;
   await client.$executeRaw`INSERT INTO Commit (projectId,hash,message,createdAt,updatedAt) VALUES (1,'preserved','Upgrade fixture',NOW(3),NOW(3))`;
+  if (actor) {
+    await client.$executeRaw`INSERT INTO User (id,name,email,username,createdAt,updatedAt) VALUES (2,'Run actor','actor@example.invalid','run_actor',NOW(3),NOW(3))`;
+    await client.$executeRaw`INSERT INTO GitHubSyncRun (projectId,requestedByUserId,status,step,createdAt,updatedAt) VALUES (1,2,'SUCCEEDED','COMPLETED',NOW(3),NOW(3))`;
+    await client.$executeRaw`INSERT INTO GitHubSyncRun (projectId,requestedByUserId,origin,status,step,createdAt,updatedAt) VALUES (1,NULL,'AUTOMATIC','SUCCEEDED','COMPLETED',NOW(3),NOW(3))`;
+    const [fk] =
+      await client.$queryRaw`SELECT DELETE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME='GitHubSyncRun_requestedByUserId_fkey'`;
+    assert.equal(fk.DELETE_RULE, 'RESTRICT');
+  }
   snapshot = await readHistory(client);
 }
 
@@ -130,7 +143,27 @@ try {
       }
     });
     assert.equal(run.requestedByUserId, null);
-    if (liveness) {
+    if (actor) {
+      const [fk] =
+        await afterClient.$queryRaw`SELECT DELETE_RULE, UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME='GitHubSyncRun_requestedByUserId_fkey'`;
+      assert.deepEqual(fk, { DELETE_RULE: 'SET NULL', UPDATE_RULE: 'CASCADE' });
+      await assert.rejects(
+        afterClient.gitHubSyncRun.create({ data: { projectId: 1, requestedByUserId: 999 } }),
+        { code: 'P2003' }
+      );
+      const beforeDelete = await afterClient.gitHubSyncRun.findMany({ orderBy: { id: 'asc' } });
+      await afterClient.user.delete({ where: { id: 2 } });
+      assert.deepEqual(
+        await afterClient.gitHubSyncRun.findMany({ orderBy: { id: 'asc' } }),
+        beforeDelete.map((item) => ({
+          ...item,
+          requestedByUserId: item.requestedByUserId === 2 ? null : item.requestedByUserId
+        }))
+      );
+      assert.equal(await afterClient.commit.count(), 1);
+      assert.equal(await afterClient.projectMembership.count({ where: { role: 'OWNER' } }), 1);
+    }
+    if (liveness || actor) {
       assert.equal(await afterClient.gitHubSchedulerWorker.count(), 0);
       await afterClient.gitHubSchedulerWorker.create({
         data: { id: '00000000-0000-0000-0000-000000000001', heartbeatAt: new Date() }

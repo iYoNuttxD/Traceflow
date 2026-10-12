@@ -1024,7 +1024,6 @@ model GitBranch {
   @@index([projectId, isDefault])
 }
 
-// Execução persistida permite polling, recuperação após reload e exclusão mútua no banco.
 // Ephemeral liveness only; scheduling and mutual exclusion remain on SyncRun.
 model GitHubSchedulerWorker {
   id          String   @id @db.Char(36)
@@ -1033,6 +1032,7 @@ model GitHubSchedulerWorker {
   @@index([heartbeatAt])
 }
 
+// Execução persistida permite polling, recuperação após reload e exclusão mútua no banco.
 model GitHubSyncRun {
   id                      Int                 @id @default(autoincrement())
   projectId               Int
@@ -1067,7 +1067,7 @@ model GitHubSyncRun {
   updatedAt               DateTime            @updatedAt
 
   project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  requestedByUser User?   @relation(fields: [requestedByUserId], references: [id])
+  requestedByUser User?   @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([projectId, createdAt])
   @@index([status, updatedAt])

@@ -124,6 +124,45 @@ const integration = (id) =>
 const worker = (options = {}) => scheduler({ enabled: true, configured: () => true, ...options });
 
 describe('scheduler with real isolated persistence', () => {
+  it.each(['due', 'stale'])(
+    'continues to a free project when the %s candidate is locked',
+    async (kind) => {
+      const {
+        user,
+        items: [busy, free]
+      } = await fixture(2);
+      if (kind === 'stale') {
+        const run = await runs.create(busy.id, user.id);
+        expect(await runs.claim(run.id)).toBe(true);
+        await prisma.gitHubSyncRun.update({
+          where: { id: run.id },
+          data: { heartbeatAt: new Date(Date.now() - 3600000) }
+        });
+      }
+      const acquired = gate(),
+        release = gate();
+      const holder = prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM Project WHERE id = ${busy.id} FOR UPDATE`;
+        acquired.resolve();
+        await release.promise;
+      });
+      await acquired.promise;
+      const w = worker();
+      try {
+        await w.tick();
+        await w.drain();
+        expect(await runs.findLatest(free.id)).toMatchObject({ status: 'SUCCEEDED' });
+        expect((await runs.findLatest(busy.id))?.status ?? null).toBe(
+          kind === 'stale' ? 'RUNNING' : null
+        );
+      } finally {
+        release.resolve();
+        await holder;
+        await w.stop();
+      }
+    }
+  );
+
   it('keeps manual/status access available while the liveness migration is pending', async () => {
     const {
       items: [project]

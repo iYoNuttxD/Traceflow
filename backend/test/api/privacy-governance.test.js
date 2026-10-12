@@ -128,6 +128,23 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
         expiresAt: new Date(Date.now() + 60_000)
       }
     });
+    const manualRun = await prisma.gitHubSyncRun.create({
+      data: {
+        projectId: project.id,
+        requestedByUserId: user.id,
+        status: 'SUCCEEDED',
+        step: 'COMPLETED'
+      }
+    });
+    const automaticRun = await prisma.gitHubSyncRun.create({
+      data: {
+        projectId: project.id,
+        requestedByUserId: null,
+        origin: 'AUTOMATIC',
+        status: 'SUCCEEDED',
+        step: 'COMPLETED'
+      }
+    });
     const commit = await prisma.commit.create({
       data: {
         projectId: project.id,
@@ -172,6 +189,12 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
       accountStatus: 'ANONYMIZED'
     });
     expect(anonymized.email).toMatch(/^anonymous_.+@deleted\.traceflow\.invalid$/);
+    expect(await prisma.gitHubSyncRun.findUnique({ where: { id: manualRun.id } })).toEqual(
+      manualRun
+    );
+    expect(await prisma.gitHubSyncRun.findUnique({ where: { id: automaticRun.id } })).toEqual(
+      automaticRun
+    );
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
     expect(await prisma.projectDashboardPreference.count({ where: { userId: user.id } })).toBe(0);
     expect(await prisma.gitHubInstallationAuthorization.count({ where: { userId: user.id } })).toBe(

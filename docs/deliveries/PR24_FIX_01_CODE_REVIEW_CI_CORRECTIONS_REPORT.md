@@ -245,9 +245,15 @@ instantânea. Grandes conjuntos podem exigir múltiplos ticks, com cursor que av
 
 ## 23. Remote CI pending validation
 
-A CI #138 permanece falha no HEAD publicado. Sem commit/push autorizado, as correções ficam
-somente no working tree. Publicação futura precisa executar novamente todos os checks da PR
-e receber nova revisão. PASS LOCAL não equivale a CI remota aprovada ou deploy concluído.
+No encerramento da FIX-01, a CI #138 estava falha no HEAD publicado `6b739433da`, e o agente
+deixou as correções somente no working tree, sem commit/push. Esse é o registro histórico daquela
+rodada, não o estado atual da PR.
+
+Atualização verificada durante PR24-FIX-02 (11/10/2026): as correções foram publicadas posteriormente
+em `ae9a265b6347f288b9c3b4c1ab0f01553c1f19b6`; a
+[CI #139](https://github.com/iYoNuttxD/Traceflow/actions/runs/38159318408) concluiu os cinco checks
+com SUCCESS. Isso encerra a pendência remota da FIX-01, sem comprovar deploy. As novas alterações
+da FIX-02 continuam locais e exigem outra CI após publicação autorizada.
 
 ## 24. Final verdict
 

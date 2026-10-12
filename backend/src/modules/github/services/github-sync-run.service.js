@@ -140,7 +140,7 @@ export async function executeGithubSyncRun(runId) {
         syncProjectGithubData(run.projectId, {
           persistedRunId: run.id,
           onProgress: async (progress) => {
-            if (!(await githubSyncRunRepository.updateProgress(run.id, progress))) {
+            if ((await githubSyncRunRepository.updateProgress(run.id, progress)) === false) {
               throw new ProjectServiceError(
                 'A execução não está mais ativa.',
                 409,
@@ -148,7 +148,8 @@ export async function executeGithubSyncRun(runId) {
               );
             }
           }
-        })
+        }),
+      { nowait: true }
     );
     const finishedAt = new Date();
     const completed = await githubSyncRunRepository.succeed(
@@ -257,13 +258,20 @@ export async function requestProjectGithubSync(
   if (active) return publicRun(active, { alreadyRunning: true });
 
   let run;
-  try {
-    run = await githubSyncRunRepository.create(parsedProjectId, requestedByUserId);
-  } catch (error) {
-    if (!githubSyncRunRepository.isActiveConflict(error)) throw error;
-    const raced = await githubSyncRunRepository.findActive(parsedProjectId);
-    if (raced) return publicRun(raced, { alreadyRunning: true });
-    throw error;
+  // Coalesce short manual/automatic races without waiting inside a transaction.
+  // A long writer gets a controlled 503 after at most three fresh attempts.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      run = await githubSyncRunRepository.create(parsedProjectId, requestedByUserId);
+      break;
+    } catch (error) {
+      const busy = error.code === 'GITHUB_SYNC_BUSY';
+      if (!busy && !githubSyncRunRepository.isActiveConflict(error)) throw error;
+      const raced = await githubSyncRunRepository.findActive(parsedProjectId);
+      if (raced) return publicRun(raced, { alreadyRunning: true });
+      if (!busy || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   }
 
   schedule(run.id);

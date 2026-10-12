@@ -976,7 +976,8 @@ domínio. Nenhuma feature flag complexa foi introduzida.
 
 ### GITHUB-04 — UX e sincronização periódica
 
-**PASS LOCAL**, em `daniel-dev`, sem commit/push/deploy.
+**PASS LOCAL** no encerramento da GITHUB-04, em `daniel-dev`; naquela rodada o agente não
+executou commit/push/deploy. A publicação posterior está registrada em PR24-FIX-01 abaixo.
 Worker independente com agenda persistida, jitter, slots globais, mesma reserva manual/automática,
 fencing transacional e recuperação. UI agrupada, switch, progresso compartilhado e descoberta
 por polling. [Relatório e gates locais](docs/deliveries/GITHUB_04_INTEGRATION_UX_AUTOMATIC_SYNC_SCHEDULER_REPORT.md).
@@ -997,5 +998,18 @@ Oito comentários de Copilot/Codex e o validador LR.2 corrigidos: fairness por p
 elegibilidade durante espera por capacidade, secondary rate limit, recuperação do polling,
 requests do Repository e contratos/rastreabilidade. Gates locais completos e migrations PASS.
 [Matriz de fechamento e evidências](docs/deliveries/PR24_FIX_01_CODE_REVIEW_CI_CORRECTIONS_REPORT.md).
-CI #138 continua falha no HEAD publicado; exige nova execução após publicação autorizada.
-Sem commit/push ou deploy nesta rodada.
+Na conclusão local da FIX-01, CI #138 estava falha e o agente não executou commit/push/deploy.
+Posteriormente foi publicado `ae9a265b6347f288b9c3b4c1ab0f01553c1f19b6`: a
+[CI #139](https://github.com/iYoNuttxD/Traceflow/actions/runs/38159318408) passou nos cinco checks,
+conforme consulta da FIX-02 em 11/10/2026. Esse resultado se refere à FIX-01, não ao diff seguinte.
+
+### PR24-FIX-02 — Fechamento de arquitetura, banco e review
+
+Correção incremental da FK de ator, gate de drift da cadeia SQL, ADR-017, contenção GitHub limitada
+e Retry-After. Migrations anteriores preservadas porque já foram aplicadas no desenvolvimento.
+Relatório: [matriz e gates](docs/deliveries/PR24_FIX_02_FINAL_ARCHITECTURE_DATABASE_REVIEW_CLOSURE_REPORT.md).
+Retenção de SyncRun (D-A): DECISION REQUIRED; proposta 90/180 dias sem cleanup automático até
+aprovação da finalidade/prazo e dos critérios documentados na política de dados.
+S2-09/S2-10 devem incluir worker supervisionado, reinício, heartbeat/alerta WORKER_NOT_OBSERVED,
+NTP e pools dimensionados. OCI continua implantação futura, conforme ADR-017 e decisão histórica
+`fe05208`; nenhuma entrega de infraestrutura ou merge com `joao-dev-v2` é iniciada aqui.

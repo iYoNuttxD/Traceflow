@@ -295,6 +295,30 @@ describe('configuração GitHub do projeto', () => {
     expect(screen.getByRole('button', { name: 'Sincronizar agora' })).toBeEnabled();
   });
 
+  it('respeita o Retry-After do cooldown da instalação sem repetir automaticamente a sincronização', async () => {
+    vi.useFakeTimers();
+    github.syncProject.mockRejectedValue({
+      response: {
+        status: 429,
+        headers: { 'retry-after': '120' },
+        data: { message: 'Aguarde o limite do GitHub.' }
+      }
+    });
+    render(view(persisted));
+    await act(async () => {});
+    const button = screen.getByRole('button', { name: 'Sincronizar agora' });
+    await act(async () => fireEvent.click(button));
+    expect(button).toBeDisabled();
+    for (let second = 0; second < 61; second++)
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+    expect(button).toBeDisabled();
+    expect(github.syncProject).toHaveBeenCalledTimes(1);
+    for (let second = 0; second < 59; second++)
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+    expect(button).toBeEnabled();
+    expect(github.syncProject).toHaveBeenCalledTimes(1);
+  });
+
   it.each([true, false])(
     'confirma preferência persistida %s sem estado otimista falso',
     async (enabled) => {
