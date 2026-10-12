@@ -1,6 +1,6 @@
 # ADR-016 — Notificações de tarefa: mudança de status e vencimento de prazo
 
-- **Estado:** aceita para o cartão S2-02 (RF30, RF59); revista em 10/10/2026 e em 11/10/2026
+- **Estado:** aceita para o cartão S2-02 (RF30, RF59); revista em 10/10/2026, em 11/10/2026 e em 12/10/2026 (nota do S2-03)
 - **Data:** 09/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 
@@ -138,8 +138,8 @@ Restrições do terreno:
 - Uma mudança de status elegível nunca fica sem a sua notificação.
 - Rodar o job de novo, ou dois ao mesmo tempo, não duplica nada.
 - A deduplicação é garantida pelo banco.
-- O mesmo modelo de linha por destinatário recebe os eventos de issue e PR do S2-03 sem migration
-  nova.
+- O mesmo modelo de linha por destinatário recebe os eventos de issue e PR do S2-03. Os tipos novos
+  do enum e o contexto do artefato exigem migration (revisão de 12/10/2026).
 - O job não depende da nuvem: qualquer agendador chama o mesmo comando.
 - O custo de "Carregar mais" não cresce com as páginas já exibidas: os cartões já carregados não
   são refeitos.
@@ -217,3 +217,10 @@ Os outros achados mudam contrato, operação ou documentação sem alterar decis
   cursor, a precedência dos códigos de saída, as exclusões que contam pares já notificados e os dias
   saltados;
 - S202-R04 e S202-R07: baseline ASVS e convenção de nome das migrations.
+
+## Revisão de 12/10/2026 — S2-03
+
+A consequência positiva sobre o S2-03 dizia "sem migration nova". No MySQL, os valores novos do enum
+`NotificationType` e as colunas do contexto do artefato exigem migration. O texto acima foi corrigido;
+a decisão dos eventos de issue e PR está no
+[ADR-018](ADR-018-GITHUB-EVENT-NOTIFICATIONS.md).
