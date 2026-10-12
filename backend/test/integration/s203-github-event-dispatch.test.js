@@ -586,6 +586,24 @@ describe('S2-03 despacho: idempotência, concorrência e queda (D9, C4, C5)', ()
     });
   });
 
+  it('G15 par gravado por outro despachante entre a leitura e a inserção não falha nem duplica', async () => {
+    const { project, task } = await scenario();
+    const issue = await openIssue(project, 1);
+    await linkIssue(task, issue);
+    await closeIssue(issue);
+    const insert = githubEventRepository.insertNotifications;
+    vi.spyOn(githubEventRepository, 'insertNotifications').mockImplementationOnce(async (rows) => {
+      await prisma.notification.create({ data: rows[0] });
+      return insert.call(githubEventRepository, rows);
+    });
+
+    const report = await runJob();
+
+    expect(report).toMatchObject({ dispatched: 1, retryScheduled: 0, failed: 0 });
+    expect(await prisma.notification.count()).toBe(1);
+    expect((await eventsOf(project.id))[0].status).toBe('DISPATCHED');
+  });
+
   it('G14 o despacho nunca chama o cliente GitHub', async () => {
     const { project, task } = await scenario();
     const issue = await openIssue(project, 1);

@@ -161,7 +161,12 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
   });
 
   it('expõe os tipos e os motivos documentados', () => {
-    expect(NOTIFICATION_TYPES).toEqual(['TASK_STATUS_CHANGED', 'TASK_OVERDUE']);
+    expect(NOTIFICATION_TYPES).toEqual([
+      'TASK_STATUS_CHANGED',
+      'TASK_OVERDUE',
+      'ISSUE_EVENT',
+      'PULL_REQUEST_EVENT'
+    ]);
     expect(NOTIFICATION_EXCLUSIONS).toEqual([
       'OUTSIDE_WINDOW',
       'NO_RESPONSIBLE',

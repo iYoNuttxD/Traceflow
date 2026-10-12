@@ -516,3 +516,22 @@ describe('S2-03 detecção: atomicidade, concorrência e retrato (D4, D5, C4, C5
     expect(withTransitionsMs, `com 100 transições: ${withTransitionsMs} ms`).toBeLessThan(4000);
   });
 });
+
+describe('S2-03 detecção: estado regravado por fora (D5)', () => {
+  it('E15 a mesma transição detectada de novo depois de uma regravação externa não duplica nem derruba a sincronização', async () => {
+    const project = await integratedProject();
+    await sync(project, { issues: [rawIssue(1, 'open')] });
+    await linkIssue(await createTask(prisma, project.id), await issueRow(project, 1));
+    await sync(project, { issues: [rawIssue(1, 'closed')] });
+    await prisma.issue.update({
+      where: { id: (await issueRow(project, 1)).id },
+      data: { state: 'open', closedAtGithub: null }
+    });
+
+    const again = await sync(project, { issues: [rawIssue(1, 'closed')] });
+
+    expect(again.summary.issues.transitions).toBe(0);
+    expect((await eventsOf(project)).map((event) => event.type)).toEqual(['ISSUE_CLOSED']);
+    expect((await issueRow(project, 1)).state).toBe('closed');
+  });
+});
