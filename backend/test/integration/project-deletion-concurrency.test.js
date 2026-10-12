@@ -229,11 +229,12 @@ describe('Project deletion concorrente com MySQL e storage reais', () => {
       number: index + 1,
       title: `Artefato ${index + 1}`
     }));
+    const batchResult = { created: 100, updated: 0, transitions: 0, linkedTasks: 0, anomalies: 0 };
     const started = performance.now();
-    expect(await issueRepository.upsertMany(rows)).toEqual({ created: 100, updated: 0 });
+    expect(await issueRepository.upsertMany(rows)).toEqual(batchResult);
     const issuesMs = Math.round(performance.now() - started);
     const prsStart = performance.now();
-    expect(await pullRequestRepository.upsertMany(rows)).toEqual({ created: 100, updated: 0 });
+    expect(await pullRequestRepository.upsertMany(rows)).toEqual(batchResult);
     const prsMs = Math.round(performance.now() - prsStart);
     console.info(`github-sync-batch: issues=${issuesMs} ms, prs=${prsMs} ms`);
     await deletionService({ storage }).requestDeletion(project.id, user.id);

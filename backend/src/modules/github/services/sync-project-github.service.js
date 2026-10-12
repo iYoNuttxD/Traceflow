@@ -154,7 +154,8 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       pullRequestsUpdated: pullRequestSummary.updated
     });
     logStep('completed', parsedProjectId, 'pull_requests', stepStartedAt, {
-      items: pullRequestSummary.found
+      items: pullRequestSummary.found,
+      transitions: pullRequestSummary.transitions
     });
 
     stepStartedAt = Date.now();
@@ -172,7 +173,8 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       issuesUpdated: issueSummary.updated
     });
     logStep('completed', parsedProjectId, 'issues', stepStartedAt, {
-      items: issueSummary.found
+      items: issueSummary.found,
+      transitions: issueSummary.transitions
     });
 
     stepStartedAt = Date.now();

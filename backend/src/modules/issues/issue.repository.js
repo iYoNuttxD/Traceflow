@@ -1,6 +1,7 @@
 // Repository de Issues importadas do GitHub.
 import { prisma } from '../../database/prismaClient.js';
 import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { githubEventRepository } from '../notifications/github-event.repository.js';
 
 function buildIssueUpdate(data) {
   return {
@@ -32,18 +33,18 @@ export const issueRepository = {
     return issues.map((issue) => issue.githubId);
   },
 
-  async upsertMany(data) {
+  async upsertMany(data, { detectedAt } = {}) {
     if (data.length === 0) {
-      return { created: 0, updated: 0 };
+      return { created: 0, updated: 0, transitions: 0, linkedTasks: 0, anomalies: 0 };
     }
 
     const projectId = data[0].projectId;
     return withActiveProjectWrite(projectId, async (tx) => {
       const existing = await tx.issue.findMany({
         where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
-        select: { githubId: true }
+        select: { id: true, githubId: true, state: true, closedAtGithub: true }
       });
-      const existingGithubIds = new Set(existing.map(({ githubId }) => githubId));
+      const previous = new Map(existing.map((row) => [row.githubId, row]));
       for (const issue of data) {
         await tx.issue.upsert({
           where: { projectId_githubId: { projectId, githubId: issue.githubId } },
@@ -51,8 +52,15 @@ export const issueRepository = {
           create: issue
         });
       }
-      const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
-      return { created: data.length - updated, updated };
+      const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
+      const recorded = await githubEventRepository.recordTransitions(tx, {
+        projectId,
+        kind: 'ISSUE',
+        previous,
+        incoming: data,
+        detectedAt: detectedAt ?? new Date()
+      });
+      return { created: data.length - updated, updated, ...recorded };
     });
   },
 

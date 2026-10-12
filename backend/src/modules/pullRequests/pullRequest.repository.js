@@ -1,6 +1,7 @@
 // Repository de Pull Requests importados do GitHub.
 import { prisma } from '../../database/prismaClient.js';
 import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { githubEventRepository } from '../notifications/github-event.repository.js';
 
 function buildPullRequestUpdate(data) {
   return {
@@ -43,18 +44,24 @@ export const pullRequestRepository = {
     return pullRequests.map((pullRequest) => pullRequest.githubId);
   },
 
-  async upsertMany(data) {
+  async upsertMany(data, { detectedAt } = {}) {
     if (data.length === 0) {
-      return { created: 0, updated: 0 };
+      return { created: 0, updated: 0, transitions: 0, linkedTasks: 0, anomalies: 0 };
     }
 
     const projectId = data[0].projectId;
     return withActiveProjectWrite(projectId, async (tx) => {
       const existing = await tx.pullRequest.findMany({
         where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
-        select: { githubId: true }
+        select: {
+          id: true,
+          githubId: true,
+          state: true,
+          closedAtGithub: true,
+          mergedAtGithub: true
+        }
       });
-      const existingGithubIds = new Set(existing.map(({ githubId }) => githubId));
+      const previous = new Map(existing.map((row) => [row.githubId, row]));
       for (const pullRequest of data) {
         await tx.pullRequest.upsert({
           where: { projectId_githubId: { projectId, githubId: pullRequest.githubId } },
@@ -62,8 +69,15 @@ export const pullRequestRepository = {
           create: pullRequest
         });
       }
-      const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
-      return { created: data.length - updated, updated };
+      const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
+      const recorded = await githubEventRepository.recordTransitions(tx, {
+        projectId,
+        kind: 'PULL_REQUEST',
+        previous,
+        incoming: data,
+        detectedAt: detectedAt ?? new Date()
+      });
+      return { created: data.length - updated, updated, ...recorded };
     });
   },
 
