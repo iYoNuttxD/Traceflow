@@ -8,6 +8,8 @@ const database = vi.hoisted(() => {
     gitHubInstallation: { findUnique: method(), create: method(), update: method() },
     gitHubInstallationAuthorization: { upsert: method(), updateMany: method() },
     projectGitHubIntegration: { findUnique: method(), create: method(), update: method() },
+    projectMembership: { findUnique: method() },
+    auditEvent: { create: method() },
     project: { findUnique: method(), update: method() }
   };
   return {
@@ -35,12 +37,14 @@ const database = vi.hoisted(() => {
 vi.mock('../../src/database/prismaClient.js', () => ({ prisma: database.prisma }));
 
 const { githubRepository } = await import('../../src/modules/github/github.repository.js');
+const actor = { userId: 7, auditData: { action: 'GITHUB_PROJECT_CONNECTED' } };
 
 describe('persistência de metadados da GitHub App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     database.tx.$queryRaw.mockResolvedValue([{ id: 9 }]);
     database.tx.project.findUnique.mockResolvedValue({ deletedAt: null });
+    database.tx.projectMembership.findUnique.mockResolvedValue({ role: 'OWNER', isActive: true });
   });
 
   it('persiste state de uso único e consulta autorização sem credenciais', async () => {
@@ -191,7 +195,10 @@ describe('persistência de metadados da GitHub App', () => {
     };
     database.tx.projectGitHubIntegration.findUnique.mockResolvedValue(null);
     database.tx.projectGitHubIntegration.create.mockResolvedValue({ id: 14 });
-    await expect(githubRepository.connectProject(9, 12, repository)).resolves.toEqual({ id: 14 });
+    await expect(githubRepository.connectProject(9, 12, repository, actor)).resolves.toMatchObject({
+      outcome: 'CONNECTED',
+      integration: { id: 14 }
+    });
     expect(database.tx.projectGitHubIntegration.create).toHaveBeenCalledWith({
       data: {
         projectId: 9,
@@ -204,7 +211,7 @@ describe('persistência de metadados da GitHub App', () => {
         lastSyncError: null
       }
     });
-    expect(database.tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(database.tx.$queryRaw).toHaveBeenCalledTimes(3);
     const lock = database.tx.$queryRaw.mock.calls[0];
     expect(lock[0].join('?')).toMatch(/Project.*deletedAt IS NULL FOR UPDATE/s);
     expect(lock[1]).toBe(9);
@@ -215,16 +222,29 @@ describe('persistência de metadados da GitHub App', () => {
   });
 
   it('reconecta o mesmo repositório e rejeita troca sem alterar o histórico', async () => {
-    const current = { id: 14, projectId: 9, githubRepositoryId: '501' };
+    const current = {
+      id: 14,
+      projectId: 9,
+      githubRepositoryId: '501',
+      status: 'RECONNECT_REQUIRED'
+    };
     database.tx.projectGitHubIntegration.findUnique.mockResolvedValue(current);
     database.tx.projectGitHubIntegration.update.mockResolvedValue({ ...current, status: 'ACTIVE' });
 
     await expect(
-      githubRepository.connectProject(9, 12, {
-        githubRepositoryId: '501',
-        repositoryFullName: 'owner/repo'
-      })
-    ).resolves.toMatchObject({ githubRepositoryId: '501', status: 'ACTIVE' });
+      githubRepository.connectProject(
+        9,
+        12,
+        {
+          githubRepositoryId: '501',
+          repositoryFullName: 'owner/repo'
+        },
+        actor
+      )
+    ).resolves.toMatchObject({
+      outcome: 'RECONNECTED',
+      integration: { githubRepositoryId: '501', status: 'ACTIVE' }
+    });
     expect(database.tx.projectGitHubIntegration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 14 },
@@ -233,10 +253,15 @@ describe('persistência de metadados da GitHub App', () => {
     );
 
     await expect(
-      githubRepository.connectProject(9, 13, {
-        githubRepositoryId: '502',
-        repositoryFullName: 'owner/outro'
-      })
+      githubRepository.connectProject(
+        9,
+        13,
+        {
+          githubRepositoryId: '502',
+          repositoryFullName: 'owner/outro'
+        },
+        actor
+      )
     ).rejects.toMatchObject({ code: 'GITHUB_REPOSITORY_SWAP_FORBIDDEN' });
     expect(database.tx.projectGitHubIntegration.update).toHaveBeenCalledTimes(1);
   });

@@ -7,6 +7,11 @@ import { projectEventPublisher } from './shared/events/index.js';
 
 const server = app.listen(env.port, () => {
   logger.info('TRACEFLOW backend running.', { port: env.port });
+  if (env.githubSchedulerEnabled)
+    logger.info('O scheduler GitHub é executado em um processo worker independente.', {
+      event: 'github_worker_startup_required',
+      schedulerEnabled: env.githubSchedulerEnabled
+    });
 });
 
 const shutdown = createGracefulShutdown({

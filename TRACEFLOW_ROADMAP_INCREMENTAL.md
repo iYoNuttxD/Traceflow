@@ -952,3 +952,64 @@ todos os requisitos de ambos os cartões.
 **P8.6C desambiguado:** IND-P8.6C-1 é a validação de 28/09/2026; IND-P8.6C-2 é o hardening posterior
 registrado em 03/10/2026. Para decisões posteriores de UI (incluindo Overview compacto), consultar
 IND-P8.6C-2 e suas sucessoras, sem atribuí-las retroativamente à rodada -1.
+
+## GITHUB — Criação opcional e vinculação posterior
+
+Incrementos complementares de RF01/RF02, sem alterar o texto acadêmico oficial.
+
+| Entrega | Escopo | Estado |
+| --- | --- | --- |
+| GITHUB-01 — Criação opcional de projetos | Cadastro com dados básicos ou com repositório autorizado, OWNER atômico e ausência legítima de integração | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md) |
+| GITHUB-02 — Vinculação posterior | PUT de integração existente reutilizado; OWNER, reserva concorrente, auditoria atômica e sync inicial após commit | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_02_POST_CREATION_REPOSITORY_LINKING_REPORT.md) |
+| GITHUB-03 — Gerenciamento e UX | Seção GitHub na edição, seleção compartilhada, vínculo posterior, sync/preferência e navegação contextual | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_03_PROJECT_GITHUB_INTEGRATION_MANAGEMENT_UX_REPORT.md) |
+
+**GITHUB OPTIONAL INTEGRATION — COMPLETE LOCAL.** Fluxos A/B/C/D validados em aplicação real,
+banco isolado, desktop/tablet/mobile e Light/Dark. GITHUB-01/02 já compõem o baseline
+`1abb750`; GITHUB-01/02/03 já integram o HEAD `50cb7af` auditado na entrega GITHUB-04.
+
+O bloqueio funcional de disponibilizar criação opcional sem UI de vinculação foi resolvido
+localmente. Liberação externa continua condicionada à revisão final, integração, CI e deploy.
+Isso não conclui S2-09/S2-10, OCI ou homologação em produção. GITHUB-03 persistia somente a
+preferência automática; GITHUB-04 acrescenta a execução periódica descrita abaixo.
+Troca/desvinculação de repositório permanecem fora desta sequência sem decisão específica de
+domínio. Nenhuma feature flag complexa foi introduzida.
+
+### GITHUB-04 — UX e sincronização periódica
+
+**PASS LOCAL** no encerramento da GITHUB-04, em `daniel-dev`; naquela rodada o agente não
+executou commit/push/deploy. A publicação posterior está registrada em PR24-FIX-01 abaixo.
+Worker independente com agenda persistida, jitter, slots globais, mesma reserva manual/automática,
+fencing transacional e recuperação. UI agrupada, switch, progresso compartilhado e descoberta
+por polling. [Relatório e gates locais](docs/deliveries/GITHUB_04_INTEGRATION_UX_AUTOMATIC_SYNC_SCHEDULER_REPORT.md).
+OCI/deploy permanecem fora desta entrega; sem troca/desvinculação de repositório.
+
+### GITHUB-04.1 — Confiabilidade da automação e refinamento UX
+
+**PASS LOCAL**, em `daniel-dev`.
+Correção da distinção entre agenda e worker operacional, startup explícito, heartbeat mínimo,
+logs de adiamento e refinamento Settings C2. Repository preserva sua estrutura sem CTA.
+[Diagnóstico e validação local](docs/deliveries/GITHUB_04_1_AUTOSYNC_RELIABILITY_UX_REFINEMENT_REPORT.md).
+Sem OCI/deploy; migration aplicada somente em schemas isolados de teste.
+
+### PR24-FIX-01 — Correções de review e CI
+
+**PASS LOCAL**, em `daniel-dev`, sobre o HEAD revisado `6b739433da`.
+Oito comentários de Copilot/Codex e o validador LR.2 corrigidos: fairness por paginação,
+elegibilidade durante espera por capacidade, secondary rate limit, recuperação do polling,
+requests do Repository e contratos/rastreabilidade. Gates locais completos e migrations PASS.
+[Matriz de fechamento e evidências](docs/deliveries/PR24_FIX_01_CODE_REVIEW_CI_CORRECTIONS_REPORT.md).
+Na conclusão local da FIX-01, CI #138 estava falha e o agente não executou commit/push/deploy.
+Posteriormente foi publicado `ae9a265b6347f288b9c3b4c1ab0f01553c1f19b6`: a
+[CI #139](https://github.com/iYoNuttxD/Traceflow/actions/runs/38159318408) passou nos cinco checks,
+conforme consulta da FIX-02 em 11/10/2026. Esse resultado se refere à FIX-01, não ao diff seguinte.
+
+### PR24-FIX-02 — Fechamento de arquitetura, banco e review
+
+Correção incremental da FK de ator, gate de drift da cadeia SQL, ADR-017, contenção GitHub limitada
+e Retry-After. Migrations anteriores preservadas porque já foram aplicadas no desenvolvimento.
+Relatório: [matriz e gates](docs/deliveries/PR24_FIX_02_FINAL_ARCHITECTURE_DATABASE_REVIEW_CLOSURE_REPORT.md).
+Retenção de SyncRun (D-A): DECISION REQUIRED; proposta 90/180 dias sem cleanup automático até
+aprovação da finalidade/prazo e dos critérios documentados na política de dados.
+S2-09/S2-10 devem incluir worker supervisionado, reinício, heartbeat/alerta WORKER_NOT_OBSERVED,
+NTP e pools dimensionados. OCI continua implantação futura, conforme ADR-017 e decisão histórica
+`fe05208`; nenhuma entrega de infraestrutura ou merge com `joao-dev-v2` é iniciada aqui.

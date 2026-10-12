@@ -1,20 +1,33 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getProjectArtifacts = vi.hoisted(() => vi.fn());
+const projectApi = vi.hoisted(() => ({ get: vi.fn() }));
+const membersApi = vi.hoisted(() => ({ list: vi.fn() }));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({ projectsApi: projectApi }));
+vi.mock('../../src/features/members/members.api.js', () => ({ membersApi }));
+
 vi.mock('../../src/features/github/api/github.api.js', () => ({ getProjectArtifacts }));
 
 import { RepositoryInfoPage } from '../../src/pages/RepositoryInfoPage.jsx';
 
-function renderPage() {
+let navigateRepository;
+function RepositoryHarness() {
+  navigateRepository = useNavigate();
+  return <RepositoryInfoPage />;
+}
+
+function renderPage(options) {
   return render(
     <MemoryRouter initialEntries={['/projects/1/repository']}>
       <Routes>
-        <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
+        <Route path="/projects/:projectId/repository" element={<RepositoryHarness />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
+    options
   );
 }
 
@@ -45,7 +58,31 @@ async function expandFilters(user) {
 describe('RepositoryInfoPage RF06', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    projectApi.get.mockResolvedValue({
+      data: {
+        project: {
+          id: 1,
+          name: 'Projeto E9',
+          githubIntegration: {
+            status: 'ACTIVE',
+            repositoryFullName: 'owner/repo',
+            lastSyncStatus: 'PENDENTE'
+          }
+        }
+      }
+    });
+    membersApi.list.mockResolvedValue({ currentMembership: { role: 'OWNER' } });
     getProjectArtifacts.mockResolvedValue(artifactsResponse());
+  });
+
+  it('recupera metadata após o cancelamento do primeiro effect pelo StrictMode da aplicação', async () => {
+    renderPage({ wrapper: StrictMode });
+    expect(
+      await screen.findByRole('heading', { name: 'Nenhum artefato importado.' })
+    ).toBeVisible();
+    expect(projectApi.get.mock.calls[0][1].signal.aborted).toBe(true);
+    expect(projectApi.get).toHaveBeenCalledTimes(2);
+    expect(membersApi.list).not.toHaveBeenCalled();
   });
 
   it('renderiza header e surfaces C2 sem retorno legado, preservando loading e vazio real', async () => {
@@ -74,6 +111,55 @@ describe('RepositoryInfoPage RF06', () => {
     expect(screen.getByRole('region', { name: 'Artefatos do repositório' })).toBeInTheDocument();
     expect(getProjectArtifacts).toHaveBeenCalledWith('1', {}, { signal: expect.any(AbortSignal) });
     expect(getProjectArtifacts).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva resumo e filtros sem oferecer CTA de configuração mesmo ao OWNER', async () => {
+    projectApi.get.mockResolvedValue({
+      data: { project: { id: 1, name: 'Local', githubIntegration: null } }
+    });
+    renderPage();
+    expect(
+      await screen.findByRole('heading', { name: 'Nenhum repositório conectado' })
+    ).toBeVisible();
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Nenhum artefato importado.' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Filtrar artefatos/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Visão geral do repositório' })).toBeVisible();
+    expect(screen.getAllByText('Não disponível')).toHaveLength(5);
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Configurar integração' })).not.toBeInTheDocument();
+  });
+
+  it.each(['VIEWER', 'MEMBER', 'MANAGER'])('não oferece vinculação ao %s', async (role) => {
+    projectApi.get.mockResolvedValue({
+      data: { project: { id: 1, name: 'Local', githubIntegration: null } }
+    });
+    membersApi.list.mockResolvedValue({ currentMembership: { role } });
+    renderPage();
+    await screen.findByRole('heading', { name: 'Nenhum repositório conectado' });
+    expect(screen.queryByRole('link', { name: 'Configurar integração' })).not.toBeInTheDocument();
+  });
+
+  it('falha de sincronização conserva o catálogo integrado', async () => {
+    projectApi.get.mockResolvedValue({
+      data: {
+        project: {
+          id: 1,
+          name: 'Integrado',
+          githubIntegration: { status: 'ACTIVE', lastSyncStatus: 'FALHA' }
+        }
+      }
+    });
+    renderPage();
+    expect(
+      await screen.findByText(/Os artefatos já importados continuam disponíveis/)
+    ).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Artefatos do repositório' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Nenhum repositório conectado' })
+    ).not.toBeInTheDocument();
   });
 
   it('aplica tipo e datas válidas automaticamente, sem ação de submit', async () => {
@@ -115,6 +201,73 @@ describe('RepositoryInfoPage RF06', () => {
       })
     ).toBeInTheDocument();
     expect(screen.getByText('0 artefatos no conjunto filtrado')).toBeInTheDocument();
+  });
+
+  it('cinco alterações de filtro não recarregam metadata nem memberships', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole('heading', { name: 'Nenhum artefato importado.' });
+    const filters = await expandFilters(user);
+    for (const type of ['commit', 'pull_request', 'issue', 'commit', '']) {
+      await user.selectOptions(within(filters).getByLabelText('Tipo de artefato'), type);
+    }
+    expect(getProjectArtifacts).toHaveBeenCalledTimes(6);
+    expect(projectApi.get).toHaveBeenCalledOnce();
+    expect(membersApi.list).not.toHaveBeenCalled();
+  });
+
+  it('troca de projeto cancela metadata e artefatos antigos sem misturar respostas', async () => {
+    let finishProject, finishArtifacts;
+    projectApi.get
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishProject = resolve;
+          })
+      )
+      .mockResolvedValueOnce({
+        data: { project: { id: 2, name: 'Projeto B', githubIntegration: { status: 'ACTIVE' } } }
+      });
+    getProjectArtifacts
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishArtifacts = resolve;
+          })
+      )
+      .mockResolvedValueOnce(
+        artifactsResponse({ artifacts: [{ id: 22, type: 'commit', title: 'Artefato B' }] })
+      );
+    renderPage();
+    await waitFor(() => expect(projectApi.get).toHaveBeenCalledOnce());
+    const projectSignal = projectApi.get.mock.calls[0][1].signal;
+    const artifactsSignal = getProjectArtifacts.mock.calls[0][2].signal;
+    await act(async () => navigateRepository('/projects/2/repository'));
+    expect(await screen.findByText('Artefato B')).toBeVisible();
+    expect(screen.getByText(/o projeto Projeto B/)).toBeVisible();
+    expect(projectSignal.aborted).toBe(true);
+    expect(artifactsSignal.aborted).toBe(true);
+    await act(async () => {
+      finishProject({ data: { project: { id: 1, name: 'Projeto A', githubIntegration: null } } });
+      finishArtifacts(
+        artifactsResponse({ artifacts: [{ id: 11, type: 'commit', title: 'Artefato A' }] })
+      );
+    });
+    expect(screen.queryByText('Artefato A')).not.toBeInTheDocument();
+    expect(screen.queryByText(/o projeto Projeto A/)).not.toBeInTheDocument();
+    expect(projectApi.get).toHaveBeenCalledTimes(2);
+    expect(membersApi.list).not.toHaveBeenCalled();
+  });
+
+  it('permite repetir metadata após falha sem manter uma promise rejeitada em cache', async () => {
+    projectApi.get.mockRejectedValueOnce({ response: { status: 503 } });
+    renderPage();
+    const retry = await screen.findByRole('button', { name: 'Tentar novamente' });
+    fireEvent.click(retry);
+    expect(
+      await screen.findByRole('heading', { name: 'Nenhum artefato importado.' })
+    ).toBeVisible();
+    expect(projectApi.get).toHaveBeenCalledTimes(2);
   });
 
   it('exibe Limpar somente para filtros confirmados e restaura o catálogo completo', async () => {

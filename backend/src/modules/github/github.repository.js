@@ -1,5 +1,7 @@
 import { prisma } from '../../database/prismaClient.js';
 import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { lockProjectMembership } from '../projects/project-lifecycle-lock.js';
+import { auditRepository } from '../audit/audit.repository.js';
 
 const blockedInstallationStatuses = new Set(['SUSPENDED', 'REMOVED']);
 
@@ -161,28 +163,60 @@ export const githubRepository = {
       }
     });
   },
-  connectProject(projectId, installationId, repository) {
+  connectProject(projectId, installationId, repository, { userId, auditData }) {
     const integratedAt = new Date();
     return withActiveProjectWrite(projectId, async (tx) => {
+      await lockProjectMembership(tx, projectId, userId);
+      const membership = await tx.projectMembership.findUnique({
+        where: { projectId_userId: { projectId, userId } }
+      });
+      if (!membership?.isActive) return { outcome: 'NOT_FOUND' };
+      if (membership.role !== 'OWNER') return { outcome: 'FORBIDDEN' };
+
       const current = await tx.projectGitHubIntegration.findUnique({ where: { projectId } });
       if (
-        current?.githubRepositoryId &&
-        String(current.githubRepositoryId) !== String(repository.githubRepositoryId)
+        current &&
+        (current.githubRepositoryId
+          ? String(current.githubRepositoryId) !== String(repository.githubRepositoryId)
+          : current.repositoryFullName !== repository.repositoryFullName)
       ) {
         throw repositorySwapError();
       }
+      if (
+        current &&
+        (current.status !== 'RECONNECT_REQUIRED' ||
+          (current.installationId && current.installationId !== installationId))
+      ) {
+        return { outcome: 'ALREADY_CONNECTED' };
+      }
+      // Shared locks freeze authorization/lifecycle without serializing projects that
+      // reuse this installation (including the existing GitHub-backed creation path).
+      // GitHub validation already finished; only local invariants are checked here.
+      const authorized = await tx.$queryRaw`
+        SELECT i.id FROM GitHubInstallation i
+        INNER JOIN GitHubInstallationAuthorization a ON a.installationId = i.id
+        WHERE i.id = ${installationId} AND i.status = 'ACTIVE' AND a.userId = ${userId}
+        LOCK IN SHARE MODE
+      `;
+      if (!authorized.length) return { outcome: 'INSTALLATION_FORBIDDEN' };
       const data = {
         installationId,
         ...repository,
-        integratedAt,
+        integratedAt: current?.integratedAt || integratedAt,
         status: 'ACTIVE',
         lastValidatedAt: integratedAt,
         lastSyncStatus: 'PENDENTE',
         lastSyncError: null
       };
-      return current
+      const saved = await (current
         ? tx.projectGitHubIntegration.update({ where: { id: current.id }, data })
-        : tx.projectGitHubIntegration.create({ data: { projectId, ...data } });
+        : tx.projectGitHubIntegration.create({ data: { projectId, ...data } }));
+      await auditRepository.create({ ...auditData, resourceId: String(saved.id) }, tx);
+      const project = await tx.project.findUnique({
+        where: { id: projectId },
+        include: { githubIntegration: true }
+      });
+      return { outcome: current ? 'RECONNECTED' : 'CONNECTED', project, integration: saved };
     });
   },
   async startWebhookDelivery(data, now = new Date(), staleBefore = new Date(0)) {

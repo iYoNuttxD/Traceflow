@@ -590,6 +590,35 @@ em uma row detalhada. As duas usam a mesma linguagem de surface, mas a densidade
 reais e não força alturas iguais. Desvincular OAuth não implica desconectar App, e desconectar App
 não implica remover OAuth.
 
+### Configuração GitHub do projeto — GITHUB-03
+
+A edição do projeto aplica a composição Settings C2: uma surface com seções internas para
+Dados do projeto e Integração GitHub; zona de perigo separada. Cada seção mantém suas ações
+independentes. Estado não conectado é compacto, com texto e ação autorizada; conectado usa
+metadata legível, badge textual e controles de sincronização. Falha de sync não remove o badge
+de vínculo. Overview e Repository mantêm apenas consulta; configuração pertence à edição.
+
+Cadastro e vínculo compartilham o mesmo seletor nativo, busca textual, filtro por conta,
+feedback e estado de reserva. GITHUB-04 agrupa Repositório, Sincronização e Automação com
+divisores internos, metadados compactos e ação de sync secundária próxima ao progresso.
+Preferência usa `shared/Switch` (input checkbox com role switch, foco visível, label/target 44px,
+Space e disabled); o valor só muda após confirmação. A auditoria do HEAD não encontrou switch
+canônico anterior em Settings; esta primitive reutiliza tokens sem criar outra identidade.
+Próxima execução vem do backend, com estado indisponível quando null. O progresso extraído da
+Overview identifica manual/automática e etapas, sem percentuais estimados. Não há novos tokens
+ou dialogs. [Evidências GITHUB-04](../deliveries/GITHUB_04_INTEGRATION_UX_AUTOMATIC_SYNC_SCHEDULER_REPORT.md).
+Evidência runtime textual e limites no [relatório GITHUB-03](../deliveries/GITHUB_03_PROJECT_GITHUB_INTEGRATION_MANAGEMENT_UX_REPORT.md).
+
+GITHUB-04.1 aplica a anatomia compacta das Configurações do Usuário dentro dessa surface: heading
+de contexto ao lado do conteúdo em telas amplas; identidade do repositório e badge na mesma row;
+estado/ação de sync juntos, com último sucesso/tentativa em dupla; label, descrição e switch
+formam um único controle. No tablet os contextos passam para cima do conteúdo; no mobile as
+datas e ações se reorganizam sem comprimir colunas. Não há novos cards, cores ou tokens.
+O Switch compartilhado aceita descrição acessível ligada ao input, preservando nome, Space,
+foco e confirmação. Preferência, agenda e disponibilidade são separados: sem executor observado,
+feedback no grupo Automação; com executor, próximo horário do backend. Evidências e limites no
+[relatório GITHUB-04.1](../deliveries/GITHUB_04_1_AUTOSYNC_RELIABILITY_UX_REFINEMENT_REPORT.md).
+
 ## Linhas de entidades, histórico e confirmação
 
 `EntityRow` é a primitive compartilhada para entidades internas em categorias de

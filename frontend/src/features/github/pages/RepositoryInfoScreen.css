@@ -404,3 +404,4 @@
     padding-top: var(--space-6);
   }
 }
+.repository-filter-form { margin: 0; padding: 0; border: 0; min-width: 0; }

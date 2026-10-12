@@ -85,6 +85,39 @@ Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e
 
 O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização assíncrona cria ou reutiliza uma execução persistida com `POST /projects/:projectId/github/sync`, responde `202 {message,run}` e expõe progresso/resultado em `GET /projects/:projectId/github/sync/status`. A execução pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca `SUCCEEDED` após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos.
 
+PR24-FIX-02: pedido manual durante cooldown da instalação responde `429` com `Retry-After`
+em segundos inteiros, `max(1, ceil((syncNotBefore - agora) / 1000))`, sem iniciar execução.
+O corpo de erro canônico é preservado; não expõe metadados internos da instalação. Contenção
+persistente do Project responde `503` após até três tentativas curtas fora de uma transação
+bloqueada. Corridas curtas continuam coalescendo no mesmo run com `202`/`alreadyRunning`.
+
+GITHUB-04 mantém os mesmos endpoints. `run.origin` distingue `MANUAL` e `AUTOMATIC`;
+`requestedByUserId`, slots e dados da instalação não entram no DTO público. `githubIntegration`
+acrescenta `nextSyncAt: ISO-8601 UTC | null`, sempre calculado/persistido pelo servidor.
+PATCH sync-settings continua aceitando exclusivamente `{githubAutoSyncEnabled:boolean}` (OWNER).
+Habilitar cria a agenda futura; desabilitar remove a agenda, sem cancelar RUNNING. A resposta
+confirmada contém a preferência e o horário, quando elegível. GET de projeto/status continua
+exigindo membership; MANAGER+ mantém POST manual e CSRF/e-mail verificado.
+
+POST durante qualquer run ativo devolve `202` com o mesmo `run.id`, `origin` e
+`alreadyRunning:true`; não inicia outra execução. Durante cooldown da instalação, uma nova
+solicitação sem run ativo recebe `429 GITHUB_RATE_LIMITED`. Status terminal FAILED continua
+sendo uma leitura HTTP 200, sem converter falha da execução em 500 na consulta.
+
+O worker independente considera apenas projetos elegíveis, com App configurada, integração e
+instalação ACTIVE. Agenda persistida, slots únicos, recuperação/fencing e backoff estão no
+[runbook do scheduler](../runbooks/GITHUB_AUTOMATIC_SYNC.md). Rate limit preserva Retry-After/reset;
+falha transitória preserva conexão e último sucesso. Perda confirmada de autorização/recurso
+(401/403 sem rate limit/404 externo) exige reconexão do mesmo repositório; não apaga artefatos.
+
+GITHUB-04.1 acrescenta `automation` à resposta de GET sync/status, preservando `run`:
+`{status:AVAILABLE|UNAVAILABLE, reason:null|WORKER_NOT_OBSERVED|SCHEMA_NOT_READY,
+lastHeartbeatAt:ISO|null, checkedAt:ISO, nextSyncAt:ISO|null}`. Datas representam instantes UTC.
+AVAILABLE significa heartbeat de executor recente (até max(60s, três ticks)), não garantia de
+execução pontual. nextSyncAt é agenda; não comprova executor ativo. Ausência/migration de liveness
+pendente não quebra a leitura ou sync manual. Nenhum ID de worker, instalação ou segredo é exposto.
+A autorização de membership e todos os contratos de mutação permanecem iguais.
+
 O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`.
 
 ## Persistência canônica sem ruptura HTTP
@@ -149,6 +182,25 @@ identifica apenas a categoria pública da quota, sem expor sua chave, usuário o
 | qualquer | rota desconhecida | —       | —                                   | `404`, `ROUTE_NOT_FOUND`       |
 
 ## Projects e memberships
+
+GITHUB-01 reutiliza os dois cadastros existentes. `POST /projects` exige `name` e
+`responsibleTeam` não vazios; aceita `description` e `status` (`ATIVO`, `INATIVO`,
+`ARQUIVADO`, padrão `ATIVO`) opcionais. Não recebe identidade GitHub, não consulta a
+GitHub App e cria Project + membership OWNER na mesma transação, sem criar integração.
+Criação, listagem, detalhe e edição de dados básicos retornam `githubIntegration: null`
+quando não há vínculo. Esse estado técnico não altera `Project.status`.
+
+`POST /projects/from-github` continua exigindo `githubInstallationId` e
+`githubRepositoryId`, com `name`, `description` e `responsibleTeam` opcionais no HTTP
+(defaults atuais do repositório/equipe). A interface exige nome e equipe nos dois
+caminhos. A App revalida a instalação, o acesso e a reserva/unicidade; Project, OWNER e
+integração são persistidos atomicamente. Não existe fallback automático para criação
+local quando o cadastro integrado falha. Ambos os endpoints exigem sessão, e-mail
+verificado, CSRF e payload estrito. GITHUB-02 acrescenta a vinculação posterior conforme
+o contrato abaixo. GITHUB-01 a GITHUB-04.1 têm implementação concluída localmente, incluindo
+gerenciamento na UI e worker periódico. A cronologia de CI e os limites de disponibilização
+estão no [relatório PR24-FIX-02](../deliveries/PR24_FIX_02_FINAL_ARCHITECTURE_DATABASE_REVIEW_CLOSURE_REPORT.md);
+implementação funcional não comprova implantação nem operação do worker em produção.
 
 | Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                                                       |
 | -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
@@ -392,15 +444,56 @@ Ver [histórico de esforço](../data/TASK_EFFORT_HISTORY.md) para retenção, ad
 
 ## GitHub e Artifacts
 
+### GITHUB-02 — Vinculação posterior
+
+O endpoint canônico existente `PUT /api/projects/:projectId/github/integration` também
+atende à primeira vinculação de um projeto local. Não há um segundo endpoint `/github/connect`.
+Exige sessão, conta ativa, e-mail verificado, CSRF e membership OWNER. Ausência de membership
+ou projeto excluído/inexistente retorna `404` opaco; MEMBER/MANAGER/VIEWER recebem `403`.
+O corpo estrito recebe somente `githubInstallationId` (string numérica) e `githubRepositoryId`
+(string numérica ou inteiro). Metadados vêm do escopo vivo da GitHub App, sem GitHubIdentity.
+Falhas do client externo são traduzidas em 403 GITHUB_AUTH_FAILED, 404 RESOURCE_NOT_FOUND,
+429 GITHUB_RATE_LIMITED ou 503 EXTERNAL_SERVICE_ERROR, com mensagens públicas constantes.
+Falha temporária antes do vínculo não altera Project, integração ou dados locais.
+
+Projeto sem integração recebe uma integração `ACTIVE`, `lastSyncStatus: PENDENTE`, mantendo
+Project, memberships e dados locais. A transação revalida lifecycle, OWNER e autorização da
+instalação; as constraints únicas de projeto/repositório protegem a reserva, inclusive durante
+a carência de exclusão. Nenhuma chamada GitHub ocorre dentro dessa transação.
+
+Integração já `ACTIVE` retorna `409 GITHUB_PROJECT_ALREADY_CONNECTED` para repetição do mesmo
+repositório, sem escrita, auditoria de sucesso ou sync adicional. Outro repositório retorna
+`409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`. Reconexão legada `RECONNECT_REQUIRED` permanece na
+mesma rota, para a identidade de repositório existente; não permite substituir uma instalação
+já associada. Ela não é uma nova vinculação nem dispara sync inicial automaticamente.
+Legado sem repository ID precisa corresponder ao `repositoryFullName` persistido; ausência
+de identidade conhecida não autoriza escolher arbitrariamente outro repositório.
+
+Sucesso continua `200`, com `{message, project, integration, initialSync}`. `project` usa
+`publicProject`; `integration` contém somente os campos públicos dessa relação mais `id` e
+`projectId`, sem credenciais ou metadados internos da instalação. Na primeira vinculação,
+`initialSync` contém `{status, run, error}`: `status` é o estado real do run canônico
+(`QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`), `run` tem o mesmo DTO de `/github/sync/status`.
+Na reconexão, `initialSync` é `null`.
+
+A vinculação é confirmada antes de solicitar sync. Se o agendamento falhar, o sucesso da
+vinculação permanece `200`, com `initialSync: {status: FAILED, run: null, error}` sanitizado;
+o projeto conserva integração/reserva. Falha posterior do worker é consultada em
+`GET /projects/:projectId/github/sync/status` e em `project.githubIntegration.lastSyncStatus` /
+`lastSyncError`. Retry usa `POST /projects/:projectId/github/sync` (MANAGER+), nunca novo PUT.
+Um run enfileirado não significa importação concluída. A UI GITHUB-03 e as etapas GITHUB-04/04.1
+estão implementadas localmente; a liberação depende da validação remota da PR e da operação do
+worker no ambiente de implantação. Não há evidência de deploy ou homologação em produção.
+
 | Método | Caminho                                                  | Entrada                                        | Sucesso                                                          |
 | ------ | -------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
 | POST   | `/github/app/installations/start`                        | `intendedAction`; `projectId?`                 | `200`, `{url,expiresInMs}` para autorização da GitHub App        |
 | GET    | `/github/app/installations`                              | sessão                                         | `200`, `{installations}` autorizadas ao usuário                  |
 | GET    | `/github/app/repositories`                               | `projectId?`                                   | `200`, `{repositories}` da Installation                          |
 | GET    | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?`            | `200`, `{repositories}` da Installation                          |
-| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`; troca de repositório recebe `409`                         |
+| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`, `{message,project,integration,initialSync}`; conflitos `409` |
 | POST   | `/projects/:projectId/github/sync`                       | `projectId` positivo; body vazio               | `202`, `{message,run}`; execução persistida iniciada ou já ativa |
-| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run}` com status, progresso, summary e erro sanitizado  |
+| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run,automation}`; `run` nullable com origin/status/progresso/summary/erro; `automation` obrigatório conforme contrato acima |
 | GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                               |
 | GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                          |
 | GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                |

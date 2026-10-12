@@ -16,6 +16,7 @@ import {
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
 import { useProjectsCatalog } from '../hooks/ProjectsCatalogContext.jsx';
 import { projectsApi } from '../api/projects.api.js';
+import { ProjectGitHubIntegration } from '../components/ProjectGitHubIntegration.jsx';
 import '../styles/project-admin.css';
 
 function toFormData(project) {
@@ -30,6 +31,10 @@ function toFormData(project) {
 
 export function ProjectEditScreen() {
   const { projectId } = useParams();
+  return <ProjectEditContent key={projectId} projectId={projectId} />;
+}
+
+function ProjectEditContent({ projectId }) {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const { refreshProjects } = useProjectsCatalog();
@@ -110,11 +115,14 @@ export function ProjectEditScreen() {
         status: formData.status
       });
       if (routeProjectIdRef.current === requestedProjectId) {
-        setProject(response.data.project);
+        setProject((current) => ({
+          ...response.data.project,
+          githubIntegration: current.githubIntegration
+        }));
         setFormData(toFormData(response.data.project));
         setSuccess(response.data.message);
       }
-      await refreshProjects({ fresh: true });
+      void refreshProjects({ fresh: true });
     } catch (requestError) {
       if (routeProjectIdRef.current === requestedProjectId) {
         const normalized = normalizeApiError(requestError, 'Não foi possível atualizar o projeto.');
@@ -197,7 +205,7 @@ export function ProjectEditScreen() {
       <header className="project-admin-screen__header">
         <div>
           <h1>Editar projeto</h1>
-          <p>Atualize os dados de {project.name} sem alterar suas integrações ou permissões.</p>
+          <p>Gerencie os dados e a integração GitHub de {project.name}.</p>
         </div>
       </header>
 
@@ -208,17 +216,27 @@ export function ProjectEditScreen() {
         success={success}
       />
 
-      <section className="project-admin-surface" aria-labelledby="project-edit-form-title">
-        <h2 id="project-edit-form-title">Dados do projeto</h2>
-        <ProjectForm
-          formData={formData}
-          onChange={handleChange}
-          onSubmit={handleSubmit}
-          submitLabel="Salvar alterações"
-          submitting={submitting}
-          showRepositoryField={false}
+      <article className="project-settings-surface">
+        <section className="project-admin-surface" aria-labelledby="project-edit-form-title">
+          <h2 id="project-edit-form-title">Dados do projeto</h2>
+          <ProjectForm
+            formData={formData}
+            onChange={handleChange}
+            onSubmit={handleSubmit}
+            submitLabel="Salvar alterações"
+            submitting={submitting}
+            showRepositoryField={false}
+          />
+        </section>
+        <ProjectGitHubIntegration
+          key={project.id}
+          project={project}
+          role={currentMembership.role}
+          onIntegrationChange={(integration) =>
+            setProject((current) => ({ ...current, githubIntegration: integration }))
+          }
         />
-      </section>
+      </article>
 
       <section
         className="project-admin-surface project-danger-zone"

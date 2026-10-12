@@ -117,6 +117,21 @@ npm run dev
 - SPA: `http://localhost:5173`
 - Probes: `/health`, `/health/live` e `/health/ready`
 
+**Sincronização automática exige um terceiro processo.** Iniciar a API e a SPA não inicia
+o scheduler, mesmo com `GITHUB_SCHEDULER_ENABLED=true` no `.env`. Em outro terminal:
+
+```bash
+cd backend
+GITHUB_SCHEDULER_ENABLED=true npm run github:worker
+```
+
+Mantenha esse terminal aberto e confira `github_scheduler_started` e, quando houver execução,
+`github_sync_claimed` / `github_sync_run_completed`. API e worker usam o mesmo banco, GitHub App
+e policy. A migration `20261011010000_github_scheduler_liveness` permite confirmar a atividade
+do executor; a preferência e `nextSyncAt` sozinhos não comprovam que o worker está rodando.
+A UI informa indisponibilidade quando não observa atividade recente. Veja startup, shutdown e
+diagnóstico no [runbook](docs/runbooks/GITHUB_AUTOMATIC_SYNC.md).
+
 ## Gates de qualidade
 
 Backend:
@@ -156,7 +171,7 @@ Os checks obrigatórios são `Quality`, `Backend Tests`, `Frontend Tests`, `Supp
 
 ## Integração GitHub
 
-GitHub OAuth é opcional e serve apenas para cadastro/login, vínculo de identidade e reautenticação sensível. Repositórios e artefatos usam exclusivamente GitHub App por instalação, inclusive para contas locais sem `GitHubIdentity`. O callback comprova o acesso do ator à Installation sem transformar essa prova em identidade TraceFlow; leitura e sync usam Installation Access Token gerado sob demanda e nunca persistido. A sincronização permanece manual, paginada, idempotente e preserva artefatos. Projetos anteriores à L1 ficam `RECONNECT_REQUIRED` até um OWNER reconectar. Operação, permissões e incidentes estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
+GitHub OAuth é opcional e serve apenas para cadastro/login, vínculo de identidade e reautenticação sensível. Repositórios e artefatos usam exclusivamente GitHub App por instalação, inclusive para contas locais sem `GitHubIdentity`. O callback comprova o acesso do ator à Installation sem transformar essa prova em identidade TraceFlow; leitura e sync usam Installation Access Token gerado sob demanda e nunca persistido. A sincronização manual e a periódica reutilizam a mesma pipeline paginada/idempotente e preservam artefatos. O worker independente e a agenda persistida estão no [runbook automático](docs/runbooks/GITHUB_AUTOMATIC_SYNC.md). Projetos anteriores à L1 ficam `RECONNECT_REQUIRED` até um OWNER reconectar. Operação, permissões e incidentes estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
 
 ## Segurança e privacidade
 
@@ -173,8 +188,8 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 - `DELETE /api/projects/:id` executa exclusão lógica por OWNER, com restauração durante 30 × 24h. O purge definitivo exige job externo e storage consistente; veja o [runbook](docs/runbooks/PROJECT_DELETION_PURGE.md).
 - `Project.accessCode` permanece como capability atual; o link de ingresso é derivado e não persistido.
 - `Task.responsible` e `TaskMovement.movedBy` permanecem como snapshots históricos, sem valor de identidade ou autorização.
-- O rate limiter usa memória por processo. A sincronização possui claim persistido por projeto e proteção contra retomada de workers expirados; a execução do worker continua no processo da API, sem fila externa durável. Produção horizontal exige validação operacional e store distribuído para rate limiting.
-- Secret manager, store distribuído de rate limiting, fila durável e configuração operacional real da GitHub App/SMTP não são fornecidos pelo repositório.
+- O rate limiter usa memória por processo. A sincronização possui claim persistido por projeto e proteção contra retomada de workers expirados; o disparo manual permanece na API, e o worker independente recupera runs e agenda sync automática usando o banco como autoridade. Produção horizontal exige validação operacional e store distribuído para rate limiting.
+- Secret manager, store distribuído de rate limiting, broker externo e configuração operacional real da GitHub App/SMTP não são fornecidos pelo repositório.
 - TLS, headers do host da SPA, backups agendados, observabilidade e branch protection dependem do ambiente operacional.
 - Não há SBOM/proveniência automatizada, E2E em navegador ou gate automatizado de licenças.
 

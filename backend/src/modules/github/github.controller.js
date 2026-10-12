@@ -4,6 +4,7 @@ import { issueService } from '../issues/issue.service.js';
 import { pullRequestService } from '../pullRequests/pullRequest.service.js';
 import { githubSyncService } from './githubSync.service.js';
 import { auditService } from '../audit/audit.service.js';
+import { getGithubAutomationStatus } from './services/github-scheduler-status.service.js';
 
 export const githubController = {
   syncProjectGithubData: asyncHandler(
@@ -28,6 +29,10 @@ export const githubController = {
           run
         });
       } catch (error) {
+        if (error.code === 'GITHUB_RATE_LIMITED' && error.retryAt instanceof Date) {
+          const seconds = Math.max(1, Math.ceil((error.retryAt.getTime() - Date.now()) / 1000));
+          res.setHeader('Retry-After', String(seconds));
+        }
         await auditService.recordOperational({
           actorUserId: req.auth.user.id,
           projectId: req.params.projectId,
@@ -47,7 +52,8 @@ export const githubController = {
   getProjectGithubSyncStatus: asyncHandler(
     async (req, res) => {
       const run = await githubSyncService.getProjectGithubSyncStatus(req.params.projectId);
-      return res.json({ run });
+      const automation = await getGithubAutomationStatus(req.params.projectId);
+      return res.json({ run, automation });
     },
     { fallbackMessage: 'Não foi possível consultar a sincronização do GitHub.' }
   ),

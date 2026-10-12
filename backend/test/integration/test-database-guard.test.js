@@ -87,7 +87,7 @@ describe('proteção do banco de testes', () => {
     const { client, deleteMany, query } = cleanupClient('traceflow_test');
 
     await cleanTestDatabase(client);
-    expect(deleteMany).toHaveBeenCalledTimes(49);
+    expect(deleteMany).toHaveBeenCalledTimes(50);
     expect(query.mock.invocationCallOrder[0]).toBeLessThan(deleteMany.mock.invocationCallOrder[0]);
     expect(client.$transaction).toHaveBeenCalledOnce();
   });

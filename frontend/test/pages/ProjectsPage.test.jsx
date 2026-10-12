@@ -388,7 +388,7 @@ describe('ProjectsPage', () => {
     await openCreateFlow(user);
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe nova');
     await user.selectOptions(
-      screen.getByLabelText('Repositório GitHub *'),
+      screen.getByLabelText(/^Repositório GitHub/),
       pendingRepository.fullName
     );
 
@@ -489,7 +489,7 @@ describe('ProjectsPage', () => {
     await openCreateFlow(user);
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe nova');
     await user.selectOptions(
-      screen.getByLabelText('Repositório GitHub *'),
+      screen.getByLabelText(/^Repositório GitHub/),
       pendingRepository.fullName
     );
     await user.click(
@@ -547,7 +547,7 @@ describe('ProjectsPage', () => {
     await openCreateFlow(user);
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe nova');
     await user.selectOptions(
-      screen.getByLabelText('Repositório GitHub *'),
+      screen.getByLabelText(/^Repositório GitHub/),
       pendingRepository.fullName
     );
     await user.click(
@@ -571,7 +571,7 @@ describe('ProjectsPage', () => {
     );
     expect(screen.queryByRole('button', { name: 'Recuperar projeto' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Recuperar' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Repositório GitHub *').selectedOptions[0]).not.toHaveTextContent(
+    expect(screen.getByLabelText(/^Repositório GitHub/).selectedOptions[0]).not.toHaveTextContent(
       'programado para exclusão'
     );
     await user.click(screen.getByRole('button', { name: 'Tentar criar novamente' }));
@@ -604,10 +604,7 @@ describe('ProjectsPage', () => {
 
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto submetido');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe submetida');
-    await user.selectOptions(
-      screen.getByLabelText('Repositório GitHub *'),
-      fakeRepository.fullName
-    );
+    await user.selectOptions(screen.getByLabelText(/^Repositório GitHub/), fakeRepository.fullName);
     mockInitialRequests({ projects: [{ id: 50, name: 'Projeto submetido' }] });
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
@@ -629,6 +626,127 @@ describe('ProjectsPage', () => {
     expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(2);
   });
 
+  it.each(['sem instalação', 'sem repositórios', 'GitHub indisponível', 'GitHub pendente'])(
+    'cadastra sem GitHub quando %s, sem aguardar nem repetir a descoberta externa',
+    async (scenario) => {
+      const user = userEvent.setup();
+      mockInitialRequests({
+        installations: [],
+        repositories: []
+      });
+      let created = false;
+      const githubPending = deferred();
+      apiMock.get.mockImplementation((url) => {
+        if (url === '/projects') {
+          return Promise.resolve({
+            data: {
+              projects: created ? [{ id: 51, name: 'Projeto local', githubIntegration: null }] : []
+            }
+          });
+        }
+        if (scenario === 'GitHub pendente') return githubPending.promise;
+        if (scenario === 'GitHub indisponível') {
+          return Promise.reject({ response: { status: 503 } });
+        }
+        return Promise.resolve({
+          data: {
+            repositories: [],
+            installations: scenario === 'sem repositórios' ? [{ githubInstallationId: '77' }] : []
+          }
+        });
+      });
+      apiMock.post.mockImplementation(() => {
+        created = true;
+        return Promise.resolve({ data: { message: 'Projeto cadastrado com sucesso.' } });
+      });
+      renderPage();
+      await openCreateFlow(user);
+      await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto local');
+      await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe local');
+      await user.type(screen.getByLabelText('Descrição'), 'Planejamento local');
+      expect(screen.getByRole('button', { name: 'Cadastrar projeto' })).toBeEnabled();
+      const discoveryCalls = apiMock.get.mock.calls.filter(([url]) =>
+        url.startsWith('/github/')
+      ).length;
+      await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
+
+      expect(apiMock.post).toHaveBeenCalledExactlyOnceWith('/projects', {
+        name: 'Projeto local',
+        description: 'Planejamento local',
+        responsibleTeam: 'Equipe local'
+      });
+      expect(await screen.findByText('Projeto cadastrado com sucesso.')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(
+        await screen.findByRole('link', { name: 'Abrir projeto Projeto local' })
+      ).toHaveAttribute('href', '/projects/51');
+      expect(apiMock.get.mock.calls.filter(([url]) => url.startsWith('/github/'))).toHaveLength(
+        discoveryCalls
+      );
+      await act(async () =>
+        githubPending.resolve({ data: { installations: [], repositories: [] } })
+      );
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    }
+  );
+
+  it('permite desistir do repositório selecionado sem enviar identidade GitHub', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests();
+    apiMock.post.mockResolvedValue({ data: { message: 'Projeto local cadastrado.' } });
+    renderPage();
+    await openCreateFlow(user);
+    await user.selectOptions(screen.getByLabelText(/^Repositório GitHub/), fakeRepository.fullName);
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe local');
+    await user.click(screen.getByRole('button', { name: 'Não vincular repositório agora' }));
+    expect(screen.getByLabelText(/^Repositório GitHub/)).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
+    expect(apiMock.post).toHaveBeenCalledExactlyOnceWith('/projects', {
+      name: fakeRepository.name,
+      description: '',
+      responsibleTeam: 'Equipe local'
+    });
+  });
+
+  it.each(['name', 'responsibleTeam'])(
+    'preserva a validação de %s vazio ou só com espaços sem exigir GitHub',
+    async (invalidField) => {
+      const user = userEvent.setup();
+      mockInitialRequests({ installations: [], repositories: [] });
+      renderPage();
+      await openCreateFlow(user);
+      await user.type(
+        screen.getByLabelText('Nome do projeto *'),
+        invalidField === 'name' ? '   ' : 'Projeto local'
+      );
+      await user.type(
+        screen.getByLabelText('Área ou equipe responsável *'),
+        invalidField === 'responsibleTeam' ? '   ' : 'Equipe'
+      );
+      await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Preencha o nome e a equipe responsável pelo projeto.'
+      );
+      expect(apiMock.post).not.toHaveBeenCalled();
+    }
+  );
+
+  it('mantém o sucesso local se a releitura do catálogo falhar, sem repetir a criação', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests({ installations: [], repositories: [] });
+    apiMock.post.mockResolvedValue({ data: { message: 'Projeto local confirmado.' } });
+    renderPage();
+    await openCreateFlow(user);
+    await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto local');
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe');
+    apiMock.get.mockRejectedValue({ response: { status: 503 } });
+    await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
+    expect(await screen.findByText('Projeto local confirmado.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Tentar novamente' }));
+    expect(apiMock.post).toHaveBeenCalledTimes(1);
+  });
+
   it('impede duas criações concorrentes antes da atualização visual do botão', async () => {
     let resolveCreate;
     mockInitialRequests({ projects: [] });
@@ -644,10 +762,7 @@ describe('ProjectsPage', () => {
     await openCreateFlow(user);
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto único');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe única');
-    await user.selectOptions(
-      screen.getByLabelText('Repositório GitHub *'),
-      fakeRepository.fullName
-    );
+    await user.selectOptions(screen.getByLabelText(/^Repositório GitHub/), fakeRepository.fullName);
     const form = screen.getByRole('button', { name: 'Cadastrar projeto' }).closest('form');
 
     fireEvent.submit(form);
@@ -711,7 +826,7 @@ describe('ProjectsPage', () => {
     renderPage();
     await openCreateFlow(user);
 
-    const select = await screen.findByLabelText('Repositório GitHub *');
+    const select = await screen.findByLabelText(/^Repositório GitHub/);
     await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(6));
     expect(apiMock.get).toHaveBeenCalledWith(
       '/github/app/repositories',
@@ -752,7 +867,7 @@ describe('ProjectsPage', () => {
       screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/GitHub App conectada/).closest('.project-form__repository-field')
+      screen.getByText(/GitHub App conectada/).closest('.github-repository-selector__field')
     ).toBeInTheDocument();
   });
 
@@ -777,7 +892,7 @@ describe('ProjectsPage', () => {
     expect(
       await screen.findByRole('option', { name: /usuario-artificial\/repositorio-artificial/ })
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeEnabled();
+    expect(screen.getByLabelText(/^Repositório GitHub/)).toBeEnabled();
     expect(screen.queryByText(/autorização GitHub precisa ser renovada/i)).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Renovar acesso GitHub/i })
@@ -801,16 +916,13 @@ describe('ProjectsPage', () => {
 
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com acesso alterado');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe artificial');
-    await user.selectOptions(
-      screen.getByLabelText('Repositório GitHub *'),
-      fakeRepository.fullName
-    );
+    await user.selectOptions(screen.getByLabelText(/^Repositório GitHub/), fakeRepository.fullName);
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
     expect(
       await screen.findByText('O repositório não está mais disponível para esta instalação.')
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeEnabled();
+    expect(screen.getByLabelText(/^Repositório GitHub/)).toBeEnabled();
     expect(screen.getByLabelText('Nome do projeto *')).toHaveValue('Projeto com acesso alterado');
   });
 
@@ -829,7 +941,7 @@ describe('ProjectsPage', () => {
     renderPage(['/projects?projectId=12']);
 
     await user.selectOptions(
-      await screen.findByLabelText('Repositório GitHub *'),
+      await screen.findByLabelText(/^Repositório GitHub/),
       fakeRepository.fullName
     );
     await user.click(screen.getByRole('button', { name: 'Concluir reconexão' }));
@@ -856,7 +968,7 @@ describe('ProjectsPage', () => {
 
     const connectLinks = await screen.findAllByRole('link', { name: /Conectar GitHub App/ });
     expect(connectLinks).toHaveLength(2);
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(screen.getByLabelText(/^Repositório GitHub/)).toBeDisabled();
     for (const link of connectLinks) {
       expect(link).toHaveAttribute('href', '/settings/integrations');
     }

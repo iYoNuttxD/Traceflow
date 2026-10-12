@@ -65,16 +65,19 @@ async function validateAndRefreshRepository(project, integration, githubClient, 
   return repository;
 }
 
-export async function syncProjectGithubData(projectId, { onProgress = noProgress } = {}) {
+export async function syncProjectGithubData(
+  projectId,
+  { onProgress = noProgress, persistedRunId } = {}
+) {
   const parsedProjectId = parseProjectId(projectId);
-  if (projectsInSync.has(parsedProjectId)) {
+  if (!persistedRunId && projectsInSync.has(parsedProjectId)) {
     throw new ProjectServiceError(
       'Sincronização do GitHub já está em andamento para este projeto.',
       409
     );
   }
 
-  projectsInSync.add(parsedProjectId);
+  if (!persistedRunId) projectsInSync.add(parsedProjectId);
   const attemptedAt = new Date();
   const assertActive = async () => {
     await onProgress({});
@@ -219,6 +222,6 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
     }
     throw error;
   } finally {
-    projectsInSync.delete(parsedProjectId);
+    if (!persistedRunId) projectsInSync.delete(parsedProjectId);
   }
 }

@@ -6,7 +6,6 @@ import {
   LoadingState,
   TraceFlowIcon,
   normalizeApiError,
-  useAbortableRequest,
   useCountdown,
   useConfirm
 } from '../../../shared/index.js';
@@ -23,6 +22,7 @@ import { NewProjectDialog } from '../components/NewProjectDialog.jsx';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge.jsx';
 import { useProjectsCatalog } from '../hooks/ProjectsCatalogContext.jsx';
 import { PendingProjectInvitations } from '../../invitations/index.js';
+import { useGithubRepositoryCatalog } from '../hooks/useGithubRepositoryCatalog.js';
 import './ProjectsScreen.css';
 
 function clearRepositorySelection(current) {
@@ -69,13 +69,6 @@ export function ProjectsScreen() {
     error: projectsRequestError,
     refreshProjects
   } = useProjectsCatalog();
-  const [repositoryRequestState, setRepositoryRequestState] = useState({
-    projectId: null,
-    repositories: [],
-    loading: false,
-    error: ''
-  });
-  const [installations, setInstallations] = useState([]);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [duplicateRepository, setDuplicateRepository] = useState(null);
   const [pendingRepository, setPendingRepository] = useState(null);
@@ -84,129 +77,31 @@ export function ProjectsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [operationError, setOperationError] = useState('');
   const [operationRetryAfterSeconds, setOperationRetryAfterSeconds] = useState(0);
-  const [installationsError, setInstallationsError] = useState('');
   const [success, setSuccess] = useState('');
   const [githubCallbackError, setGithubCallbackError] = useState('');
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(Boolean(reconnectProjectId));
   const [invitationState, setInvitationState] = useState({ count: 0, loading: true });
   const operationCooldown = useCountdown(operationRetryAfterSeconds);
-  const { run: runRepositoriesRequest } = useAbortableRequest();
-  const { run: runInstallationsRequest } = useAbortableRequest();
   const operationLock = useRef(false);
   const purgedRepositoriesRef = useRef(new Map());
+  const {
+    repositories,
+    installations,
+    loadingRepositories,
+    repositoriesError,
+    installationsError,
+    loadRepositories,
+    loadInstallations,
+    setRepositoryRequestState
+  } = useGithubRepositoryCatalog({ projectId: reconnectProjectId, purgedRepositoriesRef });
   const retryCreateRef = useRef(null);
   const confirm = useConfirm();
-  const repositoryStateBelongsToContext =
-    String(repositoryRequestState.projectId || '') === String(reconnectProjectId || '');
-  const repositories = repositoryStateBelongsToContext ? repositoryRequestState.repositories : [];
-  const loadingRepositories = repositoryStateBelongsToContext
-    ? repositoryRequestState.loading
-    : true;
-  const repositoriesError = repositoryStateBelongsToContext ? repositoryRequestState.error : '';
   useEffect(() => {
     if (!newProjectDialogOpen || !purgedRepositoryId || !operationError) return;
     queueMicrotask(() => retryCreateRef.current?.focus());
   }, [newProjectDialogOpen, operationError, purgedRepositoryId]);
   const projectsError = projectsRequestError?.message || '';
   const projectsRetryAfterSeconds = projectsRequestError?.retryAfterSeconds || 0;
-
-  const loadRepositories = useCallback(
-    ({ fresh = false } = {}) =>
-      runRepositoriesRequest(async (signal) => {
-        const requestedProjectId = reconnectProjectId || null;
-        setRepositoryRequestState((current) => ({
-          projectId: requestedProjectId,
-          repositories:
-            String(current.projectId || '') === String(requestedProjectId || '')
-              ? current.repositories
-              : [],
-          loading: true,
-          error: ''
-        }));
-
-        try {
-          const response = await projectsApi.listAllGithubRepositories(reconnectProjectId, {
-            signal,
-            fresh
-          });
-          if (signal.aborted) return;
-          const validRepositories = (response.data.repositories || [])
-            .map((repository) => {
-              const normalized = normalizeRepository(repository);
-              const purgedProjectId = purgedRepositoriesRef.current.get(normalized.id);
-              return purgedProjectId && normalized.pendingDeletion?.projectId === purgedProjectId
-                ? {
-                    ...normalized,
-                    pendingDeletion: null,
-                    alreadyConnected: false,
-                    selectable: true
-                  }
-                : normalized;
-            })
-            .filter(
-              (repository) =>
-                repository.id &&
-                repository.owner &&
-                repository.name &&
-                repository.fullName &&
-                repository.url &&
-                repository.defaultBranch &&
-                repository.githubInstallationId
-            );
-          setRepositoryRequestState({
-            projectId: requestedProjectId,
-            repositories: validRepositories,
-            loading: false,
-            error: ''
-          });
-        } catch (requestError) {
-          if (signal.aborted) throw requestError;
-          setRepositoryRequestState({
-            projectId: requestedProjectId,
-            repositories: [],
-            loading: false,
-            error: normalizeApiError(
-              requestError,
-              'Não foi possível carregar os repositórios do GitHub.'
-            ).message
-          });
-        } finally {
-          if (!signal.aborted) {
-            setRepositoryRequestState((current) =>
-              String(current.projectId || '') === String(requestedProjectId || '')
-                ? { ...current, loading: false }
-                : current
-            );
-          }
-        }
-      }),
-    [reconnectProjectId, runRepositoriesRequest]
-  );
-
-  const loadInstallations = useCallback(
-    () =>
-      runInstallationsRequest(async (signal) => {
-        setInstallationsError('');
-        try {
-          const response = await projectsApi.listGithubInstallations({ signal });
-          if (signal.aborted) return;
-          setInstallations(response.data.installations || []);
-        } catch (requestError) {
-          if (signal.aborted) throw requestError;
-          setInstallations([]);
-          setInstallationsError(
-            normalizeApiError(requestError, 'Não foi possível verificar a conexão com o GitHub.')
-              .message
-          );
-        }
-      }),
-    [runInstallationsRequest]
-  );
-
-  useEffect(() => {
-    loadInstallations();
-    void loadRepositories();
-  }, [loadInstallations, loadRepositories]);
 
   useEffect(() => {
     if (reconnectProjectId) setNewProjectDialogOpen(true);
@@ -242,6 +137,7 @@ export function ProjectsScreen() {
   }
 
   function handleRepositoryChange(fullName) {
+    setOperationError('');
     const selectedRepository = repositories.find(
       (repository) => normalizeRepository(repository).fullName === fullName
     );
@@ -290,9 +186,21 @@ export function ProjectsScreen() {
   }
 
   function creationValidationError() {
+    if (!formData.name.trim() || !formData.responsibleTeam.trim()) {
+      return 'Preencha o nome e a equipe responsável pelo projeto.';
+    }
+    if (duplicateRepository) {
+      return 'Este repositório já está vinculado a outro projeto.';
+    }
     if (
-      !formData.name.trim() ||
-      !formData.responsibleTeam.trim() ||
+      !reconnectProjectId &&
+      !formData.selectedRepositoryId &&
+      !formData.selectedInstallationId &&
+      !formData.selectedRepositoryFullName
+    ) {
+      return '';
+    }
+    if (
       !formData.selectedInstallationId ||
       !formData.selectedRepositoryId ||
       !formData.selectedRepositoryFullName ||
@@ -313,20 +221,26 @@ export function ProjectsScreen() {
 
   async function createSelectedProject({ afterPurge = false } = {}) {
     try {
-      const response = await projectsApi.createFromGithub({
-        githubInstallationId: formData.selectedInstallationId,
-        githubRepositoryId: formData.selectedRepositoryId,
+      const data = {
         name: formData.name,
         description: formData.description,
         responsibleTeam: formData.responsibleTeam
-      });
+      };
+      const withGithub = Boolean(formData.selectedRepositoryId);
+      const response = withGithub
+        ? await projectsApi.createFromGithub({
+            ...data,
+            githubInstallationId: formData.selectedInstallationId,
+            githubRepositoryId: formData.selectedRepositoryId
+          })
+        : await projectsApi.create(data);
       setSuccess(response.data.message);
       purgedRepositoriesRef.current.delete(formData.selectedRepositoryId);
       setFormData(emptyProjectForm);
       setPurgedRepositoryId(null);
-      await refreshProjects({ fresh: true });
-      await loadRepositories({ fresh: true });
       setNewProjectDialogOpen(false);
+      void refreshProjects({ fresh: true });
+      if (withGithub) void loadRepositories({ fresh: true });
     } catch (requestError) {
       const pendingProject = requestError.response?.data?.details?.pendingProject;
       if (requestError.response?.data?.code === 'PROJECT_PENDING_DELETION' && pendingProject) {
@@ -550,6 +464,7 @@ export function ProjectsScreen() {
       <ProjectForm
         formData={formData}
         repositories={repositories}
+        installations={installations}
         loadingRepositories={loadingRepositories}
         repositoriesError={repositoriesError}
         onRetryRepositories={() => void loadRepositories()}
@@ -577,13 +492,17 @@ export function ProjectsScreen() {
         onRepositoryChange={handleRepositoryChange}
         onSubmit={handleSubmit}
         submitLabel="Cadastrar projeto"
-        submitDisabled={installations.length === 0}
+        submitDisabled={operationCooldown > 0}
+        repositoryRequired={Boolean(reconnectProjectId)}
         submitting={submitting}
         showStatusField={false}
       />
       {installations.length === 0 && !installationsError && (
         <aside className="repository-authorization-callout" role="status">
-          <p>Para criar um projeto, conecte a GitHub App e escolha um repositório.</p>
+          <p>
+            Para vincular um repositório agora, conecte a GitHub App. Você também pode cadastrar o
+            projeto sem GitHub.
+          </p>
           <Link className="button button-secondary" to="/settings/integrations">
             Conectar GitHub App
           </Link>

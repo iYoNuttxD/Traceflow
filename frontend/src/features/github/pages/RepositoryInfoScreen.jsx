@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { getProjectArtifacts } from '../index.js';
-import { ProjectSectionNav } from '../../projects/index.js';
+import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
 import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import {
   compactParams,
@@ -116,7 +116,13 @@ function validateFilters(filters) {
 
 export function RepositoryInfoScreen() {
   const { projectId } = useParams();
+  return <RepositoryInfoContent key={projectId} projectId={projectId} />;
+}
+
+function RepositoryInfoContent({ projectId }) {
   const { run: runArtifactsRequest, cancel: cancelArtifactsRequest } = useAbortableRequest();
+  const { run: runProjectRequest } = useAbortableRequest();
+  const projectRequest = useRef(null);
   const filtersRef = useRef(emptyFilters);
   const requestSequenceRef = useRef(0);
   const [repositoryData, setRepositoryData] = useState(null);
@@ -126,6 +132,29 @@ export function RepositoryInfoScreen() {
   const [error, setError] = useState('');
   const [pageError, setPageError] = useState(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+
+  useEffect(
+    () => () => {
+      // StrictMode replays effects after aborting the first load. Its cancelled
+      // promise cannot be reused by the next effect in the same mounted context.
+      projectRequest.current = null;
+    },
+    []
+  );
+
+  // The keyed project context owns metadata; changing filters only cancels artifacts.
+  const loadProject = useCallback(() => {
+    if (!projectRequest.current) {
+      const pending = runProjectRequest((signal) => projectsApi.get(projectId, { signal })).catch(
+        (requestError) => {
+          if (projectRequest.current === pending) projectRequest.current = null;
+          throw requestError;
+        }
+      );
+      projectRequest.current = pending;
+    }
+    return projectRequest.current;
+  }, [projectId, runProjectRequest]);
 
   const loadArtifacts = useCallback(
     async (nextFilters = emptyFilters) => {
@@ -147,9 +176,16 @@ export function RepositoryInfoScreen() {
       setRetryAfterSeconds(0);
 
       try {
-        const data = await runArtifactsRequest((signal) =>
-          getProjectArtifacts(projectId, requestParams, { signal })
-        );
+        const data = await runArtifactsRequest(async (signal) => {
+          const [artifactsData, projectResponse] = await Promise.all([
+            getProjectArtifacts(projectId, requestParams, { signal }),
+            loadProject()
+          ]);
+          return {
+            ...artifactsData,
+            project: projectResponse.data.project
+          };
+        });
         if (!data || requestSequence !== requestSequenceRef.current) return;
         setRepositoryData(data);
         setAppliedFilters({ ...emptyFilters, ...nextFilters });
@@ -167,7 +203,7 @@ export function RepositoryInfoScreen() {
         if (requestSequence === requestSequenceRef.current) setLoading(false);
       }
     },
-    [cancelArtifactsRequest, projectId, runArtifactsRequest]
+    [cancelArtifactsRequest, projectId, runArtifactsRequest, loadProject]
   );
 
   useEffect(() => {
@@ -228,6 +264,9 @@ export function RepositoryInfoScreen() {
           <LoadingState message="Carregando artefatos do repositório..." />
         ) : repositoryData ? (
           <>
+            {project.githubIntegration?.lastSyncStatus === 'FALHA' && (
+              <FeedbackRegion warning="A última sincronização falhou. Os artefatos já importados continuam disponíveis." />
+            )}
             <section className="repository-overview" aria-labelledby="repository-summary-title">
               <header>
                 <div>
@@ -247,11 +286,16 @@ export function RepositoryInfoScreen() {
                   ['Commits', summary.commits ?? 0],
                   ['Pull Requests', summary.pullRequests ?? 0],
                   ['Issues', summary.issues ?? 0],
-                  ['Completude', formatCompleteness(summary.metadataCompletenessPercentage)]
+                  [
+                    'Completude',
+                    summary.total > 0
+                      ? formatCompleteness(summary.metadataCompletenessPercentage)
+                      : 'Sem dados'
+                  ]
                 ].map(([label, value]) => (
                   <div key={label}>
                     <dt>{label}</dt>
-                    <dd>{value}</dd>
+                    <dd>{project.githubIntegration ? value : 'Não disponível'}</dd>
                   </div>
                 ))}
               </dl>
@@ -260,14 +304,18 @@ export function RepositoryInfoScreen() {
             <CollapsibleFilterPanel
               onClear={clearFilters}
               canClear={activeFilterCount > 0}
-              clearDisabled={loading}
+              clearDisabled={loading || !project.githubIntegration}
               id="repository-filters"
               className="repository-filters"
               title="Filtrar artefatos"
-              resultLabel={artifactCountLabel(summary.total ?? artifacts.length)}
+              resultLabel={
+                project.githubIntegration
+                  ? artifactCountLabel(summary.total ?? artifacts.length)
+                  : 'Aguardando integração'
+              }
               activeCount={activeFilterCount}
             >
-              <div className="repository-filter-form">
+              <fieldset className="repository-filter-form" disabled={!project.githubIntegration}>
                 <div className="repository-filter-grid">
                   <label className="repository-filter-field">
                     <span>Tipo de artefato</span>
@@ -320,7 +368,7 @@ export function RepositoryInfoScreen() {
                 {filters.type === 'issue' && filters.branch && (
                   <FeedbackRegion info="Issues pertencem ao repositório como um todo; o filtro de branch não se aplica a elas." />
                 )}
-              </div>
+              </fieldset>
             </CollapsibleFilterPanel>
 
             {loading ? (
@@ -336,12 +384,22 @@ export function RepositoryInfoScreen() {
                 <header>
                   <h2 id="repository-catalog-title">Artefatos do repositório</h2>
                   <span aria-live="polite">
-                    {artifactCountLabel(summary.total ?? artifacts.length)}
+                    {project.githubIntegration
+                      ? artifactCountLabel(summary.total ?? artifacts.length)
+                      : 'Aguardando integração'}
                     {showFilteredEmptyState ? ' no conjunto filtrado' : ''}
                   </span>
                 </header>
 
-                {artifacts.length === 0 ? (
+                {!project.githubIntegration ? (
+                  <div
+                    className="repository-empty-state"
+                    aria-labelledby="repository-disconnected-title"
+                  >
+                    <h3 id="repository-disconnected-title">Nenhum repositório conectado</h3>
+                    <p>Este projeto ainda não possui integração com o GitHub.</p>
+                  </div>
+                ) : artifacts.length === 0 ? (
                   <div className="repository-empty-state">
                     <h3>
                       {showFilteredEmptyState

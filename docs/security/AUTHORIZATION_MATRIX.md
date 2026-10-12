@@ -54,7 +54,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `PATCH/DELETE /api/tasks/:id/sprint`                                                                           |     401 |    403 |           E |       E |     E | tarefa e sprint no mesmo projeto; recurso alheio recebe 404 opaco                                              |
 | `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |           E |       E |     E | start exige e-mail verificado; lista usa App ACTIVE e Installation Token                                       |
 | `GET /api/github-app/callback`                                                                                 |     302 |    302 |         302 |     302 |   302 | state/sessão/conta/instalação; não exige GitHubIdentity; tokens efêmeros                                       |
-| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; mesma repo reconecta, repo diferente retorna 409                                                        |
+| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; vínculo inicial; ACTIVE repetido e troca retornam 409                                                        |
 | `POST /api/webhooks/github-app`                                                                                |       E |      E |           E |       E |     E | público; HMAC/raw body/delivery ID, sem sessão ou CSRF                                                         |
 | `POST /api/projects/:projectId/github/sync`                                                                    |     401 |    403 |         403 |       E |     E | MANAGER+, e-mail verificado, integração ACTIVE e trava por projeto                                             |
 | `PATCH /api/projects/:projectId/github/sync-settings`                                                          |     401 |    403 |         403 |     403 |     A | OWNER                                                                                                          |
@@ -140,6 +140,27 @@ Execução histórica e seu download continuam autorizados por projeto, sem recu
 permissão a partir de um ID ou de um caminho de storage. Arquivos não são públicos.
 Evidências: `backend/test/api/test-cases-s1-07.test.js` e bateria de integração S1-07.
 
+## GITHUB-02 — Vinculação de projeto existente
+
+Reutiliza `PUT /api/projects/:projectId/github/integration`; não adiciona rota equivalente
+`POST .../github/connect`. Somente OWNER ativo do projeto, com sessão válida, conta ativa,
+e-mail verificado e CSRF, pode vincular. VIEWER/MEMBER/MANAGER recebem `403`; sem membership,
+projeto inexistente ou excluído recebe `404` opaco, antes de qualquer consulta externa.
+
+A transação revalida lifecycle e papel sob locks `Project → ProjectMembership` e mantém locks
+compartilhados na instalação/autorizações locais até o commit. Revogação da membership ou da
+autorização da instalação durante a consulta externa impede a escrita. A validação ao vivo da
+GitHub App acontece antes da transação. GitHubIdentity não concede acesso a repositórios.
+
+Repetição de integração ACTIVE retorna `409 GITHUB_PROJECT_ALREADY_CONNECTED`. Reconexão
+RECONNECT_REQUIRED permanece restrita ao mesmo repositório, sem substituição de instalação
+já associada. O sync inicial da primeira vinculação reutiliza a operação canônica após commit;
+retry manual permanece MANAGER+. Nenhuma permissão de sincronização foi ampliada.
+
+`INATIVO`/`ARQUIVADO` são estados administrativos, não bloqueios de escrita na política central
+vigente. GITHUB-02 preserva essa distinção; `deletedAt` bloqueia vinculação, inclusive em corrida
+com exclusão/purge. Evidência: `backend/test/api/github-project-connect.test.js`.
+
 ## S1-08 — Defeitos e retestes
 
 | Operação                                             | VIEWER ativo | MEMBER ativo | MANAGER ativo | OWNER ativo |
@@ -194,3 +215,16 @@ Autoridades: [rotas](../../backend/src/modules/indicators/indicators.routes.js),
 [controller](../../backend/src/modules/indicators/indicators.controller.js),
 [repository de preferência](../../backend/src/modules/indicators/dashboard-preference.repository.js)
 e [testes HTTP](../../backend/test/api/indicators-p9.test.js).
+
+## GITHUB-04 — execução periódica
+
+Preferência/agendamento continua OWNER-only no PATCH existente. MANAGER/OWNER solicitam sync;
+VIEWER+ consulta run/origem e nextSyncAt apenas no seu projeto. Sessão, verificação de e-mail,
+CSRF e respostas opacas permanecem. O worker é processo de sistema, sem sessão/usuário fictício:
+executa uma preferência previamente autorizada com Project ativo no lifecycle e GitHub App /
+instalação / integração elegíveis. Runs automáticos usam requestedByUserId null e auditoria SYSTEM.
+Não existe novo endpoint público de agendamento nem parâmetros de origem/slots aceitos do cliente.
+
+GITHUB-04.1 acrescenta disponibilidade operacional minimizada ao GET de status já protegido por
+membership: status, motivo e instantes, sem identidade dos processos. Não há endpoint de gestão
+do worker. Liveness não altera papel, CSRF, autorização da App ou reserva de repositório.
