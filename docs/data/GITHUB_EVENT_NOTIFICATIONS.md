@@ -254,6 +254,17 @@ PROJECT_DELETED, OUTSIDE_WINDOW, INACTIVE_ACCOUNT, INACTIVE_MEMBER, PREFERENCE_O
 | Limitações | (1) só transições observadas: mudanças entre duas sincronizações se fundem; (2) o autor da ação não é excluído; (3) eventos `PENDING` ou `FAILED` ainda não têm `outcome`; (4) a criação de uma issue nunca é evento |
 | Forma de atualização | a cada despacho, no `outcome` do evento. No repositório, os testes M3 e M4 medem um cenário reproduzível |
 
+**Resultado em 12/10/2026 (banco de teste, `s203-github-event-dispatch.test.js`):**
+
+| RF | Eventos ocorridos | Notificações esperadas (pares) | Elegíveis | Enviadas corretamente | Cobertura | Exclusões |
+| --- | --- | --- | --- | --- | --- | --- |
+| RF60 (M3) | 4 | 8 | 4 | 4 | 100% | `OUTSIDE_WINDOW` 1, `INACTIVE_ACCOUNT` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 (por par); `NO_PARTICIPANT` 1 (por tarefa) |
+| RF61 (M4) | 4 | 7 | 3 | 3 | 100% | `OUTSIDE_WINDOW` 1, `INACTIVE_ACCOUNT` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 (por par); `NO_PARTICIPANT` 1 (por tarefa) |
+
+Nos dois cenários, a issue sem vínculo fechada, a reabertura de PR e a sincronização repetida sem
+mudança não são eventos ocorridos. Cada notificação existe uma vez, para o participante certo, e a
+soma dos `outcome` coincide com a saída do job. O resultado com dados reais fica para o S3-01.
+
 ## Job
 
 | Item | Regra |

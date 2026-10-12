@@ -290,7 +290,7 @@ Testes citados: política `test/unit/github-event.policy.test.js` (P1–P9), det
 | V13.2.4 | L2 | o despacho não faz chamada externa; a única saída continua sendo a API do GitHub na sincronização | arquitetura | G14 | ATENDIDO |
 | V14.1.1, V14.1.2, V14.2.4 | L2 | fila e campos novos no inventário de dados, com retenção de 180 dias, exportação e anonimização | documentos de privacidade, `privacy-retention.js` | PV1–PV4 | ATENDIDO |
 | V14.2.1 | L1 | os links levam só ids; nada sensível na URL | mapper | R1 | ATENDIDO |
-| V15.1.3, V15.2.2 | L2 | custo documentado e limitado: detecção dentro da transação da página, lote no despacho, despacho sem transação interativa, teto por execução do job | runbook e política | E14 (página de 100 PRs com 100 transições) | ATENDIDO |
+| V15.1.3, V15.2.2 | L2 | custo documentado e limitado: detecção dentro da transação da página, lote no despacho, despacho sem transação interativa, teto por execução do job | runbook e política | E14; medição local de 12/10/2026 (5 rodadas): página de 100 PRs em cerca de 145 ms sem transição e 240 ms com 100 transições, para um limite de 5 s | ATENDIDO |
 | V15.3.3, V15.3.5, V15.3.6 | L2 | preferências estritas com as quatro chaves; comparação de estado estrita e normalizada; agrupamentos com `Map` e `Set`; `__proto__` responde 400 | validação e política | R3, P1, P6 | ATENDIDO |
 | V16.1.1 | L2 | inventário de logs com os eventos novos | runbook e documento de regra | documentos | ATENDIDO |
 | V16.2.1, V16.2.2 | L2 | logs com quando, onde e o quê, em UTC | serviço e script | G11 | ATENDIDO |
