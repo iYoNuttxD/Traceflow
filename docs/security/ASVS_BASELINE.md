@@ -259,3 +259,60 @@ recusa a chave nos próprios corpos; o restante da API está no backlog (S202-F0
   sem refazer os cartões já exibidos (CR-08).
 - Suíte completa do backend duas vezes com 1995 verdes (só o `EPERM` de ambiente); 17 mutantes
   dirigidos, 15 mortos e 2 equivalentes justificados (F9, MR14); sem migration nesta rodada.
+
+## Delta S2-03 — notificações de eventos de issues e pull requests (RF60, RF61)
+
+A entrega acrescenta uma fila com dado de terceiros (títulos e URLs do GitHub), a detecção dentro
+da sincronização, um job agendado (`notifications:github-events`), campos novos no DTO e nas
+preferências, e cartões e interruptores na interface. Não há rota nova. A matriz segue a §13.1 do
+contexto de arquitetura; o mapeamento descreve controles exercitados, não é certificação ASVS.
+Testes citados: política `test/unit/github-event.policy.test.js` (P1–P9), detecção
+`test/integration/s203-github-event-detection.test.js` (E1–E14), despacho
+`test/integration/s203-github-event-dispatch.test.js` (G1–G14, M3, M4), API
+`test/api/s203-github-event-notifications.test.js` (R1–R8, PV1), privacidade
+`test/integration/s203-github-event-privacy.test.js` (PV2–PV4), script
+`test/unit/dispatch-github-event-notifications.script.test.js` e interface
+`frontend/test/pages/Notifications.github-events.test.jsx` (F1–F8).
+
+| Requisito | Nível | Aplicação ao S2-03 | Implementação | Evidência | Status |
+|---|---|---|---|---|---|
+| V1.2.1 | L1 | título e número do artefato, título da tarefa e nome do projeto exibidos como texto; o título vem de terceiros | `NotificationCard` | F3 (título com `<img onerror>` literal) | ATENDIDO |
+| V1.3.3 | L2 | dado não confiável limitado antes de persistir: título em 256 pontos de código; URL só com o prefixo `https://github.com/` e até 512 | `github.mapper.js`, `github-event.policy.js` | P9; R2 | ATENDIDO |
+| V2.1.3, V2.3.2 | L2 | limites documentados e implementados: janela de 7 dias, lote de 100, até 10 lotes no job, 5 tentativas, esperas de 1, 5, 30 e 120 min, reserva de 2 min, retenção de 180 dias | política e `GITHUB_EVENT_NOTIFICATIONS.md` | P5, P8, G7, G8 | ATENDIDO |
+| V2.3.3 | L2 | transição, evento e retrato gravados na mesma transação da atualização do artefato | `upsertMany` e `github-event.repository.js` | E9 | ATENDIDO |
+| V2.3.4 | L2 | trava contra processamento duplo: chave única da ocorrência, reserva condicional com prazo, chave única da notificação por destinatário | schema e repository | E10, G5, G6 | ATENDIDO |
+| V3.5.1 | L1 | o `PUT` de preferências continua exigindo CSRF | middleware existente | R3 | ATENDIDO |
+| V8.1.1 | L1 | regra documentada: destinatários pela participação na tarefa e pela membership ativa; só o destinatário vê | ADR-018, `AUTHORIZATION_MATRIX.md` | documentos | ATENDIDO |
+| V8.2.2 | L1 | id alheio continua 404 opaco; a fila nunca é exposta por rota | repository existente | R4, R5 | ATENDIDO |
+| V8.2.3, V15.3.1 | L2, L1 | DTO sem chave de deduplicação, id do evento, chave da ocorrência, resultado do despacho, destinatário, login ou corpo do GitHub | `notification.mapper.js` | R1 | ATENDIDO |
+| V8.3.1 | L1 | destinatários calculados no servidor a partir de dados persistidos; nada vem do cliente | `github-event-notification.service.js` | G1, R5 | ATENDIDO |
+| V8.4.1 | L2 | isolamento entre projetos: o retrato só aceita tarefas do projeto do evento; participação e membership valem nesse projeto | detecção e despacho | E12, G3 | ATENDIDO |
+| V13.2.4 | L2 | o despacho não faz chamada externa; a única saída continua sendo a API do GitHub na sincronização | arquitetura | G14 | ATENDIDO |
+| V14.1.1, V14.1.2, V14.2.4 | L2 | fila e campos novos no inventário de dados, com retenção de 180 dias, exportação e anonimização | documentos de privacidade, `privacy-retention.js` | PV1–PV4 | ATENDIDO |
+| V14.2.1 | L1 | os links levam só ids; nada sensível na URL | mapper | R1 | ATENDIDO |
+| V15.1.3, V15.2.2 | L2 | custo documentado e limitado: detecção dentro da transação da página, lote no despacho, despacho sem transação interativa, teto por execução do job | runbook e política | E14 (página de 100 PRs com 100 transições) | ATENDIDO |
+| V15.3.3, V15.3.5, V15.3.6 | L2 | preferências estritas com as quatro chaves; comparação de estado estrita e normalizada; agrupamentos com `Map` e `Set`; `__proto__` responde 400 | validação e política | R3, P1, P6 | ATENDIDO |
+| V16.1.1 | L2 | inventário de logs com os eventos novos | runbook e documento de regra | documentos | ATENDIDO |
+| V16.2.1, V16.2.2 | L2 | logs com quando, onde e o quê, em UTC | serviço e script | G11 | ATENDIDO |
+| V16.2.5, V16.4.1 | L2 | logs e saída do job sem título, URL, login, nome ou e-mail; título com `\r\n` não forja linha | serviço e logger | G11 | ATENDIDO |
+| V16.3.4 | L2 | falha inesperada no despacho registrada com código | serviço | G7, G11 | ATENDIDO |
+| V16.5.1 | L2 | nada do GitHub cru chega a resposta, log, fila ou notificação | mapper e normalização de erros | R1, G11, E13 | ATENDIDO |
+| V16.5.2 | L2 | GitHub fora do ar não perde evento: a sincronização falha antes de atualizar o estado, e a seguinte detecta; o despacho não depende do GitHub | ADR-018 (D1, D9) | E9, G9, G14 | ATENDIDO |
+| V16.5.3 | L2 | falha no despacho não muda o resultado da sincronização nem cria notificação indevida; falha definitiva vira `FAILED` visível | serviço e job | G8, G9, G12 | ATENDIDO |
+| V15.4.2, V15.4.3 | L3 | verificação de estado e registro atômicos sob o lock do projeto; nenhuma espera de lock dentro de transação interativa no despacho | detecção e despacho | E10, G5 | ATENDIDO (informativo, acima da meta) |
+| V14.2.7 | L3 | descarte automático agendado da fila | `privacy-retention.js` | PV2 | ATENDIDO (informativo, acima da meta) |
+| V16.4.2, V16.4.3 | L2 | proteção e envio dos logs para sistema separado | ambiente | — | NÃO VERIFICÁVEL LOCALMENTE (S2-10) |
+
+**Não aplicáveis:**
+
+| Requisitos | Justificativa |
+|---|---|
+| V1.3.x, salvo V1.3.3 | sem HTML rico, SVG, template, Markdown, SSRF, JNDI ou e-mail |
+| V1.5.x | sem desserialização de objeto não confiável; o `outcome` é escrito e lido só pelo servidor |
+| V2.3.1, V2.4.x | não há fluxo em etapas nem rota nova; o job é de operação e não tem superfície HTTP |
+| V3.x, salvo V3.5.1; V3.7.2 | cookies, cabeçalhos, CORS e origem não mudam. Não há redirecionamento automático: o link externo é clicado pela pessoa, abre em nova aba com `rel="noopener noreferrer"` e só aponta para `https://github.com/` |
+| V4.x | sem tipo novo de API, GraphQL ou WebSocket |
+| V5, V6, V7, V9, V10, V11, V12 | sem arquivo, autenticação, sessão, token, OAuth, criptografia ou TLS novos; o token da GitHub App não é usado no despacho |
+| V13.x, salvo V13.2.4 | sem segredo novo; o job usa a mesma `DATABASE_URL` da API |
+| V17 | sem WebRTC |
+

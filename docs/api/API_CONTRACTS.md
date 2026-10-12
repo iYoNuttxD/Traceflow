@@ -1331,8 +1331,8 @@ vencimento, no job `notifications:due`.
 | GET    | `/api/notifications/unread-count`    | —                                                                                                 | `200`, `{unreadCount}`                                   |
 | PATCH  | `/api/notifications/:notificationId` | `{read: boolean}` estrito                                                                         | `200`, `{notification}`                                  |
 | POST   | `/api/notifications/read-all`        | body vazio                                                                                        | `200`, `{updated}`                                       |
-| GET    | `/api/settings/notifications`        | —                                                                                                 | `200`, `{preferences{TASK_STATUS_CHANGED,TASK_OVERDUE}}` |
-| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED: boolean, TASK_OVERDUE: boolean}}`, as duas chaves obrigatórias | `200`, `{preferences}`                                   |
+| GET    | `/api/settings/notifications`        | —                                                                                                 | `200`, `{preferences{TASK_STATUS_CHANGED,TASK_OVERDUE,ISSUE_EVENT,PULL_REQUEST_EVENT}}` |
+| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED, TASK_OVERDUE, ISSUE_EVENT, PULL_REQUEST_EVENT}}`, booleanos, as quatro chaves obrigatórias (duas até o S2-03) | `200`, `{preferences}`                                   |
 
 **Autorização.** Toda rota exige sessão; sem ela, 401. O destinatário vem da sessão: nenhum
 `userId` é aceito em query ou corpo (parâmetro desconhecido responde 400). A notificação só é
@@ -1366,7 +1366,8 @@ prazo é a data UTC do instante gravado: `2026-10-10T22:30:00-03:00` é gravado 
 - `task{id,code,title,available}`: o título é o copiado na criação; tarefa excluída vem com
   `id=null`, `code=null` e `available=false`;
 - `context`: `{fromStatus,toStatus,actor{id,name}|null}` em `TASK_STATUS_CHANGED`, `{dueDate}`
-  (`YYYY-MM-DD`) em `TASK_OVERDUE`;
+  (`YYYY-MM-DD`) em `TASK_OVERDUE`, e `{event,occurredAt,artifact{kind,number,title,url}}` em
+  `ISSUE_EVENT` e `PULL_REQUEST_EVENT` (seção S2-03);
 - `link`: `/projects/:projectId/kanban?task=:taskId`, ou `null` sem tarefa.
 
 O DTO nunca expõe e-mail, `dedupeKey` nem o destinatário. O nome do ator é lido na exibição.
@@ -1375,8 +1376,8 @@ O DTO nunca expõe e-mail, `dedupeKey` nem o destinatário. O nome do ator é li
 false}` volta a nulo. `read-all` é um único `UPDATE` sobre as não lidas visíveis do usuário, tudo
 ou nada: `updated` é a contagem, e não há item que falhe ou seja ignorado isoladamente.
 
-**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as duas chaves, só
-booleanos; chave fora do enum, `__proto__` ou `constructor` respondem 400. A auditoria
+**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as quatro chaves (duas
+até o S2-03), só booleanos; chave fora do enum, `__proto__` ou `constructor` respondem 400. A auditoria
 `NOTIFICATION_PREFERENCES_UPDATED` só é gravada quando algo muda e guarda apenas `changedTypes`. O
 `PUT` é serializado por usuário e espera o bloqueio da conta por no máximo 2 s; com outra alteração
 em andamento, responde 409 `NOTIFICATION_PREFERENCES_BUSY` sem gravar nada, e o cliente tenta de
@@ -1400,3 +1401,43 @@ campanha de conformidade, não do S2-02.
 | `NOTIFICATION_NOT_FOUND`  | 404    | notificação inexistente, de outra pessoa ou oculta                    |
 | `NOTIFICATION_PREFERENCES_BUSY` | 409 | `PUT` de preferências com outra alteração da mesma conta em andamento por mais de 2 s |
 | `RATE_LIMITED`            | 429    | limitador de leitura autenticada ou global                            |
+
+## S2-03 — Notificações de eventos de issues e pull requests (RF60, RF61)
+
+Decisão em [ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md); regra executável
+(transições, retrato dos vínculos, participantes, janela, fila, métrica) em
+[GitHub Event Notifications](../data/GITHUB_EVENT_NOTIFICATIONS.md).
+
+**Sem rota nova.** As notificações dos tipos `ISSUE_EVENT` (RF60) e `PULL_REQUEST_EVENT` (RF61)
+usam as rotas do S2-02. A transição nasce na sincronização (`POST
+/api/projects/:projectId/github/sync`, sem mudança de contrato) e é despachada logo depois dela ou
+pelo job `notifications:github-events`, que não tem superfície HTTP. A fila de eventos não é exposta
+por API.
+
+**Contexto no `NotificationDTO`:**
+
+| Campo | Conteúdo |
+| --- | --- |
+| `context.event` | `ISSUE_CLOSED`, `ISSUE_REOPENED`, `PULL_REQUEST_MERGED` ou `PULL_REQUEST_CLOSED` |
+| `context.occurredAt` | instante da ocorrência no GitHub (ISO-8601 UTC), ou `null` |
+| `context.artifact.kind` | `ISSUE` ou `PULL_REQUEST` |
+| `context.artifact.number`, `context.artifact.title` | número e título copiados na detecção (título com até 256 caracteres) |
+| `context.artifact.url` | URL do artefato no GitHub, só com o prefixo `https://github.com/`; fora disso, `null` |
+
+`task` e `link` seguem o S2-02 (link do Kanban; tarefa excluída sem link). O DTO não traz chave de
+deduplicação, id do evento, chave da ocorrência, resultado do despacho, destinatário, login, corpo
+nem rótulos do GitHub.
+
+**Mudança de contrato das preferências (§6.4 do contexto de arquitetura).** `GET
+/api/settings/notifications` passou a responder quatro chaves e o `PUT` passou a exigir as quatro:
+o corpo com só `TASK_STATUS_CHANGED` e `TASK_OVERDUE` responde 400. A tela e a API mudam juntas, e
+não há cliente de terceiros. A auditoria `NOTIFICATION_PREFERENCES_UPDATED` continua com só os
+tipos alterados.
+
+**Exportação do titular.** Em `notifications.json`, os itens dos tipos novos trazem também
+`githubEvent`, `artifactNumber`, `artifactTitle`, `artifactUrl` e `githubOccurredAt`. Os itens dos
+tipos do S2-02 não mudam.
+
+**Erros.** Nenhum código novo: as rotas são as do S2-02, e a tabela de erros do S2-02 vale. A
+divergência com o §12 do contexto de arquitetura continua declarada como DR (seção S2-02).
+

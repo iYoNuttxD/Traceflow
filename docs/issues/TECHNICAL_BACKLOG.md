@@ -13,7 +13,7 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | E15-F10 | Testes E2E reais de navegador | login, projetos e jornadas críticas | MÉDIA | ambiente isolado, fixtures não runtime e gate de CI definido |
 | E15-F11 | Validação jurídica final de LGPD | base legal, controlador, DPO, fornecedores e transferência | ALTA | responsáveis jurídicos/operacionais definidos |
 | E15-F12 | Observabilidade, alertas e SLOs | incidentes e disponibilidade | MÉDIA | plataforma de logs/métricas e política de acesso/retenção |
-| E15-F13 | Funcionalidades oficiais ainda fora do produto | RF15–RF18, RF29–RF34, RF36, RF37, RF42–RF46, RF54–RF57, RF59–RF64 (o RF35 saiu da lista: foi entregue no S1-04; RF13, RF39, RF40 e RF58 saíram com o S2-01) | PRODUTO | priorização funcional e incrementos próprios; não são cleanup E15 |
+| E15-F13 | Funcionalidades oficiais ainda fora do produto | RF15–RF18, RF29–RF34, RF36, RF37, RF42–RF46, RF54–RF57, RF62–RF64 (o RF35 saiu da lista: foi entregue no S1-04; RF13, RF39, RF40 e RF58 saíram com o S2-01; RF59 com o S2-02; RF60 e RF61 com o S2-03) | PRODUTO | priorização funcional e incrementos próprios; não são cleanup E15 |
 
 ## Pendências abertas pelo S1-04 / RF10
 
@@ -75,6 +75,19 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | S202-F27 | Índice para o filtro "Todas" | o keyset do "Todas" usa só o prefixo `recipientUserId` e ordena por *filesort*; com 10.000 notificações a página leva 98 ms, dentro do orçamento (O-R1) | BAIXA | página acima de 150 ms com volume real: índice `(recipientUserId, createdAt, id)` em migration nova |
 | S202-F28 | Lista de membros com `user.isActive` legado | fora do S2-02: `/api/projects/:id/members` mostrou `user.isActive: true` para uma conta `DEACTIVATED`; o estado vigente é `User.accountStatus`, que a lista não traz (O-R4 de `S2_02_RELATORIO_RETESTE.md`) | BAIXA | próxima mudança na tela de membros: trazer `accountStatus` ou deixar de expor `isActive` |
 | S202-F29 | Espera de bloqueio maior que o tempo da transação nas outras transações | o MySQL espera um `FOR UPDATE` por até 50 s; as transações interativas encerram em 5 s (padrão) ou 15 s (`traceabilityTransaction`, exclusão de projeto, defeitos, casos de teste). Com o projeto seguro por 7 s, a mudança de status esperou e terminou (200), sem cascata; acima de 15 s, a conexão presa derruba outras requisições, como no S202-R01 | BAIXA | antes da produção (S2-09) ou ao primeiro `P2028` em log: espera do banco menor que o tempo de cada transação (`NOWAIT` com nova tentativa ou `innodb_lock_wait_timeout` na sessão) |
+
+## Pendências abertas pelo S2-03 (notificações de issues e pull requests)
+
+| ID | Pendência | Requisito/impacto | Prioridade | Critério para iniciar |
+|---|---|---|---|---|
+| S203-F01 | Webhooks `issues` e `pull_request` da GitHub App | a transição só é vista na sincronização seguinte; mudanças intermediárias entre duas sincronizações se fundem (ADR-018 D1) | MÉDIA | assinatura dos eventos na App, tratamento de entrega repetida e fora de ordem e reconciliação com a sincronização |
+| S203-F02 | Excluir o autor do fechamento ou do merge | quem fechou ou mesclou também recebe o aviso: a listagem do GitHub não traz `closed_by` nem `merged_by` (ADR-018 D6) | BAIXA | leitura individual do artefato transicionado e vínculo confiável com `GitHubIdentity` |
+| S203-F03 | Vínculo automático de issue e PR por referência (UC11, A5) | só existe para commits (RF41); com ele, a criação de uma issue vinculada passaria a ser observável (ADR-018 D3) | MÉDIA | decisão de produto sobre a regra de referência e a confirmação humana |
+| S203-F04 | Abertura e reabertura de PR | fora do RF61 (Quadro 3-58); a descrição do cartão as cita | BAIXA | decisão do grupo sobre o texto do RF61 |
+| S203-F05 | E-mail, push e resumo agrupado | o canal é só a aplicação, como no S2-02 | BAIXA | SMTP homologado (S1-02) e preferência por canal |
+| S203-F06 | Indicador de cobertura no produto | a métrica oficial é medida pelos testes M3 e M4 e pelo `outcome` dos eventos, sem tela | BAIXA | painel do S2-04 e do S2-05 |
+| S203-F07 | Motivo do fechamento da issue | o GitHub distingue concluída e não planejada (`state_reason`), e o aviso não diz qual | BAIXA | mapear `state_reason` na sincronização |
+| S203-F08 | Link direto para o artefato na Rastreabilidade | o cartão abre a tarefa e o GitHub; a Rastreabilidade não tem endereço próprio por artefato (RF53) | BAIXA | parâmetro de URL na tela de Rastreabilidade |
 
 ## Fechadas pelas correções do reteste do S2-02 (11/10/2026)
 

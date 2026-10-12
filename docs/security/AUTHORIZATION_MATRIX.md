@@ -66,7 +66,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | S2-01: `GET .../traceability/alerts`, `.../alerts/summary`, `.../alerts/:alertId`, `.../tasks-without-technical-links` |     401 |      L |           L |       L |     L | membership ativa; alerta de outro projeto 404 opaco; DTO mínimo, sem e-mail                                   |
 | S2-01: `POST .../traceability/alerts/:alertId/dismiss`, `POST .../traceability/alerts/reconcile`               |     401 |    403 |         403 |       E |     E | MANAGER+, CSRF, revalidação no service; reprocessamento com limitador próprio; auditoria sem texto livre        |
 | S2-02: `GET /api/notifications`, `/notifications/unread-count`; `PATCH /notifications/:notificationId`; `POST /notifications/read-all` |     401 |      E |           E |       E |     E | só o destinatário (da sessão), com membership ativa no projeto da notificação; id alheio ou oculto 404 opaco; o cursor da lista só posiciona e não dá acesso; conta restrita não recebe; mutations exigem CSRF; leituras no limitador autenticado |
-| S2-02: `GET`, `PUT /api/settings/notifications`                                                              |     401 |      E |           E |       E |     E | titular; `PUT` estrito com as duas chaves; auditoria só com os tipos alterados |
+| S2-02: `GET`, `PUT /api/settings/notifications`                                                              |     401 |      E |           E |       E |     E | titular; `PUT` estrito com as quatro chaves (duas até o S2-03); auditoria só com os tipos alterados |
 | `/api/settings/account`, `/security`, `/privacy`, `/integrations`                                              |     401 |      E |           E |       E |     E | titular; middleware de estado restringe operações e mutations exigem CSRF                                      |
 | `POST /api/auth/github/reauth/start`                                                                           |     401 |      E |           E |       E |     E | somente GitHub-only; identidade vinculada, sessão e state; também permite `DELETION_PENDING` para cancelamento |
 | `GET /api/account/audit-events`                                                                                |     401 |      L |           L |       L |     L | somente eventos cujo ator é o titular                                                                          |
@@ -101,6 +101,11 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
   `projectId` e o papel no projeto não altera o que se vê. A visibilidade depende da membership
   ativa no projeto de origem e do projeto não estar excluído; perder o acesso oculta sem apagar.
   Não há rota que crie notificação.
+- Notificações de eventos de issue e PR (S2-03, ADR-018) usam as mesmas rotas e a mesma regra de
+  visibilidade. Os destinatários são calculados no servidor, a partir da participação registrada na
+  tarefa (responsável, comentário não excluído, esforço) e da membership ativa no projeto; nada vem
+  do cliente. A fila de eventos e o job `notifications:github-events` não têm rota: o despacho é
+  operação do servidor, e o reprocessamento manual é auditado como ação do sistema.
 - `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e
   não pode ser controlada pelo body.
 - A resolução project-scoped também cobre `/sprints/:id` e `/milestones/:id`; ausência de recurso e
