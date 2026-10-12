@@ -648,6 +648,11 @@ export const settingsRepository = {
             fromStatus: true,
             toStatus: true,
             dueDate: true,
+            githubEvent: true,
+            artifactNumber: true,
+            artifactTitle: true,
+            artifactUrl: true,
+            githubOccurredAt: true,
             createdAt: true,
             readAt: true,
             project: {

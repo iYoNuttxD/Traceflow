@@ -52,6 +52,17 @@ export function toPreferencesDTO(rows) {
   return Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, !disabled.has(type)]));
 }
 
+function githubExportFields(row) {
+  if (!artifactKindOf(row.type)) return {};
+  return {
+    githubEvent: row.githubEvent,
+    artifactNumber: row.artifactNumber,
+    artifactTitle: row.artifactTitle,
+    artifactUrl: row.artifactUrl,
+    githubOccurredAt: row.githubOccurredAt
+  };
+}
+
 export function toNotificationExportItem(row) {
   return {
     id: row.id,
@@ -62,6 +73,7 @@ export function toNotificationExportItem(row) {
     fromStatus: row.fromStatus,
     toStatus: row.toStatus,
     dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
+    ...githubExportFields(row),
     createdAt: row.createdAt,
     readAt: row.readAt,
     visible: !row.project.deletedAt && row.project.memberships.length > 0

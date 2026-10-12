@@ -373,3 +373,90 @@ describe('S2-03 API: de ponta a ponta pela sincronização (UC04, C1, C3, C4)', 
     expect(await prisma.gitHubArtifactEvent.count()).toBe(1);
   });
 });
+
+function readStoredJsonFiles(zip) {
+  const files = {};
+  let offset = 0;
+  while (zip.readUInt32LE(offset) === 0x04034b50) {
+    const size = zip.readUInt32LE(offset + 18);
+    const filenameLength = zip.readUInt16LE(offset + 26);
+    const extraLength = zip.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + filenameLength + extraLength;
+    const name = zip.subarray(nameStart, nameStart + filenameLength).toString('utf8');
+    files[name] = JSON.parse(zip.subarray(contentStart, contentStart + size).toString('utf8'));
+    offset = contentStart + size;
+  }
+  return files;
+}
+
+function parseBinary(response, callback) {
+  const chunks = [];
+  response.on('data', (chunk) => chunks.push(chunk));
+  response.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
+describe('S2-03 API: exportação do titular (D16)', () => {
+  it('PV1 a exportação traz o contexto do GitHub nos tipos novos e mantém os itens do S2-02', async () => {
+    const project = await createProject(prisma, { name: 'Projeto exportado S2-03' });
+    const owner = await register(project.id);
+    const issue = await githubNotification(owner, project.id, {
+      readAt: new Date('2026-10-12T15:00:00.000Z')
+    });
+    sequence += 1;
+    const overdue = await prisma.notification.create({
+      data: {
+        recipientUserId: owner.user.id,
+        projectId: project.id,
+        type: 'TASK_OVERDUE',
+        dedupeKey: `TASK_OVERDUE:${sequence}:2026-10-10`,
+        taskTitle: 'Tarefa vencida',
+        dueDate: new Date('2026-10-10T00:00:00.000Z'),
+        createdAt: new Date('2026-10-01T10:00:00.000Z')
+      }
+    });
+
+    const exported = await owner
+      .mutate('post', '/api/settings/privacy/export')
+      .buffer(true)
+      .parse(parseBinary)
+      .send({});
+
+    expect(exported.status).toBe(200);
+    const files = readStoredJsonFiles(exported.body);
+    expect(files['notification-preferences.json']).toEqual(ALL_ON);
+    expect(files['notifications.json']).toEqual([
+      {
+        id: issue.id,
+        type: 'ISSUE_EVENT',
+        projectId: project.id,
+        taskId: issue.taskId,
+        taskTitle: issue.taskTitle,
+        fromStatus: null,
+        toStatus: null,
+        dueDate: null,
+        githubEvent: 'ISSUE_CLOSED',
+        artifactNumber: 45,
+        artifactTitle: 'Corrigir login',
+        artifactUrl: 'https://github.com/usuario-s203/repositorio-s203/issues/45',
+        githubOccurredAt: OCCURRED.toISOString(),
+        createdAt: issue.createdAt.toISOString(),
+        readAt: '2026-10-12T15:00:00.000Z',
+        visible: true
+      },
+      {
+        id: overdue.id,
+        type: 'TASK_OVERDUE',
+        projectId: project.id,
+        taskId: null,
+        taskTitle: 'Tarefa vencida',
+        fromStatus: null,
+        toStatus: null,
+        dueDate: '2026-10-10',
+        createdAt: overdue.createdAt.toISOString(),
+        readAt: null,
+        visible: true
+      }
+    ]);
+  });
+});
