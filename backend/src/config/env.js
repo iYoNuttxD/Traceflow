@@ -547,6 +547,11 @@ export function createEnvironment(source = {}) {
       'NOTIFICATION_RETENTION_DAYS',
       { defaultValue: 180, min: 30, max: 3650 }
     ),
+    githubEventNotificationsLookbackDays: parseInteger(
+      source.GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS,
+      'GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS',
+      { defaultValue: 7, min: 1, max: 90 }
+    ),
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
     githubOAuthCookieName: source.GITHUB_OAUTH_COOKIE_NAME || 'traceflow_github_oauth',
     sessionCookieSameSite: parseSameSite(source.SESSION_COOKIE_SAME_SITE),

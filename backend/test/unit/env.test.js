@@ -241,4 +241,21 @@ describe('configuração centralizada', () => {
       createEnvironment({ ...validSource, NOTIFICATION_RETENTION_DAYS: '29' })
     ).toThrowError(/NOTIFICATION_RETENTION_DAYS/);
   });
+
+  it('S2-03: valida a janela dos eventos de issue e PR, de 1 a 90 dias, padrão 7', () => {
+    expect(createEnvironment(validSource)).toMatchObject({
+      githubEventNotificationsLookbackDays: 7
+    });
+    for (const [value, days] of [
+      ['1', 1],
+      ['90', 90]
+    ])
+      expect(
+        createEnvironment({ ...validSource, GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS: value })
+      ).toMatchObject({ githubEventNotificationsLookbackDays: days });
+    for (const value of ['0', '91', '7.5', 'sete'])
+      expect(() =>
+        createEnvironment({ ...validSource, GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS: value })
+      ).toThrowError(/GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS/);
+  });
 });

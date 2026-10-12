@@ -10,6 +10,7 @@ const boundary = vi.hoisted(() => ({
   },
   syncProjectGithubData: vi.fn(),
   reconcileAfterSync: vi.fn(),
+  dispatchAfterSync: vi.fn(),
   recordOperational: vi.fn(),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }));
@@ -23,6 +24,9 @@ vi.mock('../../src/modules/github/services/sync-project-github.service.js', () =
 }));
 vi.mock('../../src/modules/traceability/traceability-alert.service.js', () => ({
   traceabilityAlertService: { reconcileAfterSync: boundary.reconcileAfterSync }
+}));
+vi.mock('../../src/modules/notifications/github-event-notification.service.js', () => ({
+  githubEventNotificationService: { dispatchAfterSync: boundary.dispatchAfterSync }
 }));
 vi.mock('../../src/modules/audit/audit.service.js', () => ({
   auditService: { recordOperational: boundary.recordOperational }
@@ -52,7 +56,13 @@ beforeEach(() => {
   boundary.repository.succeed.mockResolvedValue(finished('SUCCEEDED'));
   boundary.repository.fail.mockResolvedValue(finished('FAILED'));
   boundary.recordOperational.mockResolvedValue(undefined);
+  boundary.dispatchAfterSync.mockResolvedValue(null);
 });
+
+const dispatchedAfterAlerts = () =>
+  boundary.dispatchAfterSync.mock.invocationCallOrder.every(
+    (order, index) => order > boundary.reconcileAfterSync.mock.invocationCallOrder[index]
+  );
 
 describe('S2-01 G3: reconciliação de alertas no fim do sync', () => {
   it('I12 reconcilia depois de um sync com falha, que continua FAILED', async () => {
@@ -64,6 +74,8 @@ describe('S2-01 G3: reconciliação de alertas no fim do sync', () => {
     const result = await executeGithubSyncRun(run.id);
 
     expect(boundary.reconcileAfterSync).toHaveBeenCalledWith(run.projectId);
+    expect(boundary.dispatchAfterSync).toHaveBeenCalledWith(run.projectId);
+    expect(dispatchedAfterAlerts()).toBe(true);
     expect(result.status).toBe('FAILED');
     expect(boundary.repository.fail).toHaveBeenCalledWith(
       run.id,
@@ -80,6 +92,8 @@ describe('S2-01 G3: reconciliação de alertas no fim do sync', () => {
     const withoutAlerts = await executeGithubSyncRun(run.id);
 
     expect(boundary.reconcileAfterSync).toHaveBeenCalledTimes(2);
+    expect(boundary.dispatchAfterSync).toHaveBeenCalledTimes(2);
+    expect(dispatchedAfterAlerts()).toBe(true);
     expect(withAlerts).toEqual(withoutAlerts);
     expect(withAlerts.status).toBe('SUCCEEDED');
   });

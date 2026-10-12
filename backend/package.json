@@ -33,6 +33,8 @@
     "traceability:alerts": "node scripts/reconcile-traceability-alerts.js --apply",
     "notifications:due:dry-run": "node scripts/notify-overdue-tasks.js",
     "notifications:due": "node scripts/notify-overdue-tasks.js --apply",
+    "notifications:github-events:dry-run": "node scripts/dispatch-github-event-notifications.js",
+    "notifications:github-events": "node scripts/dispatch-github-event-notifications.js --apply",
     "e8:audit": "node scripts/e8-schema-audit.js",
     "e8:reconcile:dry-run": "node scripts/e8-reconcile.js",
     "e8:reconcile": "node scripts/e8-reconcile.js --apply",
