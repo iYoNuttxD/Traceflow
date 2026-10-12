@@ -330,12 +330,26 @@ describe('S2-02 bateria API — preferências (bloco F)', () => {
       { preferences: null },
       { preferences: [] },
       { preferences: [true, false] },
-      { preferences: { TASK_STATUS_CHANGED: null, TASK_OVERDUE: true } },
-      { preferences: { TASK_STATUS_CHANGED: 0, TASK_OVERDUE: 1 } },
+      {
+        preferences: {
+          TASK_STATUS_CHANGED: null,
+          TASK_OVERDUE: true,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        }
+      },
+      {
+        preferences: {
+          TASK_STATUS_CHANGED: 0,
+          TASK_OVERDUE: 1,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        }
+      },
       { preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true, prototype: {} } },
-      '{"__proto__":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true}}',
-      '{"constructor":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true}}',
-      '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"__proto__":{"polluted":true}}}'
+      '{"__proto__":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true}}',
+      '{"constructor":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true}}',
+      '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"__proto__":{"polluted":true}}}'
     ];
 
     for (const body of bodies)
@@ -361,9 +375,14 @@ describe('S2-02 bateria API — preferências (bloco F)', () => {
       await createTask(prisma, project.id, { responsibleUserId: responsible.user.id })
     ];
     const prefs = (value) =>
-      responsible
-        .mutate('put', '/api/settings/notifications')
-        .send({ preferences: { TASK_STATUS_CHANGED: value, TASK_OVERDUE: true } });
+      responsible.mutate('put', '/api/settings/notifications').send({
+        preferences: {
+          TASK_STATUS_CHANGED: value,
+          TASK_OVERDUE: true,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        }
+      });
 
     await prefs(false);
     await actor
@@ -384,9 +403,14 @@ describe('S2-02 bateria API — preferências (bloco F)', () => {
     await join(second.id, responsible.user.id);
     const actor = await register(first.id, 'MANAGER');
     await join(second.id, actor.user.id, 'MANAGER');
-    await responsible
-      .mutate('put', '/api/settings/notifications')
-      .send({ preferences: { TASK_STATUS_CHANGED: false, TASK_OVERDUE: true } });
+    await responsible.mutate('put', '/api/settings/notifications').send({
+      preferences: {
+        TASK_STATUS_CHANGED: false,
+        TASK_OVERDUE: true,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      }
+    });
 
     for (const project of [first, second]) {
       const task = await createTask(prisma, project.id, { responsibleUserId: responsible.user.id });

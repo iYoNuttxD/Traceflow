@@ -1,4 +1,9 @@
-export const NOTIFICATION_TYPES = Object.freeze(['TASK_STATUS_CHANGED', 'TASK_OVERDUE']);
+export const NOTIFICATION_TYPES = Object.freeze([
+  'TASK_STATUS_CHANGED',
+  'TASK_OVERDUE',
+  'ISSUE_EVENT',
+  'PULL_REQUEST_EVENT'
+]);
 export const STATUS_CHANGED = 'TASK_STATUS_CHANGED';
 export const OVERDUE = 'TASK_OVERDUE';
 

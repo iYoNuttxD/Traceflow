@@ -438,16 +438,35 @@ describe('S2-02 reteste — preferências, conta restrita e exportação na API 
     const put = (preferences) =>
       owner.mutate('put', '/api/settings/notifications').send({ preferences });
 
-    await put({ TASK_STATUS_CHANGED: true, TASK_OVERDUE: false });
-    const reenabled = await put({ TASK_STATUS_CHANGED: true, TASK_OVERDUE: true });
+    await put({
+      TASK_STATUS_CHANGED: true,
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
+    });
+    const reenabled = await put({
+      TASK_STATUS_CHANGED: true,
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
+    });
     const read = await owner.agent.get('/api/settings/notifications');
     const files = await exportOf(owner);
 
     for (const body of [reenabled.body, read.body])
-      expect(body).toEqual({ preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true } });
+      expect(body).toEqual({
+        preferences: {
+          TASK_STATUS_CHANGED: true,
+          TASK_OVERDUE: true,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        }
+      });
     expect(files['notification-preferences.json']).toEqual({
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     expect(JSON.stringify(files)).not.toContain('enabledAt');
   });

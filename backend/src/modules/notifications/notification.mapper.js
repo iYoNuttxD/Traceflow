@@ -1,4 +1,5 @@
 import { NOTIFICATION_TYPES, STATUS_CHANGED, notificationLink } from './notification.policy.js';
+import { artifactKindOf, safeGithubUrl } from './github-event.policy.js';
 
 function contextOf(row) {
   if (row.type === STATUS_CHANGED) {
@@ -6,6 +7,19 @@ function contextOf(row) {
       fromStatus: row.fromStatus,
       toStatus: row.toStatus,
       actor: row.actor ? { id: row.actor.id, name: row.actor.name } : null
+    };
+  }
+  const kind = artifactKindOf(row.type);
+  if (kind) {
+    return {
+      event: row.githubEvent,
+      occurredAt: row.githubOccurredAt,
+      artifact: {
+        kind,
+        number: row.artifactNumber,
+        title: row.artifactTitle,
+        url: safeGithubUrl(row.artifactUrl)
+      }
     };
   }
   return { dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null };

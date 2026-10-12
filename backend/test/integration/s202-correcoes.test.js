@@ -50,7 +50,12 @@ const audits = (userId) =>
   });
 
 function replay(events) {
-  let state = { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true };
+  let state = {
+    TASK_STATUS_CHANGED: true,
+    TASK_OVERDUE: true,
+    ISSUE_EVENT: true,
+    PULL_REQUEST_EVENT: true
+  };
   for (const event of events) {
     const changed = event.metadataJson.changedTypes.split(',');
     state = Object.fromEntries(
@@ -66,8 +71,18 @@ describe('S2-02 correções — PUT de preferências serializado (S202-A02)', ()
     for (let round = 0; round < 10; round += 1) {
       const user = await person();
       await Promise.all([
-        service.updatePreferences(user.id, { TASK_STATUS_CHANGED: false, TASK_OVERDUE: true }),
-        service.updatePreferences(user.id, { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false })
+        service.updatePreferences(user.id, {
+          TASK_STATUS_CHANGED: false,
+          TASK_OVERDUE: true,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        }),
+        service.updatePreferences(user.id, {
+          TASK_STATUS_CHANGED: true,
+          TASK_OVERDUE: false,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        })
       ]);
       const final = (await service.preferences(user.id)).preferences;
       outcomes.push({ final, replayed: replay(await audits(user.id)) });
@@ -78,7 +93,12 @@ describe('S2-02 correções — PUT de preferências serializado (S202-A02)', ()
 
   it('C4-01 dois PUT simultâneos iguais geram uma auditoria', async () => {
     const user = await person();
-    const choice = { TASK_STATUS_CHANGED: false, TASK_OVERDUE: true };
+    const choice = {
+      TASK_STATUS_CHANGED: false,
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
+    };
 
     await Promise.all([
       service.updatePreferences(user.id, choice),
@@ -90,7 +110,12 @@ describe('S2-02 correções — PUT de preferências serializado (S202-A02)', ()
 
   it('C4-01 PUT sem mudança não audita nem regrava a preferência', async () => {
     const user = await person();
-    const choice = { TASK_STATUS_CHANGED: false, TASK_OVERDUE: true };
+    const choice = {
+      TASK_STATUS_CHANGED: false,
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
+    };
     await service.updatePreferences(user.id, choice);
     const before = await prisma.notificationPreference.findMany({
       where: { userId: user.id },
@@ -140,13 +165,17 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
     const { project, responsible } = await overdueScenario('2026-10-15');
     await serviceAt('2026-10-14T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: false
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
 
     const whileOff = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
     await serviceAt('2026-10-17T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     const afterOn = await job('2026-10-17T13:00:00.000Z', { projectId: project.id });
 
@@ -159,11 +188,15 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
     const { project, responsible } = await overdueScenario('2026-10-15');
     await serviceAt('2026-10-14T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: false
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     await serviceAt('2026-10-15T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
 
     const report = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
@@ -175,11 +208,15 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
     const { project, responsible } = await overdueScenario('2026-10-15');
     await serviceAt('2026-10-14T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: false
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     await serviceAt('2026-10-16T03:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
 
     const report = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
@@ -196,7 +233,9 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
     });
     await serviceAt('2026-10-17T12:00:00.000Z').updatePreferences(other.id, {
       TASK_STATUS_CHANGED: false,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
 
     const report = await job('2026-10-17T13:00:00.000Z', { projectId: project.id });
@@ -218,11 +257,15 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
     });
     await serviceAt('2026-10-14T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: false
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     await serviceAt('2026-10-17T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
 
     const report = await job('2026-10-18T12:00:00.000Z', { projectId: project.id });
@@ -241,17 +284,23 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
 
     await serviceAt('2026-10-14T12:00:00.000Z').updatePreferences(user.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: false
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     const off = await read();
     await serviceAt('2026-10-15T12:00:00.000Z').updatePreferences(user.id, {
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     const on = await read();
     await serviceAt('2026-10-16T12:00:00.000Z').updatePreferences(user.id, {
       TASK_STATUS_CHANGED: false,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     const unchanged = await read();
 

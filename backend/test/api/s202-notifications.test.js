@@ -97,9 +97,14 @@ describe('S2-02 API: autenticação, CSRF e cabeçalhos', () => {
     expect((await owner.agent.post('/api/notifications/read-all').send({})).status).toBe(403);
     expect(
       (
-        await owner.agent
-          .put('/api/settings/notifications')
-          .send({ preferences: { TASK_STATUS_CHANGED: false, TASK_OVERDUE: true } })
+        await owner.agent.put('/api/settings/notifications').send({
+          preferences: {
+            TASK_STATUS_CHANGED: false,
+            TASK_OVERDUE: true,
+            ISSUE_EVENT: true,
+            PULL_REQUEST_EVENT: true
+          }
+        })
       ).status
     ).toBe(403);
     expect((await prisma.notification.findUnique({ where: { id: row.id } })).readAt).toBeNull();
@@ -396,14 +401,31 @@ describe('S2-02 API: preferências (D7)', () => {
     const owner = await register();
 
     expect((await owner.agent.get('/api/settings/notifications')).body).toEqual({
-      preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true }
+      preferences: {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: true,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      }
     });
-    const saved = await owner
-      .mutate('put', '/api/settings/notifications')
-      .send({ preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false } });
+    const saved = await owner.mutate('put', '/api/settings/notifications').send({
+      preferences: {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: false,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      }
+    });
 
     expect(saved.status).toBe(200);
-    expect(saved.body).toEqual({ preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false } });
+    expect(saved.body).toEqual({
+      preferences: {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: false,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      }
+    });
     expect((await owner.agent.get('/api/settings/notifications')).body).toEqual(saved.body);
   });
 
@@ -412,14 +434,37 @@ describe('S2-02 API: preferências (D7)', () => {
     for (const body of [
       {},
       { preferences: { TASK_STATUS_CHANGED: true } },
-      { preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: 'false' } },
-      { preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true, ISSUE_EVENT: true } },
-      { preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true }, userId: 1 },
+      {
+        preferences: {
+          TASK_STATUS_CHANGED: true,
+          TASK_OVERDUE: 'false',
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        }
+      },
+      {
+        preferences: {
+          TASK_STATUS_CHANGED: true,
+          TASK_OVERDUE: true,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true,
+          UNKNOWN_EVENT: true
+        }
+      },
+      {
+        preferences: {
+          TASK_STATUS_CHANGED: true,
+          TASK_OVERDUE: true,
+          ISSUE_EVENT: true,
+          PULL_REQUEST_EVENT: true
+        },
+        userId: 1
+      },
       JSON.parse(
-        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"__proto__":{"admin":true}}}'
+        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"__proto__":{"admin":true}}}'
       ),
       JSON.parse(
-        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"constructor":{"x":1}}}'
+        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"constructor":{"x":1}}}'
       )
     ])
       expect(
@@ -434,8 +479,18 @@ describe('S2-02 API: preferências (D7)', () => {
     const put = (preferences) =>
       owner.mutate('put', '/api/settings/notifications').send({ preferences });
 
-    await put({ TASK_STATUS_CHANGED: true, TASK_OVERDUE: false });
-    await put({ TASK_STATUS_CHANGED: true, TASK_OVERDUE: false });
+    await put({
+      TASK_STATUS_CHANGED: true,
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
+    });
+    await put({
+      TASK_STATUS_CHANGED: true,
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
+    });
 
     const events = await prisma.auditEvent.findMany({
       where: { action: 'NOTIFICATION_PREFERENCES_UPDATED' }
@@ -513,9 +568,14 @@ describe('S2-02 API: exportação do titular (D13)', () => {
     const hidden = await notify(owner, former.id, {
       createdAt: new Date('2026-10-01T10:00:00.000Z')
     });
-    await owner
-      .mutate('put', '/api/settings/notifications')
-      .send({ preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false } });
+    await owner.mutate('put', '/api/settings/notifications').send({
+      preferences: {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: false,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      }
+    });
 
     const exported = await owner
       .mutate('post', '/api/settings/privacy/export')
@@ -530,7 +590,9 @@ describe('S2-02 API: exportação do titular (D13)', () => {
     );
     expect(files['notification-preferences.json']).toEqual({
       TASK_STATUS_CHANGED: true,
-      TASK_OVERDUE: false
+      TASK_OVERDUE: false,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     expect(files['notifications.json']).toEqual([
       {

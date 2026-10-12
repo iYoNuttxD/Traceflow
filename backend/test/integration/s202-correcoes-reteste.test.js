@@ -11,8 +11,18 @@ let prisma;
 let app;
 let sequence = 0;
 const password = 'SenhaSegura123';
-const OFF = { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false };
-const ON = { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true };
+const OFF = {
+  TASK_STATUS_CHANGED: true,
+  TASK_OVERDUE: false,
+  ISSUE_EVENT: true,
+  PULL_REQUEST_EVENT: true
+};
+const ON = {
+  TASK_STATUS_CHANGED: true,
+  TASK_OVERDUE: true,
+  ISSUE_EVENT: true,
+  PULL_REQUEST_EVENT: true
+};
 
 beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());

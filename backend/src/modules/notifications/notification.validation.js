@@ -74,7 +74,9 @@ export const notificationPreferencesBodySchema = withoutPrototypeKeys(
   strictObject({
     preferences: strictObject({
       TASK_STATUS_CHANGED: z.boolean({ error: preferenceMessage }),
-      TASK_OVERDUE: z.boolean({ error: preferenceMessage })
+      TASK_OVERDUE: z.boolean({ error: preferenceMessage }),
+      ISSUE_EVENT: z.boolean({ error: preferenceMessage }),
+      PULL_REQUEST_EVENT: z.boolean({ error: preferenceMessage })
     })
   })
 );

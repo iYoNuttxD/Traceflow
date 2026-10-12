@@ -109,11 +109,26 @@ const overdueTo = (user) =>
   prisma.notification.count({ where: { recipientUserId: user.id, type: 'TASK_OVERDUE' } });
 const statusTo = (user) =>
   prisma.notification.count({ where: { recipientUserId: user.id, type: 'TASK_STATUS_CHANGED' } });
-const OFF = { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false };
-const ON = { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true };
+const OFF = {
+  TASK_STATUS_CHANGED: true,
+  TASK_OVERDUE: false,
+  ISSUE_EVENT: true,
+  PULL_REQUEST_EVENT: true
+};
+const ON = {
+  TASK_STATUS_CHANGED: true,
+  TASK_OVERDUE: true,
+  ISSUE_EVENT: true,
+  PULL_REQUEST_EVENT: true
+};
 
 function replay(events) {
-  let state = { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true };
+  let state = {
+    TASK_STATUS_CHANGED: true,
+    TASK_OVERDUE: true,
+    ISSUE_EVENT: true,
+    PULL_REQUEST_EVENT: true
+  };
   for (const event of events) {
     const changed = event.metadataJson.changedTypes.split(',');
     state = Object.fromEntries(
@@ -137,10 +152,25 @@ async function dueTask(projectId, responsibleUserId, dueDate) {
 describe('S2-02 reteste — correções verificadas no banco (bloco V)', () => {
   it('RT-V-02 vinte rodadas de três PUT distintos e um igual ao inicial, pela API, têm trilha coerente', async () => {
     const choices = [
-      { TASK_STATUS_CHANGED: false, TASK_OVERDUE: true },
-      { TASK_STATUS_CHANGED: true, TASK_OVERDUE: false },
-      { TASK_STATUS_CHANGED: false, TASK_OVERDUE: false },
-      { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true }
+      {
+        TASK_STATUS_CHANGED: false,
+        TASK_OVERDUE: true,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      },
+      {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: false,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      },
+      {
+        TASK_STATUS_CHANGED: false,
+        TASK_OVERDUE: false,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true
+      },
+      { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true, ISSUE_EVENT: true, PULL_REQUEST_EVENT: true }
     ];
     const outcomes = [];
     for (let round = 0; round < 20; round += 1) {
@@ -266,7 +296,9 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
     const user = await person();
     const choices = Array.from({ length: 20 }, (_, index) => ({
       TASK_STATUS_CHANGED: index % 2 === 0,
-      TASK_OVERDUE: index % 3 === 0
+      TASK_OVERDUE: index % 3 === 0,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     }));
 
     const results = await Promise.allSettled(
@@ -496,7 +528,9 @@ describe('S2-02 reteste — enabledAt (N-E)', () => {
     const task = await createTask(prisma, project.id, { responsibleUserId: responsible.id });
     await serviceAt('2026-10-01T00:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: false,
-      TASK_OVERDUE: true
+      TASK_OVERDUE: true,
+      ISSUE_EVENT: true,
+      PULL_REQUEST_EVENT: true
     });
     await serviceAt('2026-10-02T00:00:00.000Z').updatePreferences(responsible.id, ON);
 
