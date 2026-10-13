@@ -104,3 +104,41 @@ devolve o 1205 antes do prazo do Prisma, e nada falha depois.
 - ASVS V15.4.2 e V15.4.3: estado verificado e alterado sob trava, sem espera indefinida.
 - V16.5.3: a falha fica na operação que falhou e não atinge outras requisições.
 - V16.3.4: o código do erro é registrado. Nenhum dado pessoal entra no log.
+
+## Validação (13/10/2026)
+
+**Formas do 1205** no Prisma 6.12 com MySQL 8, com limite de 1 s e o projeto seguro por outra
+transação:
+
+| Espera | Forma do erro | Tempo |
+|---|---|---:|
+| `$queryRaw` com `FOR UPDATE` | `PrismaClientKnownRequestError`, `P2010`, `meta.code` 1205 | 1.032 ms |
+| `update` de modelo na linha travada | `PrismaClientUnknownRequestError`, com `code: 1205` na mensagem | 1.016 ms |
+| inserção com chave estrangeira para o projeto travado | `PrismaClientUnknownRequestError`, com `code: 1205` na mensagem | 1.014 ms |
+| leitura `Serializable` | `PrismaClientUnknownRequestError`, com `code: 1205` na mensagem | 1.018 ms |
+
+Nos quatro casos, a mesma conexão leu o projeto logo depois, sem erro: o 1205 não dessincroniza a
+conexão. A função `isLockWaitTimeout` cobre as duas formas; o deadlock (1213) fica de fora.
+
+**Pessoa A e pessoa B** (testes F1 de `test/api/s202-f29-espera-de-trava.test.js`). Outra transação
+segura a trava; A faz a operação, e B, de outra conta, consulta o contador de notificações logo
+depois. "Sem limite" é o mesmo código com o `SET SESSION` retirado do envoltório.
+
+| Teste | Trava segura | Sem limite: A | Sem limite: B | Com limite: A | Com limite: B |
+|---|---|---|---|---|---|
+| F1-01 comentário (prazo de 5 s) | `Project`, 7 s | 7.018 ms, 500 | 500 | 2.034 ms, 409 `RESOURCE_BUSY` | 200 |
+| F1-02 status da tarefa (prazo de 15 s) | `Project`, 17 s | 17.011 ms, 500 | 500 | 5.069 ms, 409 `RESOURCE_BUSY` | 200 |
+| F1-03 marcar notificação como lida | `Notification`, 7 s | 7.013 ms, 500 | 500 | 2.023 ms, 409 `RESOURCE_BUSY` | 200 |
+| F1-04 entrar pelo código de acesso (`Serializable`) | `Project`, 7 s | 7.016 ms, 500 | 200 | 2.025 ms, 409 `RESOURCE_BUSY` | 200 |
+
+**Custo.**
+- No MySQL local, a instrução a mais custa 0,24 ms por transação interativa: mediana de 0,49 ms
+  sem o `SET` e de 0,72 ms com ele, em 400 transações triviais.
+- Pelo proxy de latência do S2-03, a página de 100 PRs da sincronização faz uma transação por
+  tentativa. O custo teórico é uma ida e volta, e a diferença medida ficou dentro da variação entre
+  rodadas:
+
+  | Latência efetiva | Sem o `SET` (0 / 100 transições) | Com o `SET` (0 / 100 transições) |
+  |---|---:|---:|
+  | 2,36 a 2,39 ms | 872 / 891 ms | 921 / 901 ms |
+  | 10,58 a 10,73 ms | 3.467 / 3.499 ms | 3.490 / 3.515 ms |

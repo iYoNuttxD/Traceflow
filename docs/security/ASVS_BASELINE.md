@@ -328,13 +328,14 @@ A campanha de testes de 12/10/2026 acrescentou as baterias `test/api/s203-bateri
 
 A correção do S202-F29 (ADR-019) é transversal: limita a espera de trava em toda transação
 interativa do backend. Evidência nos testes F1 e F2 de `test/unit`, `test/integration` e `test/api`
-(`s202-f29-espera-de-trava.test.js`).
+(`s202-f29-espera-de-trava.test.js`), nos commits `9dd8b6c` e `375a0fd` e nos mutantes MF01–MF10 de
+`docs/issues/S202_F29_RELATORIO.md`.
 
 | Requisito | Nível | Aplicação | Implementação | Evidência | Status |
 |---|---|---|---|---|---|
 | V15.4.2, V15.4.3 | L3 | estado verificado e alterado sob trava, sem espera indefinida; a espera nunca passa do prazo da transação | `src/database/lock-wait.js` no cliente compartilhado | F1-01 a F1-06 | ATENDIDO (informativo, acima da meta) |
-| V16.3.4 | L2 | erro de banco registrado com o código do Prisma; espera esgotada com evento próprio | `error-handler.middleware.js` | F2-02 | ATENDIDO |
-| V16.5.3 | L2 | a operação que encontra o recurso ocupado falha sozinha, com 409, sem efeito parcial e sem atingir outras requisições | limite por sessão e `RESOURCE_BUSY` | F1-01 a F1-04, F2-01 | ATENDIDO |
+| V16.3.4 | L2 | erro de banco registrado com o código do Prisma; espera esgotada com evento próprio | `error-handler.middleware.js` | F2-02 (sem título, nome ou e-mail no log) | ATENDIDO |
+| V16.5.3 | L2 | a operação que encontra o recurso ocupado falha sozinha, com 409, sem efeito parcial e sem atingir outras requisições | limite por sessão, `RESOURCE_BUSY` e classificação na sincronização | F1-01 a F1-04, F2-01, F2-03 a F2-06 | ATENDIDO |
 
 O `P2028` por trabalho lento continua possível e está no S202-F33 (avaliação do Prisma) e no S202-F30
 (transações pesadas de 5 s).
