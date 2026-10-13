@@ -265,6 +265,24 @@ Nos dois cenários, a issue sem vínculo fechada, a reabertura de PR e a sincron
 mudança não são eventos ocorridos. Cada notificação existe uma vez, para o participante certo, e a
 soma dos `outcome` coincide com a saída do job. O resultado com dados reais fica para o S3-01.
 
+**Carga sintética no banco de desenvolvimento (12/10/2026):**
+- **Dados.** O projeto `[S2-01] Escala` recebeu 152 issues, 151 delas vinculadas, e 150 pull requests vinculadas, num total de 301 tarefas. O dono do projeto é responsável por todas. Um segundo membro comentou em 30 delas e registrou esforço em 12, somando 36 tarefas distintas.
+- **Transições aplicadas** pelo `upsertMany`:
+  - 140 issues fechadas e 10 reabertas;
+  - 1 issue fechada há 10 dias, fora da janela de 7 dias;
+  - 1 issue sem vínculo, também fechada;
+  - 140 pull requests mescladas e 10 fechadas sem merge.
+
+| Etapa | Resultado |
+| --- | --- |
+| Eventos gravados | 301; a issue sem vínculo não gerou evento |
+| Job em `--dry-run` | `wouldCreate` 336; `OUTSIDE_WINDOW` 1 |
+| Job em `--apply` | 301 despachados, 336 criadas, 0 falhas, `pendingAfter` 0 |
+| Segunda execução | 0 varridos, 0 criadas |
+| Por destinatário | dono: 300 (140 issues fechadas, 10 reabertas, 140 PRs mescladas, 10 fechadas sem merge); segundo membro: 36 |
+| Soma dos `outcome` | 336 elegíveis = 336 criadas; `OUTSIDE_WINDOW` 1 |
+| Cobertura sobre os pares elegíveis | 100% |
+
 ## Job
 
 | Item | Regra |
