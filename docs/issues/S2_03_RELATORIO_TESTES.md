@@ -591,7 +591,21 @@ A página-base, anterior ao S2-03, passa dos 5 s por volta de 15 ms (S203-F22, p
 - **C7:** atende: "enviada corretamente" está definida pelo `outcome`.
 - **K3 e K4:** atendem.
 
+**Ambiente do João (13/10/2026, com aval para a carga e a limpeza):**
+
+| Caso | Resultado |
+|---|---|
+| Carga do S2-03 | 301 tarefas, 301 transições e 301 eventos pendentes no `[S2-01] Escala` |
+| Job | 301 despachados, 336 criados (conta 1 com 300, conta 9 com 36), `OUTSIDE_WINDOW` 1, seis motivos de exclusão; o `stdout` é um JSON só, com `failedStock` 0, `dueAfter` 0, `claimLost` 0 e o log no `stderr` |
+| Origem "Tarefas" com "Todas" | os 6 avisos do S2-02 em primeiro; antes, na posição 301 |
+| Origem "Tarefas" com "Não lidas" | estado vazio "Nenhuma notificação de tarefas não lida." |
+| Origem "GitHub" | 300 avisos em 14 cliques de "Carregar mais"; 300 nomes de cartão e 300 botões de leitura distintos |
+| Reabertura | os 10 cartões com "reaberta no GitHub; última atualização em …" |
+| 390, 768 e 1024 px (iframe) | sem rolagem horizontal. Em 390 px, a opção "GitHub" quebra para a linha de baixo, à esquerda (cosmético) |
+| Temas | escuro, que é o do João, e claro, aplicado só no iframe, sem mudar a preferência; os dois legíveis |
+| Limpeza | 336 notificações, 301 eventos, 30 comentários, 12 esforços, 301 tarefas, 152 issues e 150 PRs removidos. A conferência zerou o que a carga criou; a conta 1 voltou às 6 notificações do S2-02 e a conta 9 ficou sem nenhuma |
+
 **O que continua pendente:**
-- a verificação visual das mudanças da central no ambiente do João (Fase 11 do prompt) e o `VISUALLY APPROVED`;
+- o `VISUALLY APPROVED` do João;
 - E2E (S104-F02), CI remota e agendador do job;
 - o S202-F29, agora MÉDIA com a evidência do C2-04.
