@@ -14,6 +14,7 @@ import {
   dueDateRange,
   isOverdue,
   isWithinLookback,
+  NOTIFICATION_GROUPS,
   overdueCutoff,
   overdueDedupeKey,
   overdueExclusion,
@@ -142,6 +143,7 @@ export function createNotificationService({
       const after = query.cursor || null;
       const [total, rows, unreadCount] = await repository.listPage(userId, {
         unreadOnly: query.status !== 'ALL',
+        types: NOTIFICATION_GROUPS[query.group] ?? null,
         skip: (page - 1) * limit,
         take: limit + 1,
         after

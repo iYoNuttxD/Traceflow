@@ -144,8 +144,12 @@ export const notificationRepository = {
     return result.count;
   },
 
-  listPage(userId, { unreadOnly, skip, take, after = null }) {
-    const where = { ...visibleWhere(userId), ...(unreadOnly ? { readAt: null } : {}) };
+  listPage(userId, { unreadOnly, types = null, skip, take, after = null }) {
+    const where = {
+      ...visibleWhere(userId),
+      ...(unreadOnly ? { readAt: null } : {}),
+      ...(types ? { type: { in: [...types] } } : {})
+    };
     const pageWhere = after
       ? {
           AND: [

@@ -314,3 +314,122 @@ describe('S2-03 correções — Fase 7: exportação e preferências (S203-A09, 
     ).toBe(0);
   });
 });
+
+describe('S2-03 correções — Fase 8: filtro por origem (S203-A08)', () => {
+  const TASK_TYPES = ['TASK_STATUS_CHANGED', 'TASK_OVERDUE'];
+  const GITHUB_TYPES = ['ISSUE_EVENT', 'PULL_REQUEST_EVENT'];
+
+  async function bulk(recipient, projectId, type, count, start) {
+    sequence += 1;
+    const batch = sequence;
+    await prisma.notification.createMany({
+      data: Array.from({ length: count }, (_, index) => ({
+        recipientUserId: recipient.user.id,
+        projectId,
+        type,
+        dedupeKey: `${type}:carga:${batch}:${index}`,
+        taskTitle: `Tarefa ${batch}-${index}`,
+        createdAt: new Date(start.getTime() + index * 1000)
+      }))
+    });
+  }
+
+  const list = (person, query) => person.agent.get(`/api/notifications?${query}`);
+  const typesOf = (response) => [...new Set(response.body.notifications.map((item) => item.type))];
+
+  it('C8-01 group filtra por origem e combina com status e page; sem group é ALL', async () => {
+    const project = await createProject(prisma);
+    const owner = await register(project.id);
+    const base = new Date('2026-10-01T12:00:00Z');
+    await bulk(owner, project.id, 'ISSUE_EVENT', 2, base);
+    await bulk(owner, project.id, 'PULL_REQUEST_EVENT', 1, base);
+    await bulk(owner, project.id, 'TASK_STATUS_CHANGED', 1, base);
+    await bulk(owner, project.id, 'TASK_OVERDUE', 1, base);
+    await prisma.notification.updateMany({
+      where: { recipientUserId: owner.user.id, type: 'PULL_REQUEST_EVENT' },
+      data: { readAt: new Date() }
+    });
+
+    const github = await list(owner, 'status=ALL&group=GITHUB');
+    const tasks = await list(owner, 'status=ALL&group=TASKS');
+    const all = await list(owner, 'status=ALL&group=ALL');
+    const plain = await list(owner, 'status=ALL');
+    const unreadGithub = await list(owner, 'status=UNREAD&group=GITHUB&page=1&limit=1');
+
+    expect(github.status).toBe(200);
+    expect(github.body.pagination.total).toBe(3);
+    expect(typesOf(github).sort()).toEqual([...GITHUB_TYPES].sort());
+    expect(tasks.body.pagination.total).toBe(2);
+    expect(typesOf(tasks).sort()).toEqual([...TASK_TYPES].sort());
+    expect(all.body.pagination.total).toBe(5);
+    expect(plain.body.notifications.map((item) => item.id)).toEqual(
+      all.body.notifications.map((item) => item.id)
+    );
+    expect(unreadGithub.body.pagination).toMatchObject({ total: 2, totalPages: 2, page: 1 });
+    expect(typesOf(unreadGithub)).toEqual(['ISSUE_EVENT']);
+    for (const response of [github, tasks, all, unreadGithub])
+      expect(response.body.unreadCount).toBe(4);
+  });
+
+  it('C8-02 em escala, TASKS traz os avisos de tarefa na primeira página e o cursor percorre cada origem sem perder nem repetir', async () => {
+    const project = await createProject(prisma);
+    const owner = await register(project.id);
+    await bulk(owner, project.id, 'TASK_OVERDUE', 3, new Date('2026-09-01T12:00:00Z'));
+    await bulk(owner, project.id, 'ISSUE_EVENT', 300, new Date('2026-10-01T12:00:00Z'));
+
+    const tasks = await list(owner, 'group=TASKS&limit=20');
+    const seen = [];
+    let response = await list(owner, 'group=GITHUB&limit=100');
+    for (;;) {
+      seen.push(...response.body.notifications.map((item) => item.id));
+      expect(response.body.unreadCount).toBe(303);
+      if (!response.body.nextCursor) break;
+      response = await list(
+        owner,
+        `group=GITHUB&limit=100&cursor=${encodeURIComponent(response.body.nextCursor)}`
+      );
+    }
+
+    expect(tasks.body.notifications.map((item) => item.type)).toEqual([
+      'TASK_OVERDUE',
+      'TASK_OVERDUE',
+      'TASK_OVERDUE'
+    ]);
+    expect(tasks.body.nextCursor).toBeNull();
+    expect(tasks.body.unreadCount).toBe(303);
+    expect(seen).toHaveLength(300);
+    expect(new Set(seen).size).toBe(300);
+  });
+
+  it('C8-03 group inválido responde 400; o filtro não dá acesso a notificação alheia nem oculta', async () => {
+    const project = await createProject(prisma);
+    const hiddenProject = await createProject(prisma);
+    const owner = await register(project.id);
+    const other = await register(project.id);
+    await prisma.projectMembership.create({
+      data: { projectId: hiddenProject.id, userId: owner.user.id, role: 'MEMBER' }
+    });
+    await bulk(owner, project.id, 'ISSUE_EVENT', 1, new Date('2026-10-01T12:00:00Z'));
+    await bulk(other, project.id, 'ISSUE_EVENT', 2, new Date('2026-10-01T12:00:00Z'));
+    await bulk(owner, hiddenProject.id, 'ISSUE_EVENT', 1, new Date('2026-10-01T12:00:00Z'));
+    await prisma.project.update({
+      where: { id: hiddenProject.id },
+      data: { deletedAt: new Date() }
+    });
+
+    for (const query of [
+      'group=github',
+      'group=',
+      'group=OUTRO',
+      'group=GITHUB&group=TASKS',
+      'group[x]=GITHUB'
+    ]) {
+      const response = await list(owner, query);
+      expect(response.status, query).toBe(400);
+      expect(response.body.code, query).toBe('VALIDATION_ERROR');
+    }
+    const github = await list(owner, 'status=ALL&group=GITHUB');
+    expect(github.body.pagination.total).toBe(1);
+    expect(github.body.notifications.map((item) => item.project.id)).toEqual([project.id]);
+  });
+});

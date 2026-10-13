@@ -60,6 +60,10 @@ export const notificationListQuerySchema = strictObject({
     .enum(['UNREAD', 'ALL'], { error: 'Situação de leitura inválida. Use UNREAD ou ALL.' })
     .optional()
     .default('UNREAD'),
+  group: z
+    .enum(['ALL', 'TASKS', 'GITHUB'], { error: 'Origem inválida. Use ALL, TASKS ou GITHUB.' })
+    .optional()
+    .default('ALL'),
   cursor: z.string({ error: cursorMessage }).transform(decodeCursor).optional(),
   ...paginationSchema
 }).refine((query) => !(query.cursor && query.page), {

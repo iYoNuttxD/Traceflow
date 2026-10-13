@@ -6,6 +6,10 @@ export const NOTIFICATION_TYPES = Object.freeze([
 ]);
 export const STATUS_CHANGED = 'TASK_STATUS_CHANGED';
 export const OVERDUE = 'TASK_OVERDUE';
+export const NOTIFICATION_GROUPS = Object.freeze({
+  TASKS: Object.freeze([STATUS_CHANGED, OVERDUE]),
+  GITHUB: Object.freeze(['ISSUE_EVENT', 'PULL_REQUEST_EVENT'])
+});
 
 export const NOTIFICATION_EXCLUSIONS = Object.freeze([
   'OUTSIDE_WINDOW',
