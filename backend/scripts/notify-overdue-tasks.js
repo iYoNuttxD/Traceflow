@@ -61,9 +61,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       args: process.argv.slice(2),
       service: createNotificationService({
         log: createLogger({
-          write: (_level, line) =>
-            process.stderr.write(`${line}
-`)
+          write: (_level, line) => process.stderr.write(`${line}\n`)
         })
       }),
       databaseUrl: env.databaseUrl
