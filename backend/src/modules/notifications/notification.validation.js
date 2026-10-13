@@ -9,6 +9,8 @@ import {
 const MAX_ID = 2147483647;
 const idMessage = 'ID da notificação inválido.';
 const preferenceMessage = 'Cada preferência deve ser verdadeira ou falsa.';
+const outdatedPreferencesMessage =
+  'As opções de notificação mudaram. Recarregue a página e salve de novo.';
 const cursorMessage = 'Cursor de paginação inválido.';
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const CURSOR_CONTENT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\|([1-9]\d{0,9})$/;
@@ -37,6 +39,11 @@ function hasPrototypeKey(value) {
   if (!value || typeof value !== 'object') return false;
   return Object.hasOwn(value, '__proto__') || Object.values(value).some(hasPrototypeKey);
 }
+
+const preference = () =>
+  z.boolean({
+    error: (issue) => (issue.input === undefined ? outdatedPreferencesMessage : preferenceMessage)
+  });
 
 const withoutPrototypeKeys = (schema) =>
   z.preprocess((value, context) => {
@@ -73,10 +80,10 @@ export const notificationReadBodySchema = withoutPrototypeKeys(
 export const notificationPreferencesBodySchema = withoutPrototypeKeys(
   strictObject({
     preferences: strictObject({
-      TASK_STATUS_CHANGED: z.boolean({ error: preferenceMessage }),
-      TASK_OVERDUE: z.boolean({ error: preferenceMessage }),
-      ISSUE_EVENT: z.boolean({ error: preferenceMessage }),
-      PULL_REQUEST_EVENT: z.boolean({ error: preferenceMessage })
+      TASK_STATUS_CHANGED: preference(),
+      TASK_OVERDUE: preference(),
+      ISSUE_EVENT: preference(),
+      PULL_REQUEST_EVENT: preference()
     })
   })
 );

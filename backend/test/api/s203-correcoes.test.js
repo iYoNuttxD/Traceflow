@@ -191,3 +191,126 @@ describe('S2-03 correções — Fase 4: projeto excluído (S203-A02)', () => {
     expect(event.outcome.eligible).toBe(1);
   });
 });
+
+function readStoredJsonFiles(zip) {
+  const files = {};
+  let offset = 0;
+  while (zip.readUInt32LE(offset) === 0x04034b50) {
+    const size = zip.readUInt32LE(offset + 18);
+    const filenameLength = zip.readUInt16LE(offset + 26);
+    const extraLength = zip.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + filenameLength + extraLength;
+    const name = zip.subarray(nameStart, nameStart + filenameLength).toString('utf8');
+    files[name] = JSON.parse(zip.subarray(contentStart, contentStart + size).toString('utf8'));
+    offset = contentStart + size;
+  }
+  return files;
+}
+
+function parseBinary(response, callback) {
+  const chunks = [];
+  response.on('data', (chunk) => chunks.push(chunk));
+  response.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
+async function storedNotification(recipient, projectId, artifactUrl) {
+  sequence += 1;
+  const task = await createTask(prisma, projectId, { title: `Tarefa exportada ${sequence}` });
+  return prisma.notification.create({
+    data: {
+      recipientUserId: recipient.user.id,
+      projectId,
+      taskId: task.id,
+      type: 'ISSUE_EVENT',
+      dedupeKey: `ISSUE_EVENT:event:${900000 + sequence}:task:${task.id}`,
+      taskTitle: task.title,
+      githubEvent: 'ISSUE_CLOSED',
+      artifactNumber: 45,
+      artifactTitle: 'Corrigir login',
+      artifactUrl,
+      githubOccurredAt: new Date('2026-10-12T13:00:00Z')
+    }
+  });
+}
+
+describe('S2-03 correções — Fase 7: exportação e preferências (S203-A09, S203-A10)', () => {
+  const RELOAD = 'As opções de notificação mudaram. Recarregue a página e salve de novo.';
+  const ALL_ON = {
+    TASK_STATUS_CHANGED: true,
+    TASK_OVERDUE: true,
+    ISSUE_EVENT: true,
+    PULL_REQUEST_EVENT: true
+  };
+
+  it('C7-01 a exportação devolve artifactUrl nula fora do prefixo e preserva a válida (EV-D-01)', async () => {
+    const project = await createProject(prisma);
+    const owner = await register(project.id);
+    const longValid = `${ISSUE_URL}/${'4'.repeat(512 - ISSUE_URL.length - 1)}`;
+    const valid = await storedNotification(owner, project.id, `${ISSUE_URL}/45`);
+    const longest = await storedNotification(owner, project.id, longValid);
+    const forged = [];
+    for (const url of [
+      'javascript:alert(1)',
+      'http://github.com/usuario-s203/repositorio-s203/issues/45',
+      'https://github.com.evil/usuario-s203/repositorio-s203/issues/45'
+    ])
+      forged.push(await storedNotification(owner, project.id, url));
+    const status = await prisma.notification.create({
+      data: {
+        recipientUserId: owner.user.id,
+        projectId: project.id,
+        type: 'TASK_STATUS_CHANGED',
+        dedupeKey: 'TASK_STATUS_CHANGED:movement:990001',
+        taskTitle: 'Tarefa do S2-02',
+        fromStatus: 'A_FAZER',
+        toStatus: 'EM_ANDAMENTO'
+      }
+    });
+
+    const exported = await owner
+      .mutate('post', '/api/settings/privacy/export')
+      .buffer(true)
+      .parse(parseBinary)
+      .send({});
+
+    expect(exported.status).toBe(200);
+    const items = new Map(
+      readStoredJsonFiles(exported.body)['notifications.json'].map((item) => [item.id, item])
+    );
+    expect(longValid).toHaveLength(512);
+    expect(items.get(valid.id).artifactUrl).toBe(`${ISSUE_URL}/45`);
+    expect(items.get(longest.id).artifactUrl).toBe(longValid);
+    for (const row of forged) expect(items.get(row.id).artifactUrl, row.artifactUrl).toBeNull();
+    expect(Object.keys(items.get(status.id))).not.toContain('artifactUrl');
+  });
+
+  it('C7-02 o cliente desatualizado recebe a mensagem para recarregar; valor inválido mantém a mensagem de antes (EV-F-02)', async () => {
+    const owner = await register();
+
+    const outdated = await owner
+      .mutate('put', '/api/settings/notifications')
+      .send({ preferences: { TASK_STATUS_CHANGED: false, TASK_OVERDUE: false } });
+    const invalid = await owner
+      .mutate('put', '/api/settings/notifications')
+      .send({ preferences: { ...ALL_ON, ISSUE_EVENT: 'true' } });
+
+    expect(outdated.status).toBe(400);
+    expect(outdated.body).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      message: RELOAD,
+      details: [
+        { field: 'preferences.ISSUE_EVENT', message: RELOAD },
+        { field: 'preferences.PULL_REQUEST_EVENT', message: RELOAD }
+      ]
+    });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.message).toBe('Cada preferência deve ser verdadeira ou falsa.');
+    expect((await owner.agent.get('/api/settings/notifications')).body).toEqual({
+      preferences: ALL_ON
+    });
+    expect(
+      await prisma.auditEvent.count({ where: { action: 'NOTIFICATION_PREFERENCES_UPDATED' } })
+    ).toBe(0);
+  });
+});

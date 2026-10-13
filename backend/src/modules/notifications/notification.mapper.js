@@ -58,7 +58,7 @@ function githubExportFields(row) {
     githubEvent: row.githubEvent,
     artifactNumber: row.artifactNumber,
     artifactTitle: row.artifactTitle,
-    artifactUrl: row.artifactUrl,
+    artifactUrl: safeGithubUrl(row.artifactUrl),
     githubOccurredAt: row.githubOccurredAt
   };
 }
