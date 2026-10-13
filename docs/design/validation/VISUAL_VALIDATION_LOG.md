@@ -1,5 +1,39 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-10-13 — S2-03 notificações de issues e pull requests (RF60, RF61)
+
+**Ambiente.** Chrome real do João, autenticado em `localhost:5173`, com o backend local em
+`localhost:3001` e o banco de desenvolvimento `traceflow`. A carga sintética do S2-03 foi aplicada
+com o aval dele no projeto `[S2-01] Escala`: 301 tarefas e 301 eventos. O job despachou 336
+avisos, e a carga foi removida e conferida no fim.
+
+**Escopo.** As surfaces `NOTIFICATIONS-CENTER` e `SETTINGS-NOTIFICATIONS`, no estado de `18877e7`.
+As duas são compartilhadas com o S2-02. A rodada cobre:
+- cartões Issue e Pull request com evento, data, artefato e os dois links;
+- o grupo "Origem" (Todas as origens, Tarefas, GitHub);
+- o nome acessível com o texto do contexto;
+- o texto "reaberta no GitHub; última atualização em …";
+- o grupo "Avisos do GitHub" nas preferências.
+
+**Evidência.**
+- Em 12/10/2026, larguras de 1536 px na janela e 1024, 768 e 390 px por iframe, nos temas claro e
+  escuro, com a ordem de foco e o anel visível. O `forced-colors`, emulado pelo João, deixou
+  cartões, botões e menu legíveis; as pílulas perdem o formato de etiqueta.
+- Em 13/10/2026, depois das correções:
+  - "Tarefas" traz os avisos de tarefa em primeiro (antes, na posição 301);
+  - os 300 cartões do GitHub e os botões de leitura têm nomes distintos;
+  - os 10 cartões de reabertura mostram o texto novo;
+  - não há rolagem horizontal em 390, 768 e 1024 px;
+  - os dois temas estão legíveis; o claro foi aplicado só no iframe.
+
+**Limites.**
+- Larguras estreitas medidas em iframe, não em dispositivo.
+- Anel de foco em alto contraste não capturado.
+- Capturas não versionadas.
+- Em 390 px, a opção "GitHub" quebra para a linha de baixo, à esquerda (cosmético).
+
+**Decisão.** `VISUALLY APPROVED`, dado pelo João em 13/10/2026.
+
 ## 2026-10-07 — S2-01 alertas de rastreabilidade (RF13, RF39, RF40, RF58)
 
 **Ambiente.** Chrome real autenticado em `localhost:5173`, com backend local em `localhost:3001`.

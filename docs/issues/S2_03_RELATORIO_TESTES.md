@@ -15,6 +15,7 @@ com o mapa de casos em [S2_03_MAPA_TESTES.md](S2_03_MAPA_TESTES.md).
 | Código de produção | intocado: `git diff --exit-code -- backend/src backend/scripts frontend/src` limpo depois de cada fase e de cada mutação |
 | Fase 7 (roteiro manual) | executada em 12/10/2026 no ambiente do João (seção 14); carga limpa no fim, com aval |
 | Correções | 13/10/2026, `be3cf2b`..`87ff81b`, sem push (seção 16) |
+| Aprovação visual | `VISUALLY APPROVED` pelo João em 13/10/2026 |
 
 ## 1. Resumo
 
@@ -605,7 +606,8 @@ A página-base, anterior ao S2-03, passa dos 5 s por volta de 15 ms (S203-F22, p
 | Temas | escuro, que é o do João, e claro, aplicado só no iframe, sem mudar a preferência; os dois legíveis |
 | Limpeza | 336 notificações, 301 eventos, 30 comentários, 12 esforços, 301 tarefas, 152 issues e 150 PRs removidos. A conferência zerou o que a carga criou; a conta 1 voltou às 6 notificações do S2-02 e a conta 9 ficou sem nenhuma |
 
+**Aprovação visual:** o João deu o `VISUALLY APPROVED` do S2-03 em 13/10/2026 (`VISUAL_VALIDATION_LOG.md`).
+
 **O que continua pendente:**
-- o `VISUALLY APPROVED` do João;
 - E2E (S104-F02), CI remota e agendador do job;
 - o S202-F29, agora MÉDIA com a evidência do C2-04.
