@@ -124,34 +124,42 @@ export const githubEventRepository = {
       select: { occurrenceKey: true }
     });
     const known = new Set(recorded.map((row) => row.occurrenceKey));
-    let transitions = 0;
-    let linkedTasks = 0;
-    for (const candidate of linked) {
-      if (known.has(candidate.key)) continue;
-      const taskIds = tasksByArtifact.get(candidate.artifactId);
-      await tx.gitHubArtifactEvent.create({
-        data: {
-          projectId,
-          type: candidate.type,
-          issueId: kind === ISSUE ? candidate.artifactId : null,
-          pullRequestId: kind === PULL_REQUEST ? candidate.artifactId : null,
-          artifactNumber: candidate.item.number,
-          artifactTitle: snapshotArtifactTitle(candidate.item.title),
-          artifactUrl: safeGithubUrl(candidate.item.githubUrl),
-          occurredAt: candidate.occurredAt,
-          detectedAt,
-          nextAttemptAt: detectedAt,
-          linkedTaskCount: taskIds.length,
-          occurrenceKey: candidate.key,
-          targets: { create: taskIds.map((taskId) => ({ taskId })) }
-        },
-        select: { id: true }
-      });
-      known.add(candidate.key);
-      transitions += 1;
-      linkedTasks += taskIds.length;
-    }
-    return { transitions, linkedTasks, anomalies };
+    const fresh = [];
+    for (const candidate of linked)
+      if (!known.has(candidate.key)) {
+        known.add(candidate.key);
+        fresh.push(candidate);
+      }
+    if (!fresh.length) return empty;
+
+    await tx.gitHubArtifactEvent.createMany({
+      data: fresh.map((candidate) => ({
+        projectId,
+        type: candidate.type,
+        issueId: kind === ISSUE ? candidate.artifactId : null,
+        pullRequestId: kind === PULL_REQUEST ? candidate.artifactId : null,
+        artifactNumber: candidate.item.number,
+        artifactTitle: snapshotArtifactTitle(candidate.item.title),
+        artifactUrl: safeGithubUrl(candidate.item.githubUrl),
+        occurredAt: candidate.occurredAt,
+        detectedAt,
+        nextAttemptAt: detectedAt,
+        linkedTaskCount: tasksByArtifact.get(candidate.artifactId).length,
+        occurrenceKey: candidate.key
+      }))
+    });
+    const created = await tx.gitHubArtifactEvent.findMany({
+      where: { projectId, occurrenceKey: { in: fresh.map((candidate) => candidate.key) } },
+      select: { id: true, occurrenceKey: true }
+    });
+    const eventIdOf = new Map(created.map((row) => [row.occurrenceKey, row.id]));
+    const targets = fresh.flatMap((candidate) =>
+      tasksByArtifact
+        .get(candidate.artifactId)
+        .map((taskId) => ({ eventId: eventIdOf.get(candidate.key), taskId }))
+    );
+    await tx.gitHubArtifactEventTask.createMany({ data: targets });
+    return { transitions: fresh.length, linkedTasks: targets.length, anomalies };
   },
 
   findDueEventIds({ projectId = null, now, limit, exclude = [] }) {

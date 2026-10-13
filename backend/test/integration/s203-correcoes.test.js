@@ -43,6 +43,7 @@ const BUSY_MESSAGE =
 
 let prisma;
 let issueRepository;
+let pullRequestRepository;
 let githubEventRepository;
 let createGithubEventNotificationService;
 let githubEventNotificationService;
@@ -59,6 +60,8 @@ beforeAll(async () => {
   deployTestMigrations(testDatabaseUrl);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
+  ({ pullRequestRepository } =
+    await import('../../src/modules/pullRequests/pullRequest.repository.js'));
   ({ githubEventRepository } =
     await import('../../src/modules/notifications/github-event.repository.js'));
   ({ createGithubEventNotificationService, githubEventNotificationService } =
@@ -552,5 +555,202 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
     expect(syncLocks.filter((text) => !/NOWAIT/i.test(text))).toEqual([]);
     expect(userLocks).toHaveLength(1);
     expect(userLocks[0]).not.toMatch(/NOWAIT/i);
+  });
+});
+
+describe('S2-03 correções — Fase 3: fila gravada em lote (S203-A03, S203-A13 b)', () => {
+  async function openPullRequests(project, count) {
+    await prisma.pullRequest.createMany({
+      data: Array.from({ length: count }, (_, index) => ({
+        projectId: project.id,
+        githubId: `s203-cor-lote-${project.id}-${index}`,
+        number: index + 1,
+        title: `PR ${index + 1}`,
+        state: 'open',
+        githubUrl: `https://github.com/usuario-s203/repositorio-s203/pull/${index + 1}`
+      }))
+    });
+    return prisma.pullRequest.findMany({
+      where: { projectId: project.id },
+      orderBy: { number: 'asc' }
+    });
+  }
+
+  const mergedItem = (row, overrides = {}) => ({
+    projectId: row.projectId,
+    githubId: row.githubId,
+    number: row.number,
+    title: row.title,
+    state: 'closed',
+    closedAtGithub: OCCURRED,
+    mergedAtGithub: OCCURRED,
+    updatedAtGithub: OCCURRED,
+    githubUrl: row.githubUrl,
+    ...overrides
+  });
+
+  async function pullRequestPage(linked, fanOut) {
+    const project = await newProject();
+    const owner = await person(project.id);
+    const rows = await openPullRequests(project, 100);
+    const tasks = rows.slice(0, linked).flatMap((row) =>
+      Array.from({ length: fanOut }, (_, copy) => ({
+        projectId: project.id,
+        title: `Tarefa ${row.number}-${copy}`,
+        priority: 'MEDIA',
+        status: 'A_FAZER',
+        responsibleUserId: owner.id,
+        pullRequestId: row.id
+      }))
+    );
+    if (tasks.length) await prisma.task.createMany({ data: tasks });
+    queries.texts = [];
+    queries.enabled = true;
+    const result = await pullRequestRepository.upsertMany(
+      rows.map((row) => mergedItem(row)),
+      { detectedAt: NOW }
+    );
+    queries.enabled = false;
+    return { result, statements: queries.texts.length };
+  }
+
+  function failingTargets(tx) {
+    return new Proxy(tx, {
+      get(target, key) {
+        if (key === 'gitHubArtifactEventTask')
+          return { createMany: () => Promise.reject(deadlock()) };
+        return target[key];
+      }
+    });
+  }
+
+  it('C3-01 o custo da página com transição é constante: 100 transições custam o mesmo que 1, até 5 instruções a mais que nenhuma (R-Q01)', async () => {
+    const base = await pullRequestPage(0, 1);
+    expect(base.result.transitions).toBe(0);
+
+    for (const fanOut of [1, 5, 20]) {
+      const one = await pullRequestPage(1, fanOut);
+      const hundred = await pullRequestPage(100, fanOut);
+
+      expect(one.result.transitions).toBe(1);
+      expect(hundred.result.transitions).toBe(100);
+      expect(hundred.result.linkedTasks).toBe(100 * fanOut);
+      expect(hundred.statements).toBe(one.statements);
+      expect(one.statements - base.statements).toBeLessThanOrEqual(5);
+    }
+  }, 180000);
+
+  it('C3-02 falha no lote dos retratos desfaz a página inteira; a sincronização seguinte detecta a transição uma vez', async () => {
+    const project = await newProject();
+    const owner = await person(project.id);
+    const [row] = await openPullRequests(project, 1);
+    for (let copy = 0; copy < 2; copy += 1)
+      await createTask(prisma, project.id, {
+        responsibleUserId: owner.id,
+        pullRequestId: row.id
+      });
+    const original = githubEventRepository.recordTransitions;
+    vi.spyOn(githubEventRepository, 'recordTransitions').mockImplementationOnce((tx, input) =>
+      original.call(githubEventRepository, failingTargets(tx), input)
+    );
+
+    await expect(
+      pullRequestRepository.upsertMany([mergedItem(row)], { detectedAt: NOW })
+    ).rejects.toMatchObject({ code: 'P2034' });
+
+    expect(await eventsOf(project.id)).toEqual([]);
+    expect((await prisma.pullRequest.findUnique({ where: { id: row.id } })).state).toBe('open');
+    vi.restoreAllMocks();
+    await pullRequestRepository.upsertMany([mergedItem(row)], { detectedAt: NOW });
+    await pullRequestRepository.upsertMany([mergedItem(row)], { detectedAt: at(MINUTE) });
+    const events = await eventsOf(project.id);
+    expect(events).toHaveLength(1);
+    expect(events[0].targets).toHaveLength(2);
+  });
+
+  it('C3-03 cada evento leva só as tarefas do próprio artefato, com contagem, snapshot e anomalia como antes', async () => {
+    const project = await newProject();
+    const owner = await person(project.id);
+    const [first, second, third, fourth] = await openPullRequests(project, 4);
+    await prisma.pullRequest.update({
+      where: { id: fourth.id },
+      data: { state: 'closed', closedAtGithub: OCCURRED, mergedAtGithub: OCCURRED }
+    });
+    const firstTasks = [
+      await createTask(prisma, project.id, {
+        responsibleUserId: owner.id,
+        pullRequestId: first.id
+      }),
+      await createTask(prisma, project.id, {
+        responsibleUserId: owner.id,
+        pullRequestId: first.id
+      })
+    ];
+    const secondTask = await createTask(prisma, project.id, {
+      responsibleUserId: owner.id,
+      pullRequestId: second.id
+    });
+    const fourthTask = await createTask(prisma, project.id, {
+      responsibleUserId: owner.id,
+      pullRequestId: fourth.id
+    });
+    const otherProject = await newProject();
+    const forged = await createTask(prisma, otherProject.id, {
+      responsibleUserId: owner.id
+    });
+    await prisma.task.update({ where: { id: forged.id }, data: { pullRequestId: first.id } });
+
+    const result = await pullRequestRepository.upsertMany(
+      [
+        mergedItem(first),
+        mergedItem(second, { mergedAtGithub: null, title: 'PR 2 antes' }),
+        mergedItem(third),
+        { ...mergedItem(fourth), state: 'open', closedAtGithub: null, mergedAtGithub: null },
+        mergedItem(second, { mergedAtGithub: null, title: 'PR 2 depois' })
+      ],
+      { detectedAt: NOW }
+    );
+
+    expect(result).toMatchObject({ transitions: 2, linkedTasks: 3, anomalies: 1 });
+    const events = await eventsOf(project.id);
+    expect(
+      events.map((event) => ({
+        type: event.type,
+        number: event.artifactNumber,
+        title: event.artifactTitle,
+        url: event.artifactUrl,
+        linkedTaskCount: event.linkedTaskCount,
+        targets: event.targets.map((target) => target.taskId),
+        status: event.status,
+        attempts: event.attempts
+      }))
+    ).toEqual([
+      {
+        type: 'PULL_REQUEST_MERGED',
+        number: 1,
+        title: 'PR 1',
+        url: first.githubUrl,
+        linkedTaskCount: 2,
+        targets: firstTasks.map((task) => task.id).sort((left, right) => left - right),
+        status: 'PENDING',
+        attempts: 0
+      },
+      {
+        type: 'PULL_REQUEST_CLOSED',
+        number: 2,
+        title: 'PR 2 depois',
+        url: second.githubUrl,
+        linkedTaskCount: 1,
+        targets: [secondTask.id],
+        status: 'PENDING',
+        attempts: 0
+      }
+    ]);
+    expect(events.flatMap((event) => event.targets.map((target) => target.taskId))).not.toContain(
+      fourthTask.id
+    );
+    expect(events[0].occurrenceKey).toBe(
+      `PULL_REQUEST_MERGED:${first.id}:${OCCURRED.toISOString()}`
+    );
   });
 });

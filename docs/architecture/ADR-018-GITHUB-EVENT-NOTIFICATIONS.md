@@ -186,8 +186,9 @@ Restrições do terreno:
   seja o número de transições.
 - A página sem transição já faz cerca de três instruções por item (um upsert por item, anterior ao
   S2-03). Com latência de rede até o banco, a página de 100 itens chega aos 5 s da transação por
-  volta de 16 ms (estimativa da campanha). O desenho da nuvem (S2-08) precisa manter o banco abaixo
-  disso (S203-F22).
+  volta de 15 ms: leva 4,8 s com 14,7 ms e cai com `P2028` com 17,6 ms (medição de 13/10/2026,
+  com ou sem transição). O desenho da nuvem (S2-08) precisa manter o banco abaixo disso
+  (S203-F22).
 - Notificações de projeto excluído existem, ocultas, até a restauração ou a purga.
 - `Notification` ganha cinco colunas anuláveis e o contrato de preferências muda.
 - O ADR-016 previa o S2-03 "sem migration nova"; os valores novos do enum e o contexto do artefato
