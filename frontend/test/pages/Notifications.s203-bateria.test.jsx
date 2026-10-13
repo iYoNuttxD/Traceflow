@@ -109,12 +109,12 @@ describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
       (card) => card.querySelector('.notification-card__context').textContent
     );
     const verbs = [
-      'Issue #45 fechada',
-      'Issue #45 reaberta',
-      'Pull request #8 mesclada',
-      'Pull request #8 fechada sem merge'
+      'Issue #45 fechada no GitHub em',
+      'Issue #45 reaberta no GitHub; última atualização em',
+      'Pull request #8 mesclada no GitHub em',
+      'Pull request #8 fechada sem merge no GitHub em'
     ];
-    verbs.forEach((verb, index) => expect(texts[index]).toContain(`${verb} no GitHub em`));
+    verbs.forEach((verb, index) => expect(texts[index]).toContain(verb));
     if (expectedDate) for (const text of texts) expect(text, zone).toContain(expectedDate);
     for (const card of cards) {
       const external = within(card).getByRole('link', { name: /Abrir no GitHub/ });
@@ -221,5 +221,120 @@ describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
     const stored = JSON.stringify([...dump(window.localStorage), ...dump(window.sessionStorage)]);
     expect(stored).not.toContain('sigiloso');
     expect(stored).not.toContain('github.com');
+  });
+});
+
+describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
+  it('C9-01 dois avisos da mesma tarefa e do mesmo tipo têm nomes distintos no cartão e no botão de leitura (EV-U-05)', async () => {
+    api.listNotifications.mockResolvedValue(
+      listing([
+        notification(1),
+        notification(2, {
+          context: {
+            artifact: { kind: 'ISSUE', number: 46, title: 'Outra issue', url: `${ISSUE_URL}6` }
+          }
+        })
+      ])
+    );
+    renderPage();
+
+    const cards = await screen.findAllByRole('article');
+    const names = cards.map((card) => card.getAttribute('aria-label'));
+    const readButtons = cards.map((card) =>
+      within(card)
+        .getByRole('button', { name: /Marcar como lida/ })
+        .getAttribute('aria-label')
+    );
+    expect(new Set(names).size, JSON.stringify(names)).toBe(2);
+    expect(new Set(readButtons).size, JSON.stringify(readButtons)).toBe(2);
+    for (const card of cards)
+      expect(within(card).getByRole('link', { name: 'Abrir tarefa TASK-100' })).toBeInTheDocument();
+  });
+
+  it('C9-03 o grupo Origem filtra pela API, recomeça a lista, funciona pelo teclado e mantém "Marcar todas" global', async () => {
+    const user = userEvent.setup();
+    api.listNotifications.mockImplementation(async (params) =>
+      params.group === 'GITHUB' ? { ...listing([]), unreadCount: 1 } : listing([notification(1)])
+    );
+    api.markAllNotificationsRead.mockResolvedValue({ updated: 1 });
+    renderPage();
+    await screen.findAllByRole('article');
+    const origin = screen.getByRole('group', { name: 'Origem' });
+
+    expect(within(origin).getByRole('radio', { name: 'Todas as origens' })).toBeChecked();
+    expect(api.listNotifications).toHaveBeenLastCalledWith(
+      { status: 'UNREAD', page: 1, limit: 20 },
+      expect.objectContaining({ fresh: true })
+    );
+
+    await user.click(within(origin).getByRole('radio', { name: 'GitHub' }));
+
+    expect(await screen.findByText('Nenhuma notificação do GitHub não lida.')).toBeInTheDocument();
+    expect(screen.queryAllByRole('article')).toHaveLength(0);
+    expect(api.listNotifications).toHaveBeenLastCalledWith(
+      { status: 'UNREAD', group: 'GITHUB', page: 1, limit: 20 },
+      expect.objectContaining({ fresh: true })
+    );
+
+    within(origin).getByRole('radio', { name: 'Tarefas' }).focus();
+    await user.keyboard(' ');
+
+    await waitFor(() =>
+      expect(api.listNotifications).toHaveBeenLastCalledWith(
+        { status: 'UNREAD', group: 'TASKS', page: 1, limit: 20 },
+        expect.objectContaining({ fresh: true })
+      )
+    );
+    expect(within(origin).getByRole('radio', { name: 'Tarefas' })).toBeChecked();
+
+    await user.click(within(origin).getByRole('radio', { name: 'GitHub' }));
+    await screen.findByText('Nenhuma notificação do GitHub não lida.');
+    await user.click(screen.getByRole('button', { name: 'Marcar todas como lidas' }));
+
+    await waitFor(() => expect(api.markAllNotificationsRead).toHaveBeenCalledTimes(1));
+    expect(api.markAllNotificationsRead).toHaveBeenCalledWith();
+  });
+
+  it('C9-04 em escala, "Tarefas" mostra o aviso de tarefa em primeiro, sem "Carregar mais"', async () => {
+    const user = userEvent.setup();
+    const github = Array.from({ length: 20 }, (_, index) =>
+      notification(index + 1, { task: { id: 1000 + index, code: `TASK-${1000 + index}` } })
+    );
+    const overdue = {
+      id: 500,
+      type: 'TASK_OVERDUE',
+      createdAt: '2026-09-01T12:00:00.000Z',
+      readAt: null,
+      project: { id: 9, name: 'Projeto Bateria' },
+      task: { id: 500, code: 'TASK-500', title: 'Tarefa atrasada', available: true },
+      context: { dueDate: '2026-08-31' },
+      link: '/projects/9/kanban?task=500'
+    };
+    api.listNotifications.mockImplementation(async (params) =>
+      params.group === 'TASKS'
+        ? listing([overdue])
+        : {
+            ...listing(github, 'cursor-do-github'),
+            pagination: { page: 1, limit: 20, total: 300, totalPages: 15 },
+            unreadCount: 301
+          }
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
+    expect(screen.getByRole('button', { name: 'Carregar mais notificações' })).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByRole('group', { name: 'Origem' })).getByRole('radio', {
+        name: 'Tarefas'
+      })
+    );
+
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(1));
+    expect(screen.getAllByRole('article')[0]).toHaveAccessibleName(
+      'Prazo vencido: TASK-500 Tarefa atrasada. Prazo venceu em 31/08/2026'
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Carregar mais notificações' })
+    ).not.toBeInTheDocument();
   });
 });

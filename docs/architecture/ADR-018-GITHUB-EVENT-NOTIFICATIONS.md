@@ -110,7 +110,8 @@ Restrições do terreno:
     - A lista aceita o filtro `group` (`ALL`, `TASKS` ou `GITHUB`).
 13. **Interface (D13).** Cartões "Issue" e "Pull request" na central, com "Abrir tarefa" e "Abrir no
     GitHub", e o grupo "Avisos do GitHub" nas preferências.
-    - A central filtra por origem: Todas, Tarefas ou GitHub.
+    - A central filtra por origem: "Todas as origens", "Tarefas" ou "GitHub". O rótulo da primeira
+      evita dois rádios chamados "Todas" na mesma tela.
     - O nome acessível do cartão e do botão de leitura leva o texto do contexto, em todos os tipos.
 14. **Métrica (D14).** Mesmo critério do ADR-016 D16, na unidade do par (tarefa, participante). O
     despacho grava o resultado de cada evento (`outcome`), porque a maior parte do despacho não passa

@@ -12,6 +12,7 @@ import { useUnreadNotifications } from '../context/UnreadNotificationsContext.js
 import { useNotifications } from '../hooks/useNotifications.js';
 import {
   NOTIFICATION_FILTERS,
+  NOTIFICATION_GROUPS,
   UNAVAILABLE_MESSAGE,
   markAllMessage,
   notificationEmptyTitle
@@ -126,21 +127,38 @@ export function NotificationsScreen() {
           retryAfterSeconds={feedback.retryAfterSeconds}
         />
       )}
-      <fieldset className="notifications-filter">
-        <legend>Mostrar</legend>
-        {NOTIFICATION_FILTERS.map((filter) => (
-          <label key={filter.value} className="notifications-filter__option">
-            <input
-              type="radio"
-              name="notification-status"
-              value={filter.value}
-              checked={list.status === filter.value}
-              onChange={() => list.changeStatus(filter.value)}
-            />
-            <span>{filter.label}</span>
-          </label>
-        ))}
-      </fieldset>
+      <div className="notifications-filters">
+        <fieldset className="notifications-filter">
+          <legend>Mostrar</legend>
+          {NOTIFICATION_FILTERS.map((filter) => (
+            <label key={filter.value} className="notifications-filter__option">
+              <input
+                type="radio"
+                name="notification-status"
+                value={filter.value}
+                checked={list.status === filter.value}
+                onChange={() => list.changeStatus(filter.value)}
+              />
+              <span>{filter.label}</span>
+            </label>
+          ))}
+        </fieldset>
+        <fieldset className="notifications-filter">
+          <legend>Origem</legend>
+          {NOTIFICATION_GROUPS.map((group) => (
+            <label key={group.value} className="notifications-filter__option">
+              <input
+                type="radio"
+                name="notification-group"
+                value={group.value}
+                checked={list.group === group.value}
+                onChange={() => list.changeGroup(group.value)}
+              />
+              <span>{group.label}</span>
+            </label>
+          ))}
+        </fieldset>
+      </div>
       <section className="notifications-list-section" aria-labelledby="notifications-list-title">
         <h2 id="notifications-list-title" ref={headingRef} tabIndex={-1}>
           {list.status === 'ALL' ? 'Todas as notificações' : 'Não lidas'}
@@ -168,7 +186,7 @@ export function NotificationsScreen() {
           />
         )}
         {!list.loading && !list.error && list.data && items.length === 0 && (
-          <EmptyState title={notificationEmptyTitle(list.status)} />
+          <EmptyState title={notificationEmptyTitle(list.status, list.group)} />
         )}
         {!list.error && list.data?.nextCursor && (
           <button

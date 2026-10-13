@@ -93,7 +93,9 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
     renderPage();
 
     const card = await waitFor(() => cardOf('TASK-101'));
-    expect(card).toHaveAccessibleName('Issue: TASK-101 Tarefa 1');
+    expect(card).toHaveAccessibleName(
+      `Issue: TASK-101 Tarefa 1. Issue #45 fechada no GitHub em ${formatInstant(OCCURRED)}`
+    );
     expect(within(card).getByText('Issue')).toBeInTheDocument();
     expect(
       within(card).getByText(`Issue #45 fechada no GitHub em ${formatInstant(OCCURRED)}`)
@@ -127,7 +129,9 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
     await waitFor(() => cardOf('TASK-101'));
     const when = formatInstant(OCCURRED);
     expect(
-      within(cardOf('TASK-101')).getByText(`Issue #45 reaberta no GitHub em ${when}`)
+      within(cardOf('TASK-101')).getByText(
+        `Issue #45 reaberta no GitHub; última atualização em ${when}`
+      )
     ).toBeInTheDocument();
     expect(
       within(cardOf('TASK-102')).getByText(`Pull request #8 mesclada no GitHub em ${when}`)
@@ -200,7 +204,9 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
     expect(within(card).getByRole('link', { name: /Abrir no GitHub/ })).toHaveFocus();
     await user.tab();
     expect(
-      within(card).getByRole('button', { name: 'Marcar como lida: TASK-101 Tarefa 1' })
+      within(card).getByRole('button', {
+        name: `Marcar como lida: Issue #45 fechada no GitHub em ${formatInstant(OCCURRED)}, TASK-101`
+      })
     ).toHaveFocus();
   });
 

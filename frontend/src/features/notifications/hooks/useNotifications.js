@@ -10,6 +10,7 @@ function mergeById(previous, next) {
 
 export function useNotifications({ onCount } = {}) {
   const [status, setStatus] = useState('UNREAD');
+  const [group, setGroup] = useState('ALL');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,8 +27,11 @@ export function useNotifications({ onCount } = {}) {
       setLoading(true);
       setError(null);
       try {
+        const filters = group === 'ALL' ? { status } : { status, group };
         const next = await listNotifications(
-          cursor ? { status, cursor, limit: PAGE_SIZE } : { status, page: 1, limit: PAGE_SIZE },
+          cursor
+            ? { ...filters, cursor, limit: PAGE_SIZE }
+            : { ...filters, page: 1, limit: PAGE_SIZE },
           { signal: controller.signal, fresh: true }
         );
         if (current.current !== controller) return;
@@ -46,7 +50,7 @@ export function useNotifications({ onCount } = {}) {
         if (current.current === controller) setLoading(false);
       }
     },
-    [status]
+    [status, group]
   );
 
   useEffect(() => {
@@ -70,6 +74,7 @@ export function useNotifications({ onCount } = {}) {
 
   return {
     status,
+    group,
     data,
     loading,
     error,
@@ -78,6 +83,12 @@ export function useNotifications({ onCount } = {}) {
       current.current?.abort();
       setData(null);
       setStatus(next);
+    },
+    changeGroup(next) {
+      if (next === group) return;
+      current.current?.abort();
+      setData(null);
+      setGroup(next);
     },
     retry: () => load(failedCursor),
     more: () => load(data.nextCursor),

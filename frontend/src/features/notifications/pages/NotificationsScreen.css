@@ -27,6 +27,12 @@
   opacity: 0.6;
 }
 
+.notifications-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+}
+
 .notifications-filter {
   display: flex;
   flex-wrap: wrap;

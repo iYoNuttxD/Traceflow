@@ -6,6 +6,18 @@ export const NOTIFICATION_FILTERS = Object.freeze([
   { value: 'ALL', label: 'Todas' }
 ]);
 
+export const NOTIFICATION_GROUPS = Object.freeze([
+  { value: 'ALL', label: 'Todas as origens' },
+  { value: 'TASKS', label: 'Tarefas' },
+  { value: 'GITHUB', label: 'GitHub' }
+]);
+
+const GROUP_NOUNS = Object.freeze({
+  ALL: 'Nenhuma notificação',
+  TASKS: 'Nenhuma notificação de tarefas',
+  GITHUB: 'Nenhuma notificação do GitHub'
+});
+
 const TYPE_LABELS = Object.freeze({
   TASK_STATUS_CHANGED: 'Mudança de status',
   TASK_OVERDUE: 'Prazo vencido',
@@ -103,9 +115,10 @@ function githubEventText(context) {
   const change = GITHUB_EVENT_VERBS.has(context.event)
     ? `${GITHUB_EVENT_VERBS.get(context.event)} no GitHub`
     : 'mudou no GitHub';
-  return context.occurredAt
-    ? `${subject} ${change} em ${formatInstant(context.occurredAt)}`
-    : `${subject} ${change}`;
+  if (!context.occurredAt) return `${subject} ${change}`;
+  if (context.event === 'ISSUE_REOPENED')
+    return `${subject} ${change}; última atualização em ${formatInstant(context.occurredAt)}`;
+  return `${subject} ${change} em ${formatInstant(context.occurredAt)}`;
 }
 
 export function githubLinkLabel(notification) {
@@ -126,8 +139,28 @@ export function notificationContextText(notification) {
   return '';
 }
 
-export function notificationEmptyTitle(status) {
-  return status === 'ALL' ? 'Nenhuma notificação recebida.' : 'Nenhuma notificação não lida.';
+function taskSubject(task = {}) {
+  return task.code ? `${task.code} ${task.title}` : task.title;
+}
+
+export function notificationCardLabel(notification) {
+  const label = `${notificationTypeLabel(notification.type)}: ${taskSubject(notification.task)}`;
+  const context = notificationContextText(notification);
+  return context ? `${label}. ${context}` : label;
+}
+
+export function readToggleLabel(notification) {
+  const action = notification.readAt ? 'Marcar como não lida' : 'Marcar como lida';
+  const context = notificationContextText(notification);
+  const task = notification.task || {};
+  return context
+    ? `${action}: ${context}, ${task.code || task.title}`
+    : `${action}: ${taskSubject(task)}`;
+}
+
+export function notificationEmptyTitle(status, group = 'ALL') {
+  const noun = GROUP_NOUNS[group] || GROUP_NOUNS.ALL;
+  return status === 'ALL' ? `${noun} recebida.` : `${noun} não lida.`;
 }
 
 export function unreadBadge(count) {

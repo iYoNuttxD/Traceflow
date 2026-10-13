@@ -4,8 +4,10 @@ import { GithubExternalAction } from '../../../shared/index.js';
 import {
   formatInstant,
   githubLinkLabel,
+  notificationCardLabel,
   notificationContextText,
-  notificationTypeLabel
+  notificationTypeLabel,
+  readToggleLabel
 } from '../model/notification-view.js';
 import './NotificationCard.css';
 
@@ -19,14 +21,13 @@ export const NotificationCard = memo(function NotificationCard({
   const { task, project } = notification;
   const artifact = notification.context?.artifact;
   const typeLabel = notificationTypeLabel(notification.type);
-  const subject = task.code ? `${task.code} ${task.title}` : task.title;
   const readAction = unread ? 'Marcar como lida' : 'Marcar como não lida';
 
   return (
     <article
       className="notification-card"
       data-unread={unread || undefined}
-      aria-label={`${typeLabel}: ${subject}`}
+      aria-label={notificationCardLabel(notification)}
     >
       <div className="notification-card__badges">
         <span className="notification-pill notification-pill--type">{typeLabel}</span>
@@ -63,7 +64,7 @@ export const NotificationCard = memo(function NotificationCard({
           onClick={() => onToggleRead(notification)}
           aria-disabled={busy || undefined}
           aria-busy={busy || undefined}
-          aria-label={`${readAction}: ${subject}`}
+          aria-label={readToggleLabel(notification)}
         >
           {readAction}
         </button>

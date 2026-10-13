@@ -5,10 +5,13 @@ import {
   PREFERENCE_OPTIONS,
   formatDueDate,
   formatInstant,
+  NOTIFICATION_GROUPS,
   githubLinkLabel,
+  notificationCardLabel,
   notificationContextText,
   notificationEmptyTitle,
   notificationTypeLabel,
+  readToggleLabel,
   unreadBadge,
   unreadNavLabel
 } from '../../src/features/notifications/model/notification-view.js';
@@ -88,7 +91,7 @@ describe('S2-03 modelo de exibição dos eventos do GitHub', () => {
       `Issue #45 fechada no GitHub em ${when}`
     );
     expect(notificationContextText(event('ISSUE_EVENT', 'ISSUE_REOPENED', 45))).toBe(
-      `Issue #45 reaberta no GitHub em ${when}`
+      `Issue #45 reaberta no GitHub; última atualização em ${when}`
     );
     expect(notificationContextText(event('PULL_REQUEST_EVENT', 'PULL_REQUEST_MERGED', 8))).toBe(
       `Pull request #8 mesclada no GitHub em ${when}`
@@ -128,6 +131,112 @@ describe('S2-03 modelo de exibição dos eventos do GitHub', () => {
       ['TASK_OVERDUE', 'TASKS'],
       ['ISSUE_EVENT', 'GITHUB'],
       ['PULL_REQUEST_EVENT', 'GITHUB']
+    ]);
+  });
+});
+
+describe('S2-03 correções — nomes, reabertura e origem (S203-A04, S203-A07, S203-A08)', () => {
+  const task = { id: 100, code: 'TASK-100', title: 'Tarefa da bateria' };
+  const issue = (id, eventName, occurredAt, number = 45) => ({
+    id,
+    type: 'ISSUE_EVENT',
+    readAt: null,
+    task,
+    context: {
+      event: eventName,
+      occurredAt,
+      artifact: {
+        kind: 'ISSUE',
+        number,
+        title: 'Corrigir login',
+        url: 'https://github.com/o/r/issues/45'
+      }
+    }
+  });
+  const movement = (id, fromStatus, toStatus) => ({
+    id,
+    type: 'TASK_STATUS_CHANGED',
+    readAt: null,
+    task,
+    context: { fromStatus, toStatus, actor: { id: 3, name: 'Ana Souza' } }
+  });
+  const CLOSED = '2026-10-12T13:03:00.000Z';
+
+  it('C9-01 o nome do cartão e o do botão de leitura levam o contexto e distinguem avisos da mesma tarefa', () => {
+    const notifications = [
+      issue(1, 'ISSUE_CLOSED', CLOSED),
+      issue(2, 'ISSUE_REOPENED', '2026-10-12T15:00:00.000Z'),
+      issue(3, 'ISSUE_CLOSED', '2026-10-12T16:00:00.000Z'),
+      issue(4, 'ISSUE_CLOSED', CLOSED, 46),
+      movement(5, 'A_FAZER', 'EM_ANDAMENTO'),
+      movement(6, 'EM_ANDAMENTO', 'CONCLUIDO')
+    ];
+
+    const cards = notifications.map(notificationCardLabel);
+    const buttons = notifications.map(readToggleLabel);
+
+    expect(new Set(cards).size, JSON.stringify(cards)).toBe(notifications.length);
+    expect(new Set(buttons).size, JSON.stringify(buttons)).toBe(notifications.length);
+    expect(cards[0]).toBe(
+      `Issue: TASK-100 Tarefa da bateria. Issue #45 fechada no GitHub em ${formatInstant(CLOSED)}`
+    );
+    expect(buttons[0]).toBe(
+      `Marcar como lida: Issue #45 fechada no GitHub em ${formatInstant(CLOSED)}, TASK-100`
+    );
+    expect(cards[4]).toBe(
+      'Mudança de status: TASK-100 Tarefa da bateria. Ana Souza moveu de A fazer para Em andamento'
+    );
+    expect(readToggleLabel({ ...notifications[0], readAt: CLOSED })).toBe(
+      `Marcar como não lida: Issue #45 fechada no GitHub em ${formatInstant(CLOSED)}, TASK-100`
+    );
+  });
+
+  it('C9-01 sem contexto conhecido, o nome volta à tarefa', () => {
+    const unknown = {
+      id: 7,
+      type: 'OUTRO',
+      readAt: null,
+      task: { id: 7, code: null, title: 'Tarefa sem código' },
+      context: {}
+    };
+
+    expect(notificationCardLabel(unknown)).toBe('Notificação: Tarefa sem código');
+    expect(readToggleLabel(unknown)).toBe('Marcar como lida: Tarefa sem código');
+  });
+
+  it('C9-02 a reabertura diz que a data é a da última atualização; sem data, só o evento', () => {
+    const updated = '2026-10-19T10:00:00.000Z';
+
+    expect(notificationContextText(issue(1, 'ISSUE_REOPENED', updated))).toBe(
+      `Issue #45 reaberta no GitHub; última atualização em ${formatInstant(updated)}`
+    );
+    expect(notificationContextText(issue(1, 'ISSUE_REOPENED', null))).toBe(
+      'Issue #45 reaberta no GitHub'
+    );
+  });
+
+  it('C9-03 as origens e o estado vazio de cada uma', () => {
+    expect(NOTIFICATION_GROUPS.map((group) => [group.value, group.label])).toEqual([
+      ['ALL', 'Todas as origens'],
+      ['TASKS', 'Tarefas'],
+      ['GITHUB', 'GitHub']
+    ]);
+    expect(
+      [
+        ['UNREAD', 'ALL'],
+        ['ALL', 'ALL'],
+        ['UNREAD', 'TASKS'],
+        ['ALL', 'TASKS'],
+        ['UNREAD', 'GITHUB'],
+        ['ALL', 'GITHUB']
+      ].map(([status, group]) => notificationEmptyTitle(status, group))
+    ).toEqual([
+      'Nenhuma notificação não lida.',
+      'Nenhuma notificação recebida.',
+      'Nenhuma notificação de tarefas não lida.',
+      'Nenhuma notificação de tarefas recebida.',
+      'Nenhuma notificação do GitHub não lida.',
+      'Nenhuma notificação do GitHub recebida.'
     ]);
   });
 });
