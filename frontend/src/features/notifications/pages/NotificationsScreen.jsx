@@ -102,8 +102,9 @@ export function NotificationsScreen() {
           <span className="eyebrow">Central</span>
           <h1>Notificações</h1>
           <p>
-            Avisos sobre as tarefas pelas quais você é responsável: mudanças de status feitas por
-            outras pessoas e prazos vencidos.
+            Avisos sobre as suas tarefas: mudanças de status feitas por outras pessoas e prazos
+            vencidos nas tarefas pelas quais você é responsável, e issues e pull requests do GitHub
+            fechadas, reabertas ou mescladas nas tarefas de que você participa.
           </p>
         </div>
         <button

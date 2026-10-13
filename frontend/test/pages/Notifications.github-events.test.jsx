@@ -239,4 +239,18 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
   });
+
+  it('F9 a abertura da central descreve os avisos de tarefa e os do GitHub com seus destinatários', async () => {
+    api.listNotifications.mockResolvedValue(listing([githubNotification(1)]));
+    renderPage();
+
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Notificações' });
+    const introduction = heading.parentElement.querySelector('p');
+    expect(introduction).toHaveTextContent(
+      'mudanças de status feitas por outras pessoas e prazos vencidos nas tarefas pelas quais você é responsável'
+    );
+    expect(introduction).toHaveTextContent(
+      'issues e pull requests do GitHub fechadas, reabertas ou mescladas nas tarefas de que você participa'
+    );
+  });
 });
