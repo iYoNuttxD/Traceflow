@@ -9,6 +9,7 @@ import {
 import { createProject, createTask } from '../fixtures/factories.js';
 
 const password = 'SenhaSegura123';
+const BUSY_MESSAGE = 'Outra alteração está em andamento. Tente de novo em instantes.';
 
 let app;
 let prisma;
@@ -103,11 +104,19 @@ async function underLock(lock, holdMs, send, bystander) {
   return { attempt, other };
 }
 
+function expectBusy(response) {
+  expect([response.status, response.body.code]).toEqual([409, 'RESOURCE_BUSY']);
+  expect(response.body.message).toBe(BUSY_MESSAGE);
+  expect(response.headers['retry-after']).toBe('2');
+  expect(response.body.requestId).toEqual(expect.any(String));
+  expect(JSON.stringify(response.body)).not.toMatch(/prisma|P20\d\d|1205|SELECT|lock wait|stack/i);
+}
+
 const lockProject = (projectId) => (tx) =>
   tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
 
 describe('S202-F29 — Fase 1: a espera de trava não passa do prazo da transação', () => {
-  it('F1-01 prazo de 5 s: comentar com o projeto travado falha rápido, e outra conta não é atingida', async () => {
+  it('F1-01 F2-01 prazo de 5 s: comentar com o projeto travado responde 409 rápido, sem efeito, outra conta não é atingida, e repetir depois funciona', async () => {
     const project = await createProject(prisma);
     const author = await account(project.id);
     const bystander = await account();
@@ -120,10 +129,16 @@ describe('S202-F29 — Fase 1: a espera de trava não passa do prazo da transaç
       bystander
     );
 
-    expect(attempt.response.status).not.toBe(201);
+    expectBusy(attempt.response);
     expect(attempt.ms).toBeLessThan(3500);
     expect([other.status, other.body.code]).toEqual([200, undefined]);
     expect(await prisma.taskComment.count({ where: { taskId: task.id } })).toBe(0);
+
+    const retried = await author
+      .mutate('post', `/api/tasks/${task.id}/comments`)
+      .send({ content: 'Comentário' });
+    expect(retried.status).toBe(201);
+    expect(await prisma.taskComment.count({ where: { taskId: task.id } })).toBe(1);
   }, 30000);
 
   it('F1-02 prazo de 15 s: mudar o status com o projeto travado falha antes do prazo, e outra conta não é atingida', async () => {
@@ -139,7 +154,7 @@ describe('S202-F29 — Fase 1: a espera de trava não passa do prazo da transaç
       bystander
     );
 
-    expect(attempt.response.status).not.toBe(200);
+    expectBusy(attempt.response);
     expect(attempt.ms).toBeLessThan(6500);
     expect([other.status, other.body.code]).toEqual([200, undefined]);
     expect((await prisma.task.findUnique({ where: { id: task.id } })).status).toBe('A_FAZER');
@@ -166,7 +181,7 @@ describe('S202-F29 — Fase 1: a espera de trava não passa do prazo da transaç
       bystander
     );
 
-    expect(attempt.response.status).not.toBe(200);
+    expectBusy(attempt.response);
     expect(attempt.ms).toBeLessThan(3500);
     expect([other.status, other.body.code]).toEqual([200, undefined]);
     expect(
@@ -187,7 +202,7 @@ describe('S202-F29 — Fase 1: a espera de trava não passa do prazo da transaç
       bystander
     );
 
-    expect(attempt.response.status).not.toBe(201);
+    expectBusy(attempt.response);
     expect(attempt.ms).toBeLessThan(3500);
     expect([other.status, other.body.code]).toEqual([200, undefined]);
     expect(

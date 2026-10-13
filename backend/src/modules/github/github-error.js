@@ -1,4 +1,5 @@
 import { isLockBusy } from '../../database/locks.js';
+import { isLockWaitTimeout } from '../../database/lock-wait.js';
 import { DomainError, ERROR_CODES } from '../../shared/errors/index.js';
 
 const STORAGE_CAUSE = /^P\d{4}$/;
@@ -84,7 +85,11 @@ function storageCauseOf(error) {
 }
 
 export function githubSyncFailure(error) {
-  if (error?.code === ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY || isLockBusy(error))
+  if (
+    error?.code === ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY ||
+    isLockBusy(error) ||
+    isLockWaitTimeout(error)
+  )
     return {
       code: ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY,
       message: PROJECT_BUSY_MESSAGE,

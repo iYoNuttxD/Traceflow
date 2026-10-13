@@ -1,10 +1,28 @@
+import { isLockWaitTimeout } from '../database/lock-wait.js';
 import { AppError, ERROR_CODES } from '../shared/errors/index.js';
 import { logger as defaultLogger, sanitizeText } from '../shared/logger/index.js';
 
 const defaultInternalMessage = 'Erro interno ao processar solicitação.';
+const resourceBusyMessage = 'Outra alteração está em andamento. Tente de novo em instantes.';
+const RESOURCE_BUSY_RETRY_AFTER_SECONDS = '2';
+
+function prismaCauseCode(error) {
+  const name = String(error?.name ?? '');
+  if (!name.startsWith('PrismaClient')) return null;
+  return /^P\d{4}$/.test(String(error.code ?? '')) ? String(error.code) : name;
+}
 
 function normalizeKnownError(error) {
   if (error instanceof AppError) return error;
+  if (isLockWaitTimeout(error)) {
+    return new AppError({
+      message: resourceBusyMessage,
+      statusCode: 409,
+      code: ERROR_CODES.RESOURCE_BUSY,
+      exposeTechnicalDetails: true,
+      cause: error
+    });
+  }
   if (error?.type === 'entity.too.large') {
     return new AppError({
       message: 'Payload excede o limite permitido.',
@@ -49,6 +67,21 @@ export function createErrorHandler({ logger = defaultLogger, includeErrorStack =
       : fallbackMessage;
     const errorCode = knownError?.code || ERROR_CODES.INTERNAL_ERROR;
     const logMessage = statusCode >= 500 ? fallbackMessage : message;
+    const causeCode = prismaCauseCode(error);
+
+    if (isLockWaitTimeout(error)) {
+      logger.warn('Espera de trava esgotada no banco.', {
+        event: 'database_lock_wait_timeout',
+        requestId,
+        method: req.method,
+        path: req.path,
+        statusCode,
+        errorCode,
+        causeCode
+      });
+      res.set('Retry-After', RESOURCE_BUSY_RETRY_AFTER_SECONDS);
+      return res.status(statusCode).json(knownError.toPublic({ requestId, message }));
+    }
 
     logger.error('HTTP request failed.', {
       requestId,
@@ -56,6 +89,7 @@ export function createErrorHandler({ logger = defaultLogger, includeErrorStack =
       path: req.path,
       statusCode,
       errorCode,
+      ...(causeCode ? { causeCode } : {}),
       error: {
         name: error?.name || 'Error',
         message: logMessage,

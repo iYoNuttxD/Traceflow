@@ -221,11 +221,16 @@ async function findActiveRun(projectId, now = new Date()) {
     now
   );
   if (expired.count > 0) {
-    await projectRepository.markGithubSyncFailed(
-      projectId,
-      now,
-      'A execução foi interrompida antes da conclusão.'
-    );
+    await projectRepository
+      .markGithubSyncFailed(projectId, now, 'A execução foi interrompida antes da conclusão.')
+      .catch((error) => {
+        logger.warn('Não foi possível marcar a falha da sincronização no projeto.', {
+          event: 'github_sync_project_failure_unrecorded',
+          projectId,
+          runId: active.id,
+          errorCode: githubSyncFailure(error).code
+        });
+      });
     return null;
   }
 

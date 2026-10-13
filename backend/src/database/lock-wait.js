@@ -23,3 +23,11 @@ export function limitLockWaits(client) {
   };
   return client;
 }
+
+export function isLockWaitTimeout(error) {
+  if (error?.code === 'P2010') return String(error.meta?.code) === '1205';
+  return (
+    error?.name === 'PrismaClientUnknownRequestError' &&
+    /\bcode: 1205\b/.test(String(error.message))
+  );
+}
