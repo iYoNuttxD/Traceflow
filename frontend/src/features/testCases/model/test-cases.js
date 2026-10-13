@@ -7,6 +7,7 @@ export const LIMITS = Object.freeze({
   action: 10000,
   stepExpectedResult: 10000,
   observedResult: 20000,
+  manualVersion: 200,
   steps: 100,
   tasks: 100
 });
@@ -57,10 +58,23 @@ export const evidenceAccept = (perStep) =>
   ].join(',');
 export const requirementLabel = (item) => `REQ-${item.id} · ${item.title}`;
 export const taskLabel = (item) => `TASK-${item.id} · ${item.title}`;
-export const referenceLabel = (item) =>
-  item.type === 'PULL_REQUEST'
-    ? `PR #${item.number} · ${item.title}`
-    : `${item.shortHash || item.hash?.slice(0, 7)} · ${item.message}`;
+export const referenceLabel = (item) => {
+  if (!item) return 'Versão não informada';
+  if (item.type === 'MANUAL') return `Versão manual · ${item.version}`;
+  if (item.type === 'PULL_REQUEST') return `PR #${item.number} · ${item.title}`;
+  if (item.type === 'COMMIT')
+    return `${item.shortHash || item.hash?.slice(0, 7)} · ${item.message}`;
+  return 'Versão não informada';
+};
+export function testedReferenceError(reference) {
+  if (!reference) return 'Selecione a versão testada.';
+  if (reference.type === 'MANUAL') {
+    if (!reference.version.trim()) return 'Informe a versão testada.';
+    if (reference.version.trim().length > LIMITS.manualVersion)
+      return `Use até ${LIMITS.manualVersion} caracteres.`;
+  }
+  return '';
+}
 export const referenceOption = (item) => ({
   ...item,
   resourceId: item.id,
@@ -134,7 +148,10 @@ export function executionFormData(draft) {
       ...(draft.retest ? { retest: draft.retest } : {}),
       testCaseVersion: draft.testCaseVersion,
       environment: draft.environment,
-      testedReference: { type: draft.testedReference.type, id: draft.testedReference.resourceId },
+      testedReference:
+        draft.testedReference.type === 'MANUAL'
+          ? { type: 'MANUAL', version: draft.testedReference.version.trim() }
+          : { type: draft.testedReference.type, id: draft.testedReference.resourceId },
       steps: draft.stepResults.map(({ position, result, observedResult }) => ({
         position,
         result,

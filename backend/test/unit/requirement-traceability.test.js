@@ -263,7 +263,8 @@ describe('S1-09 canonical policy', () => {
     expect(projectRequirement(requirement(), [tc('BLOCKED')], [d]).evidence).toEqual({
       implementation: true,
       validation: true,
-      correction: 'PRESENT'
+      correction: 'PRESENT',
+      correctionBasis: 'GITHUB'
     });
     d.retests = [{ correctionCycle: 0 }];
     const result = projectRequirement(requirement([task()], 'CONCLUIDO'), [tc('PASS')], [d]);

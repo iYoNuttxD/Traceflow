@@ -9,6 +9,7 @@ import { prisma } from '../../../database/prismaClient.js';
 const identity = { id: true, name: true };
 const title = { id: true, title: true };
 const detail = {
+  project: { select: { githubIntegration: { select: { id: true } } } },
   responsibleUser: { select: identity },
   requirement: { select: title },
   steps: { orderBy: { position: 'asc' } },
@@ -43,7 +44,10 @@ export function createTestCaseRepository(client = prisma) {
       return client.testCase.findFirst({ where: { id, deletedAt: null }, include: detail });
     },
     project(id) {
-      return client.project.findUnique({ where: { id }, select: { id: true } });
+      return client.project.findUnique({
+        where: { id },
+        select: { id: true, githubIntegration: { select: { id: true } } }
+      });
     },
     membership(projectId, userId) {
       return client.projectMembership.findFirst({

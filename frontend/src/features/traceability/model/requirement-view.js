@@ -24,6 +24,7 @@ export const historyReasons = {
   RECONCILIATION: 'Rastreabilidade reconciliada',
   TRACEABILITY_POLICY_RECONCILIATION:
     'Situação reconciliada após atualização das regras de rastreabilidade',
+  LIFECYCLE_BASIS_MIGRATION: 'Situação reconciliada para o ciclo local',
   REQUIREMENT_CREATED: 'Requisito criado',
   REQUIREMENT_UPDATED: 'Requisito atualizado',
   REQUIREMENT_STATUS_CHANGED: 'Status do requisito alterado',
@@ -64,6 +65,15 @@ export const percentageLabel = (progress) =>
   progress?.percentage == null
     ? 'Sem dados'
     : `${Number(progress.percentage).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
+export function implementationEvidence(projection) {
+  const local = projection?.implementation?.basis === 'LOCAL';
+  return {
+    local,
+    label: local ? 'Implementação local' : 'Implementação',
+    present: local ? projection.implementation.implemented : projection?.evidence?.implementation,
+    helpTopic: local ? 'localEvidence' : 'evidence'
+  };
+}
 export function overviewMetrics(summary) {
   const sum = (keys) =>
     summary ? keys.reduce((total, key) => total + (summary.bySituation[key] ?? 0), 0) : undefined;

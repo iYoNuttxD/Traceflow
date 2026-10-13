@@ -464,7 +464,7 @@ describe('S1-09 persisted projection and transitions', () => {
       fromSituation: 'EM_DESENVOLVIMENTO',
       toSituation: 'COM_FALHA',
       reason: options.reason,
-      metadataJson: { rulesVersion: 3 }
+      metadataJson: { rulesVersion: 4, lifecycleBasis: 'GITHUB' }
     });
     expect((await f.history()).slice(0, -1)).toEqual(before);
     expect((await reconcileProject(f.project.id, options)).changes).toHaveLength(0);

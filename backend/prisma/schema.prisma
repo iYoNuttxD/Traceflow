@@ -624,6 +624,11 @@ model PersonalDataExport {
   @@index([status, expiresAt])
 }
 
+enum RequirementLifecycleBasis {
+  LOCAL
+  GITHUB
+}
+
 // Requisito funcional ou necessidade cadastrada no projeto.
 model Requirement {
   traceabilityState RequirementTraceabilityState?
@@ -634,6 +639,7 @@ model Requirement {
   title             String
   description       String?
   type              String                        @default("FUNCIONAL")
+  lifecycleBasis    RequirementLifecycleBasis     @default(GITHUB)
   status            String                        @default("PLANEJADO")
   createdAt         DateTime                      @default(now())
   updatedAt         DateTime                      @updatedAt
@@ -1186,6 +1192,7 @@ enum TestEnvironment {
 enum TestedReferenceType {
   PULL_REQUEST
   COMMIT
+  MANUAL
 }
 
 enum TestEvidenceScope {

@@ -67,7 +67,11 @@ export function TraceabilityGuide() {
           <div>
             <dt>Implementação</dt>
             <dd>Tarefa → PR / Commit / Issue</dd>
-            <p>PRs e commits comprovam implementação; issues dão contexto.</p>
+            <p>
+              PRs e commits comprovam implementação técnica; issues dão contexto. Requisitos de
+              ciclo local usam tarefas concluídas para implementação e preservam essa base após
+              vincular GitHub.
+            </p>
           </div>
           <div>
             <dt>Validação</dt>

@@ -30,6 +30,7 @@ export async function loadRequirementProjections(client, projectId, requirementI
       projectId: true,
       title: true,
       status: true,
+      lifecycleBasis: true,
       tasks: { select: taskMetrics }
     },
     orderBy: { id: 'desc' }
@@ -134,7 +135,7 @@ export async function loadProjectRequirementIndicatorRows(client, projectId) {
   for (;;) {
     const requirements = await client.requirement.findMany({
       where: { projectId, ...(cursor ? { id: { lt: cursor } } : {}) },
-      select: { id: true, title: true },
+      select: { id: true, title: true, lifecycleBasis: true },
       orderBy: { id: 'desc' },
       take: PROJECTION_SUMMARY_BATCH_SIZE
     });
@@ -169,7 +170,7 @@ async function readProjectionPage(client, projectId, q) {
   for (;;) {
     const requirements = await client.requirement.findMany({
       where: { projectId, ...(cursor ? { id: { lt: cursor } } : {}) },
-      select: { id: true, title: true },
+      select: { id: true, title: true, lifecycleBasis: true },
       orderBy: { id: 'desc' },
       take: PROJECTION_SUMMARY_BATCH_SIZE
     });

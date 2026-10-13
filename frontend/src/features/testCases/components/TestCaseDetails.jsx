@@ -220,13 +220,18 @@ export function ExecutionDetails({ execution, onPreview, canWrite, onCreateDefec
       <Surface title="Versão testada">
         <div className="tc-tested-reference">
           <strong>
-            {execution.testedReferenceSnapshot.type === 'PULL_REQUEST'
-              ? `Pull Request #${execution.testedReferenceSnapshot.number}`
-              : execution.testedReferenceSnapshot.shortHash ||
-                execution.testedReferenceSnapshot.hash?.slice(0, 7)}
+            {execution.testedReferenceSnapshot.type === 'MANUAL'
+              ? 'Versão manual'
+              : execution.testedReferenceSnapshot.type === 'PULL_REQUEST'
+                ? `Pull Request #${execution.testedReferenceSnapshot.number}`
+                : execution.testedReferenceSnapshot.shortHash ||
+                  execution.testedReferenceSnapshot.hash?.slice(0, 7)}
           </strong>
           <p>
-            {execution.testedReferenceSnapshot.title || execution.testedReferenceSnapshot.message}
+            {execution.testedReferenceSnapshot.type === 'MANUAL'
+              ? execution.testedReferenceSnapshot.version
+              : execution.testedReferenceSnapshot.title ||
+                execution.testedReferenceSnapshot.message}
           </p>
           {execution.testedReferenceSnapshot.githubUrl && (
             <GithubExternalAction href={execution.testedReferenceSnapshot.githubUrl} />

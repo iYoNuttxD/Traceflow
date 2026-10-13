@@ -910,3 +910,33 @@ histórica; a apresentação das regras foi atribuída ao pacote FIX-02.1. No PR
 | `PROJECT-INDICATORS-CUSTOM-EDITOR` | Indicators | Personalização | `/projects/:projectId/indicators?view=custom` | Personalizar painel | Dialog | `features/indicators/components/DashboardEditor.jsx` | Personalizar | VIEWER+ | Selecionar, ordenar, restaurar, salvar, cancelar, draft/erro | Tokens existentes; sem nova inspeção | Tokens existentes; sem nova inspeção | Implementação existente; sem nova homologação | Primitives e testes existentes; não certificação visual | C2 COMPLETE | TECHNICALLY VERIFIED | — | S2-04 / S2-05 | PR23-FIX-06: owner/rota conferidos; evidência histórica no log, sem capturas ou promoção visual nesta rodada. |
 
 | `SHARED-SWITCH` | Global / Shell | Boolean preference | Project GitHub settings | Preferência automática confirmada | Primitive | `shared/components/Switch.jsx` | Alterar preferência | OWNER no consumer; backend autoriza | Checked, unchecked, busy, disabled, erro preserva valor | PASS runtime Chromium | PASS runtime Chromium | VERIFIED: 1440/768/390; target 44px | Input nativo role switch, Space e foco visível | C2 COMPLETE | TECHNICALLY VERIFIED | — | GITHUB-04.1 | GITHUB-04.1: Settings C2 com identidade/status juntos, ação e datas próximas, Switch com descrição, agenda e disponibilidade distintas. Repository sem CTA. Runtime PASS em 1440/768/390, Light/Dark, com worker em processo separado; [relatório](../deliveries/GITHUB_04_1_AUTOSYNC_RELIABILITY_UX_REFINEMENT_REPORT.md). Sem capturas ou homologação visual completa. |
+
+## Standalone QA — execução sem GitHub (2026-10-13)
+
+TC-EXECUTION, TC-SUMMARY e DEF-RETEST preservam o wizard, layout e controles existentes.
+Quando a API autoriza a referência manual, o campo de versão substitui a busca de PR/commit
+por texto obrigatório (1–200 caracteres após trim), com identificação explícita do contexto sem
+GitHub. Projetos integrados mantêm a busca e o contrato anterior. TC-EXECUTION-DETAILS,
+TC-EXECUTIONS, cards, inspector e detalhes de defeitos apresentam o snapshot manual como
+“Versão manual”, sem hash, PR, URL ou evidência técnica inventados.
+
+Validação atual: TECHNICALLY VERIFIED para contrato, teclado/formulário, versão vazia,
+PASS/FAIL/BLOCKED, retorno aos passos, contexto preservado, detalhe histórico e reteste PASS
+por testes React. A nova variante manual em Light/Dark e matriz responsiva está NOT VALIDATED;
+a aprovação visual histórica não se estende automaticamente a este campo. Sem CSS novo.
+
+INDICATORS-WORKSPACE não consulta status GitHub quando a integração está ausente; inicia a
+observação se o mesmo projeto for vinculado posteriormente e cancela probes obsoletos. A leitura
+dos indicadores locais continua independente. Regressões automatizadas cobrem essas transições.
+
+### Base de ciclo preservada nos requisitos
+
+Cards e grafo identificam “Implementação local” somente quando a projeção da API informa
+`implementation.basis = LOCAL`; usam a implementação local calculada pelo backend, sem converter
+a ausência de PR/commit em prova técnica. O Inspector e a ajuda explicam a base preservada após
+vinculação posterior ao GitHub. Contagens reais de artefatos permanecem separadas. A interpretação
+de I65 e a ajuda de Health distinguem conclusão local de evidência técnica e explicitam o grupo de
+requisitos GitHub usado nas comparações. I65 usa o relógio local somente com `sourceScope = LOCAL`;
+MIXED/GITHUB preservam o relógio da fonte externa. Sem mudança de CSS, navegação ou estrutura dos
+cards. Testes automatizados de cards, grafo, Inspector e ajuda: TECHNICALLY VERIFIED. Novos textos
+em Light/Dark e recortes responsivos: NOT VALIDATED visualmente.

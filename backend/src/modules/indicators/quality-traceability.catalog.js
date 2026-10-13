@@ -165,7 +165,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
   I65: traceability(
     'I65',
     'Requirements validados',
-    '(Requisitos implementados com ao menos um caso de teste ativo relevante, todos os casos ativos relevantes aprovados na versão atual e nenhum defeito ativo ÷ Total de requisitos) × 100',
+    '(Requisitos implementados segundo sua base de ciclo de vida, com ao menos um caso de teste ativo relevante, todos os casos ativos relevantes aprovados na versão atual e nenhum defeito ativo ÷ Total de requisitos) × 100. A base local exige tarefas concluídas; a base GitHub exige também Commit ou Pull Request.',
     ['S1-09 situation']
   ),
   I66: traceability(
