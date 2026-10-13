@@ -226,13 +226,13 @@ describe('S2-03 bateria — política: chaves, janela, participantes e exclusõe
     expect(taskParticipants({ responsibleUserId: null })).toEqual([]);
   });
 
-  it('EV-E-02 exclusões por par: as 32 combinações seguem a ordem documentada', () => {
+  it('EV-E-02 exclusões por par: as 32 combinações seguem a ordem documentada; projeto excluído não muda nada (S203-A02)', () => {
     const order = [
-      ['projectDeleted', true, 'PROJECT_DELETED'],
       ['withinWindow', false, 'OUTSIDE_WINDOW'],
       ['accountActive', false, 'INACTIVE_ACCOUNT'],
       ['membershipActive', false, 'INACTIVE_MEMBER'],
-      ['preferenceAllowed', false, 'PREFERENCE_OFF']
+      ['preferenceAllowed', false, 'PREFERENCE_OFF'],
+      ['projectDeleted', true, null]
     ];
     let combinations = 0;
     for (let mask = 0; mask < 32; mask += 1) {
@@ -243,7 +243,9 @@ describe('S2-03 bateria — política: chaves, janela, participantes e exclusõe
           mask & (1 << index) ? failing : !failing
         ])
       );
-      const expected = order.find(([field, failing]) => condition[field] === failing)?.[2] ?? null;
+      const expected =
+        order.find(([field, failing, reason]) => reason && condition[field] === failing)?.[2] ??
+        null;
       const reason =
         eventExclusion({
           projectDeleted: condition.projectDeleted,

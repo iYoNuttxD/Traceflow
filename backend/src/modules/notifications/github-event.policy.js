@@ -13,7 +13,6 @@ export const GITHUB_EVENT_TYPES = Object.freeze([
 export const GITHUB_EVENT_EXCLUSIONS = Object.freeze([
   'NO_TASK',
   'NO_PARTICIPANT',
-  'PROJECT_DELETED',
   'OUTSIDE_WINDOW',
   'INACTIVE_ACCOUNT',
   'INACTIVE_MEMBER',
@@ -133,10 +132,8 @@ export function participantExclusion({ accountActive, membershipActive, preferen
   return null;
 }
 
-export function eventExclusion({ projectDeleted, withinWindow }) {
-  if (projectDeleted) return 'PROJECT_DELETED';
-  if (!withinWindow) return 'OUTSIDE_WINDOW';
-  return null;
+export function eventExclusion({ withinWindow }) {
+  return withinWindow ? null : 'OUTSIDE_WINDOW';
 }
 
 export function preferenceAllowsEvent(preference, detectedAt) {

@@ -30,7 +30,6 @@ const eventSelect = {
   detectedAt: true,
   linkedTaskCount: true,
   attempts: true,
-  project: { select: { deletedAt: true } },
   targets: { select: { taskId: true }, orderBy: { taskId: 'asc' } }
 };
 

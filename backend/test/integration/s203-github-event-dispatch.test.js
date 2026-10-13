@@ -210,7 +210,6 @@ function excludedWith(overrides = {}) {
   return {
     NO_TASK: 0,
     NO_PARTICIPANT: 0,
-    PROJECT_DELETED: 0,
     OUTSIDE_WINDOW: 0,
     INACTIVE_ACCOUNT: 0,
     INACTIVE_MEMBER: 0,
@@ -337,16 +336,6 @@ describe('S2-03 despacho: destinatários e conteúdo (D6, D10, C3)', () => {
     await closeIssue(vanished);
     await prisma.task.delete({ where: { id: vanishedTask.id } });
 
-    const deletedProject = await createProject(prisma);
-    const member = await person(deletedProject.id);
-    const deletedTask = await createTask(prisma, deletedProject.id, {
-      responsibleUserId: member.id
-    });
-    const deletedIssue = await openIssue(deletedProject, 4);
-    await linkIssue(deletedTask, deletedIssue);
-    await closeIssue(deletedIssue);
-    await prisma.project.update({ where: { id: deletedProject.id }, data: { deletedAt: NOW } });
-
     const report = await runJob();
 
     expect(await prisma.notification.count()).toBe(0);
@@ -371,19 +360,17 @@ describe('S2-03 despacho: destinatários e conteúdo (D6, D10, C3)', () => {
     });
     expect(outcomes[2].excluded).toEqual(excludedWith({ OUTSIDE_WINDOW: 1 }));
     expect(outcomes[3]).toMatchObject({ tasks: 0, excluded: excludedWith({ NO_TASK: 1 }) });
-    expect(outcomes[4].excluded).toEqual(excludedWith({ PROJECT_DELETED: 1 }));
     expect(report.excluded).toEqual(
       excludedWith({
         NO_TASK: 1,
         NO_PARTICIPANT: 1,
-        PROJECT_DELETED: 1,
         OUTSIDE_WINDOW: 1,
         INACTIVE_ACCOUNT: 1,
         INACTIVE_MEMBER: 1,
         PREFERENCE_OFF: 2
       })
     );
-    expect(report).toMatchObject({ dispatched: 4, created: 0, failed: 0 });
+    expect(report).toMatchObject({ dispatched: 3, created: 0, failed: 0 });
   });
 
   it('G10 a preferência é por tipo: ISSUE_EVENT desligado não bloqueia PULL_REQUEST_EVENT', async () => {

@@ -244,7 +244,6 @@ function excludedWith(overrides = {}) {
   return {
     NO_TASK: 0,
     NO_PARTICIPANT: 0,
-    PROJECT_DELETED: 0,
     OUTSIDE_WINDOW: 0,
     INACTIVE_ACCOUNT: 0,
     INACTIVE_MEMBER: 0,
@@ -700,8 +699,8 @@ describe('S2-03 bateria — bloco E: destinatários e exclusões (D6)', () => {
   it('EV-E-02 com duas condições verdadeiras, vale a primeira da ordem documentada', async () => {
     const cases = [
       {
-        label: 'PROJECT_DELETED antes de OUTSIDE_WINDOW',
-        expected: 'PROJECT_DELETED',
+        label: 'projeto excluído não muda a exclusão: OUTSIDE_WINDOW (S203-A02)',
+        expected: 'OUTSIDE_WINDOW',
         arrange: async ({ project }) =>
           prisma.project.update({ where: { id: project.id }, data: { deletedAt: NOW } }),
         when: new Date(NOW.getTime() - 10 * DAY)
@@ -831,22 +830,23 @@ describe('S2-03 bateria — bloco E: destinatários e exclusões (D6)', () => {
     );
   });
 
-  it('EV-E-06 projeto excluído entre detecção e despacho fecha como PROJECT_DELETED; registra a restauração (hipótese H5)', async () => {
-    const { project, issue } = await linkedIssueScenario();
+  it('EV-E-06 projeto excluído entre detecção e despacho: a notificação nasce oculta e aparece com a restauração (S203-A02)', async () => {
+    const { project, issue, responsible } = await linkedIssueScenario();
     await closeIssue(issue);
     await prisma.project.update({ where: { id: project.id }, data: { deletedAt: NOW } });
 
     await runJob(at(MINUTE));
+    const [event] = await eventsOf(project.id);
+    expect(event.status).toBe('DISPATCHED');
+    expect(event.outcome).toMatchObject({ eligible: 1, created: 1, excluded: excludedWith() });
+    expect(await notificationService.unreadCount(responsible.id)).toEqual({ unreadCount: 0 });
+
     await prisma.project.update({ where: { id: project.id }, data: { deletedAt: null } });
     const afterRestore = await runJob(at(2 * MINUTE));
 
-    const [event] = await eventsOf(project.id);
-    expect(event.status).toBe('DISPATCHED');
-    expect(event.outcome.excluded).toEqual(excludedWith({ PROJECT_DELETED: 1 }));
-    observe('EV-E-06 depois da restauração', {
-      varridos: afterRestore.scanned,
-      notificacoes: await prisma.notification.count({ where: { projectId: project.id } })
-    });
+    expect(afterRestore.scanned).toBe(0);
+    expect(await notificationService.unreadCount(responsible.id)).toEqual({ unreadCount: 1 });
+    expect(await recipientsOf({ projectId: project.id })).toEqual([responsible.id]);
   });
 
   it('EV-E-07 janela: limites exatos, configuração de 1 e 90 dias e retentativa 3 h depois', async () => {

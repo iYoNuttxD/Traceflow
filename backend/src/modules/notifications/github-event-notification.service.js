@@ -78,10 +78,7 @@ export function createGithubEventNotificationService({
     for (const [taskId, task] of participation)
       for (const userId of task.participants) pairs.push({ taskId, title: task.title, userId });
 
-    const eventReason = eventExclusion({
-      projectDeleted: Boolean(event.project.deletedAt),
-      withinWindow: isWithinWindow(event, lookbackDays)
-    });
+    const eventReason = eventExclusion({ withinWindow: isWithinWindow(event, lookbackDays) });
     const userIds = unique(pairs.map((pair) => pair.userId));
     const checked = !eventReason && userIds.length;
     const [accounts, members, preferences] = checked

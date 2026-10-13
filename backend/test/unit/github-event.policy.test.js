@@ -281,10 +281,11 @@ describe('S2-03 P7: exclusões na ordem (D6, D8)', () => {
     expect(participantExclusion({ ...all, preferenceAllowed: false })).toBe('PREFERENCE_OFF');
   });
 
-  it('projeto excluído vem antes da janela', () => {
-    expect(eventExclusion({ projectDeleted: false, withinWindow: true })).toBeNull();
-    expect(eventExclusion({ projectDeleted: true, withinWindow: false })).toBe('PROJECT_DELETED');
-    expect(eventExclusion({ projectDeleted: false, withinWindow: false })).toBe('OUTSIDE_WINDOW');
+  it('a janela é a única exclusão do evento: projeto excluído não exclui (S203-A02)', () => {
+    expect(eventExclusion({ withinWindow: true })).toBeNull();
+    expect(eventExclusion({ withinWindow: false })).toBe('OUTSIDE_WINDOW');
+    expect(eventExclusion({ projectDeleted: true, withinWindow: true })).toBeNull();
+    expect(eventExclusion({ projectDeleted: true, withinWindow: false })).toBe('OUTSIDE_WINDOW');
   });
 
   it('preferência: sem linha liga; desligada não; religada depois da detecção não', () => {
@@ -301,11 +302,10 @@ describe('S2-03 P7: exclusões na ordem (D6, D8)', () => {
     ).toBe(false);
   });
 
-  it('os sete motivos ficam fixos e na ordem da regra', () => {
+  it('os seis motivos ficam fixos e na ordem da regra', () => {
     expect(GITHUB_EVENT_EXCLUSIONS).toEqual([
       'NO_TASK',
       'NO_PARTICIPANT',
-      'PROJECT_DELETED',
       'OUTSIDE_WINDOW',
       'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
