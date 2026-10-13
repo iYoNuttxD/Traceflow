@@ -146,3 +146,33 @@ sucesso em MySQL local, e merge/deploy continuam fora do escopo.
 Após a correção, a suite unitária backend completa foi repetida em Node 22.23.3: **99 arquivos /
 1.044 testes aprovados**. Lint/formatação dos arquivos alterados também foram aprovados. Esses
 resultados não substituem o reteste de migration e upgrade na CI.
+
+## Retorno da CI 143 e ajuste das regressões de API
+
+A [CI 143](https://github.com/iYoNuttxD/Traceflow/actions/runs/38437919273), no commit
+`e8be257830efc1b4fa7c7e3d423b3437724c8c62`, aprovou a cadeia de migrations e os validadores de
+banco. O validador de upgrade standalone executou **17 cenários**, preservou **15 execuções antigas**
+e detectou os dois controles negativos, incluindo MySQL 1267 na fixture deliberadamente
+incompatível. A correção de collation foi, portanto, verificada em MySQL 8.4.8.
+
+A suite backend executou **1.894 testes aprovados, 2 falhas e 5 skips**. Os outros quatro jobs foram
+aprovados. As falhas estavam em pressupostos das regressões de API:
+
+- O cenário RF16 esperava diagnóstico de branch main não confirmada antes de criar a integração.
+  O fluxo sem integração deve permanecer indisponível e não consultar artefatos residuais; o teste
+  passa a representar explicitamente a etapa integrada antes de exigir diagnóstico de branch.
+- O ciclo de defeito esperava EM_CORRECAO imediatamente após criar uma tarefa A_FAZER. A política
+  canônica mantém o defeito ABERTO e o requisito COM_FALHA até a tarefa começar. A regressão deve
+  verificar esse estado e a transição explícita para EM_ANDAMENTO antes de concluir a correção.
+
+As regras de lifecycle e prioridade de defeitos não são relaxadas para satisfazer essas fixtures.
+O diagnóstico de GitHub sem configuração também evita informar ausência de main como se uma
+integração tivesse sido consultada. O reteste completo na próxima CI continua pendente; não há
+aprovação de merge/produção nesta etapa.
+
+Após os ajustes de RF16 e da fixture de correção, a suite unitária backend foi repetida em
+Node 22.23.3: **100 arquivos / 1.048 testes aprovados**, com lint e formatação completos aprovados.
+A fixture também distingue snapshots imutáveis da navegação `detectedDefects`, que é propositalmente
+atual; a igualdade completa antes/depois de conectar GitHub é verificada entre leituras feitas
+após o ciclo do defeito. Revisão independente confirmou que nenhum critério de conclusão ou
+prioridade de defeitos foi flexibilizado. Os testes API corrigidos ainda aguardam nova CI.

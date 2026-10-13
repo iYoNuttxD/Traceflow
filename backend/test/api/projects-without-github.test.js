@@ -439,8 +439,20 @@ describe('GITHUB-01 — ciclo de qualidade sem integração', () => {
       });
     expect(correction.status, correction.text).toBe(201);
     defect = correction.body.defect;
+    const correctionTaskId = defect.correctionCycles[0].tasks[0].id;
+    // Merely scheduling a correction does not mean work has started (S1-08).
+    expect(defect.status).toBe('ABERTO');
+    expect((await f.projection()).body.situation).toBe('COM_FALHA');
+    const started = await owner
+      .mutate('patch', `/api/tasks/${correctionTaskId}/move`)
+      .send({ toStatus: 'EM_ANDAMENTO' });
+    expect(started.status, started.text).toBe(200);
+    expect(started.body.task.status).toBe('EM_ANDAMENTO');
+    expect((await owner.agent.get(`/api/defects/${defect.id}`)).body.defect.status).toBe(
+      'EM_CORRECAO'
+    );
     expect((await f.projection()).body.situation).toBe('EM_CORRECAO');
-    await completeTask(defect.correctionCycles[0].tasks[0].id);
+    await completeTask(correctionTaskId);
     defect = (await owner.agent.get(`/api/defects/${defect.id}`)).body.defect;
     expect(defect.status).toBe('AGUARDANDO_RETESTE');
     expect((await f.projection()).body.situation).toBe('AGUARDANDO_RETESTE');
@@ -483,6 +495,29 @@ describe('GITHUB-01 — ciclo de qualidade sem integração', () => {
     expect(await prisma.commit.count()).toBe(0);
     expect(await prisma.projectGitHubIntegration.count()).toBe(0);
     expect(github.forInstallation).not.toHaveBeenCalled();
+    // detectedDefects is live navigation data, so capture it after the defect cycle.
+    // The immutable execution/version/reference snapshots must still match their original receipts.
+    const executionsBeforeLink = [];
+    for (const original of [failed.body.execution, passed.body.execution]) {
+      const detail = await owner.agent.get(`/api/test-executions/${original.id}`);
+      expect(detail.status, detail.text).toBe(200);
+      expect(detail.body.execution).toMatchObject({
+        result: original.result,
+        testedReferenceType: original.testedReferenceType,
+        testedPullRequestId: original.testedPullRequestId,
+        testedCommitId: original.testedCommitId,
+        testedReferenceSnapshot: original.testedReferenceSnapshot,
+        caseVersionSnapshot: original.caseVersionSnapshot
+      });
+      expect(detail.body.execution.steps).toMatchObject(
+        original.steps.map((step) => {
+          const snapshot = { ...step };
+          delete snapshot.detectedDefects;
+          return snapshot;
+        })
+      );
+      executionsBeforeLink.push(detail.body.execution);
+    }
     await connectThroughApi(f.project.id);
     const afterLink = await f.projection();
     expect(afterLink.body).toEqual(projection.body);
@@ -490,7 +525,7 @@ describe('GITHUB-01 — ciclo de qualidade sem integração', () => {
       lifecycleBasis: 'LOCAL',
       status: 'CONCLUIDO'
     });
-    for (const execution of [failed.body.execution, passed.body.execution]) {
+    for (const execution of executionsBeforeLink) {
       expect(
         (await owner.agent.get(`/api/test-executions/${execution.id}`)).body.execution
       ).toEqual(execution);
