@@ -31,6 +31,16 @@ describe('standalone provenance persistence contract (structural)', () => {
     );
     expect(basisMigration.trim().endsWith('COMMIT;')).toBe(true);
   });
+  it('declares both projection text columns with the persisted schema collation', () => {
+    for (const column of ['situation', 'lifecycleStatus'])
+      expect(basisMigration).toContain(
+        `\`${column}\` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL`
+      );
+    expect(basisMigration).not.toMatch(/CREATE TEMPORARY TABLE `[^`]+` AS/);
+    expect(basisMigration).toContain(
+      'INSERT INTO `_StandaloneRequirementProjection` (`id`, `projectId`, `situation`, `lifecycleStatus`)'
+    );
+  });
   it('extends the execution discriminator without manufacturing an imported reference', () => {
     expect(manualMigration).toContain("ENUM('PULL_REQUEST', 'COMMIT', 'MANUAL')");
     expect(manualMigration).toContain(

@@ -18,7 +18,17 @@ WHERE g.`id` IS NULL;
 -- Mirrors readProjectionMetrics + getImplementationStageFromCounts(LOCAL) +
 -- deriveSituation. Preserve the old history; append only actual transitions.
 -- MySQL TEMPORARY TABLE creation does not commit the surrounding transaction.
-CREATE TEMPORARY TABLE `_StandaloneRequirementProjection` AS
+-- Explicit column collations must match the persisted schema. CTAS-inferred
+-- CASE text can inherit the connection default (general_ci), which cannot be
+-- compared as an implicit column against persisted unicode_ci status columns.
+CREATE TEMPORARY TABLE `_StandaloneRequirementProjection` (
+  `id` INTEGER NOT NULL PRIMARY KEY,
+  `projectId` INTEGER NOT NULL,
+  `situation` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `lifecycleStatus` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+INSERT INTO `_StandaloneRequirementProjection` (`id`, `projectId`, `situation`, `lifecycleStatus`)
 WITH selected_requirements AS (
   SELECT id, projectId FROM Requirement WHERE lifecycleBasis = 'LOCAL'
 ), task_metrics AS (

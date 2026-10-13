@@ -21,6 +21,8 @@ if (!/^[a-zA-Z0-9_]+_test_standalone_upgrade_validation$/.test(database)) {
   throw new Error('Nome do banco descartável standalone recusado.');
 }
 target.pathname = `/${database}`;
+// Keep connection-local collation probes on one connection.
+target.searchParams.set('connection_limit', '1');
 const url = validateTestDatabaseUrl(target.toString(), process.env.DATABASE_URL);
 assert.notEqual(url, source);
 const admin = new PrismaClient({ datasourceUrl: source });
@@ -45,6 +47,35 @@ function deploy() {
     .replaceAll(url, '[TEST_DATABASE_URL]')
     .replaceAll(source, '[TEST_DATABASE_URL]');
   assert.equal(result.status, 0, `Deploy standalone falhou: ${output}`);
+}
+
+async function assertMixedCollationFixture() {
+  const [schema] = await client.$queryRaw`
+    SELECT DEFAULT_COLLATION_NAME AS collationName FROM INFORMATION_SCHEMA.SCHEMATA
+    WHERE SCHEMA_NAME=${database}`;
+  assert.equal(schema.collationName, 'utf8mb4_general_ci');
+  const columns = await client.$queryRaw`
+    SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName, COLLATION_NAME AS collationName
+    FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=${database}
+    AND ((TABLE_NAME='RequirementTraceabilityState' AND COLUMN_NAME='currentSituation')
+      OR (TABLE_NAME='Requirement' AND COLUMN_NAME='status'))`;
+  assert.equal(columns.length, 2);
+  for (const column of columns) assert.equal(column.collationName, 'utf8mb4_unicode_ci');
+  // Two stored columns have equal coercibility. This reproduces CI's original 1267
+  // independently of Prisma's session defaults and proves the regression fixture is sensitive.
+  await client.$executeRawUnsafe(`CREATE TEMPORARY TABLE _StandaloneCollationProbe (
+    situation VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL)`);
+  try {
+    await client.$executeRawUnsafe("INSERT INTO _StandaloneCollationProbe VALUES ('PLANEJADO')");
+    await assert.rejects(
+      client.$queryRawUnsafe(`SELECT s.currentSituation <> p.situation AS differs
+        FROM RequirementTraceabilityState s CROSS JOIN _StandaloneCollationProbe p LIMIT 1`),
+      (error) => error.code === 'P2010' && error.meta?.code === '1267',
+      'The deliberate mixed-column comparison must reproduce MySQL 1267.'
+    );
+  } finally {
+    await client.$executeRawUnsafe('DROP TEMPORARY TABLE IF EXISTS _StandaloneCollationProbe');
+  }
 }
 
 async function seed() {
@@ -327,7 +358,9 @@ try {
     0,
     'Banco descartável já existe; não será reutilizado ou removido.'
   );
-  await admin.$executeRawUnsafe(`CREATE DATABASE \`${database}\``);
+  await admin.$executeRawUnsafe(
+    `CREATE DATABASE \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci`
+  );
   created = true;
   const [connected] = await client.$queryRaw`SELECT DATABASE() AS name`;
   assert.equal(connected.name, database);
@@ -348,6 +381,7 @@ try {
     await client.$queryRaw`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=${database} AND TABLE_NAME='Requirement' AND COLUMN_NAME='lifecycleBasis'`;
   assert.equal(columns.length, 0, 'Fixture deve nascer antes da nova coluna.');
   const fixtures = await seed();
+  await assertMixedCollationFixture();
   const oldHistory = await client.requirementTraceabilityHistoryEntry.findMany({
     orderBy: { id: 'asc' }
   });
@@ -381,7 +415,10 @@ try {
       upgrade: 'ok',
       scenarios: fixtures.length,
       oldExecutionsPreserved: oldExecutions.length,
-      negativeControl: 'detected'
+      negativeControl: 'detected',
+      mixedCollationNegativeControl: '1267 detected',
+      databaseCollation: 'utf8mb4_general_ci',
+      historicalColumnCollation: 'utf8mb4_unicode_ci'
     })}\n`
   );
 } finally {

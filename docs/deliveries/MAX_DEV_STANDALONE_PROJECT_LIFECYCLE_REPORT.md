@@ -123,3 +123,26 @@ impediu a criação dos sockets necessários ao servidor. Portanto:
 
 Esta entrega não declara equivalência com CI nem prontidão para merge/produção. A PR deve permanecer
 em draft até os gates de banco, upgrade e cobertura passarem e os achados de revisão serem resolvidos.
+
+## Retorno da CI 142 e correção de collation
+
+A [CI 142](https://github.com/iYoNuttxD/Traceflow/actions/runs/38436440843), no commit
+`767cd88b478940dc1164ad66519c157ab6c6127c`, executou em MySQL e falhou na migration nova de
+lifecycle com `P3018` / MySQL `1267`: comparação `<>` entre colunas com collations implícitas
+`utf8mb4_unicode_ci` e `utf8mb4_general_ci`. Os outros quatro jobs foram aprovados, incluindo
+Frontend Tests. Isso não constitui aprovação do backend nem do upgrade.
+
+A tabela temporária de projeção usava CTAS e inferia a collation das expressões de texto a partir
+da conexão. A correção declara explicitamente `situation` e `lifecycleStatus` como VARCHAR(32)
+utf8mb4/unicode_ci antes do INSERT com CTE. Assim, tanto comparação de histórico/estado quanto
+macrostatus usam a mesma collation das tabelas persistidas. As regras de situação, transação,
+coorte LOCAL e histórico não foram alteradas; nenhuma migration histórica foi modificada.
+
+Foi acrescentada regressão estrutural para as duas colunas. O validador de upgrade passa a criar
+banco descartável com general_ci e verificar o cenário de collations incompatíveis antes de aplicar
+os SQLs versionados corrigidos. A correção ainda exige nova execução de CI; não há alegação de
+sucesso em MySQL local, e merge/deploy continuam fora do escopo.
+
+Após a correção, a suite unitária backend completa foi repetida em Node 22.23.3: **99 arquivos /
+1.044 testes aprovados**. Lint/formatação dos arquivos alterados também foram aprovados. Esses
+resultados não substituem o reteste de migration e upgrade na CI.
