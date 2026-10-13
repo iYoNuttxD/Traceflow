@@ -40,6 +40,27 @@ Preserve evidências, minimize acesso, use request IDs e nunca copie segredo, bo
 
 Suspenda deploys, execute o runbook de migrations e use restore/roll-forward. Não use reset, não edite migration aplicada e não descarte dado sem contagem e backup.
 
+## Espera de trava no banco
+
+Regra no [ADR-019](../architecture/ADR-019-ESPERA-DE-TRAVA.md). Toda transação interativa espera
+uma trava por no máximo 2 s (prazo de 5 s) ou 5 s (prazo de 15 s). Passado o limite, o MySQL
+devolve o erro 1205, e a API responde `409 RESOURCE_BUSY`.
+
+1. Evento `database_lock_wait_timeout` (`warn`), com rota e `requestId`.
+   - Isolado: contenção normal, e o cliente repete a requisição.
+   - Repetido na mesma rota ou no mesmo projeto: alguma transação está segurando a trava por
+     tempo demais.
+2. Para achar a transação que segura, consulte `performance_schema.data_lock_waits` e
+   `information_schema.innodb_trx`. Use o `trx_started` e o `trx_query` da transação mais
+   antiga e cruze com o log pelo horário. Não encerre a sessão (`KILL`) sem entender o que ela
+   grava.
+3. Erro com `causeCode: P2028`: uma transação passou do próprio prazo por trabalho lento
+   (instrução demorada ou banco distante). A conexão usada pode ficar dessincronizada por alguns
+   segundos (S202-F33). Verifique a latência até o banco e as operações pesadas listadas no
+   S202-F30.
+4. Não aumente o `innodb_lock_wait_timeout` global para "resolver" 409: o limite por transação o
+   substitui, e um valor global maior não muda a regra.
+
 ## GitHub indisponível
 
 Não substitua por dados mockados. Preserve último sucesso, comunique indisponibilidade, respeite rate limit e reexecute manualmente após recuperação.

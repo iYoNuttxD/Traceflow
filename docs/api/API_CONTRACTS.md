@@ -141,6 +141,15 @@ Erros de infraestrutura usam o formato seguro `{message,code,requestId}`: origem
 `RateLimit` e `Retry-After` e o corpo `{message,code,requestId,retryAfterSeconds,scope}`; `scope`
 identifica apenas a categoria pública da quota, sem expor sua chave, usuário ou IP.
 
+**Recurso ocupado (desde 13/10/2026, ADR-019).** Qualquer rota que grava pode responder
+`409 RESOURCE_BUSY` quando outra alteração segura o recurso por mais que o limite de espera da
+transação: 2 s nas operações de prazo padrão e 5 s nas de prazo de 15 s (tarefas, requisitos,
+defeitos, casos de teste e alertas).
+- O corpo é `{message,code,requestId}`, com "Outra alteração está em andamento. Tente de novo em
+  instantes.", e o header `Retry-After: 2`.
+- Nada da operação é gravado, e o cliente pode repetir a requisição.
+- O `PUT` de preferências mantém o próprio `409 NOTIFICATION_PREFERENCES_BUSY`.
+
 ## Infraestrutura
 
 | Método   | Caminho           | Entrada | Sucesso                             | Erros principais               |
@@ -938,6 +947,8 @@ ativa; o histórico completo vive em `SprintTask` e é exposto por `/sprints/:id
 - Datas: datas civis reais, sem correção automática.
 - Campos desconhecidos em bodies/query validados: `400 VALIDATION_ERROR`.
 - Erros de recurso e conflito permanecem `404` e `409` com mensagens atuais.
+- Recurso ocupado por outra alteração além do limite de espera: `409 RESOURCE_BUSY` com
+  `Retry-After` (ADR-019).
 - Erros inesperados permanecem seguros e carregam `INTERNAL_ERROR` e request ID.
 
 ## S1-07 — Casos de teste, versões, execução e evidências

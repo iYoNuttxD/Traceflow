@@ -324,3 +324,17 @@ A campanha de testes de 12/10/2026 acrescentou as baterias `test/api/s203-bateri
 | V13.x, salvo V13.2.4 | sem segredo novo; o job usa a mesma `DATABASE_URL` da API |
 | V17 | sem WebRTC |
 
+## Delta S202-F29 — espera de trava nas transações interativas
+
+A correção do S202-F29 (ADR-019) é transversal: limita a espera de trava em toda transação
+interativa do backend. Evidência nos testes F1 e F2 de `test/unit`, `test/integration` e `test/api`
+(`s202-f29-espera-de-trava.test.js`).
+
+| Requisito | Nível | Aplicação | Implementação | Evidência | Status |
+|---|---|---|---|---|---|
+| V15.4.2, V15.4.3 | L3 | estado verificado e alterado sob trava, sem espera indefinida; a espera nunca passa do prazo da transação | `src/database/lock-wait.js` no cliente compartilhado | F1-01 a F1-06 | ATENDIDO (informativo, acima da meta) |
+| V16.3.4 | L2 | erro de banco registrado com o código do Prisma; espera esgotada com evento próprio | `error-handler.middleware.js` | F2-02 | ATENDIDO |
+| V16.5.3 | L2 | a operação que encontra o recurso ocupado falha sozinha, com 409, sem efeito parcial e sem atingir outras requisições | limite por sessão e `RESOURCE_BUSY` | F1-01 a F1-04, F2-01 | ATENDIDO |
+
+O `P2028` por trabalho lento continua possível e está no S202-F33 (avaliação do Prisma) e no S202-F30
+(transações pesadas de 5 s).
