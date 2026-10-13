@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
@@ -53,10 +55,11 @@ let getProjectGithubSyncStatus;
 let traceabilityAlertService;
 let projectRepository;
 let disconnectRecoveryPrisma;
+let testDatabaseUrl;
 let sequence = 0;
 
 beforeAll(async () => {
-  const testDatabaseUrl = configureTestDatabaseEnvironment();
+  testDatabaseUrl = configureTestDatabaseEnvironment();
   deployTestMigrations(testDatabaseUrl);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
@@ -932,4 +935,39 @@ describe('S2-03 correções — Fase 5: estoque, pendência vencida e reserva pe
       expect.objectContaining({ event: 'github_event_notification_claim_lost' })
     );
   });
+});
+
+describe('S2-03 correções — Fase 6: stdout dos jobs só com o relatório (S203-A13 f)', () => {
+  it('C6-01 nos dois scripts de job, o stdout é um JSON só e os logs vão para o stderr', async () => {
+    const project = await newProject();
+    const runScript = (name) =>
+      spawnSync(
+        process.execPath,
+        [resolve(process.cwd(), 'scripts', name), `--project-id=${project.id}`],
+        {
+          cwd: process.cwd(),
+          env: { ...process.env, DATABASE_URL: testDatabaseUrl, NODE_ENV: 'development' },
+          encoding: 'utf8'
+        }
+      );
+
+    for (const [name, completed] of [
+      ['dispatch-github-event-notifications.js', 'github_event_notifications_dispatch_completed'],
+      ['notify-overdue-tasks.js', 'notifications_due_completed']
+    ]) {
+      const result = runScript(name);
+      expect(result.status, `${name}: ${result.stderr}`).toBe(0);
+      const report = JSON.parse(result.stdout);
+      expect(report.dryRun, name).toBe(true);
+      expect(report.database.database, name).toMatch(/_test$/);
+      const logLines = result.stderr
+        .split('\n')
+        .filter((line) => line.startsWith('{'))
+        .map((line) => JSON.parse(line));
+      expect(
+        logLines.map((line) => line.event),
+        name
+      ).toContain(completed);
+    }
+  }, 60000);
 });

@@ -1,7 +1,8 @@
 import { pathToFileURL } from 'node:url';
 import { env } from '../src/config/env.js';
 import { prisma } from '../src/database/prismaClient.js';
-import { notificationService } from '../src/modules/notifications/notification.service.js';
+import { createNotificationService } from '../src/modules/notifications/notification.service.js';
+import { createLogger } from '../src/shared/logger/index.js';
 import { isProductionDatabase, sanitizedDatabaseTarget } from './lib/database-safety.js';
 
 const flags = ['--apply', '--dry-run', '--confirm-production'];
@@ -58,7 +59,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     process.exitCode = await runOverdueNotifications({
       args: process.argv.slice(2),
-      service: notificationService,
+      service: createNotificationService({
+        log: createLogger({
+          write: (_level, line) =>
+            process.stderr.write(`${line}
+`)
+        })
+      }),
       databaseUrl: env.databaseUrl
     });
   } finally {
