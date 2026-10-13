@@ -611,6 +611,29 @@ describe('S2-03 bateria — bloco V: vínculos e retrato (D4)', () => {
     ]);
   });
 
+  it('EV-V-05 PR vinculada no banco a tarefa de outro projeto fica fora do retrato (V8.4.1)', async () => {
+    const project = await newProject();
+    const owner = await person(project.id);
+    const ownTask = await createTask(prisma, project.id, { responsibleUserId: owner.id });
+    const pullRequest = await pullRequestRow(project, 1);
+    await linkPullRequest(ownTask, pullRequest);
+    const other = await newProject();
+    const stranger = await person(other.id);
+    const foreignTask = await createTask(prisma, other.id, { responsibleUserId: stranger.id });
+    await prisma.task.update({
+      where: { id: foreignTask.id },
+      data: { pullRequestId: pullRequest.id }
+    });
+
+    await mergePullRequest(pullRequest);
+    await runJob();
+
+    const [event] = await eventsOf(project.id);
+    expect(event.targets.map((target) => target.taskId)).toEqual([ownTask.id]);
+    expect(event.linkedTaskCount).toBe(1);
+    expect(await recipientsOf()).toEqual([owner.id]);
+  });
+
   it('EV-V-06 PR trocada de tarefa entre a detecção e o despacho: só a tarefa do retrato é avisada', async () => {
     const project = await newProject();
     const first = await person(project.id);
@@ -993,6 +1016,23 @@ describe('S2-03 bateria — bloco J: despacho, retentativas e job (D9, D15)', ()
     expect(dryRetry.wouldRequeue).toBe(2);
     const applied = await runJob();
     expect(applied.created).toBe(dry.wouldCreate);
+  });
+
+  it('EV-J-03 o dry-run prevê o apply também para PROCESSING vencido que esgotou as tentativas', async () => {
+    const project = await newProject();
+    const participant = await person(project.id);
+    const [exhausted] = await pendingEvents(project, 1, { participant });
+    await prisma.gitHubArtifactEvent.update({
+      where: { id: exhausted },
+      data: { status: 'PROCESSING', attempts: 5, claimToken: 'antigo', claimedUntil: at(-1) }
+    });
+
+    const dry = await service().runJob({ dryRun: true });
+    const applied = await runJob();
+
+    expect(dry.scanned).toBe(0);
+    expect(dry.wouldCreate).toBe(applied.created);
+    expect(applied).toMatchObject({ created: 0, failed: 1 });
   });
 
   it('EV-J-07 a saída do script tem exatamente os campos do runbook', async () => {
@@ -1408,6 +1448,39 @@ describe('S2-03 bateria — bloco K: concorrência e idempotência (V2.3.4)', ()
     });
     expect(await prisma.notification.count()).toBe(1);
     expect(event.status).toBe('DISPATCHED');
+  });
+
+  it('EV-K-03 só quem detém a reserva fecha o evento: o despachante que a perdeu não grava o fechamento', async () => {
+    const project = await newProject();
+    const participant = await person(project.id);
+    await pendingEvents(project, 1, { participant });
+    let release;
+    const gate = new Promise((resolveGate) => {
+      release = resolveGate;
+    });
+    let entered;
+    const inside = new Promise((resolveInside) => {
+      entered = resolveInside;
+    });
+    const slowRepository = {
+      ...githubEventRepository,
+      async participationOf(...args) {
+        entered();
+        await gate;
+        return githubEventRepository.participationOf(...args);
+      }
+    };
+
+    const slow = service(NOW, { repository: slowRepository }).runJob({ dryRun: false });
+    await inside;
+    const fast = await runJob(at(3 * MINUTE));
+    release();
+    const slowReport = await slow;
+
+    const [event] = await eventsOf(project.id);
+    expect(fast.dispatched).toBe(1);
+    expect(slowReport.dispatched).toBe(0);
+    expect(event.dispatchedAt).toEqual(at(3 * MINUTE));
   });
 
   it('EV-K-04 vínculo criado durante a página da sincronização: retrato coerente e sem deadlock (hipótese H18)', async () => {
