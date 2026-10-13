@@ -1,6 +1,19 @@
 import { prisma } from '../../database/prismaClient.js';
+import { recoveryPrisma } from '../../database/recovery-prisma.js';
 
 const activeStatuses = ['QUEUED', 'RUNNING'];
+
+function failedRun({ errorCode, errorMessage, finishedAt, durationMs }) {
+  return {
+    status: 'FAILED',
+    activeProjectId: null,
+    heartbeatAt: finishedAt,
+    finishedAt,
+    durationMs,
+    errorCode,
+    errorMessage
+  };
+}
 
 export const githubSyncRunRepository = {
   create(projectId, requestedByUserId) {
@@ -80,19 +93,12 @@ export const githubSyncRunRepository = {
     });
   },
 
-  fail(id, { errorCode, errorMessage, finishedAt, durationMs }) {
-    return prisma.gitHubSyncRun.update({
-      where: { id },
-      data: {
-        status: 'FAILED',
-        activeProjectId: null,
-        heartbeatAt: finishedAt,
-        finishedAt,
-        durationMs,
-        errorCode,
-        errorMessage
-      }
-    });
+  fail(id, failure) {
+    return prisma.gitHubSyncRun.update({ where: { id }, data: failedRun(failure) });
+  },
+
+  failOnRecoveryConnection(id, failure) {
+    return recoveryPrisma().gitHubSyncRun.update({ where: { id }, data: failedRun(failure) });
   },
 
   expireIfStillStale(id, projectId, cutoff, now = new Date()) {

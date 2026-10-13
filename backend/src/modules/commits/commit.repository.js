@@ -1,6 +1,6 @@
 // Repository de commits importados do GitHub.
 import { prisma } from '../../database/prismaClient.js';
-import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
 
 export const commitRepository = {
   async findByProjectIdAndHash(projectId, hash) {
@@ -43,15 +43,19 @@ export const commitRepository = {
       return { count: 0 };
     }
 
-    return withActiveProjectWrite(data[0].projectId, (tx) =>
-      tx.commit.createMany({ data, skipDuplicates: true })
+    return withActiveProjectWrite(
+      data[0].projectId,
+      (tx) => tx.commit.createMany({ data, skipDuplicates: true }),
+      SYNC_WRITE
     );
   },
 
   async createBranchLinks(projectId, data) {
     if (data.length === 0) return { count: 0 };
-    return withActiveProjectWrite(projectId, (tx) =>
-      tx.commitBranch.createMany({ data, skipDuplicates: true })
+    return withActiveProjectWrite(
+      projectId,
+      (tx) => tx.commitBranch.createMany({ data, skipDuplicates: true }),
+      SYNC_WRITE
     );
   },
 

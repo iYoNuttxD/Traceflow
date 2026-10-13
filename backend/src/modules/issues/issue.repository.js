@@ -1,6 +1,6 @@
 // Repository de Issues importadas do GitHub.
 import { prisma } from '../../database/prismaClient.js';
-import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
 import { githubEventRepository } from '../notifications/github-event.repository.js';
 
 function buildIssueUpdate(data) {
@@ -39,29 +39,33 @@ export const issueRepository = {
     }
 
     const projectId = data[0].projectId;
-    return withActiveProjectWrite(projectId, async (tx) => {
-      const existing = await tx.issue.findMany({
-        where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
-        select: { id: true, githubId: true, state: true, closedAtGithub: true }
-      });
-      const previous = new Map(existing.map((row) => [row.githubId, row]));
-      for (const issue of data) {
-        await tx.issue.upsert({
-          where: { projectId_githubId: { projectId, githubId: issue.githubId } },
-          update: buildIssueUpdate(issue),
-          create: issue
+    return withActiveProjectWrite(
+      projectId,
+      async (tx) => {
+        const existing = await tx.issue.findMany({
+          where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
+          select: { id: true, githubId: true, state: true, closedAtGithub: true }
         });
-      }
-      const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
-      const recorded = await githubEventRepository.recordTransitions(tx, {
-        projectId,
-        kind: 'ISSUE',
-        previous,
-        incoming: data,
-        detectedAt: detectedAt ?? new Date()
-      });
-      return { created: data.length - updated, updated, ...recorded };
-    });
+        const previous = new Map(existing.map((row) => [row.githubId, row]));
+        for (const issue of data) {
+          await tx.issue.upsert({
+            where: { projectId_githubId: { projectId, githubId: issue.githubId } },
+            update: buildIssueUpdate(issue),
+            create: issue
+          });
+        }
+        const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
+        const recorded = await githubEventRepository.recordTransitions(tx, {
+          projectId,
+          kind: 'ISSUE',
+          previous,
+          incoming: data,
+          detectedAt: detectedAt ?? new Date()
+        });
+        return { created: data.length - updated, updated, ...recorded };
+      },
+      SYNC_WRITE
+    );
   },
 
   async listByProjectId(projectId, filters = {}) {

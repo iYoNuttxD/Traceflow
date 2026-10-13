@@ -1,6 +1,6 @@
 // Repository de projetos: concentra o acesso a Project no MySQL via Prisma.
 import { prisma } from '../../database/prismaClient.js';
-import { withActiveProjectWrite } from './active-project-write.js';
+import { SYNC_WRITE, withActiveProjectWrite } from './active-project-write.js';
 
 export const projectRepository = {
   async createProject(data, ownerUserId) {
@@ -108,8 +108,10 @@ export const projectRepository = {
   },
 
   async updateGithubRepositoryMetadata(id, data) {
-    return withActiveProjectWrite(id, (tx) =>
-      tx.projectGitHubIntegration.update({ where: { projectId: id }, data })
+    return withActiveProjectWrite(
+      id,
+      (tx) => tx.projectGitHubIntegration.update({ where: { projectId: id }, data }),
+      SYNC_WRITE
     );
   },
 
@@ -121,7 +123,7 @@ export const projectRepository = {
           where: { projectId: id },
           data: { lastSyncStatus: 'SINCRONIZANDO', lastSyncAttemptAt: attemptedAt }
         }),
-      { inactiveResult: null }
+      { ...SYNC_WRITE, inactiveResult: null }
     );
   },
 
@@ -138,7 +140,7 @@ export const projectRepository = {
             lastSyncError: null
           }
         }),
-      { inactiveResult: null }
+      { ...SYNC_WRITE, inactiveResult: null }
     );
     if (!updated) return null;
     return this.findById(id);
@@ -156,7 +158,7 @@ export const projectRepository = {
             lastSyncError: errorMessage
           }
         }),
-      { inactiveResult: null }
+      { ...SYNC_WRITE, inactiveResult: null }
     );
   }
 };

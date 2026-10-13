@@ -20,6 +20,15 @@ vi.mock('../../src/shared/logger/index.js', async (importOriginal) => ({
 vi.mock('../../src/modules/github/github.client.js', () => ({
   githubInstallationClientFactory: { forInstallation: () => boundary.client }
 }));
+const queries = vi.hoisted(() => ({ enabled: false, texts: [] }));
+vi.mock('../../src/database/prismaClient.js', async () => {
+  const { PrismaClient } = await import('@prisma/client');
+  const client = new PrismaClient({ log: [{ emit: 'event', level: 'query' }] });
+  client.$on('query', (event) => {
+    if (queries.enabled) queries.texts.push(event.query);
+  });
+  return { prisma: client };
+});
 
 const NOW = new Date('2026-10-20T12:00:00.000Z');
 const OCCURRED = new Date('2026-10-20T10:00:00.000Z');
@@ -29,14 +38,20 @@ const PROJECT_CREATED_AT = new Date('2026-08-01T12:00:00.000Z');
 
 const STORAGE_MESSAGE =
   'Não foi possível gravar os dados da sincronização. Tente de novo em instantes.';
+const BUSY_MESSAGE =
+  'O projeto está com outra alteração em andamento. Tente sincronizar de novo em instantes.';
 
 let prisma;
 let issueRepository;
 let githubEventRepository;
 let createGithubEventNotificationService;
+let githubEventNotificationService;
 let githubSyncRunRepository;
 let executeGithubSyncRun;
 let getProjectGithubSyncStatus;
+let traceabilityAlertService;
+let projectRepository;
+let disconnectRecoveryPrisma;
 let sequence = 0;
 
 beforeAll(async () => {
@@ -46,8 +61,12 @@ beforeAll(async () => {
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
   ({ githubEventRepository } =
     await import('../../src/modules/notifications/github-event.repository.js'));
-  ({ createGithubEventNotificationService } =
+  ({ createGithubEventNotificationService, githubEventNotificationService } =
     await import('../../src/modules/notifications/github-event-notification.service.js'));
+  ({ traceabilityAlertService } =
+    await import('../../src/modules/traceability/traceability-alert.service.js'));
+  ({ projectRepository } = await import('../../src/modules/projects/project.repository.js'));
+  ({ disconnectRecoveryPrisma } = await import('../../src/database/recovery-prisma.js'));
   ({ githubSyncRunRepository } =
     await import('../../src/modules/github/github-sync-run.repository.js'));
   ({ executeGithubSyncRun, getProjectGithubSyncStatus } =
@@ -58,11 +77,14 @@ beforeAll(async () => {
 afterEach(async () => {
   vi.restoreAllMocks();
   boundary.client = null;
+  queries.enabled = false;
+  queries.texts = [];
   await cleanTestDatabase(prisma);
 });
 
 afterAll(async () => {
   await cleanTestDatabase(prisma);
+  await disconnectRecoveryPrisma();
   await prisma.$disconnect();
 });
 
@@ -328,5 +350,207 @@ describe('S2-03 correções — Fase 1: código estável na falha de gravação 
     const status = await getProjectGithubSyncStatus(context.project.id);
     expect(status.error.code).toBe('GITHUB_SYNC_STORAGE_FAILED');
     expect(JSON.stringify(status)).not.toContain('P2034');
+  });
+});
+
+describe('S2-03 correções — Fase 2: falha da página registrada e trava limitada (S203-A01)', () => {
+  const closed = Object.assign(new Error('Server has closed the connection.'), { code: 'P1017' });
+  const missing = Object.assign(new Error('No record was found for an update.'), {
+    code: 'P2025'
+  });
+  const projectLockQuery = /FROM `?Project`? WHERE .*deletedAt IS NULL FOR UPDATE/i;
+
+  function hooks() {
+    return {
+      reconcile: vi.spyOn(traceabilityAlertService, 'reconcileAfterSync'),
+      dispatch: vi.spyOn(githubEventNotificationService, 'dispatchAfterSync')
+    };
+  }
+
+  function lockedPullRequestPage(context, holdMs) {
+    let release = null;
+    const locked = new Promise((resolveLocked) => {
+      release = resolveLocked;
+    });
+    const holder = { done: null };
+    const double = githubDouble(context.repositoryId);
+    double.listPullRequestPages = vi.fn(() =>
+      (async function* page() {
+        holder.done = prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT id FROM Project WHERE id = ${context.project.id} FOR UPDATE`;
+            release();
+            await new Promise((resolveSleep) => setTimeout(resolveSleep, holdMs));
+          },
+          { timeout: 30000, maxWait: 5000 }
+        );
+        await locked;
+        yield [prItem(1, 'closed', OCCURRED)];
+      })()
+    );
+    return { double, holder };
+  }
+
+  it('C2-01 trava do projeto além do prazo: a execução termina FAILED com GITHUB_SYNC_PROJECT_BUSY, os ganchos rodam e a próxima é aceita (EV-S-04)', async () => {
+    const context = await syncedPullRequests([1]);
+    const { double, holder } = lockedPullRequestPage(context, 7000);
+    boundary.client = double;
+    const { reconcile, dispatch } = hooks();
+
+    let run;
+    try {
+      run = await runSync(context);
+    } finally {
+      await holder.done;
+    }
+
+    expect(run.status).toBe('FAILED');
+    expect(run.error).toEqual({ code: 'GITHUB_SYNC_PROJECT_BUSY', message: BUSY_MESSAGE });
+    const stored = await prisma.gitHubSyncRun.findUnique({ where: { id: run.id } });
+    expect(stored).toMatchObject({ status: 'FAILED', activeProjectId: null });
+    expect(reconcile).toHaveBeenCalledWith(context.project.id);
+    expect(dispatch).toHaveBeenCalledWith(context.project.id);
+    expect(
+      await prisma.auditEvent.count({
+        where: { projectId: context.project.id, action: 'GITHUB_SYNC_FAILED' }
+      })
+    ).toBe(1);
+    expect(
+      await prisma.gitHubArtifactEvent.count({ where: { projectId: context.project.id } })
+    ).toBe(0);
+
+    vi.restoreAllMocks();
+    boundary.client = githubDouble(context.repositoryId, {
+      pullRequests: [prItem(1, 'closed', OCCURRED)]
+    });
+    expect((await runSync(context)).status).toBe('SUCCEEDED');
+    expect(
+      await prisma.gitHubArtifactEvent.count({ where: { projectId: context.project.id } })
+    ).toBe(1);
+    expect(await recipientsOf({ projectId: context.project.id })).toEqual([context.responsible.id]);
+  }, 60000);
+
+  it('C2-02 trava do projeto abaixo do prazo: a página espera e a execução termina SUCCEEDED', async () => {
+    const context = await syncedPullRequests([1]);
+    const { double, holder } = lockedPullRequestPage(context, 1000);
+    boundary.client = double;
+
+    let run;
+    try {
+      run = await runSync(context);
+    } finally {
+      await holder.done;
+    }
+
+    expect(run.status).toBe('SUCCEEDED');
+    expect(
+      await prisma.gitHubArtifactEvent.count({ where: { projectId: context.project.id } })
+    ).toBe(1);
+  }, 60000);
+
+  it.each([
+    ['P1017', closed],
+    ['P2025', missing]
+  ])(
+    'C2-03 gravação da falha com %s no pool compartilhado: a conexão de recuperação grava FAILED e os ganchos rodam',
+    async (_, error) => {
+      const context = await syncedPullRequests([1]);
+      boundary.client = githubDouble(context.repositoryId, {
+        pullRequests: [prItem(1, 'closed', OCCURRED)]
+      });
+      vi.spyOn(githubEventRepository, 'recordTransitions').mockRejectedValueOnce(deadlock());
+      const fail = vi.spyOn(githubSyncRunRepository, 'fail').mockRejectedValueOnce(error);
+      const recovery = vi.spyOn(githubSyncRunRepository, 'failOnRecoveryConnection');
+      const { reconcile, dispatch } = hooks();
+
+      const run = await runSync(context);
+
+      expect(fail).toHaveBeenCalledTimes(1);
+      expect(recovery).toHaveBeenCalledTimes(1);
+      expect(run.status).toBe('FAILED');
+      expect(run.error.code).toBe('GITHUB_SYNC_STORAGE_FAILED');
+      expect(reconcile).toHaveBeenCalledWith(context.project.id);
+      expect(dispatch).toHaveBeenCalledWith(context.project.id);
+    }
+  );
+
+  it('C2-03 sem conseguir gravar a falha em três tentativas: log de erro, ganchos e nenhuma exceção', async () => {
+    const context = await syncedPullRequests([1]);
+    boundary.client = githubDouble(context.repositoryId, {
+      pullRequests: [prItem(1, 'closed', OCCURRED)]
+    });
+    vi.spyOn(githubEventRepository, 'recordTransitions').mockRejectedValueOnce(deadlock());
+    const fail = vi.spyOn(githubSyncRunRepository, 'fail').mockRejectedValue(closed);
+    const recovery = vi
+      .spyOn(githubSyncRunRepository, 'failOnRecoveryConnection')
+      .mockRejectedValue(closed);
+    const { reconcile, dispatch } = hooks();
+    loggerMock.error.mockClear();
+
+    const run = await runSync(context);
+
+    expect(fail).toHaveBeenCalledTimes(1);
+    expect(recovery).toHaveBeenCalledTimes(2);
+    expect(run.status).toBe('RUNNING');
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'github_sync_run_failure_unrecorded',
+        projectId: context.project.id,
+        errorCode: 'GITHUB_SYNC_STORAGE_FAILED',
+        causeCode: 'P1017'
+      })
+    );
+    expect(reconcile).toHaveBeenCalledWith(context.project.id);
+    expect(dispatch).toHaveBeenCalledWith(context.project.id);
+  });
+
+  it('C2-04 página que estoura o tempo com uma consulta em andamento termina FAILED, sem RUNNING preso', async () => {
+    const context = await syncedPullRequests([1]);
+    boundary.client = githubDouble(context.repositoryId, {
+      pullRequests: [prItem(1, 'closed', OCCURRED)]
+    });
+    const original = githubEventRepository.recordTransitions;
+    vi.spyOn(githubEventRepository, 'recordTransitions').mockImplementationOnce(
+      async (tx, input) => {
+        await tx.$queryRaw`SELECT SLEEP(6)`;
+        return original.call(githubEventRepository, tx, input);
+      }
+    );
+
+    let run;
+    try {
+      run = await runSync(context);
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    expect(run.status).toBe('FAILED');
+    expect(run.error.code).toBe('GITHUB_SYNC_STORAGE_FAILED');
+    const stored = await prisma.gitHubSyncRun.findUnique({ where: { id: run.id } });
+    expect(stored).toMatchObject({ status: 'FAILED', activeProjectId: null });
+  }, 60000);
+
+  it('C2-05 as escritas da sincronização travam o projeto com NOWAIT; as outras escritas não', async () => {
+    const context = await syncedPullRequests([1]);
+    boundary.client = githubDouble(context.repositoryId, {
+      pullRequests: [prItem(1, 'closed', OCCURRED)]
+    });
+    vi.spyOn(traceabilityAlertService, 'reconcileAfterSync').mockResolvedValue(undefined);
+
+    queries.enabled = true;
+    expect((await runSync(context)).status).toBe('SUCCEEDED');
+    queries.enabled = false;
+    const syncLocks = queries.texts.filter((text) => projectLockQuery.test(text));
+    queries.texts = [];
+    queries.enabled = true;
+    await projectRepository.updateProject(context.project.id, { name: 'Projeto renomeado' });
+    queries.enabled = false;
+    const userLocks = queries.texts.filter((text) => projectLockQuery.test(text));
+
+    expect(syncLocks.length).toBeGreaterThanOrEqual(5);
+    expect(syncLocks.filter((text) => !/NOWAIT/i.test(text))).toEqual([]);
+    expect(userLocks).toHaveLength(1);
+    expect(userLocks[0]).not.toMatch(/NOWAIT/i);
   });
 });

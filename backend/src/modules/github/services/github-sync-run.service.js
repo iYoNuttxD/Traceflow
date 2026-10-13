@@ -9,6 +9,17 @@ import { githubSyncFailure } from '../github-error.js';
 import { syncProjectGithubData } from './sync-project-github.service.js';
 
 export const GITHUB_SYNC_STALE_AFTER_MS = 30 * 60 * 1000;
+const FAILURE_RECORD_PAUSES_MS = [250, 500];
+const CONNECTION_FAILURES = new Set([
+  'P1001',
+  'P1002',
+  'P1008',
+  'P1017',
+  'P2024',
+  'P2025',
+  'P2028'
+]);
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function publicRun(run, { alreadyRunning = false } = {}) {
   if (!run) return null;
@@ -92,6 +103,28 @@ async function recordRunAudit(run, action, result = 'SUCCESS', reasonCode) {
   }
 }
 
+async function recordFailure(run, failure) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return attempt === 0
+        ? await githubSyncRunRepository.fail(run.id, failure)
+        : await githubSyncRunRepository.failOnRecoveryConnection(run.id, failure);
+    } catch (error) {
+      if (!CONNECTION_FAILURES.has(error?.code) || attempt >= FAILURE_RECORD_PAUSES_MS.length) {
+        logger.error('Não foi possível registrar a falha da execução GitHub.', {
+          event: 'github_sync_run_failure_unrecorded',
+          projectId: run.projectId,
+          runId: run.id,
+          errorCode: failure.errorCode,
+          causeCode: String(error?.code || 'UNKNOWN').slice(0, 64)
+        });
+        return null;
+      }
+      await wait(FAILURE_RECORD_PAUSES_MS[attempt]);
+    }
+  }
+}
+
 export async function executeGithubSyncRun(runId) {
   const claimedAt = new Date();
   if (!(await githubSyncRunRepository.claim(runId, claimedAt))) return null;
@@ -132,27 +165,28 @@ export async function executeGithubSyncRun(runId) {
     const finishedAt = new Date();
     const failure = githubSyncFailure(error);
     const errorCode = failure.code.slice(0, 191);
-    const errorMessage = failure.message.slice(0, 191);
-    const failed = await githubSyncRunRepository.fail(run.id, {
+    const durationMs = finishedAt.getTime() - startedAtMs;
+    const failed = await recordFailure(run, {
       errorCode,
-      errorMessage,
+      errorMessage: failure.message.slice(0, 191),
       finishedAt,
-      durationMs: finishedAt.getTime() - startedAtMs
+      durationMs
     });
     await recordRunAudit(run, 'GITHUB_SYNC_FAILED', 'FAILURE', errorCode);
     await traceabilityAlertService.reconcileAfterSync(run.projectId);
     await githubEventNotificationService.dispatchAfterSync(run.projectId);
+    const current = failed ?? run;
     logger.warn('Execução persistida de sincronização GitHub falhou.', {
       event: 'github_sync_run_failed',
       projectId: run.projectId,
       runId: run.id,
-      step: failed.step,
-      branch: failed.currentBranch,
-      durationMs: failed.durationMs,
+      step: current.step,
+      branch: current.currentBranch,
+      durationMs,
       errorCode,
       ...(failure.causeCode ? { causeCode: failure.causeCode } : {})
     });
-    return publicRun(failed);
+    return publicRun(current);
   }
 }
 

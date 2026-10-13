@@ -1,6 +1,6 @@
 // Repository de Pull Requests importados do GitHub.
 import { prisma } from '../../database/prismaClient.js';
-import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
 import { githubEventRepository } from '../notifications/github-event.repository.js';
 
 function buildPullRequestUpdate(data) {
@@ -50,35 +50,39 @@ export const pullRequestRepository = {
     }
 
     const projectId = data[0].projectId;
-    return withActiveProjectWrite(projectId, async (tx) => {
-      const existing = await tx.pullRequest.findMany({
-        where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
-        select: {
-          id: true,
-          githubId: true,
-          state: true,
-          closedAtGithub: true,
-          mergedAtGithub: true
-        }
-      });
-      const previous = new Map(existing.map((row) => [row.githubId, row]));
-      for (const pullRequest of data) {
-        await tx.pullRequest.upsert({
-          where: { projectId_githubId: { projectId, githubId: pullRequest.githubId } },
-          update: buildPullRequestUpdate(pullRequest),
-          create: pullRequest
+    return withActiveProjectWrite(
+      projectId,
+      async (tx) => {
+        const existing = await tx.pullRequest.findMany({
+          where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
+          select: {
+            id: true,
+            githubId: true,
+            state: true,
+            closedAtGithub: true,
+            mergedAtGithub: true
+          }
         });
-      }
-      const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
-      const recorded = await githubEventRepository.recordTransitions(tx, {
-        projectId,
-        kind: 'PULL_REQUEST',
-        previous,
-        incoming: data,
-        detectedAt: detectedAt ?? new Date()
-      });
-      return { created: data.length - updated, updated, ...recorded };
-    });
+        const previous = new Map(existing.map((row) => [row.githubId, row]));
+        for (const pullRequest of data) {
+          await tx.pullRequest.upsert({
+            where: { projectId_githubId: { projectId, githubId: pullRequest.githubId } },
+            update: buildPullRequestUpdate(pullRequest),
+            create: pullRequest
+          });
+        }
+        const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
+        const recorded = await githubEventRepository.recordTransitions(tx, {
+          projectId,
+          kind: 'PULL_REQUEST',
+          previous,
+          incoming: data,
+          detectedAt: detectedAt ?? new Date()
+        });
+        return { created: data.length - updated, updated, ...recorded };
+      },
+      SYNC_WRITE
+    );
   },
 
   async listByProjectId(projectId, filters = {}) {

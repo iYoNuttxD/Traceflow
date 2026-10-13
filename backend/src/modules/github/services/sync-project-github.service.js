@@ -198,11 +198,19 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
     };
   } catch (error) {
     if (project) {
-      await projectRepository.markGithubSyncFailed(
-        parsedProjectId,
-        attemptedAt,
-        normalizeGithubSyncError(error).slice(0, 255)
-      );
+      await projectRepository
+        .markGithubSyncFailed(
+          parsedProjectId,
+          attemptedAt,
+          normalizeGithubSyncError(error).slice(0, 255)
+        )
+        .catch((markError) =>
+          logger.warn('Não foi possível registrar a falha da sincronização no projeto.', {
+            event: 'github_sync_project_failure_unrecorded',
+            projectId: parsedProjectId,
+            errorCode: String(markError?.code || 'UNKNOWN').slice(0, 64)
+          })
+        );
     }
     throw error;
   } finally {

@@ -34,9 +34,10 @@ describe('S2-03 correções — C1-03 classificação das falhas da sincronizaç
     });
   });
 
-  it('trava esgotada continua GITHUB_SYNC_PROJECT_BUSY, com a própria mensagem', () => {
-    const error = failing({ code: 'GITHUB_SYNC_PROJECT_BUSY' }, BUSY_MESSAGE);
-
+  it.each([
+    ['código da trava', failing({ code: 'GITHUB_SYNC_PROJECT_BUSY' }, BUSY_MESSAGE)],
+    ['NOWAIT esgotado (P2010, 3572)', failing({ code: 'P2010', meta: { code: '3572' } })]
+  ])('trava esgotada (%s) vira GITHUB_SYNC_PROJECT_BUSY, com a própria mensagem', (_, error) => {
     expect(githubSyncFailure(error)).toEqual({
       code: 'GITHUB_SYNC_PROJECT_BUSY',
       message: BUSY_MESSAGE,
