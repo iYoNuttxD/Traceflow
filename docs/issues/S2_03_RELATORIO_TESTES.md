@@ -14,6 +14,7 @@ com o mapa de casos em [S2_03_MAPA_TESTES.md](S2_03_MAPA_TESTES.md).
 | Ambiente | Windows 11; Node v22.18.0 (ICU 77.1, tzdata 2025b); MySQL de teste `traceflow_test`; Fase 7 no banco de desenvolvimento `traceflow` |
 | Código de produção | intocado: `git diff --exit-code -- backend/src backend/scripts frontend/src` limpo depois de cada fase e de cada mutação |
 | Fase 7 (roteiro manual) | executada em 12/10/2026 no ambiente do João (seção 14); carga limpa no fim, com aval |
+| Correções | 13/10/2026, `be3cf2b`..`87ff81b`, sem push (seção 16) |
 
 ## 1. Resumo
 
@@ -524,3 +525,73 @@ opcional.
 | métrica com dados reais | só cenário controlado e carga sintética | S3-01 |
 | anel de foco em alto contraste | captura opcional não feita | homologação visual do João |
 | consulta periódica no Chrome automatizado | a aba oculta não roda o temporizador | verificação manual |
+
+## 16. Correções (13/10/2026)
+
+O enunciado está em [S2_03_PROMPT_CORRECOES.md](S2_03_PROMPT_CORRECOES.md), com os 13 pontos de decisão
+aprovados pelo João em 13/10/2026. Cada correção nasceu de um teste vermelho pelo motivo do achado,
+salvo as correções só documentais (A13 a e c). Nesse caso, o teste fixa o comportamento real que a
+regra passou a descrever.
+
+| Achado | Commit | Testes | Resultado |
+|---|---|---|---|
+| A13 a, c, d, e (documentos) | `be3cf2b` | C0-01 (R-T05 reescrito), C0-02 (EV-M-03) | regra, ADR-018, contrato, runbooks, delta ASVS e aviso de privacidade revistos |
+| A06 | `5c53685` | C1-01 (R-H4), C1-02, C1-03 | erro de banco sai com `GITHUB_SYNC_STORAGE_FAILED`; o código do Prisma só no log (`causeCode`) |
+| A01 | `b41727a` | C2-01 (EV-S-04), C2-02 a C2-05 | trava esperada por no máximo 5 s (`GITHUB_SYNC_PROJECT_BUSY`); falha sempre gravada; ganchos sempre |
+| A03, A13 b | `1c9ff37` | C3-01 (R-Q01), C3-02, C3-03 | 100 transições custam o mesmo que 1 (309 instruções; antes, 606) |
+| A02 | `bb09a9b` | C4-01 a C4-03; EV-E-06 reescrito | evento de projeto excluído despachado, oculto até a restauração |
+| A05, A11, A12 | `8e40f22` | C5-01 (EV-J-09), C5-02 (EV-J-10), C5-03 (EV-K-03), C5-04 | `failedStock`, `dueAfter`, `oldestDueAgeSeconds` e `claimLost` |
+| A13 f | `3051997`, `87ff81b` | C6-01 | `stdout` dos dois jobs só com o relatório |
+| A09, A10 | `532c466` | C7-01 (EV-D-01), C7-02 (EV-F-02) | URL revalidada na exportação; mensagem para recarregar a página |
+| A08 (API) | `5590547` | C8-01 a C8-03 | filtro `group` |
+| A04, A07, A08 (central) | `e7fb492` | C9-01 (EV-U-05) a C9-04 | texto da reabertura, nomes acessíveis com o contexto, grupo "Origem" |
+
+**Desvios em relação ao prompt:**
+
+1. **A01, gravação da falha.**
+   - O prompt previa novas tentativas no mesmo pool. Elas não bastaram: depois de um `P2028` com consulta em andamento, a conexão devolvida ao pool fica dessincronizada.
+   - No C2-04, a mesma conexão respondeu `P2025` às três tentativas, leu vazio por mais de 750 ms e, numa inserção de auditoria, derrubou uma thread do motor do Prisma ("Could not figure out an ID in create"), capturada como erro.
+   - A gravação passou a usar, depois de erro de conexão, um cliente de recuperação com pool próprio (`src/database/recovery-prisma.js`), que era a alternativa do próprio relatório.
+   - O efeito sobre outras requisições é do S202-F29, que subiu para MÉDIA com essa evidência.
+2. **Rótulo da origem.** O prompt dizia "Todas"; ficou "Todas as origens", porque dois rádios chamados "Todas" na mesma tela confundiam leitor de tela e testes.
+3. **C7-01.** Saiu a URL de 513 caracteres, que a coluna não aceita. Entrou a de 512, que continua válida.
+4. **C9-01.** "Abrir tarefa" mantém o mesmo nome nos dois cartões, como decidido no ponto 7 (destino igual). A reprodução EV-U-05 exigia nomes distintos também ali.
+5. **Testes reescritos.** Além dos listados no prompt, o F2 de `Notifications.github-events.test.jsx` fixava o texto antigo da reabertura e foi reescrito antes da correção.
+6. **Sincronização sem `NOWAIT`.** As sugestões de commit continuam esperando a trava, porque servem também a uma ação de usuário (S202-F29). O gancho de alertas do S2-01, que roda depois da sincronização, também.
+
+**Medição de latência depois do A03** (proxy da campanha, banco de teste):
+
+| Latência efetiva | Sem transição | 100 transições |
+|---:|---:|---:|
+| 2,37 ms | 931 ms | 884 ms |
+| 8,67 ms | 2.847 ms | 2.885 ms |
+| 10,66 ms | 3.479 ms | 3.495 ms |
+| 14,71 ms | 4.812 ms | 4.939 ms |
+| 17,58 ms | `P2028` | `P2028` |
+
+A página-base, anterior ao S2-03, passa dos 5 s por volta de 15 ms (S203-F22, para o S2-08).
+
+**Verificação:**
+
+| Item | Resultado |
+|---|---|
+| Suíte completa do backend, duas vezes | 2.228 verdes, idênticas nas duas rodadas; só a falha de ambiente `EPERM` de symlink (`storage.test.js`) |
+| Gates do backend | `lint`, `format:check`, `architecture:check` e `security:secrets` verdes |
+| Frontend | os nove arquivos da central e das preferências verdes isolados; bateria e modelo de exibição verdes em `America/Sao_Paulo`, `Pacific/Kiritimati`, `Pacific/Pago_Pago` e `UTC`; `lint`, `format:check` e `build` verdes |
+| Mutantes das correções (MC01–MC17) | 17 de 17 mortos, cada um pelo teste da correção |
+| Mutantes da campanha (MT01–MT38) | 37 de 37 aplicáveis mortos; MT10 ("janela antes do projeto excluído") obsoleto com a saída de `PROJECT_DELETED`; MT32 e MT38 com o trecho atualizado |
+| Mutantes da implementação (MS01–MS25, 31 com variantes) | 31 de 31 mortos; MS04, MS05, MS06 e MS12a com o trecho atualizado para o código em lote e a exclusão nova |
+| Código de produção depois das mutações | intacto (`git diff` vazio em `backend/src`, `backend/scripts` e `frontend/src`) |
+| EXPLAIN com 50.000 eventos despachados | a busca dos vencidos e a pendência vencida mais antiga usam o índice `(status, nextAttemptAt)`; `findDueEventIds` em cerca de 1 ms e `queueSummary` em 1 a 3 ms |
+| Coautoria | `git log --format='%h [%(trailers)]' fd62f97..HEAD` sem nenhum trailer nos commits das correções |
+
+**Vereditos depois das correções:**
+- **C1:** atende, com a data da reabertura declarada como aproximação e o texto do cartão honesto.
+- **C5:** atende: a página que falha é registrada e libera a próxima sincronização, o estoque de `FAILED` aparece em toda execução, e o evento de projeto excluído não se perde.
+- **C7:** atende: "enviada corretamente" está definida pelo `outcome`.
+- **K3 e K4:** atendem.
+
+**O que continua pendente:**
+- a verificação visual das mudanças da central no ambiente do João (Fase 11 do prompt) e o `VISUALLY APPROVED`;
+- E2E (S104-F02), CI remota e agendador do job;
+- o S202-F29, agora MÉDIA com a evidência do C2-04.
