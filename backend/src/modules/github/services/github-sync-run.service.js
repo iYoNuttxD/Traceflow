@@ -5,7 +5,8 @@ import { parseProjectId, ProjectServiceError } from '../../projects/project.sche
 import { logger } from '../../../shared/logger/index.js';
 import { traceabilityAlertService } from '../../traceability/traceability-alert.service.js';
 import { githubEventNotificationService } from '../../notifications/github-event-notification.service.js';
-import { normalizeGithubSyncError, syncProjectGithubData } from './sync-project-github.service.js';
+import { githubSyncFailure } from '../github-error.js';
+import { syncProjectGithubData } from './sync-project-github.service.js';
 
 export const GITHUB_SYNC_STALE_AFTER_MS = 30 * 60 * 1000;
 
@@ -129,8 +130,9 @@ export async function executeGithubSyncRun(runId) {
     return publicRun(completed);
   } catch (error) {
     const finishedAt = new Date();
-    const errorCode = String(error.code || 'GITHUB_SYNC_FAILED').slice(0, 191);
-    const errorMessage = normalizeGithubSyncError(error).slice(0, 191);
+    const failure = githubSyncFailure(error);
+    const errorCode = failure.code.slice(0, 191);
+    const errorMessage = failure.message.slice(0, 191);
     const failed = await githubSyncRunRepository.fail(run.id, {
       errorCode,
       errorMessage,
@@ -147,7 +149,8 @@ export async function executeGithubSyncRun(runId) {
       step: failed.step,
       branch: failed.currentBranch,
       durationMs: failed.durationMs,
-      errorCode
+      errorCode,
+      ...(failure.causeCode ? { causeCode: failure.causeCode } : {})
     });
     return publicRun(failed);
   }

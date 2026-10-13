@@ -1,4 +1,10 @@
-import { ERROR_CODES } from '../../shared/errors/index.js';
+import { DomainError, ERROR_CODES } from '../../shared/errors/index.js';
+
+const STORAGE_CAUSE = /^P\d{4}$/;
+const STORAGE_FAILURE_MESSAGE =
+  'Não foi possível gravar os dados da sincronização. Tente de novo em instantes.';
+export const PROJECT_BUSY_MESSAGE =
+  'O projeto está com outra alteração em andamento. Tente sincronizar de novo em instantes.';
 
 function header(error, name) {
   const headers = error?.response?.headers;
@@ -66,5 +72,33 @@ export function normalizeGithubError(error) {
     message: 'Não foi possível sincronizar com o GitHub.',
     code: ERROR_CODES.EXTERNAL_SERVICE_ERROR,
     externalStatus
+  };
+}
+
+function storageCauseOf(error) {
+  for (const value of [error?.code, error?.errorCode])
+    if (STORAGE_CAUSE.test(String(value ?? ''))) return String(value);
+  const name = String(error?.name ?? '');
+  return name.startsWith('PrismaClient') ? name : null;
+}
+
+export function githubSyncFailure(error) {
+  if (error?.code === ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY)
+    return {
+      code: ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY,
+      message: PROJECT_BUSY_MESSAGE,
+      causeCode: null
+    };
+  const causeCode = storageCauseOf(error);
+  if (causeCode)
+    return {
+      code: ERROR_CODES.GITHUB_SYNC_STORAGE_FAILED,
+      message: STORAGE_FAILURE_MESSAGE,
+      causeCode
+    };
+  return {
+    code: String(error?.code || 'GITHUB_SYNC_FAILED'),
+    message: error instanceof DomainError ? error.message : normalizeGithubError(error).message,
+    causeCode: null
   };
 }

@@ -1,5 +1,5 @@
 import { githubInstallationClientFactory } from '../github.client.js';
-import { normalizeGithubError } from '../github-error.js';
+import { githubSyncFailure } from '../github-error.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import {
   buildGithubRepositoryMetadata,
@@ -30,8 +30,7 @@ function linkedRepositoryCoordinates(integration) {
 }
 
 export function normalizeGithubSyncError(error) {
-  if (error instanceof ProjectServiceError) return error.message;
-  return normalizeGithubError(error).message;
+  return githubSyncFailure(error).message;
 }
 
 function logStep(event, projectId, step, startedAt, details = {}) {

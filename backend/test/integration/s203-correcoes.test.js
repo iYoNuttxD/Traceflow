@@ -6,6 +6,7 @@ import {
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
 
+const boundary = vi.hoisted(() => ({ client: null }));
 const loggerMock = vi.hoisted(() => ({
   debug: vi.fn(),
   info: vi.fn(),
@@ -16,6 +17,9 @@ vi.mock('../../src/shared/logger/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   logger: loggerMock
 }));
+vi.mock('../../src/modules/github/github.client.js', () => ({
+  githubInstallationClientFactory: { forInstallation: () => boundary.client }
+}));
 
 const NOW = new Date('2026-10-20T12:00:00.000Z');
 const OCCURRED = new Date('2026-10-20T10:00:00.000Z');
@@ -23,10 +27,16 @@ const MINUTE = 60_000;
 const at = (ms) => new Date(NOW.getTime() + ms);
 const PROJECT_CREATED_AT = new Date('2026-08-01T12:00:00.000Z');
 
+const STORAGE_MESSAGE =
+  'Não foi possível gravar os dados da sincronização. Tente de novo em instantes.';
+
 let prisma;
 let issueRepository;
 let githubEventRepository;
 let createGithubEventNotificationService;
+let githubSyncRunRepository;
+let executeGithubSyncRun;
+let getProjectGithubSyncStatus;
 let sequence = 0;
 
 beforeAll(async () => {
@@ -38,11 +48,16 @@ beforeAll(async () => {
     await import('../../src/modules/notifications/github-event.repository.js'));
   ({ createGithubEventNotificationService } =
     await import('../../src/modules/notifications/github-event-notification.service.js'));
+  ({ githubSyncRunRepository } =
+    await import('../../src/modules/github/github-sync-run.repository.js'));
+  ({ executeGithubSyncRun, getProjectGithubSyncStatus } =
+    await import('../../src/modules/github/services/github-sync-run.service.js'));
   await cleanTestDatabase(prisma);
 }, 60000);
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  boundary.client = null;
   await cleanTestDatabase(prisma);
 });
 
@@ -132,6 +147,101 @@ async function linkedIssueScenario() {
   return { project, responsible, task, issue };
 }
 
+async function integratedProject() {
+  sequence += 1;
+  const owner = await person();
+  const installation = await prisma.gitHubInstallation.create({
+    data: {
+      githubInstallationId: `s203-cor-sync-${sequence}`,
+      accountId: `s203-cor-sync-account-${sequence}`,
+      accountLogin: 'usuario-s203',
+      accountType: 'User',
+      installedAt: new Date(),
+      status: 'ACTIVE'
+    }
+  });
+  const project = await newProject();
+  await prisma.projectMembership.create({
+    data: { projectId: project.id, userId: owner.id, role: 'OWNER' }
+  });
+  const repositoryId = String(98000 + sequence);
+  await prisma.projectGitHubIntegration.create({
+    data: {
+      projectId: project.id,
+      installationId: installation.id,
+      githubRepositoryId: repositoryId,
+      repositoryName: 'repositorio-s203',
+      repositoryFullName: 'usuario-s203/repositorio-s203',
+      repositoryUrl: 'https://github.com/usuario-s203/repositorio-s203',
+      defaultBranch: 'trunk',
+      status: 'ACTIVE'
+    }
+  });
+  return { project, owner, repositoryId };
+}
+
+async function* pages(...values) {
+  for (const value of values) yield value;
+}
+
+function githubDouble(repositoryId, { pullRequests = [] } = {}) {
+  return {
+    getRepository: vi.fn().mockResolvedValue({
+      githubRepositoryId: repositoryId,
+      name: 'repositorio-s203',
+      owner: 'usuario-s203',
+      fullName: 'usuario-s203/repositorio-s203',
+      url: 'https://github.com/usuario-s203/repositorio-s203',
+      defaultBranch: 'trunk',
+      private: true,
+      description: null
+    }),
+    listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: null }])),
+    listCommitPages: vi.fn(() => pages([])),
+    listPullRequestPages: vi.fn(() => pages(pullRequests)),
+    listIssuePages: vi.fn(() => pages([]))
+  };
+}
+
+const prItem = (number, state, mergedAt = null) => ({
+  githubId: `s203-cor-sync-pr-${number}`,
+  number,
+  title: `PR ${number}`,
+  state,
+  closedAtGithub: state === 'closed' ? mergedAt || OCCURRED : null,
+  mergedAtGithub: mergedAt,
+  githubUrl: `https://github.com/usuario-s203/repositorio-s203/pull/${number}`
+});
+
+async function runSync(context) {
+  const run = await githubSyncRunRepository.create(context.project.id, context.owner.id);
+  return executeGithubSyncRun(run.id);
+}
+
+async function syncedPullRequests(numbers) {
+  const context = await integratedProject();
+  const responsible = await person(context.project.id);
+  boundary.client = githubDouble(context.repositoryId, {
+    pullRequests: numbers.map((number) => prItem(number, 'open'))
+  });
+  expect((await runSync(context)).status).toBe('SUCCEEDED');
+  for (const number of numbers) {
+    const task = await createTask(prisma, context.project.id, {
+      responsibleUserId: responsible.id
+    });
+    const pullRequest = await prisma.pullRequest.findFirst({
+      where: { projectId: context.project.id, number }
+    });
+    await prisma.task.update({ where: { id: task.id }, data: { pullRequestId: pullRequest.id } });
+  }
+  return { ...context, responsible };
+}
+
+const deadlock = () =>
+  Object.assign(new Error('Deadlock found when trying to get lock; try restarting transaction'), {
+    code: 'P2034'
+  });
+
 describe('S2-03 correções — Fase 0: comportamento descrito na regra (S203-A13 a, c)', () => {
   it('C0-01 a primeira sincronização depois da implantação gera evento para a transição desde a anterior; a primeira observação não gera', async () => {
     const { project, responsible, issue } = await linkedIssueScenario();
@@ -180,5 +290,43 @@ describe('S2-03 correções — Fase 0: comportamento descrito na regra (S203-A1
     });
     expect(((created + alreadyNotified) / eligible) * 100).toBe(100);
     expect(await prisma.notification.count()).toBe(1);
+  });
+});
+
+describe('S2-03 correções — Fase 1: código estável na falha de gravação (S203-A06)', () => {
+  async function failedByDeadlock() {
+    const context = await syncedPullRequests([1]);
+    boundary.client = githubDouble(context.repositoryId, {
+      pullRequests: [prItem(1, 'closed', OCCURRED)]
+    });
+    vi.spyOn(githubEventRepository, 'recordTransitions').mockRejectedValueOnce(deadlock());
+    loggerMock.warn.mockClear();
+    return { context, run: await runSync(context) };
+  }
+
+  it('C1-01 erro de banco na gravação da fila sai com GITHUB_SYNC_STORAGE_FAILED e mensagem que não culpa o GitHub (R-H4)', async () => {
+    const { context, run } = await failedByDeadlock();
+
+    expect(run.status).toBe('FAILED');
+    expect(run.error).toEqual({ code: 'GITHUB_SYNC_STORAGE_FAILED', message: STORAGE_MESSAGE });
+    const integration = await prisma.projectGitHubIntegration.findUnique({
+      where: { projectId: context.project.id }
+    });
+    expect(integration.lastSyncError).toBe(STORAGE_MESSAGE);
+  });
+
+  it('C1-02 o código interno do Prisma fica só no log da execução', async () => {
+    const { context } = await failedByDeadlock();
+
+    const failed = loggerMock.warn.mock.calls.find(
+      ([, details]) => details?.event === 'github_sync_run_failed'
+    );
+    expect(failed[1]).toMatchObject({
+      errorCode: 'GITHUB_SYNC_STORAGE_FAILED',
+      causeCode: 'P2034'
+    });
+    const status = await getProjectGithubSyncStatus(context.project.id);
+    expect(status.error.code).toBe('GITHUB_SYNC_STORAGE_FAILED');
+    expect(JSON.stringify(status)).not.toContain('P2034');
   });
 });
