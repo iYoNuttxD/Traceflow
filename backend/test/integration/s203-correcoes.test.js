@@ -754,3 +754,182 @@ describe('S2-03 correções — Fase 3: fila gravada em lote (S203-A03, S203-A13
     );
   });
 });
+
+describe('S2-03 correções — Fase 5: estoque, pendência vencida e reserva perdida (S203-A05, S203-A11, S203-A12)', () => {
+  const DAY = 24 * 60 * MINUTE;
+  const failing = () => Object.assign(new Error('falha'), { code: 'P1001' });
+  const silentLog = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() });
+
+  async function pendingEvents(project, count, { participant = null, detectedAt = NOW } = {}) {
+    const tasks = [];
+    if (participant)
+      for (let index = 0; index < count; index += 1)
+        tasks.push(await createTask(prisma, project.id, { responsibleUserId: participant.id }));
+    await prisma.gitHubArtifactEvent.createMany({
+      data: Array.from({ length: count }, (_, index) => ({
+        projectId: project.id,
+        type: 'ISSUE_CLOSED',
+        artifactNumber: index + 1,
+        artifactTitle: `Issue ${index + 1}`,
+        artifactUrl: `https://github.com/usuario-s203/repositorio-s203/issues/${index + 1}`,
+        occurredAt: OCCURRED,
+        detectedAt,
+        nextAttemptAt: detectedAt,
+        linkedTaskCount: participant ? 1 : 0,
+        occurrenceKey: `ISSUE_CLOSED:fila-${project.id}-${index}:${OCCURRED.toISOString()}`
+      }))
+    });
+    const events = await prisma.gitHubArtifactEvent.findMany({
+      where: { projectId: project.id },
+      orderBy: { id: 'asc' },
+      select: { id: true }
+    });
+    if (participant)
+      await prisma.gitHubArtifactEventTask.createMany({
+        data: events.map((event, index) => ({ eventId: event.id, taskId: tasks[index].id }))
+      });
+    return events.map((event) => event.id);
+  }
+
+  async function failTimes(project, times) {
+    let clock = NOW;
+    for (let attempt = 1; attempt <= times; attempt += 1) {
+      vi.spyOn(githubEventRepository, 'participationOf').mockRejectedValueOnce(failing());
+      await runJob(clock, { projectId: project.id }, { log: silentLog() });
+      vi.restoreAllMocks();
+      const [event] = await eventsOf(project.id);
+      if (event.status === 'FAILED') return event;
+      clock = event.nextAttemptAt;
+    }
+    return (await eventsOf(project.id))[0];
+  }
+
+  function slowDispatcher() {
+    let release = null;
+    let entered = null;
+    const gate = new Promise((resolveGate) => {
+      release = resolveGate;
+    });
+    const inside = new Promise((resolveInside) => {
+      entered = resolveInside;
+    });
+    const repository = {
+      ...githubEventRepository,
+      async participationOf(...args) {
+        entered();
+        await gate;
+        return githubEventRepository.participationOf(...args);
+      }
+    };
+    return { repository, inside, release: () => release() };
+  }
+
+  it('C5-01 o estoque de FAILED aparece em toda execução até o reprocessamento (EV-J-09)', async () => {
+    const { project, issue } = await linkedIssueScenario();
+    await closeIssue(issue);
+    expect((await failTimes(project, 5)).status).toBe('FAILED');
+    const other = await newProject();
+    const log = silentLog();
+
+    const later = await runJob(at(DAY), { projectId: project.id }, { log });
+    const elsewhere = await runJob(at(DAY), { projectId: other.id }, { log: silentLog() });
+
+    expect(later).toMatchObject({ failed: 0, failedStock: 1 });
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'github_event_notifications_dispatch_completed',
+        failedStock: 1
+      })
+    );
+    expect(elsewhere.failedStock).toBe(0);
+    const requeued = await runJob(
+      at(DAY),
+      { projectId: project.id, retryFailed: true },
+      { log: silentLog() }
+    );
+    expect(requeued).toMatchObject({ requeued: 1, dispatched: 1, failedStock: 0 });
+  });
+
+  it('C5-02 a espera normal de retentativa não é pendência vencida; a vencida conta desde o vencimento (EV-J-10)', async () => {
+    const { project, issue } = await linkedIssueScenario();
+    await closeIssue(issue);
+    expect((await failTimes(project, 3)).status).toBe('PENDING');
+
+    const during = await runJob(at(31 * MINUTE), { projectId: project.id });
+
+    expect(during).toMatchObject({
+      scanned: 0,
+      pendingAfter: 1,
+      dueAfter: 0,
+      oldestDueAgeSeconds: null
+    });
+    expect(during).not.toHaveProperty('oldestPendingAgeSeconds');
+
+    const late = await newProject();
+    await pendingEvents(late, 101, { detectedAt: at(-10 * MINUTE) });
+    const hook = await service(NOW).dispatchAfterSync(late.id);
+    expect(hook).toMatchObject({ dispatched: 100, dueAfter: 1, oldestDueAgeSeconds: 600 });
+
+    const stuck = await newProject();
+    const [eventId] = await pendingEvents(stuck, 1, { detectedAt: at(-30 * MINUTE) });
+    await prisma.gitHubArtifactEvent.update({
+      where: { id: eventId },
+      data: {
+        status: 'PROCESSING',
+        claimToken: 'reserva-de-outro',
+        claimedUntil: at(-5 * MINUTE),
+        attempts: 1
+      }
+    });
+    const preview = await service(NOW).runJob({ projectId: stuck.id, dryRun: true });
+    expect(preview).toMatchObject({ dueAfter: 1, oldestDueAgeSeconds: 300 });
+  }, 60000);
+
+  it('C5-03 a reserva perdida deixa log e conta em claimLost; attempts conta a retomada (EV-K-03)', async () => {
+    const project = await newProject();
+    const participant = await person(project.id);
+    await pendingEvents(project, 1, { participant });
+    const slow = slowDispatcher();
+    const log = silentLog();
+
+    const running = service(NOW, { repository: slow.repository, log }).runJob({ dryRun: false });
+    await slow.inside;
+    await runJob(at(3 * MINUTE), {}, { log: silentLog() });
+    slow.release();
+    const report = await running;
+
+    const [event] = await eventsOf(project.id);
+    expect(report).toMatchObject({ claimed: 1, claimLost: 1, dispatched: 0 });
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'github_event_notification_claim_lost',
+        eventId: event.id,
+        projectId: project.id
+      })
+    );
+    expect(event).toMatchObject({ status: 'DISPATCHED', attempts: 2 });
+    expect(await prisma.notification.count()).toBe(1);
+  });
+
+  it('C5-04 a devolução que encontra a reserva perdida também deixa log', async () => {
+    const project = await newProject();
+    const participant = await person(project.id);
+    await pendingEvents(project, 1, { participant });
+    vi.spyOn(githubEventRepository, 'participationOf').mockRejectedValueOnce(failing());
+    vi.spyOn(githubEventRepository, 'release').mockResolvedValueOnce({
+      state: 'LOST',
+      attempts: null
+    });
+    const log = silentLog();
+
+    const report = await runJob(NOW, {}, { log });
+
+    expect(report).toMatchObject({ claimed: 1, claimLost: 1, retryScheduled: 0, failed: 0 });
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ event: 'github_event_notification_claim_lost' })
+    );
+  });
+});

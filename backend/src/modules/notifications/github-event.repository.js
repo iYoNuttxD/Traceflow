@@ -320,17 +320,33 @@ export const githubEventRepository = {
     return result.count;
   },
 
-  async pendingSummary({ projectId = null }) {
-    const where = { ...scopeOf(projectId), status: { in: ['PENDING', 'PROCESSING'] } };
-    const [pending, oldest] = await Promise.all([
-      prisma.gitHubArtifactEvent.count({ where }),
+  async queueSummary({ projectId = null, now }) {
+    const scope = scopeOf(projectId);
+    const [pending, due, oldestPending, oldestProcessing] = await Promise.all([
+      prisma.gitHubArtifactEvent.count({
+        where: { ...scope, status: { in: ['PENDING', 'PROCESSING'] } }
+      }),
+      prisma.gitHubArtifactEvent.count({ where: { ...scope, ...dueWhere(now) } }),
       prisma.gitHubArtifactEvent.findFirst({
-        where,
-        orderBy: { detectedAt: 'asc' },
-        select: { detectedAt: true }
+        where: { ...scope, status: 'PENDING', nextAttemptAt: { lte: now } },
+        orderBy: { nextAttemptAt: 'asc' },
+        select: { nextAttemptAt: true }
+      }),
+      prisma.gitHubArtifactEvent.findFirst({
+        where: {
+          ...scope,
+          status: 'PROCESSING',
+          claimedUntil: { lt: now },
+          attempts: { lt: MAX_DISPATCH_ATTEMPTS }
+        },
+        orderBy: { claimedUntil: 'asc' },
+        select: { claimedUntil: true }
       })
     ]);
-    return { pending, oldestDetectedAt: oldest?.detectedAt ?? null };
+    const dueSince = [oldestPending?.nextAttemptAt, oldestProcessing?.claimedUntil]
+      .filter(Boolean)
+      .sort((left, right) => left - right);
+    return { pending, due, oldestDueAt: dueSince[0] ?? null };
   },
 
   async isActiveProject(projectId) {

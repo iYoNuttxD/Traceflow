@@ -44,12 +44,14 @@ function emptyReport(dryRun, lookbackDays) {
     scanned: 0,
     claimed: 0,
     busy: 0,
+    claimLost: 0,
     dispatched: 0,
     created: 0,
     alreadyNotified: 0,
     excluded: emptyOutcome().excluded,
     retryScheduled: 0,
-    failed: 0
+    failed: 0,
+    failedStock: 0
   };
 }
 
@@ -155,6 +157,15 @@ export function createGithubEventNotificationService({
     return (await repository.finish(eventId, token, { outcome, now })) ? outcome : null;
   }
 
+  function recordClaimLost(eventId, projectId, report) {
+    report.claimLost += 1;
+    log.warn('A reserva do evento do GitHub venceu e outro despachante o retomou.', {
+      event: 'github_event_notification_claim_lost',
+      eventId,
+      projectId
+    });
+  }
+
   async function recordFailure(eventId, projectId, token, now, error, report) {
     const errorCode = errorCodeOf(error);
     let result;
@@ -170,7 +181,10 @@ export function createGithubEventNotificationService({
       });
       return;
     }
-    if (result.state === 'LOST') return;
+    if (result.state === 'LOST') {
+      recordClaimLost(eventId, projectId, report);
+      return;
+    }
     log.warn('Tentativa de despacho de evento do GitHub falhou.', {
       event: 'github_event_notification_attempt_failed',
       eventId,
@@ -207,7 +221,10 @@ export function createGithubEventNotificationService({
     report.claimed += 1;
     try {
       const outcome = await dispatchClaimed(eventId, token, now, lookbackDays);
-      if (!outcome) return;
+      if (!outcome) {
+        recordClaimLost(eventId, projectId, report);
+        return;
+      }
       report.dispatched += 1;
       addOutcome(report, outcome);
     } catch (error) {
@@ -276,34 +293,46 @@ export function createGithubEventNotificationService({
       }
     }
 
-    const pending = await repository.pendingSummary({ projectId });
+    const now = clock();
+    const [failedStock, queue] = await Promise.all([
+      repository.countFailed({ projectId }),
+      repository.queueSummary({ projectId, now })
+    ]);
     report.projects = projects.size;
-    report.pendingAfter = pending.pending;
-    report.oldestPendingAgeSeconds = pending.oldestDetectedAt
-      ? Math.max(0, Math.floor((clock().getTime() - pending.oldestDetectedAt.getTime()) / 1000))
+    report.failedStock = failedStock;
+    report.pendingAfter = queue.pending;
+    report.dueAfter = queue.due;
+    report.oldestDueAgeSeconds = queue.oldestDueAt
+      ? Math.max(0, Math.floor((now.getTime() - queue.oldestDueAt.getTime()) / 1000))
       : null;
     report.durationMs = Date.now() - startedAt;
 
     const failures = report.failed + report.retryScheduled;
-    log[failures ? 'warn' : 'info']('Despacho de notificações do GitHub concluído.', {
-      event: 'github_event_notifications_dispatch_completed',
-      dryRun,
-      projects: report.projects,
-      scanned: report.scanned,
-      claimed: report.claimed,
-      busy: report.busy,
-      dispatched: report.dispatched,
-      created: report.created,
-      alreadyNotified: report.alreadyNotified,
-      ...Object.fromEntries(
-        GITHUB_EVENT_EXCLUSIONS.map((reason) => [`excluded${reason}`, report.excluded[reason]])
-      ),
-      retryScheduled: report.retryScheduled,
-      failed: report.failed,
-      pendingAfter: report.pendingAfter,
-      oldestPendingAgeSeconds: report.oldestPendingAgeSeconds,
-      durationMs: report.durationMs
-    });
+    log[failures || failedStock ? 'warn' : 'info'](
+      'Despacho de notificações do GitHub concluído.',
+      {
+        event: 'github_event_notifications_dispatch_completed',
+        dryRun,
+        projects: report.projects,
+        scanned: report.scanned,
+        claimed: report.claimed,
+        busy: report.busy,
+        claimLost: report.claimLost,
+        dispatched: report.dispatched,
+        created: report.created,
+        alreadyNotified: report.alreadyNotified,
+        ...Object.fromEntries(
+          GITHUB_EVENT_EXCLUSIONS.map((reason) => [`excluded${reason}`, report.excluded[reason]])
+        ),
+        retryScheduled: report.retryScheduled,
+        failed: report.failed,
+        failedStock: report.failedStock,
+        pendingAfter: report.pendingAfter,
+        dueAfter: report.dueAfter,
+        oldestDueAgeSeconds: report.oldestDueAgeSeconds,
+        durationMs: report.durationMs
+      }
+    );
     return report;
   }
 

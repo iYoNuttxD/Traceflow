@@ -1055,16 +1055,19 @@ describe('S2-03 bateria — bloco J: despacho, retentativas e job (D9, D15)', ()
     const base = [
       'alreadyNotified',
       'busy',
+      'claimLost',
       'claimed',
       'created',
       'database',
       'dispatched',
       'dryRun',
+      'dueAfter',
       'durationMs',
       'excluded',
       'failed',
+      'failedStock',
       'lookbackDays',
-      'oldestPendingAgeSeconds',
+      'oldestDueAgeSeconds',
       'pendingAfter',
       'projects',
       'retryScheduled',
@@ -1082,7 +1085,7 @@ describe('S2-03 bateria — bloco J: despacho, retentativas e job (D9, D15)', ()
     expect(appliedRetry.keys).toEqual([...base, 'requeued'].sort());
     expect(Object.keys(applied.body.excluded).sort()).toEqual(Object.keys(excludedWith()).sort());
     expect(JSON.stringify(applied.body.database)).not.toMatch(/:[^:@/]+@/);
-    expect(applied.body.oldestPendingAgeSeconds).toBeNull();
+    expect(applied.body.oldestDueAgeSeconds).toBeNull();
   });
 
   it('EV-J-08 código de erro com quebra de linha sai saneado; o nível do log segue as falhas', async () => {
@@ -1162,8 +1165,8 @@ describe('S2-03 bateria — bloco J: despacho, retentativas e job (D9, D15)', ()
     const [event] = await eventsOf(project.id);
     observe('EV-J-10 durante a espera', {
       proximaTentativa: event.nextAttemptAt,
-      oldestPendingAgeSeconds: during.oldestPendingAgeSeconds,
-      alertaDoRunbookDispararia: during.oldestPendingAgeSeconds > 1800
+      dueAfter: during.dueAfter,
+      oldestDueAgeSeconds: during.oldestDueAgeSeconds
     });
     expect(event.status).toBe('PENDING');
     expect(during.scanned).toBe(0);
