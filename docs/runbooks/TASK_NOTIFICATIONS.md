@@ -97,7 +97,8 @@ O job não depende da nuvem: é o mesmo comando, com as mesmas variáveis.
 
 ## Saída, código de saída e logs
 
-A saída é um JSON:
+O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha JSON por evento
+(desde 13/10/2026; antes, o log de conclusão saía no `stdout`, antes do relatório).
 
 | Campo | Significado |
 | --- | --- |
@@ -121,7 +122,7 @@ A saída é um JSON:
   - 2 quando `--project-id` aponta para projeto inexistente ou excluído, com aviso em `stderr`.
   - A recusa de produção (apply sem `--confirm-production`) acontece antes da varredura: com ela,
     sai 1 mesmo que o `--project-id` não exista. Em dry-run, o mesmo `--project-id` sai 2.
-- **Logs (JSON):**
+- **Logs (JSON, em `stderr`):**
   - `notifications_due_started`, com o fuso e o instante;
   - `notifications_due_project_failed`, com o projeto e o código do erro;
   - `notifications_due_completed`, com as contagens.

@@ -267,12 +267,20 @@ da sincronização, um job agendado (`notifications:github-events`), campos novo
 preferências, e cartões e interruptores na interface. Não há rota nova. A matriz segue a §13.1 do
 contexto de arquitetura; o mapeamento descreve controles exercitados, não é certificação ASVS.
 Testes citados: política `test/unit/github-event.policy.test.js` (P1–P9), detecção
-`test/integration/s203-github-event-detection.test.js` (E1–E14), despacho
-`test/integration/s203-github-event-dispatch.test.js` (G1–G14, M3, M4), API
+`test/integration/s203-github-event-detection.test.js` (E1–E15), despacho
+`test/integration/s203-github-event-dispatch.test.js` (G1–G12, G14, G15, M3, M4), API
 `test/api/s203-github-event-notifications.test.js` (R1–R8, PV1), privacidade
 `test/integration/s203-github-event-privacy.test.js` (PV2–PV4), script
 `test/unit/dispatch-github-event-notifications.script.test.js` e interface
-`frontend/test/pages/Notifications.github-events.test.jsx` (F1–F8).
+`frontend/test/pages/Notifications.github-events.test.jsx` e
+`frontend/test/pages/NotificationPreferencesPage.test.jsx` (F1–F9).
+
+A campanha de testes de 12/10/2026 acrescentou as baterias `test/api/s203-bateria.test.js`,
+`test/integration/s203-bateria.test.js`, `test/unit/s203-bateria.test.js` e
+`frontend/test/pages/Notifications.s203-bateria.test.jsx`, com os casos `EV-*` mapeados em
+[S2_03_MAPA_TESTES.md](../issues/S2_03_MAPA_TESTES.md). As correções de 13/10/2026 estão em
+`test/unit/s203-correcoes.test.js`, `test/integration/s203-correcoes.test.js` e
+`test/api/s203-correcoes.test.js` (casos C0–C8) e na bateria do frontend (C9).
 
 | Requisito | Nível | Aplicação ao S2-03 | Implementação | Evidência | Status |
 |---|---|---|---|---|---|

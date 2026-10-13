@@ -1,6 +1,7 @@
 # ADR-018 — Notificações de eventos de issues e pull requests
 
-- **Estado:** aceita para o cartão S2-03 (RF60, RF61)
+- **Estado:** aceita para o cartão S2-03 (RF60, RF61); revista em 13/10/2026 (correções da campanha de
+  testes)
 - **Data:** 12/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 
@@ -39,6 +40,16 @@ Restrições do terreno:
 1. **Fonte (D1).** A transição nasce da comparação de estado na sincronização (UC04, passo 4), na
    mesma transação que grava a página de PRs ou issues. Vale para a sincronização manual e para a
    automática, que passam pelos mesmos `upsertMany`.
+   - A comparação é com o estado gravado na sincronização anterior. A primeira sincronização depois
+     da implantação gera evento para as transições ocorridas desde então, dentro da janela (D8).
+     Conectar um repositório não gera evento, porque todo artefato é uma primeira observação.
+   - A falha de uma página é registrada mesmo quando a conexão cai junto com ela. A gravação da
+     falha da execução tem até três tentativas, e os ganchos de alerta e de despacho rodam depois.
+   - As escritas da sincronização esperam a trava do projeto por no máximo 5 s
+     (`FOR UPDATE NOWAIT`, com nova tentativa em transação nova). Esgotado o prazo, a página falha
+     com `GITHUB_SYNC_PROJECT_BUSY`.
+   - Erro de banco na sincronização sai com `GITHUB_SYNC_STORAGE_FAILED` e mensagem própria. O
+     código interno do Prisma fica só no log.
 2. **Estados e transições (D2).**
    - Issue: `OPEN` ou `CLOSED`. PR: `OPEN`, `CLOSED` (fechada sem merge) ou `MERGED`.
    - Geram evento: issue `OPEN → CLOSED` (`ISSUE_CLOSED`), issue `CLOSED → OPEN` (`ISSUE_REOPENED`),
@@ -46,6 +57,9 @@ Restrições do terreno:
      `CLOSED → CLOSED` com outra data de fechamento (fechada de novo entre duas sincronizações).
    - Não geram: a primeira observação de um artefato, estado anterior desconhecido, reabertura de
      PR, PR depois de `MERGED` e mudança só de título, corpo, rótulo ou autor.
+   - A data da reabertura (`ISSUE_REOPENED`) é a última atualização observada da issue
+     (`updatedAtGithub`), porque a listagem do GitHub não traz o instante da reabertura. O cartão
+     diz isso, e a janela usa essa data.
    - A tabela completa está em [GITHUB_EVENT_NOTIFICATIONS.md](../data/GITHUB_EVENT_NOTIFICATIONS.md).
 3. **Abertura no RF60 (D3).** É a reabertura de uma issue já vinculada (`ISSUE_REOPENED`), a única
    abertura observável, porque a issue só é vinculada depois de importada.
@@ -57,6 +71,9 @@ Restrições do terreno:
    `GitHubArtifactEventTask` guarda o retrato. A chave da ocorrência é única por projeto. Evento e
    estado novo persistem juntos ou não persistem. A fila fica no módulo `notifications`, que não
    importa `github`, `issues` nem `pullRequests`.
+   - Os eventos e os retratos da página são gravados em lote: um `INSERT` dos eventos, a leitura dos
+     ids pela chave da ocorrência e um `INSERT` dos retratos.
+   - O custo da página com transição não cresce com o número de transições.
 6. **Destinatários (D6).** Participantes de cada tarefa do retrato, no instante do despacho: o
    responsável, quem tem comentário não excluído e quem registrou esforço. Valem as condições do
    S2-02: conta `ACTIVE`, membership ativa no projeto e preferência ligada. Quem fechou ou mesclou não
@@ -75,20 +92,38 @@ Restrições do terreno:
      pelo menos uma vez com consumidor idempotente.
    - Até 5 tentativas, com esperas de 1, 5, 30 e 120 minutos; depois, `FAILED`, com reprocessamento
      manual (`--retry-failed`). Falha no despacho nunca muda o resultado da sincronização.
+   - Cada reserva conta como tentativa, inclusive a retomada de uma reserva vencida. É essa contagem
+     que leva a `FAILED` (`DISPATCH_INTERRUPTED`) o evento que derruba o despachante.
+   - A reserva perdida deixa log (`github_event_notification_claim_lost`).
 10. **Conteúdo (D10).** A notificação copia o evento, o número, o título e a URL do artefato e a data
     da ocorrência. Nunca leva token, cabeçalho ou resposta do GitHub, corpo, login, rótulos ou
     e-mail. O despacho não chama o GitHub.
 11. **Visibilidade (D11).** Igual ao ADR-016 D9. Não há rota nova; a fila não é exposta.
+    - O evento de projeto excluído é despachado como qualquer outro.
+    - As notificações ficam ocultas enquanto o projeto estiver excluído e aparecem com a restauração.
+    - A purga apaga evento, retrato e notificações.
+    - Não há exclusão por projeto excluído.
 12. **Contrato (D12).** Contexto novo no DTO e quatro chaves obrigatórias nas preferências. A
     divergência com o §12 do contexto de arquitetura continua declarada (ADR-016 D17).
+    - A exigência das quatro chaves vale desde 12/10/2026 (`5341a1c`). Chave ausente responde 400
+      com a mensagem para recarregar a página.
+    - A lista aceita o filtro `group` (`ALL`, `TASKS` ou `GITHUB`).
 13. **Interface (D13).** Cartões "Issue" e "Pull request" na central, com "Abrir tarefa" e "Abrir no
     GitHub", e o grupo "Avisos do GitHub" nas preferências.
+    - A central filtra por origem: Todas, Tarefas ou GitHub.
+    - O nome acessível do cartão e do botão de leitura leva o texto do contexto, em todos os tipos.
 14. **Métrica (D14).** Mesmo critério do ADR-016 D16, na unidade do par (tarefa, participante). O
     despacho grava o resultado de cada evento (`outcome`), porque a maior parte do despacho não passa
-    pela saída do job.
-15. **Observabilidade (D15).** Logs só com contagens, ids e códigos. Saída do job com contagens,
-    pendentes e idade do mais antigo; código de saída 0, 1 ou 2. Só o reprocessamento manual é
+    pela saída do job. "Enviada corretamente" é o par elegível com `created` ou `alreadyNotified` no
+    `outcome`. `alreadyNotified` é a notificação criada por uma tentativa anterior do mesmo evento,
+    não uma duplicata.
+15. **Observabilidade (D15).** Logs só com contagens, ids e códigos. Só o reprocessamento manual é
     auditado.
+    - A saída do job traz as contagens da execução, o estoque de `FAILED` (`failedStock`), os
+      pendentes (`pendingAfter`), as pendências vencidas (`dueAfter`), há quanto tempo a mais antiga
+      venceu (`oldestDueAgeSeconds`) e as reservas perdidas (`claimLost`).
+    - O código de saída é 0, 1 ou 2.
+    - O log dos jobs vai para `stderr`, e o `stdout` traz só o relatório.
 16. **Privacidade (D16).** A notificação segue o S2-02 (exportação, anonimização e 180 dias). A fila
     é dado do projeto, sem id de pessoa; eventos `DISPATCHED` e `FAILED` com mais de 180 dias são
     apagados pelo `privacy:retention`.
@@ -118,6 +153,17 @@ Restrições do terreno:
 - **Só o job, sem despacho depois da sincronização.** Rejeitado: o aviso atrasaria até 15 minutos
   além da sincronização.
 - **Métrica só pela saída do job.** Rejeitada: o despacho depois da sincronização não aparece nela.
+- **Fechar o evento de projeto excluído sem notificação (`PROJECT_DELETED`).** Era a regra até
+  12/10/2026. Foi rejeitada porque o aviso se perdia de vez quando o projeto era restaurado
+  (S203-A02).
+- **Adiar o despacho enquanto o projeto estiver excluído.** Rejeitada: exigia mais estado na fila e
+  o tratamento de uma corrida, para o mesmo resultado que a visibilidade do S2-02 já dá.
+- **Gravar a fila numa transação curta depois da página.** Rejeitada: separaria o estado novo do
+  evento, e a queda da segunda transação perderia a transição.
+- **Buscar a data real da reabertura na API de eventos da issue.** Rejeitada: seria uma requisição
+  por reabertura, com falha e limite de taxa a tratar. A aproximação é declarada.
+- **Não contar a retomada de uma reserva vencida como tentativa.** Rejeitada: o evento que derruba o
+  despachante voltaria sem fim.
 
 ## Consequências positivas
 
@@ -135,7 +181,14 @@ Restrições do terreno:
   elas não deixa rastro.
 - Quem fechou ou mesclou também recebe o aviso.
 - A criação de uma issue nunca notifica.
-- A transação de cada página faz até três consultas a mais quando há transição.
+- A data da reabertura de uma issue é aproximada: é a última atualização observada.
+- A página com transição faz até cinco instruções a mais que a página sem transição, qualquer que
+  seja o número de transições.
+- A página sem transição já faz cerca de três instruções por item (um upsert por item, anterior ao
+  S2-03). Com latência de rede até o banco, a página de 100 itens chega aos 5 s da transação por
+  volta de 16 ms (estimativa da campanha). O desenho da nuvem (S2-08) precisa manter o banco abaixo
+  disso (S203-F22).
+- Notificações de projeto excluído existem, ocultas, até a restauração ou a purga.
 - `Notification` ganha cinco colunas anuláveis e o contrato de preferências muda.
 - O ADR-016 previa o S2-03 "sem migration nova"; os valores novos do enum e o contexto do artefato
   exigem migration.
@@ -145,6 +198,7 @@ Restrições do terreno:
 - Nenhuma rota nova. Os destinatários são calculados no servidor, a partir de dados persistidos.
 - O título do artefato vem de terceiros: é exibido como texto, limitado a 256 caracteres. A URL só
   é aceita com o prefixo `https://github.com/` e abre em nova aba com `rel="noopener noreferrer"`.
+  Ela é conferida de novo na saída: no DTO e na exportação.
 - O retrato só aceita tarefas do projeto do evento.
 - Logs sem título, URL, login, nome ou e-mail.
 - **Dados pessoais:**
@@ -152,3 +206,23 @@ Restrições do terreno:
     retida por 180 dias;
   - a fila é dado do projeto, sem id de pessoa, mas o título do artefato pode conter dado pessoal
     escrito no GitHub; eventos processados são apagados depois de 180 dias.
+
+## Revisão de 13/10/2026 — correções da campanha de testes
+
+A campanha de [S2_03_RELATORIO_TESTES.md](../issues/S2_03_RELATORIO_TESTES.md) encontrou 13
+achados. As decisões abaixo foram aprovadas pelo João em 13/10/2026 e estão incorporadas no texto
+acima.
+
+| Achado | Decisão |
+| --- | --- |
+| S203-A01 | falha da página registrada com nova tentativa; trava do projeto esperada por no máximo 5 s nas escritas da sincronização (D1) |
+| S203-A02 | evento de projeto excluído despachado e oculto pela visibilidade do S2-02; `PROJECT_DELETED` deixa de existir (D11) |
+| S203-A03 | fila gravada em lote, com custo constante por página (D5) |
+| S203-A04 | data da reabertura declarada como aproximação (D2) |
+| S203-A05, S203-A11, S203-A12 | estoque de `FAILED`, pendência vencida e reserva perdida na saída do job; `attempts` conta reservas (D9, D15) |
+| S203-A06 | códigos estáveis para falha de gravação e trava esgotada na sincronização (D1) |
+| S203-A07, S203-A08 | nomes acessíveis com o contexto e filtro por origem (D12, D13) |
+| S203-A10 | data da mudança do contrato de preferências e mensagem de chave ausente (D12) |
+| S203-A13 | linha de base, termo "enviada corretamente", custo declarado e log dos jobs em `stderr` (D1, D5, D14, D15) |
+
+O S203-A09 (URL conferida de novo na exportação) muda a implementação sem alterar decisão.

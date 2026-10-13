@@ -409,6 +409,20 @@ Ver [histórico de esforço](../data/TASK_EFFORT_HISTORY.md) para retenção, ad
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação ocorre somente na leitura externa
 do GitHub; os contratos públicos de listagem permanecem inalterados.
 
+**Erro da execução** (`run.error`, ou `null`): `{code, message}`, com código estável e mensagem
+segura, sem resposta bruta do GitHub nem código interno do banco.
+- Falhas do GitHub usam os códigos da integração (`GITHUB_RATE_LIMITED`, `GITHUB_AUTH_FAILED`,
+  `RESOURCE_NOT_FOUND`, `EXTERNAL_SERVICE_ERROR`).
+- A execução que parou sem concluir expira por inatividade com `GITHUB_SYNC_STALE`.
+- Desde 13/10/2026, as falhas de gravação têm código próprio:
+
+| Código | Quando | Mensagem |
+| --- | --- | --- |
+| `GITHUB_SYNC_PROJECT_BUSY` | outra alteração segurou o projeto por mais de 5 s na gravação de uma página | "O projeto está com outra alteração em andamento. Tente sincronizar de novo em instantes." |
+| `GITHUB_SYNC_STORAGE_FAILED` | o banco recusou a gravação da sincronização | "Não foi possível gravar os dados da sincronização. Tente de novo em instantes." |
+
+A página que falha não grava nada dela, e a sincronização seguinte é aceita.
+
 Nomes de branch preservam exatamente a caixa recebida do Git. `Feature/Login`, `feature/login`
 e `FEATURE/LOGIN` são identidades distintas na persistência, nos filtros e nos vínculos de
 rastreabilidade; o backend não normaliza esses nomes.
@@ -1327,12 +1341,12 @@ vencimento, no job `notifications:due`.
 
 | Método | Rota                                 | Entrada                                                                                           | Resposta                                                 |
 | ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `cursor?` ou `page?` (exclusivos), `limit?` (máx. 100)           | `200`, `{notifications,pagination,unreadCount,nextCursor}` |
+| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `group?` = ALL (padrão)/TASKS/GITHUB; `cursor?` ou `page?` (exclusivos), `limit?` (máx. 100) | `200`, `{notifications,pagination,unreadCount,nextCursor}` |
 | GET    | `/api/notifications/unread-count`    | —                                                                                                 | `200`, `{unreadCount}`                                   |
 | PATCH  | `/api/notifications/:notificationId` | `{read: boolean}` estrito                                                                         | `200`, `{notification}`                                  |
 | POST   | `/api/notifications/read-all`        | body vazio                                                                                        | `200`, `{updated}`                                       |
 | GET    | `/api/settings/notifications`        | —                                                                                                 | `200`, `{preferences{TASK_STATUS_CHANGED,TASK_OVERDUE,ISSUE_EVENT,PULL_REQUEST_EVENT}}` |
-| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED, TASK_OVERDUE, ISSUE_EVENT, PULL_REQUEST_EVENT}}`, booleanos, as quatro chaves obrigatórias (duas até o S2-03) | `200`, `{preferences}`                                   |
+| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED, TASK_OVERDUE, ISSUE_EVENT, PULL_REQUEST_EVENT}}`, booleanos, as quatro chaves obrigatórias desde 12/10/2026 (antes, duas) | `200`, `{preferences}`                                   |
 
 **Autorização.** Toda rota exige sessão; sem ela, 401. O destinatário vem da sessão: nenhum
 `userId` é aceito em query ou corpo (parâmetro desconhecido responde 400). A notificação só é
@@ -1344,6 +1358,16 @@ e `authenticatedReadSustained`).
 **Listagem.** Ordem `createdAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
 `totalPages`. `unreadCount` conta todas as não lidas visíveis, não só a página. Listar não marca
 nada como lido.
+
+**Origem** (desde 13/10/2026). `group` filtra a lista por origem:
+- `TASKS`: `TASK_STATUS_CHANGED` e `TASK_OVERDUE`;
+- `GITHUB`: `ISSUE_EVENT` e `PULL_REQUEST_EVENT`;
+- `ALL`: o padrão, sem filtro.
+
+O `group` vale com `status`, `cursor` e `page`, e `total` e `totalPages` contam só a origem pedida.
+Valor fora da lista responde 400. `unreadCount` não depende do `group`: conta todas as não lidas
+visíveis, como o contador do menu. O filtro não muda a visibilidade nem dá acesso a notificação de
+outra pessoa.
 
 **Cursor.** `nextCursor` é um texto opaco (base64url, até 128 caracteres) que aponta para o último
 item da página; `null` quando não há mais. Com `cursor`, a página seguinte começa depois desse
@@ -1376,8 +1400,14 @@ O DTO nunca expõe e-mail, `dedupeKey` nem o destinatário. O nome do ator é li
 false}` volta a nulo. `read-all` é um único `UPDATE` sobre as não lidas visíveis do usuário, tudo
 ou nada: `updated` é a contagem, e não há item que falhe ou seja ignorado isoladamente.
 
-**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as quatro chaves (duas
-até o S2-03), só booleanos; chave fora do enum, `__proto__` ou `constructor` respondem 400. A auditoria
+**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as quatro chaves, só
+booleanos (desde 12/10/2026; antes, duas); chave fora do enum, `__proto__` ou `constructor`
+respondem 400.
+- Chave ausente responde 400 com "As opções de notificação mudaram. Recarregue a página e salve de
+  novo.", na mensagem e no detalhe de cada chave ausente.
+- Valor não booleano responde "Cada preferência deve ser verdadeira ou falsa.".
+
+A auditoria
 `NOTIFICATION_PREFERENCES_UPDATED` só é gravada quando algo muda e guarda apenas `changedTypes`. O
 `PUT` é serializado por usuário e espera o bloqueio da conta por no máximo 2 s; com outra alteração
 em andamento, responde 409 `NOTIFICATION_PREFERENCES_BUSY` sem gravar nada, e o cliente tenta de
@@ -1428,16 +1458,25 @@ por API.
 deduplicação, id do evento, chave da ocorrência, resultado do despacho, destinatário, login, corpo
 nem rótulos do GitHub.
 
-**Mudança de contrato das preferências (§6.4 do contexto de arquitetura).** `GET
-/api/settings/notifications` passou a responder quatro chaves e o `PUT` passou a exigir as quatro:
-o corpo com só `TASK_STATUS_CHANGED` e `TASK_OVERDUE` responde 400. A tela e a API mudam juntas, e
-não há cliente de terceiros. A auditoria `NOTIFICATION_PREFERENCES_UPDATED` continua com só os
-tipos alterados.
+**Mudança de contrato das preferências (§6.4 do contexto de arquitetura), em 12/10/2026
+(`5341a1c`).** `GET /api/settings/notifications` passou a responder quatro chaves, e o `PUT`
+passou a exigir as quatro.
+- O corpo com só `TASK_STATUS_CHANGED` e `TASK_OVERDUE` responde 400, com a mensagem para
+  recarregar a página (seção S2-02, "Preferências"). Assim, a aba aberta antes da mudança sabe o
+  que fazer.
+- A tela e a API mudam juntas, e não há cliente de terceiros.
+- A auditoria `NOTIFICATION_PREFERENCES_UPDATED` continua com só os tipos alterados.
+
+**Filtro por origem.** A lista do S2-02 aceita `group` (`ALL`, `TASKS` ou `GITHUB`), para que os
+avisos de tarefa não fiquem soterrados pelos do GitHub (seção S2-02, "Origem").
 
 **Exportação do titular.** Em `notifications.json`, os itens dos tipos novos trazem também
 `githubEvent`, `artifactNumber`, `artifactTitle`, `artifactUrl` e `githubOccurredAt`. Os itens dos
-tipos do S2-02 não mudam.
+tipos do S2-02 não mudam. `artifactUrl` é conferida de novo na exportação: fora do prefixo
+`https://github.com/` ou acima de 512 caracteres, sai `null`, como no DTO.
 
-**Erros.** Nenhum código novo: as rotas são as do S2-02, e a tabela de erros do S2-02 vale. A
-divergência com o §12 do contexto de arquitetura continua declarada como DR (seção S2-02).
+**Erros.** Nenhum código novo nas rotas de notificação: são as do S2-02, e a tabela de erros do
+S2-02 vale. A divergência com o §12 do contexto de arquitetura continua declarada como DR (seção
+S2-02). Na sincronização, a execução ganhou `GITHUB_SYNC_PROJECT_BUSY` e
+`GITHUB_SYNC_STORAGE_FAILED` (seção da integração GitHub, "Erro da execução").
 

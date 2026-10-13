@@ -69,6 +69,9 @@ GitHub deve enviar `Content-Type: application/json`, `X-Hub-Signature-256`, `X-G
 3. `SUSPENDED`/`REMOVED`: confirme no GitHub; não force sync.
 4. `GITHUB_AUTH_FAILED`: verifique App ID/private key/permissões, Callback URL e a opção de autorização durante a instalação, sem imprimir valores.
 5. Rate limit/5xx: respeite retry limitado e aguarde recuperação.
-6. Após correção, execute um sync manual e confira contagens/vínculos.
+6. `GITHUB_SYNC_PROJECT_BUSY`: outra alteração segurou o projeto por mais de 5 s durante a gravação de uma página. Nada da página foi gravado; sincronize de novo. Se repetir, procure transações longas no projeto (exclusão, Rastreabilidade).
+7. `GITHUB_SYNC_STORAGE_FAILED`: o banco recusou a gravação. O código interno está no log `github_sync_run_failed` (`causeCode`). Corrija a causa (conexão, deadlock, migration pendente) e sincronize de novo.
+8. `github_sync_run_failure_unrecorded` no log: a falha não pôde ser gravada nem depois de três tentativas. A execução expira por inatividade em 30 minutos, e então a próxima sincronização é aceita.
+9. Após correção, execute um sync manual e confira contagens/vínculos.
 
 Store de rate limit, lock distribuído, secret manager e monitoramento pertencem ao ambiente operacional.
