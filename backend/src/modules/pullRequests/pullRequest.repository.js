@@ -2,23 +2,22 @@
 import { prisma } from '../../database/prismaClient.js';
 import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
 import { githubEventRepository } from '../notifications/github-event.repository.js';
+import { changedFields, lastByKey, selectFields } from '../../shared/persistence/changed-fields.js';
 
-function buildPullRequestUpdate(data) {
-  return {
-    number: data.number,
-    title: data.title,
-    description: data.description,
-    state: data.state,
-    authorUsername: data.authorUsername,
-    sourceBranch: data.sourceBranch,
-    targetBranch: data.targetBranch,
-    githubUrl: data.githubUrl,
-    createdAtGithub: data.createdAtGithub,
-    updatedAtGithub: data.updatedAtGithub,
-    closedAtGithub: data.closedAtGithub,
-    mergedAtGithub: data.mergedAtGithub
-  };
-}
+const PULL_REQUEST_FIELDS = [
+  'number',
+  'title',
+  'description',
+  'state',
+  'authorUsername',
+  'sourceBranch',
+  'targetBranch',
+  'githubUrl',
+  'createdAtGithub',
+  'updatedAtGithub',
+  'closedAtGithub',
+  'mergedAtGithub'
+];
 
 export const pullRequestRepository = {
   async findByProjectIdAndGithubId(projectId, githubId) {
@@ -49,37 +48,35 @@ export const pullRequestRepository = {
       return { created: 0, updated: 0, transitions: 0, linkedTasks: 0, anomalies: 0 };
     }
 
-    const projectId = data[0].projectId;
+    const page = lastByKey(data, 'githubId');
+    const projectId = page[0].projectId;
     return withActiveProjectWrite(
       projectId,
       async (tx) => {
         const existing = await tx.pullRequest.findMany({
-          where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
-          select: {
-            id: true,
-            githubId: true,
-            state: true,
-            closedAtGithub: true,
-            mergedAtGithub: true
-          }
+          where: { projectId, githubId: { in: page.map(({ githubId }) => githubId) } },
+          select: { id: true, githubId: true, ...selectFields(PULL_REQUEST_FIELDS) }
         });
         const previous = new Map(existing.map((row) => [row.githubId, row]));
-        for (const pullRequest of data) {
-          await tx.pullRequest.upsert({
-            where: { projectId_githubId: { projectId, githubId: pullRequest.githubId } },
-            update: buildPullRequestUpdate(pullRequest),
-            create: pullRequest
-          });
+        const created = page.filter(({ githubId }) => !previous.has(githubId));
+        if (created.length) await tx.pullRequest.createMany({ data: created });
+        let updated = 0;
+        for (const pullRequest of page) {
+          const row = previous.get(pullRequest.githubId);
+          if (!row) continue;
+          const changes = changedFields(row, pullRequest, PULL_REQUEST_FIELDS);
+          if (Object.keys(changes).length === 0) continue;
+          updated += 1;
+          await tx.pullRequest.updateMany({ where: { id: row.id }, data: changes });
         }
-        const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
         const recorded = await githubEventRepository.recordTransitions(tx, {
           projectId,
           kind: 'PULL_REQUEST',
           previous,
-          incoming: data,
+          incoming: page,
           detectedAt: detectedAt ?? new Date()
         });
-        return { created: data.length - updated, updated, ...recorded };
+        return { created: created.length, updated, ...recorded };
       },
       SYNC_WRITE
     );

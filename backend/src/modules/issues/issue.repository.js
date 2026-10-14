@@ -2,23 +2,22 @@
 import { prisma } from '../../database/prismaClient.js';
 import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
 import { githubEventRepository } from '../notifications/github-event.repository.js';
+import { changedFields, lastByKey, selectFields } from '../../shared/persistence/changed-fields.js';
 
-function buildIssueUpdate(data) {
-  return {
-    number: data.number,
-    title: data.title,
-    description: data.description,
-    state: data.state,
-    authorUsername: data.authorUsername,
-    assigneeUsername: data.assigneeUsername,
-    labels: data.labels,
-    milestone: data.milestone,
-    githubUrl: data.githubUrl,
-    createdAtGithub: data.createdAtGithub,
-    updatedAtGithub: data.updatedAtGithub,
-    closedAtGithub: data.closedAtGithub
-  };
-}
+const ISSUE_FIELDS = [
+  'number',
+  'title',
+  'description',
+  'state',
+  'authorUsername',
+  'assigneeUsername',
+  'labels',
+  'milestone',
+  'githubUrl',
+  'createdAtGithub',
+  'updatedAtGithub',
+  'closedAtGithub'
+];
 
 export const issueRepository = {
   async findGithubIdsByProjectId(projectId, githubIds) {
@@ -38,31 +37,35 @@ export const issueRepository = {
       return { created: 0, updated: 0, transitions: 0, linkedTasks: 0, anomalies: 0 };
     }
 
-    const projectId = data[0].projectId;
+    const page = lastByKey(data, 'githubId');
+    const projectId = page[0].projectId;
     return withActiveProjectWrite(
       projectId,
       async (tx) => {
         const existing = await tx.issue.findMany({
-          where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
-          select: { id: true, githubId: true, state: true, closedAtGithub: true }
+          where: { projectId, githubId: { in: page.map(({ githubId }) => githubId) } },
+          select: { id: true, githubId: true, ...selectFields(ISSUE_FIELDS) }
         });
         const previous = new Map(existing.map((row) => [row.githubId, row]));
-        for (const issue of data) {
-          await tx.issue.upsert({
-            where: { projectId_githubId: { projectId, githubId: issue.githubId } },
-            update: buildIssueUpdate(issue),
-            create: issue
-          });
+        const created = page.filter(({ githubId }) => !previous.has(githubId));
+        if (created.length) await tx.issue.createMany({ data: created });
+        let updated = 0;
+        for (const issue of page) {
+          const row = previous.get(issue.githubId);
+          if (!row) continue;
+          const changes = changedFields(row, issue, ISSUE_FIELDS);
+          if (Object.keys(changes).length === 0) continue;
+          updated += 1;
+          await tx.issue.updateMany({ where: { id: row.id }, data: changes });
         }
-        const updated = data.filter(({ githubId }) => previous.has(githubId)).length;
         const recorded = await githubEventRepository.recordTransitions(tx, {
           projectId,
           kind: 'ISSUE',
           previous,
-          incoming: data,
+          incoming: page,
           detectedAt: detectedAt ?? new Date()
         });
-        return { created: data.length - updated, updated, ...recorded };
+        return { created: created.length, updated, ...recorded };
       },
       SYNC_WRITE
     );

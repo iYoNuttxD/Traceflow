@@ -191,8 +191,8 @@ describe('S2-03 detecção: linha de base e issue (D2, C1)', () => {
     const second = await sync(project, { issues, pullRequests });
 
     expect(first.summary.issues).toMatchObject({ created: 2, updated: 0, transitions: 0 });
-    expect(second.summary.issues).toMatchObject({ created: 0, updated: 2, transitions: 0 });
-    expect(second.summary.pullRequests).toMatchObject({ updated: 2, transitions: 0 });
+    expect(second.summary.issues).toMatchObject({ created: 0, updated: 0, transitions: 0 });
+    expect(second.summary.pullRequests).toMatchObject({ updated: 0, transitions: 0 });
     expect(await prisma.gitHubArtifactEvent.count()).toBe(0);
   });
 
