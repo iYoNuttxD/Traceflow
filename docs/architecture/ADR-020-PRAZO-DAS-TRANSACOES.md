@@ -122,3 +122,46 @@ Atualizar o Prisma não resolve agora:
 - ASVS V16.5.2: a lentidão do banco numa operação não atinge as outras requisições.
 - V16.5.3: falha fechada; a transação nunca confirma depois do prazo.
 - V16.3.4: os eventos registram rota, `requestId` e código, sem dado pessoal.
+
+## Validação (13/10/2026)
+
+Prisma 6.12.0, MySQL 8.1.0 local, banco de teste. Testes F1 e F2 de
+`s202-f33-prazo-da-transacao.test.js` e C2-04 de `s203-correcoes.test.js`.
+
+**Antes e depois.**
+
+| Caso | Sem o prazo próprio | Com o prazo próprio |
+|---|---|---|
+| Consulta pesada depois de gravação (F1-01, 3 rodadas) | `P2028` perto de 7 s; a próxima consulta recebe `P2025` falso e leitura `null` | desfeita entre 5,01 e 5,03 s, com o 1317 na causa; consultas seguintes certas nas 3 rodadas |
+| Gravação pesada (F1-02, 2 rodadas) | `P2028` perto de 7 s | desfeita entre 5,02 e 5,03 s |
+| `SLEEP(7)` e gravação depois (F1-03) | `P2028` perto de 7 s | desfeita aos 5,02 s, sem confirmar |
+| Callback que captura o 1317 e continua (F1-04) | `P2028` no `COMMIT` | duas interrupções; desfeita aos 5,13 s |
+| `KILL QUERY` indisponível (F2-03, 3 rodadas) | `P2025` falso na próxima consulta | `P2028` entre 8,1 e 8,3 s, conexão encerrada no servidor; nenhuma resposta errada |
+| Requisição HTTP com trabalho lento (F2-01) | 500 | 503 `OPERATION_TIMEOUT`; outra conta com 200 |
+
+**O que o `KILL QUERY` faz com cada instrução.**
+- **Junção em memória** (a instrução lenta dos testes): interrompida em 1 a 3 ms, em 8 tentativas.
+- **CTE recursiva de 10 milhões de linhas:** atraso de 5 a 30 ms, mas uma vez de 623 ms. Numa rodada,
+  a interrupção não chegou antes do prazo do Prisma (`P2028` aos 6,3 s). O mais provável é a cópia
+  da tabela temporária para o disco, que não checa o pedido de interrupção. É o caso que a segunda
+  camada cobre.
+- **`UPDATE` com subconsulta pesada:** numa rodada, a subconsulta interrompida voltou `NULL`, e o
+  `UPDATE` seguiu adiante, falhando só pela coluna `NOT NULL` (1048). Numa coluna anulável, teria
+  gravado `NULL` sem erro. A regra de nunca confirmar depois do disparo (D4) cobre esse caso.
+- **`SLEEP`** volta sem erro quando interrompido.
+
+**Custo.**
+- No MySQL local, o envoltório completo (`SET`, `SELECT CONNECTION_ID()` e vigia) custa 0,41 ms
+  por transação interativa: mediana de 0,49 ms sem ele e de 0,90 ms com ele, em 400 transações
+  triviais.
+- Pelo proxy de latência do S2-03, a página de 100 PRs da sincronização faz uma transação por
+  tentativa, e o custo teórico é de duas idas e voltas. A diferença medida ficou dentro da variação
+  entre rodadas:
+
+  | Latência efetiva | Sem o envoltório (0 / 100 transições) | Com o envoltório (0 / 100 transições) |
+  |---|---:|---:|
+  | 2,34 a 2,36 ms | 859 / 886 ms | 873 / 892 ms |
+  | 10,56 a 10,69 ms | 3.452 / 3.518 ms | 3.492 / 3.497 ms |
+
+**Jobs.** Um job que dispara o vigia e chama só `prisma.$disconnect()` termina sozinho; o cliente
+de recuperação não segura o processo.

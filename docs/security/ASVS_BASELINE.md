@@ -344,8 +344,9 @@ O `P2028` por trabalho lento continua possível e está no S202-F33 (avaliação
 
 A correção do S202-F33 (ADR-020) é transversal: nenhuma instrução fica em andamento quando o prazo
 do Prisma vence, e a conexão não volta ao pool fora de sincronia. Evidência nos testes F1 e F2 de
-`test/unit`, `test/integration` e `test/api` (`s202-f33-prazo-da-transacao.test.js`) e no C2-04 de
-`test/integration/s203-correcoes.test.js`.
+`test/unit`, `test/integration` e `test/api` (`s202-f33-prazo-da-transacao.test.js`), no C2-04 de
+`test/integration/s203-correcoes.test.js`, nos commits `d08c0fc` e `a58a075` e nos mutantes
+MG01–MG12 de `docs/issues/S202_F33_RELATORIO.md`.
 
 | Requisito | Nível | Aplicação | Implementação | Evidência | Status |
 |---|---|---|---|---|---|
