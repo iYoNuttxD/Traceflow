@@ -81,3 +81,49 @@ Desde o ADR-020, a falha é limpa, mas a sincronização para.
 
 - Nenhum dado novo é lido nem gravado, e o escopo continua o do projeto travado.
 - A transação mais curta reduz o tempo com o projeto travado (ASVS V15.4.x).
+
+## Validação (13/10/2026)
+
+Prisma 6.12.0, MySQL 8.1.0 local, banco de teste, cliente envolvido pelo ADR-020. Testes de
+`s203-f22-gravacao-por-diferenca.test.js`.
+
+**Instruções por transação.**
+
+| Cenário | Antes | Depois |
+|---|---:|---:|
+| Página de 100 PRs ou issues sem mudança | 306 | 6 |
+| Página de 100 novos | 306 | 7 |
+| Página com 5 itens mudados | 306 | 11 |
+| Página com todos mudados | 306 | 106 |
+| 300 branches novas ou sem mudança | 908 | 9 |
+
+**Latência, pelo proxy do S2-03** (página de 100 PRs):
+
+| Latência efetiva | Antes, sem mudança | Depois, sem mudança | Depois, todos mudados |
+|---|---:|---:|---:|
+| 2,34 ms | 931 ms | 31 ms | 309 ms |
+| 10,62 ms | 3.479 ms | 113 ms | 1.238 ms |
+| 14,75 ms | 4.812 ms | 154 ms | 1.646 ms |
+| 17,79 ms | `P2028` | 183 ms | 1.989 ms |
+| 30,94 ms | — | 314 ms | 3.393 ms |
+| 46,1 ms | — | 468 ms | 5.024 ms (no limite) |
+| 61,11 ms | — | 616 ms | `TransactionDeadlineError` |
+
+A coluna "antes" vem da seção 16 de `S2_03_RELATORIO_TESTES.md`, que mediu a página que regravava
+todos os itens.
+
+**Branches a 10,6 ms:**
+
+| Branches | Antes | Depois (sem mudança) |
+|---:|---|---:|
+| 50 | 1.847 ms | 202 ms |
+| 150 | `TransactionDeadlineError` aos 5,1 s | 146 ms |
+| 300 | `TransactionDeadlineError` | 153 ms |
+
+**Orçamento (D6).**
+- A página sem mudança, que é o caso de toda sincronização sem novidade, leva menos de 1 s até
+  61 ms.
+- A pior página, com os 100 itens mudados, cabe nos 5 s até cerca de 45 ms (5,02 s a 46,1 ms) e
+  cai a 61 ms.
+- A recomendação para o S2-08 é manter o banco abaixo de 40 ms até a API, com folga sobre o limite
+  da pior página.

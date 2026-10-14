@@ -33,7 +33,7 @@ A migration L1 cria integração `RECONNECT_REQUIRED` para projetos com metadado
 - Duas solicitações concorrentes para o mesmo projeto retornam `202` e o mesmo `run.id`; somente a criadora informa `alreadyRunning=false` e agenda o worker.
 - O token de instalação é gerado sob demanda; sync pagina, deduplica/upserta e preserva artifacts ausentes em execuções posteriores.
 - Cada página de PRs ou issues e a etapa de branches gravam só o que mudou (ADR-021): uma sincronização sem novidade praticamente não grava, e o resumo conta como atualizados só os itens que mudaram.
-- Orçamento de latência até o banco: a pior página (100 itens, todos mudados) precisa caber no prazo de 5 s da transação (ADR-020). O limite medido está na seção "Validação" do ADR-021; acima dele, a página falha com `GITHUB_SYNC_STORAGE_FAILED` (`causeCode: TRANSACTION_DEADLINE`).
+- Orçamento de latência até o banco: a pior página (100 itens, todos mudados) precisa caber no prazo de 5 s da transação (ADR-020). Medido: cabe até cerca de 45 ms e cai a 61 ms (ADR-021, "Validação"); mantenha o banco abaixo de 40 ms. Acima do limite, a página falha com `GITHUB_SYNC_STORAGE_FAILED` (`causeCode: TRANSACTION_DEADLINE`).
 - Falha parcial preserva lotes confirmados e último sucesso; `GitHubSyncRun.activeProjectId` garante um claim ativo por projeto no banco e stale detection permite recuperação controlada.
 - O polling de status é read-first: runs com `heartbeatAt` recente não geram escrita. Apenas um run realmente stale é expirado condicionalmente pelo próprio `run.id`; para `QUEUED` sem heartbeat, `updatedAt` é o fallback de liveness.
 - Webhooks de instalação/repositório apenas atualizam estado. Não disparam sync automático.

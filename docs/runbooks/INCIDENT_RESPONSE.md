@@ -70,8 +70,7 @@ instrução em andamento (`KILL QUERY`), desfaz a transação e responde `503 OP
 1. Evento `database_transaction_deadline` (`warn`), com rota e `requestId`.
    - Isolado: uma operação lenta; o cliente repete a requisição.
    - Repetido na mesma rota: o trabalho não cabe no prazo. Veja o S202-F30 (transações pesadas de
-     5 s) e o S203-F22 (página da sincronização com o banco distante), e meça a latência até o
-     banco.
+     5 s) e, na sincronização, o orçamento de latência do ADR-021, e meça a latência até o banco.
 2. Evento `database_transaction_expired` (`error`, `causeCode: P2028`): o prazo do Prisma venceu
    assim mesmo, ou faltou conexão livre para iniciar a transação (`maxWait`). Confira o tamanho do
    pool e se o cliente de recuperação conseguiu se conectar.
