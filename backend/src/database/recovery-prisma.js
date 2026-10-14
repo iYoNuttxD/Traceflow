@@ -1,9 +1,15 @@
 import { PrismaClient } from '@prisma/client';
+import { validateTestDatabaseUrl } from './database-safety.js';
 
 let client = null;
 
+const recoveryOptions = () =>
+  process.env.NODE_ENV === 'test'
+    ? { datasourceUrl: validateTestDatabaseUrl(process.env.TEST_DATABASE_URL) }
+    : {};
+
 export function recoveryPrisma() {
-  client ??= new PrismaClient();
+  client ??= new PrismaClient(recoveryOptions());
   return client;
 }
 

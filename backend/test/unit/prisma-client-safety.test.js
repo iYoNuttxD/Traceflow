@@ -45,6 +45,14 @@ describe('Prisma test datasource isolation without connecting to a database', ()
     expect(construct).not.toHaveBeenCalled();
   });
 
+  it('pins the recovery client to the same test datasource', async () => {
+    await loadClient();
+    const { recoveryPrisma } = await import('../../src/database/recovery-prisma.js');
+    recoveryPrisma();
+    expect(construct).toHaveBeenCalledTimes(2);
+    expect(construct).toHaveBeenLastCalledWith({ datasourceUrl: testUrl });
+  });
+
   it('keeps the chosen datasource when DATABASE_URL later changes', async () => {
     await loadClient();
     vi.stubEnv('DATABASE_URL', 'mysql://fixture:fixture@localhost/another_development');
