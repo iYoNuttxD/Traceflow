@@ -25,36 +25,6 @@
   font-size: clamp(var(--font-size-6), 3.2vw, var(--font-size-7));
 }
 
-.tasks-filters {
-  overflow: visible;
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-primary);
-  box-shadow: var(--shadow-sm);
-}
-
-.tasks-filters .planning-filter-panel__toggle:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.tasks-filters__clear {
-  min-height: var(--size-touch-target);
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-3);
-  color: var(--color-accent-text);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-2);
-  font-weight: var(--font-weight-bold);
-}
-
-.tasks-filters__clear:hover {
-  background: var(--color-accent-surface);
-}
-
 .tasks-filter-grid {
   display: grid;
   grid-template-columns: minmax(15rem, 1.5fr) repeat(4, minmax(9rem, 0.8fr));

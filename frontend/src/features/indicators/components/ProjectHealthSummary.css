@@ -1,0 +1,95 @@
+.project-health-summary {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  padding: var(--space-4) var(--space-5);
+}
+.project-health-summary header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.project-health-summary h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-1);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+.project-health-summary__score {
+  margin: var(--space-4) 0;
+  font-size: var(--font-size-7);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-title);
+  color: var(--color-text-strong);
+}
+.project-health-summary__score small {
+  font-size: var(--font-size-3);
+  color: var(--color-text-secondary);
+}
+.project-health-summary progress {
+  display: block;
+  width: 100%;
+  height: var(--space-2);
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--color-surface-secondary);
+  color: var(--color-accent-primary);
+}
+.project-health-summary__status {
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface-secondary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-1);
+}
+.project-health-summary__status--healthy {
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
+}
+.project-health-summary__status--attention {
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+}
+.project-health-summary__status--critical {
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+}
+@media (max-width: 480px) {
+  .project-health-summary {
+    padding: var(--space-4) var(--space-5);
+  }
+}
+
+.project-health-summary progress::-webkit-progress-bar {
+  background: var(--color-surface-secondary);
+}
+.project-health-summary progress::-webkit-progress-value {
+  background: currentColor;
+}
+.project-health-summary progress::-moz-progress-bar {
+  background: currentColor;
+}
+.project-health-summary .project-health-summary__progress--healthy {
+  color: var(--color-success-text);
+}
+.project-health-summary .project-health-summary__progress--attention {
+  color: var(--color-warning-text);
+}
+.project-health-summary .project-health-summary__progress--critical {
+  color: var(--color-danger-text);
+}
+.project-health-summary h2 .traceflow-icon {
+  color: var(--color-text-secondary);
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+.project-health-summary > p:not(.project-health-summary__score) {
+  font-size: var(--font-size-2);
+  color: var(--color-text-secondary);
+}

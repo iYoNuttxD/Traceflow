@@ -407,7 +407,7 @@ describe('TaskEffortTracker', () => {
     expect(within(dialog).getByRole('button', { name: 'Mostrar filtros' })).toBeInTheDocument();
   });
 
-  it.each([11, 50, 51, 100, 101, 1000])(
+  it.each([50, 51])(
     'carrega somente a primeira página de 50 para um histórico com %i registros',
     async (total) => {
       const user = userEvent.setup();

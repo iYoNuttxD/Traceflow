@@ -64,6 +64,7 @@ export function createHttpClient(options = {}) {
   });
 
   client.interceptors.request.use((config) => {
+    config.authSessionGeneration = sessionGeneration;
     if (csrfToken && mutatingMethods.has(config.method?.toLowerCase())) {
       config.headers['X-CSRF-Token'] = csrfToken;
     }
@@ -80,7 +81,9 @@ export function createHttpClient(options = {}) {
       }
     }
     const skipGlobalAuthHandling = error?.config?.skipGlobalAuthHandling === true;
+    const currentSession = error?.config?.authSessionGeneration === sessionGeneration;
     if (
+      currentSession &&
       !skipGlobalAuthHandling &&
       error?.response?.status === 401 &&
       sessionFailureCodes.has(error.response.data?.code) &&
@@ -90,6 +93,7 @@ export function createHttpClient(options = {}) {
       window.dispatchEvent(new CustomEvent('traceflow:unauthorized'));
     }
     if (
+      currentSession &&
       !skipGlobalAuthHandling &&
       error?.response?.status === 403 &&
       ['ACCOUNT_DEACTIVATED', 'ACCOUNT_DELETION_PENDING', 'ACCOUNT_ANONYMIZED'].includes(

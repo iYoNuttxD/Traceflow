@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -26,12 +26,22 @@ describe('verificação de e-mail', () => {
   });
 
   it('reenvia a verificação e apresenta o resultado sem falso sucesso local', async () => {
-    mocks.resendEmailVerification.mockResolvedValue({
-      data: { message: 'Novo e-mail de verificação enviado.' }
-    });
+    let rejectRequest;
+    mocks.resendEmailVerification.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectRequest = reject;
+        })
+    );
+    mocks.resendEmailVerification.mockResolvedValue({ data: { message: 'ok' } });
     render(<EmailVerificationBanner user={{ emailVerifiedAt: null }} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Reenviar verificação' }));
     expect(mocks.resendEmailVerification).toHaveBeenCalledOnce();
+    expect(screen.queryByText('E-mail enviado com sucesso.')).not.toBeInTheDocument();
+    await act(async () => rejectRequest({ response: { status: 500, data: {} } }));
+    expect(screen.queryByText('E-mail enviado com sucesso.')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Reenviar verificação' }));
+    expect(mocks.resendEmailVerification).toHaveBeenCalledTimes(2);
     expect(await screen.findByText('E-mail enviado com sucesso.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reenviar verificação' })).toHaveClass(
       'button-primary',
@@ -71,6 +81,8 @@ describe('verificação de e-mail', () => {
     const sending = screen.getByRole('button', { name: 'Reenviando...' });
     expect(sending).toBeDisabled();
     expect(sending).toHaveAttribute('aria-busy', 'true');
+    fireEvent.click(sending);
+    expect(mocks.resendEmailVerification).toHaveBeenCalledOnce();
     resolveRequest({ data: { message: 'ok' } });
     expect(await screen.findByText('E-mail enviado com sucesso.')).toBeInTheDocument();
   });
@@ -130,12 +142,20 @@ describe('verificação de e-mail', () => {
   });
 
   it.each([
-    ['inválido', 'Token de verificação inválido.'],
-    ['expirado', 'Token de verificação expirado.'],
-    ['já utilizado', 'Token de verificação já utilizado.']
-  ])('apresenta erro seguro para token %s', async (_state, message) => {
+    ['inválido', 'Token de verificação inválido.', 400],
+    ['expirado', 'Token de verificação expirado.', 400],
+    ['já utilizado', 'Token de verificação já utilizado.', 400],
+    [
+      'erro interno',
+      'O TRACEFLOW encontrou um problema interno. Tente novamente em instantes.',
+      500
+    ]
+  ])('apresenta erro seguro para token %s', async (_state, message, status) => {
     mocks.verifyEmail.mockRejectedValueOnce({
-      response: { status: 400, data: { message } }
+      response: {
+        status,
+        data: { message: status === 500 ? 'Prisma stack /node_modules/private' : message }
+      }
     });
     render(
       <MemoryRouter initialEntries={['/verify-email?token=token-artificial']}>

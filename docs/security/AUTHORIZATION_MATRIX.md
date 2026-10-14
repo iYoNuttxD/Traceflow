@@ -46,7 +46,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `DELETE /api/tasks/:id/time-entries/:entryId`                                                                  |     401 |    403 | E (próprio) |       E |     E | quem iniciou exclui a própria sessão; MANAGER/OWNER moderam qualquer uma                                       |
 | Sprints: `GET /api/projects/:projectId/sprints`, `/api/sprints/:id`, `/api/sprints/:id/tasks`                  |     401 |      L |           L |       L |     L | RF10; recurso e membership do mesmo projeto                                                                    |
 | Sprints: `POST`, `PUT`, `PATCH /api/sprints/:id/status`, `PUT /api/sprints/:id/tasks`                          |     401 |    403 |           E |       E |     E | invariantes, sobreposição e estados terminais no service sob lock                                              |
-| `DELETE /api/sprints/:id`                                                                                      |     401 |    403 |         405 |     405 |   405 | sprint não é excluída; autorização precede a recusa do método                                                  |
+| `DELETE /api/sprints/:id` | 401 | 403 | E | E | E | exclusão lógica; preserva histórico e tombstone conforme ADR-011; invariantes verificadas sob lock |
 | Milestones: `GET /api/projects/:projectId/milestones`, `/api/milestones/:id`                                   |     401 |      L |           L |       L |     L | RF10; recurso e membership do mesmo projeto                                                                    |
 | Milestones: `POST`, `PUT`, `PATCH /api/milestones/:id/status`, `DELETE`                                        |     401 |    403 |           E |       E |     E | invariantes e lifecycle no service                                                                             |
 | `GET /api/projects/:projectId/schedule`                                                                        |     401 |      L |           L |       L |     L | RF10; agregado somente-leitura e DTO minimizado                                                                |
@@ -54,7 +54,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `PATCH/DELETE /api/tasks/:id/sprint`                                                                           |     401 |    403 |           E |       E |     E | tarefa e sprint no mesmo projeto; recurso alheio recebe 404 opaco                                              |
 | `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |           E |       E |     E | start exige e-mail verificado; lista usa App ACTIVE e Installation Token                                       |
 | `GET /api/github-app/callback`                                                                                 |     302 |    302 |         302 |     302 |   302 | state/sessão/conta/instalação; não exige GitHubIdentity; tokens efêmeros                                       |
-| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; mesma repo reconecta, repo diferente retorna 409                                                        |
+| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; vínculo inicial; ACTIVE repetido e troca retornam 409                                                        |
 | `POST /api/webhooks/github-app`                                                                                |       E |      E |           E |       E |     E | público; HMAC/raw body/delivery ID, sem sessão ou CSRF                                                         |
 | `POST /api/projects/:projectId/github/sync`                                                                    |     401 |    403 |         403 |       E |     E | MANAGER+, e-mail verificado, integração ACTIVE e trava por projeto                                             |
 | `PATCH /api/projects/:projectId/github/sync-settings`                                                          |     401 |    403 |         403 |     403 |     A | OWNER                                                                                                          |
@@ -76,7 +76,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 
 - `ACTIVE` segue a matriz por papel. `DEACTIVATED` acessa somente estado da conta e reativação. `DELETION_PENDING` acessa somente status/cancelamento/exportação e reautenticação GitHub necessária ao cancelamento de conta GitHub-only. `ANONYMIZED` não autentica nem pode reassociar automaticamente uma identidade GitHub anterior.
 
-- OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
+- OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é read-only sobre dados compartilhados do projeto, com exceção das preferências estritamente pessoais descritas abaixo.
 - Respostas a convites são vinculadas ao destinatário, usam token hashado/expirável e recebem limiter de operação sensível; criação combina limiter sensível e de entrega de e-mail.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
 - O mesmo boundary exige `Project.deletedAt = null` para todo acesso normal. Somente as rotas
@@ -160,6 +160,27 @@ Execução histórica e seu download continuam autorizados por projeto, sem recu
 permissão a partir de um ID ou de um caminho de storage. Arquivos não são públicos.
 Evidências: `backend/test/api/test-cases-s1-07.test.js` e bateria de integração S1-07.
 
+## GITHUB-02 — Vinculação de projeto existente
+
+Reutiliza `PUT /api/projects/:projectId/github/integration`; não adiciona rota equivalente
+`POST .../github/connect`. Somente OWNER ativo do projeto, com sessão válida, conta ativa,
+e-mail verificado e CSRF, pode vincular. VIEWER/MEMBER/MANAGER recebem `403`; sem membership,
+projeto inexistente ou excluído recebe `404` opaco, antes de qualquer consulta externa.
+
+A transação revalida lifecycle e papel sob locks `Project → ProjectMembership` e mantém locks
+compartilhados na instalação/autorizações locais até o commit. Revogação da membership ou da
+autorização da instalação durante a consulta externa impede a escrita. A validação ao vivo da
+GitHub App acontece antes da transação. GitHubIdentity não concede acesso a repositórios.
+
+Repetição de integração ACTIVE retorna `409 GITHUB_PROJECT_ALREADY_CONNECTED`. Reconexão
+RECONNECT_REQUIRED permanece restrita ao mesmo repositório, sem substituição de instalação
+já associada. O sync inicial da primeira vinculação reutiliza a operação canônica após commit;
+retry manual permanece MANAGER+. Nenhuma permissão de sincronização foi ampliada.
+
+`INATIVO`/`ARQUIVADO` são estados administrativos, não bloqueios de escrita na política central
+vigente. GITHUB-02 preserva essa distinção; `deletedAt` bloqueia vinculação, inclusive em corrida
+com exclusão/purge. Evidência: `backend/test/api/github-project-connect.test.js`.
+
 ## S1-08 — Defeitos e retestes
 
 | Operação                                             | VIEWER ativo | MEMBER ativo | MANAGER ativo | OWNER ativo |
@@ -180,3 +201,50 @@ Reteste confere também TestCase, versão atual, ciclo e revisão dentro da tran
 CSRF precede o parser multipart existente. Nenhuma rota permite escolher status
 manualmente. Defect excluído não fica acessível pelas rotas operacionais, mas sua
 identidade permanece nos metadados das Tasks e nos registros históricos persistidos.
+
+## Indicadores e preferência pessoal — PR23-FIX-06
+
+Todas as rotas abaixo têm prefixo `/api/projects/:projectId`. A fronteira é sessão autenticada,
+conta ativa e membership ativa em projeto acessível. Ausência de sessão retorna `401`;
+projeto inacessível, membership ausente/inativa ou recurso fora do escopo retornam `404` opaco.
+`OWNER` continua sendo papel do projeto, não administrador global.
+
+| Método | Sufixo da rota | Papel mínimo | Escopo | Operação |
+| --- | --- | --- | --- | --- |
+| GET | `/indicators/progress` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/activity` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/github` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/tasks` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/sprints` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/quality` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/traceability` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/dashboard` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicators/catalog` | VIEWER | Projeto autorizado | Leitura |
+| GET | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Leitura sem escrita implícita |
+| PUT | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Salvar personalização; CSRF obrigatório |
+| DELETE | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Remover preferência / restaurar padrão; CSRF obrigatório |
+
+Project Health usa o aggregate existente (`view=GENERAL&healthOnly=true`), sem endpoint separado.
+A exceção de escrita para VIEWER não permite modificar tarefas, requisitos ou outro domínio
+compartilhado. O controller obtém `userId` exclusivamente da sessão; o corpo não escolhe titular.
+O repository revalida projeto/membership na transação da mutação. Desativação/saída remove apenas
+sua preferência naquele projeto, na mesma transação; reativação começa com o padrão canônico.
+
+Autoridades: [rotas](../../backend/src/modules/indicators/indicators.routes.js),
+[policy](../../backend/src/modules/authorization/authorization.service.js),
+[controller](../../backend/src/modules/indicators/indicators.controller.js),
+[repository de preferência](../../backend/src/modules/indicators/dashboard-preference.repository.js)
+e [testes HTTP](../../backend/test/api/indicators-p9.test.js).
+
+## GITHUB-04 — execução periódica
+
+Preferência/agendamento continua OWNER-only no PATCH existente. MANAGER/OWNER solicitam sync;
+VIEWER+ consulta run/origem e nextSyncAt apenas no seu projeto. Sessão, verificação de e-mail,
+CSRF e respostas opacas permanecem. O worker é processo de sistema, sem sessão/usuário fictício:
+executa uma preferência previamente autorizada com Project ativo no lifecycle e GitHub App /
+instalação / integração elegíveis. Runs automáticos usam requestedByUserId null e auditoria SYSTEM.
+Não existe novo endpoint público de agendamento nem parâmetros de origem/slots aceitos do cliente.
+
+GITHUB-04.1 acrescenta disponibilidade operacional minimizada ao GET de status já protegido por
+membership: status, motivo e instantes, sem identidade dos processos. Não há endpoint de gestão
+do worker. Liveness não altera papel, CSRF, autorização da App ou reserva de repositório.

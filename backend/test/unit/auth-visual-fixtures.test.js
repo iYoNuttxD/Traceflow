@@ -20,7 +20,15 @@ function safeEnvironment(overrides = {}) {
 }
 
 function createFixtureClient() {
-  const users = new Map();
+  const unrelated = {
+    id: 999,
+    username: 'unrelated',
+    email: 'unrelated@example.test',
+    name: 'Unrelated person',
+    passwordHash: 'untouched-hash'
+  };
+  const users = new Map([[unrelated.username, unrelated]]);
+  const projects = [{ id: 999, name: 'Unrelated project', memberships: [{ userId: 999 }] }];
   const deletions = [];
   let nextId = 1;
   const deletingModel = (model) => ({
@@ -31,8 +39,12 @@ function createFixtureClient() {
   });
   const tx = {
     project: {
-      async findMany() {
-        return [];
+      async findMany({ where }) {
+        return projects.filter((project) =>
+          project.memberships.some(({ userId }) =>
+            where.memberships.some.userId.in.includes(userId)
+          )
+        );
       },
       async deleteMany(input) {
         deletions.push({ model: 'project', input });
@@ -73,6 +85,7 @@ function createFixtureClient() {
   };
   return {
     users,
+    projects,
     deletions,
     client: { $transaction: (operation) => operation(tx) }
   };
@@ -266,13 +279,30 @@ describe('fixtures visuais de Auth', () => {
       Object.entries(second.users).map(([key, user]) => [key, user.id])
     );
 
-    expect(fixture.users.size).toBe(AUTH_VISUAL_FIXTURE_USERS.length);
+    expect(fixture.users.size).toBe(AUTH_VISUAL_FIXTURE_USERS.length + 1);
+    expect(fixture.users.get('unrelated')).toEqual({
+      id: 999,
+      username: 'unrelated',
+      email: 'unrelated@example.test',
+      name: 'Unrelated person',
+      passwordHash: 'untouched-hash'
+    });
+    expect(fixture.projects).toEqual([
+      { id: 999, name: 'Unrelated project', memberships: [{ userId: 999 }] }
+    ]);
     expect(secondIds).toEqual(firstIds);
     expect(second.cleanup).toEqual({ projectsRemoved: 0 });
-    expect([...fixture.users.values()].every((user) => user.passwordHash === 'second-hash')).toBe(
-      true
-    );
+    expect(
+      [...fixture.users.values()]
+        .filter((user) => user.id !== 999)
+        .every((user) => user.passwordHash === 'second-hash')
+    ).toBe(true);
     expect(fixture.deletions.length).toBeGreaterThan(0);
+    for (const { model, input } of fixture.deletions) {
+      const ids = model === 'auditEvent' ? input.where.actorUserId.in : input.where.userId.in;
+      expect([...ids].sort((a, b) => a - b)).toEqual(Object.values(firstIds).sort((a, b) => a - b));
+      expect(ids).not.toContain(999);
+    }
     expect(fixture.deletions.every(({ input }) => input?.where)).toBe(true);
     expect(
       fixture.deletions.every(({ model, input }) =>

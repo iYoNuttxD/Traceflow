@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import {
   paraMeiaNoiteLocal,
@@ -33,6 +34,30 @@ const sprint = (id, name, startDate, endDate, projectId = 1) => ({
 });
 
 describe('paraMeiaNoiteLocal', () => {
+  it.each([
+    ['America/Sao_Paulo', '2026-08-09T03:00:00.000Z'],
+    ['Asia/Tokyo', '2026-08-08T15:00:00.000Z']
+  ])('preserves civil date in isolated TZ=%s', (TZ, expected) => {
+    const script = `import { paraMeiaNoiteLocal, runS104LegacyScheduleDates } from './scripts/lib/s104-legacy-schedule-dates.js';
+      const original = new Date('2026-08-09T00:00:00.000Z');
+      const mixed = { id: 1, name: 'Mista', projectId: 1, startDate: original, endDate: new Date('2026-08-10T18:00:00Z') };
+      const writes = [];
+      await runS104LegacyScheduleDates({ apply: true, client: { sprint: { findMany: async () => [mixed] }, milestone: { findMany: async () => [] }, $transaction: async (fn) => fn({ sprint: { update: async (args) => writes.push(args) } }) } });
+      process.stdout.write(JSON.stringify({ instant: paraMeiaNoiteLocal(original).toISOString(), writes, end: mixed.endDate.toISOString(), original: original.toISOString() }));`;
+    const result = JSON.parse(
+      execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+        env: { ...process.env, TZ },
+        encoding: 'utf8'
+      })
+    );
+    expect(result).toEqual({
+      instant: expected,
+      writes: [{ where: { id: 1 }, data: { startDate: expected } }],
+      end: '2026-08-10T18:00:00.000Z',
+      original: '2026-08-09T00:00:00.000Z'
+    });
+  });
+
   it('preserva o dia civil e move para a meia-noite local', () => {
     const resultado = paraMeiaNoiteLocal(utc('2026-08-09T00:00:00.000Z'));
     expect(resultado.getFullYear()).toBe(2026);
@@ -89,7 +114,15 @@ describe('runS104LegacyScheduleDates', () => {
     expect(relatorio.aplicado).toBe(true);
     expect(client.$transaction).toHaveBeenCalledOnce();
     expect(client.escritas.sprint).toHaveLength(1);
-    expect(client.escritas.milestone).toHaveLength(1);
+    expect(client.escritas.milestone).toEqual([
+      { where: { id: 5 }, data: { dueDate: new Date(2026, 7, 9) } }
+    ]);
+    expect(client.escritas.sprint).toEqual([
+      {
+        where: { id: 1 },
+        data: { startDate: new Date(2026, 7, 9), endDate: new Date(2026, 7, 10) }
+      }
+    ]);
   });
 
   it('recusa a aplicacao se a correcao criar sobreposicao', async () => {

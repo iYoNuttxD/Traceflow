@@ -5,10 +5,13 @@ import { parseProjectId, ProjectServiceError } from '../../projects/project.sche
 import { logger } from '../../../shared/logger/index.js';
 import { traceabilityAlertService } from '../../traceability/traceability-alert.service.js';
 import { githubEventNotificationService } from '../../notifications/github-event-notification.service.js';
-import { githubSyncFailure } from '../github-error.js';
+import { githubRetryNotBefore, githubSyncFailure, normalizeGithubError } from '../github-error.js';
 import { syncProjectGithubData } from './sync-project-github.service.js';
 
-export const GITHUB_SYNC_STALE_AFTER_MS = 30 * 60 * 1000;
+import { env } from '../../../config/env.js';
+import { withProjectWriteGuard } from '../../projects/project-write-context.js';
+
+export const GITHUB_SYNC_STALE_AFTER_MS = env.githubSyncLeaseMs;
 const FAILURE_RECORD_PAUSES_MS = [250, 500];
 const CONNECTION_FAILURES = new Set([
   'P1001',
@@ -26,6 +29,7 @@ function publicRun(run, { alreadyRunning = false } = {}) {
   return {
     id: run.id,
     projectId: run.projectId,
+    origin: run.origin,
     status: run.status,
     step: run.step,
     currentBranch: run.currentBranch,
@@ -118,7 +122,7 @@ async function recordFailure(run, failure) {
           errorCode: failure.errorCode,
           causeCode: String(error?.code || 'UNKNOWN').slice(0, 64)
         });
-        return null;
+        return false;
       }
       await wait(FAILURE_RECORD_PAUSES_MS[attempt]);
     }
@@ -135,13 +139,53 @@ export async function executeGithubSyncRun(runId) {
   logger.info('Execução persistida de sincronização GitHub iniciada.', {
     event: 'github_sync_run_started',
     projectId: run.projectId,
-    runId: run.id
+    runId: run.id,
+    origin: run.origin
   });
 
+  let heartbeatTimer;
+  let heartbeatWork;
+  let finished = false;
+  function heartbeat() {
+    heartbeatTimer = setTimeout(
+      () => {
+        heartbeatWork = githubSyncRunRepository
+          .updateProgress(run.id, {})
+          .catch((error) => {
+            logger.warn('Heartbeat GitHub indisponível.', {
+              event: 'github_sync_heartbeat_failed',
+              runId,
+              errorCode: error.code || 'DATABASE_UNAVAILABLE'
+            });
+          })
+          .finally(() => {
+            if (!finished) heartbeat();
+          });
+      },
+      Math.min(30000, Math.floor(env.githubSyncLeaseMs / 3))
+    );
+    heartbeatTimer.unref?.();
+  }
+  heartbeat();
   try {
-    const result = await syncProjectGithubData(run.projectId, {
-      onProgress: (progress) => githubSyncRunRepository.updateProgress(run.id, progress)
-    });
+    const result = await withProjectWriteGuard(
+      run.projectId,
+      (tx) => githubSyncRunRepository.assertLease(tx, run.id, run.projectId),
+      () =>
+        syncProjectGithubData(run.projectId, {
+          persistedRunId: run.id,
+          onProgress: async (progress) => {
+            if ((await githubSyncRunRepository.updateProgress(run.id, progress)) === false) {
+              throw new ProjectServiceError(
+                'A execução não está mais ativa.',
+                409,
+                'GITHUB_SYNC_LEASE_LOST'
+              );
+            }
+          }
+        }),
+      { nowait: true }
+    );
     const finishedAt = new Date();
     const completed = await githubSyncRunRepository.succeed(
       run.id,
@@ -149,6 +193,7 @@ export async function executeGithubSyncRun(runId) {
       finishedAt,
       finishedAt.getTime() - startedAtMs
     );
+    if (!completed) return publicRun(await githubSyncRunRepository.findById(run.id));
     await recordRunAudit(run, 'GITHUB_SYNC_SUCCEEDED');
     await traceabilityAlertService.reconcileAfterSync(run.projectId);
     await githubEventNotificationService.dispatchAfterSync(run.projectId);
@@ -163,6 +208,7 @@ export async function executeGithubSyncRun(runId) {
     return publicRun(completed);
   } catch (error) {
     const finishedAt = new Date();
+    const normalized = normalizeGithubError(error);
     const failure = githubSyncFailure(error);
     const errorCode = failure.code.slice(0, 191);
     const durationMs = finishedAt.getTime() - startedAtMs;
@@ -170,12 +216,24 @@ export async function executeGithubSyncRun(runId) {
       errorCode,
       errorMessage: failure.message.slice(0, 191),
       finishedAt,
-      durationMs
+      durationMs,
+      retryAt: githubRetryNotBefore(error, finishedAt),
+      permanent:
+        ['GITHUB_AUTH_FAILED', 'RESOURCE_NOT_FOUND'].includes(normalized.code) &&
+        [401, 403, 404].includes(normalized.externalStatus)
     });
+    if (failed === null) return publicRun(await githubSyncRunRepository.findById(run.id));
+    if (errorCode === 'GITHUB_RATE_LIMITED')
+      logger.warn('Sincronização adiada pelo limite do GitHub.', {
+        event: 'github_sync_delayed_rate_limit',
+        projectId: run.projectId,
+        runId: run.id,
+        retryAt: githubRetryNotBefore(error, finishedAt)
+      });
     await recordRunAudit(run, 'GITHUB_SYNC_FAILED', 'FAILURE', errorCode);
     await traceabilityAlertService.reconcileAfterSync(run.projectId);
     await githubEventNotificationService.dispatchAfterSync(run.projectId);
-    const current = failed ?? run;
+    const current = failed || run;
     logger.warn('Execução persistida de sincronização GitHub falhou.', {
       event: 'github_sync_run_failed',
       projectId: run.projectId,
@@ -187,6 +245,10 @@ export async function executeGithubSyncRun(runId) {
       ...(failure.causeCode ? { causeCode: failure.causeCode } : {})
     });
     return publicRun(current);
+  } finally {
+    finished = true;
+    clearTimeout(heartbeatTimer);
+    await heartbeatWork;
   }
 }
 
@@ -221,16 +283,6 @@ async function findActiveRun(projectId, now = new Date()) {
     now
   );
   if (expired.count > 0) {
-    await projectRepository
-      .markGithubSyncFailed(projectId, now, 'A execução foi interrompida antes da conclusão.')
-      .catch((error) => {
-        logger.warn('Não foi possível marcar a falha da sincronização no projeto.', {
-          event: 'github_sync_project_failure_unrecorded',
-          projectId,
-          runId: active.id,
-          errorCode: githubSyncFailure(error).code
-        });
-      });
     return null;
   }
 
@@ -248,13 +300,20 @@ export async function requestProjectGithubSync(
   if (active) return publicRun(active, { alreadyRunning: true });
 
   let run;
-  try {
-    run = await githubSyncRunRepository.create(parsedProjectId, requestedByUserId);
-  } catch (error) {
-    if (!githubSyncRunRepository.isActiveConflict(error)) throw error;
-    const raced = await githubSyncRunRepository.findActive(parsedProjectId);
-    if (raced) return publicRun(raced, { alreadyRunning: true });
-    throw error;
+  // Coalesce short manual/automatic races without waiting inside a transaction.
+  // A long writer gets a controlled 503 after at most three fresh attempts.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      run = await githubSyncRunRepository.create(parsedProjectId, requestedByUserId);
+      break;
+    } catch (error) {
+      const busy = error.code === 'GITHUB_SYNC_BUSY';
+      if (!busy && !githubSyncRunRepository.isActiveConflict(error)) throw error;
+      const raced = await githubSyncRunRepository.findActive(parsedProjectId);
+      if (raced) return publicRun(raced, { alreadyRunning: true });
+      if (!busy || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   }
 
   schedule(run.id);

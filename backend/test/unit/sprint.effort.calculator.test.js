@@ -42,8 +42,10 @@ describe('buildSprintEffort — consolidação por sprint (S1-06)', () => {
       estimatedHours: 2,
       actualHours: 4,
       tasksWithEstimate: 1,
-      status: 'ESTOURADO',
-      usagePercent: 200
+      tasksWithUnknownEstimate: 1,
+      incomplete: true,
+      status: 'INDISPONIVEL',
+      usagePercent: null
     });
     expect(effort.perTask[1].status).toBe('SEM_ESTIMATIVA');
   });
@@ -54,7 +56,7 @@ describe('buildSprintEffort — consolidação por sprint (S1-06)', () => {
       actualHours: 2,
       usagePercent: null,
       differenceHours: null,
-      status: 'SEM_ESTIMATIVA'
+      status: 'INDISPONIVEL'
     });
     expect(buildSprintEffort([])).toMatchObject({
       tasks: 0,

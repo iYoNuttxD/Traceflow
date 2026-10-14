@@ -101,12 +101,15 @@ describe('infraestrutura acessível compartilhada', () => {
     await user.keyboard(' ');
     expect(await screen.findByText('confirmado')).toBeInTheDocument();
   });
-  it('distingue loading, erro e acesso proibido semanticamente', () => {
+  it('distingue loading, erro e acesso proibido semanticamente', async () => {
+    const retry = vi.fn();
     const { rerender } = render(<LoadingState message="Carregando dados" />);
     expect(screen.getByRole('status')).toHaveTextContent('Carregando dados');
-    rerender(<ErrorState message="Falha segura" onRetry={vi.fn()} />);
+    rerender(<ErrorState message="Falha segura" onRetry={retry} />);
     expect(screen.getByRole('alert')).toHaveTextContent('Falha segura');
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(retry).toHaveBeenCalledOnce();
     rerender(<ForbiddenState />);
     expect(screen.getByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
   });
@@ -322,7 +325,9 @@ describe('infraestrutura acessível compartilhada', () => {
       </ConfirmProvider>
     );
     await user.click(screen.getByRole('button', { name: 'Abrir confirmação' }));
-    await user.click(screen.getByRole('button', { name: 'Excluir' }));
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Excluir' })).toHaveFocus();
+    await user.keyboard('{Enter}');
     expect(await screen.findByText('confirmado')).toBeInTheDocument();
   });
 

@@ -8,10 +8,20 @@ export function ProjectAuditPage() {
   const [events, setEvents] = useState([]);
   const [error, setError] = useState('');
   useEffect(() => {
+    let active = true;
+    setEvents([]);
+    setError('');
     privacyApi
       .projectAudit(projectId)
-      .then((page) => setEvents(page.events || []))
-      .catch((value) => setError(normalizeApiError(value).message));
+      .then((page) => {
+        if (active) setEvents(page.events || []);
+      })
+      .catch((value) => {
+        if (active) setError(normalizeApiError(value).message);
+      });
+    return () => {
+      active = false;
+    };
   }, [projectId]);
   return (
     <main className="page-container">

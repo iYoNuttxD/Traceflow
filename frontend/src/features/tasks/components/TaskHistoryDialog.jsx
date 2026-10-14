@@ -1,3 +1,4 @@
+import { FilterActions } from '../../schedule/index.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { kanbanApi } from '../api/tasks.api.js';
 import { normalizeApiError, HistoryEventRow, SelectControl } from '../../../shared/index.js';
@@ -140,20 +141,11 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
             ))}
           </SelectControl>
         </label>
-        <div className="task-history-filter-actions">
-          <button type="submit" className="button button-secondary button-compact">
-            Filtrar
-          </button>
-          {hasFilters && (
-            <button
-              type="button"
-              className="button button-outline button-compact"
-              onClick={clearFilters}
-            >
-              Limpar filtros
-            </button>
-          )}
-        </div>
+        <FilterActions
+          onClear={clearFilters}
+          canClear={hasFilters || Object.values(filters).some(Boolean)}
+          applyLabel="Filtrar"
+        />
       </form>
 
       {error ? (

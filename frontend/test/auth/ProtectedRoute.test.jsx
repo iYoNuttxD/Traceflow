@@ -72,6 +72,8 @@ describe('ProtectedRoute', () => {
     authState.loading = true;
     renderRoute();
     expect(screen.getByText('Carregando sessão...')).toBeInTheDocument();
+    expect(screen.queryByText('Projetos privados')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Entrar/ })).not.toBeInTheDocument();
   });
 
   it('renderiza rota para usuário autenticado', () => {

@@ -206,8 +206,13 @@ describe('S1-07 cursor contract', () => {
       { id: 3, occurredAt: new Date('2026-01-01') }
     ];
     const page = cursorPage(rows, 1, 'occurredAt', 'history:8');
-    expect(page.items).toHaveLength(1);
-    expect(cursorWhere(page.nextCursor, 'occurredAt', 'history:8').OR[1].id.lt).toBe(4);
+    expect(page.items).toEqual([rows[0]]);
+    expect(cursorWhere(page.nextCursor, 'occurredAt', 'history:8')).toEqual({
+      OR: [
+        { occurredAt: { lt: new Date('2026-01-01') } },
+        { occurredAt: new Date('2026-01-01'), id: { lt: 4 } }
+      ]
+    });
     expect(() => cursorWhere(page.nextCursor, 'occurredAt', 'history:9')).toThrow();
     expect(cursorPage(rows, 2, 'occurredAt', 'history:8').nextCursor).toBeNull();
   });

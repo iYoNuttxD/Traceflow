@@ -63,6 +63,7 @@ describe('detecção de sugestões do RF41', () => {
     expect(mocks.repository.createMany).toHaveBeenCalledWith([
       { projectId: 7, taskId: 42, commitId: 10 }
     ]);
+    expect(mocks.repository.findTasksByProjectAndIds).toHaveBeenCalledWith(7, [42, 57]);
     expect(result).toEqual({
       scannedCommits: 1,
       detectedReferences: 2,
@@ -92,5 +93,6 @@ describe('detecção de sugestões do RF41', () => {
     await expect(
       commitSuggestionService.detectForCommits(7, [{ id: 10, projectId: 7, message: '[TASK-42]' }])
     ).resolves.toMatchObject({ createdSuggestions: 0, skippedSuggestions: 1 });
+    expect(mocks.repository.createMany).toHaveBeenCalledWith([]);
   });
 });

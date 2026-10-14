@@ -18,8 +18,7 @@
 .kanban-screen__header h1 {
   font-size: clamp(var(--font-size-6), 3.2vw, var(--font-size-7));
 }
-.kanban-summary,
-.kanban-filters {
+.kanban-summary {
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface-primary);
@@ -87,28 +86,6 @@
 }
 .kanban-filters {
   margin-top: var(--space-4);
-}
-.kanban-filters__actions {
-  display: flex;
-  min-height: var(--size-touch-target);
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: var(--space-3);
-}
-.kanban-filters__clear {
-  min-height: var(--size-touch-target);
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-3);
-  color: var(--color-accent-text);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-2);
-  font-weight: var(--font-weight-bold);
-}
-.kanban-filters__clear:hover {
-  background: var(--color-accent-surface);
 }
 .kanban-filters__controls {
   display: grid;

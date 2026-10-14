@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   accessCodeApi: { get: vi.fn(), regenerate: vi.fn(), updateRole: vi.fn() },
   syncProjectGithub: vi.fn(),
   getProjectGithubSyncStatus: vi.fn(),
+  indicatorsApi: { dashboard: vi.fn(), catalog: vi.fn() },
+  listSprints: vi.fn(),
   membersApi: {
     list: vi.fn(),
     invitations: vi.fn(),
@@ -36,6 +38,12 @@ vi.mock('../../src/features/github/api/github.api.js', () => ({
   getProjectGithubSyncStatus: mocks.getProjectGithubSyncStatus
 }));
 vi.mock('../../src/features/members/members.api.js', () => ({ membersApi: mocks.membersApi }));
+vi.mock('../../src/features/indicators/api/indicators.api.js', () => ({
+  indicatorsApi: mocks.indicatorsApi
+}));
+vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({
+  scheduleApi: { listSprints: mocks.listSprints }
+}));
 
 import { ProjectDetailsPage } from '../../src/pages/ProjectDetailsPage.jsx';
 
@@ -46,6 +54,7 @@ const project = {
   responsibleTeam: 'Equipe',
   status: 'ATIVO',
   githubIntegration: {
+    status: 'ACTIVE',
     repositoryFullName: 'owner/repo',
     repositoryUrl: 'https://github.com/owner/repo',
     lastSyncStatus: null,
@@ -59,10 +68,12 @@ let navigateDetails;
 
 function deferred() {
   let resolve;
-  const promise = new Promise((resolvePromise) => {
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function DetailsHarness() {
@@ -89,6 +100,7 @@ describe('ProjectDetailsPage E9', () => {
     cleanup();
     vi.clearAllTimers();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -129,6 +141,20 @@ describe('ProjectDetailsPage E9', () => {
         }
       ]
     });
+    mocks.indicatorsApi.catalog.mockResolvedValue({ data: { indicators: [] } });
+    mocks.indicatorsApi.dashboard.mockResolvedValue({
+      data: {
+        view: 'GENERAL',
+        viewState: 'NO_DATA',
+        generatedAt: '2026-09-25T12:00:00Z',
+        requestedFilters: { period: null, sprintId: null, responsibleUserId: null },
+        context: {},
+        freshness: {},
+        sections: [],
+        warnings: []
+      }
+    });
+    mocks.listSprints.mockResolvedValue({ data: { sprints: [] } });
     mocks.membersApi.invitations.mockResolvedValue([]);
     mocks.getProjectGithubSyncStatus.mockResolvedValue({ run: null });
   });
@@ -139,6 +165,9 @@ describe('ProjectDetailsPage E9', () => {
     const overviewHeading = await screen.findByRole('heading', { name: 'Visão geral' });
     const overview = overviewHeading.closest('.project-overview-surface');
     expect(overview.querySelectorAll('.project-overview-group')).toHaveLength(3);
+    const health = await within(overview).findByRole('region', { name: 'Saúde do projeto' });
+    expect(within(health).queryByRole('link')).not.toBeInTheDocument();
+    expect(health.querySelector('[data-icon="heart"]')).toBeInTheDocument();
     for (const heading of ['Projeto', 'GitHub', 'Equipe']) {
       expect(within(overview).getByRole('heading', { name: heading })).toBeInTheDocument();
     }
@@ -172,7 +201,7 @@ describe('ProjectDetailsPage E9', () => {
     const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
-    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(11);
+    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(12);
     expect(within(projectNavigation).getByRole('link', { name: 'Casos de teste' })).toHaveAttribute(
       'href',
       '/projects/1/test-cases'
@@ -204,6 +233,26 @@ describe('ProjectDetailsPage E9', () => {
       expect(screen.queryByText(removed, { exact: true })).not.toBeInTheDocument();
     }
     expect(mocks.accessCodeApi.get).not.toHaveBeenCalled();
+  });
+
+  it('expande o contexto compacto preservando detalhes e ações do projeto', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Visão geral' });
+    const toggle = document.querySelector('.project-overview-surface__toggle');
+    expect(toggle).toHaveTextContent('Ver contexto');
+    const overview = toggle.closest('.project-overview-surface');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(overview).getByText('1 membro ativo')).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveTextContent('Recolher contexto');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      overview.querySelector('.project-overview-surface__groups--expanded')
+    ).toBeInTheDocument();
+    expect(
+      within(overview).getByRole('link', { name: 'Abrir repositório GitHub owner/repo' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sincronizar' })).toBeInTheDocument();
   });
 
   it('exibe loading, sincroniza uma vez e apresenta o summary atual', async () => {
@@ -251,7 +300,9 @@ describe('ProjectDetailsPage E9', () => {
     fireEvent.click(button);
     fireEvent.click(button);
     await act(async () => {});
-    expect(screen.getByRole('status')).toHaveTextContent('Sincronizando GitHub...');
+    expect(
+      screen.getByText('Sincronizando GitHub...').closest('[role="status"]')
+    ).toHaveTextContent('Sincronizando GitHub...');
     await act(async () => vi.advanceTimersByTimeAsync(2500));
     expect(screen.getByText(/Sincronização GitHub concluída com sucesso/)).toHaveTextContent(
       'Branches: 4 encontradas, 4 ativas. Commits: 2 encontrados, 1 novos.'
@@ -298,14 +349,84 @@ describe('ProjectDetailsPage E9', () => {
     for (let index = 0; index < 12; index += 1) {
       await act(async () => vi.advanceTimersByTimeAsync(2500));
     }
-    expect(screen.getByRole('status')).toHaveTextContent('Sincronizando GitHub...');
-    expect(screen.getByRole('status')).toHaveTextContent('Branches: 7/25');
+    expect(
+      screen.getByText('Sincronizando GitHub...').closest('[role="status"]')
+    ).toHaveTextContent('Sincronizando GitHub...');
+    expect(
+      screen.getByText('Sincronizando GitHub...').closest('[role="status"]')
+    ).toHaveTextContent('Branches: 7/25');
     expect(screen.queryByText(/Não foi possível sincronizar com o GitHub/)).not.toBeInTheDocument();
     mocks.getProjectGithubSyncStatus.mockResolvedValue(succeeded);
     await act(async () => vi.advanceTimersByTimeAsync(2500));
     expect(screen.getByText(/Sincronização GitHub concluída/)).toBeInTheDocument();
     vi.useRealTimers();
   });
+
+  it('preserva sync confirmada e atualiza indicadores mesmo se o refresh de projeto falhar', async () => {
+    const user = userEvent.setup();
+    mocks.syncProjectGithub.mockResolvedValue({
+      run: { id: 30, status: 'SUCCEEDED', step: 'COMPLETED', summary: null }
+    });
+    mocks.api.get
+      .mockResolvedValueOnce({ data: { project } })
+      .mockRejectedValueOnce(new Error('refresh offline'));
+    renderPage();
+    await screen.findByRole('heading', { name: 'Saúde do projeto' });
+    expect(screen.getByRole('link', { name: 'Indicadores', exact: true })).toHaveAttribute(
+      'href',
+      '/projects/1/indicators'
+    );
+    expect(
+      screen.queryByRole('tablist', { name: 'Visões de indicadores' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Buscar e filtrar/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(mocks.indicatorsApi.dashboard).toHaveBeenCalledOnce());
+    await user.click(await screen.findByRole('button', { name: 'Sincronizar' }));
+    expect(
+      await screen.findByText(/Sincronização GitHub concluída com sucesso/)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/contexto do projeto não pôde ser atualizado/)).toBeInTheDocument();
+    await waitFor(() => expect(mocks.indicatorsApi.dashboard).toHaveBeenCalledTimes(2));
+  });
+
+  it.each(['mutation', 'poll'])(
+    'ignora falha tardia do refresh de A após sync via %s ao abrir B',
+    async (completion) => {
+      vi.useFakeTimers();
+      const refreshA = deferred();
+      const projectB = { ...project, id: 2, name: 'Projeto B' };
+      const completedRun = { id: 30, status: 'SUCCEEDED', step: 'COMPLETED', summary: null };
+      mocks.api.get
+        .mockResolvedValueOnce({ data: { project } })
+        .mockReturnValueOnce(refreshA.promise)
+        .mockResolvedValue({ data: { project: projectB } });
+      mocks.getProjectGithubSyncStatus
+        .mockResolvedValueOnce({
+          run: completion === 'poll' ? { ...completedRun, status: 'RUNNING' } : null
+        })
+        .mockResolvedValueOnce({ run: completedRun })
+        .mockResolvedValue({ run: null });
+      mocks.syncProjectGithub.mockResolvedValue({ run: completedRun });
+      renderPage();
+      await act(async () => {});
+      if (completion === 'poll') {
+        await act(async () => vi.advanceTimersByTimeAsync(2500));
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Sincronizar' }));
+        await act(async () => {});
+      }
+      expect(mocks.api.get).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/Sincronização GitHub concluída/)).toBeInTheDocument();
+      await act(async () => navigateDetails('/projects/2'));
+      expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeInTheDocument();
+      await act(async () => refreshA.reject(new Error('refresh A offline')));
+      expect(
+        screen.queryByText(/contexto do projeto não pôde ser atualizado/)
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/Sincronização GitHub concluída/)).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeInTheDocument();
+    }
+  );
 
   it('restaura uma execução ativa após reload e continua o polling', async () => {
     vi.useFakeTimers();
@@ -334,8 +455,12 @@ describe('ProjectDetailsPage E9', () => {
 
     renderPage();
     await act(async () => {});
-    expect(screen.getByRole('status')).toHaveTextContent('Branches: 3/8');
-    expect(screen.getByRole('status')).toHaveTextContent('Branch: develop');
+    expect(
+      screen.getByText('Sincronizando GitHub...').closest('[role="status"]')
+    ).toHaveTextContent('Branches: 3/8');
+    expect(
+      screen.getByText('Sincronizando GitHub...').closest('[role="status"]')
+    ).toHaveTextContent('Branch: develop');
     expect(mocks.syncProjectGithub).not.toHaveBeenCalled();
 
     await act(async () => vi.advanceTimersByTimeAsync(2500));
@@ -395,7 +520,11 @@ describe('ProjectDetailsPage E9', () => {
     expect(
       await screen.findByText('A última sincronização não pôde ser concluída.')
     ).toBeInTheDocument();
-    expect(screen.getByText('Sincronizado anteriormente')).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole('heading', { name: 'GitHub' }).closest('.project-overview-group')
+      ).getByText('Falha na última sincronização')
+    ).toBeInTheDocument();
     expect(screen.getByText('Último sucesso')).toBeInTheDocument();
     expect(screen.getByText('Última tentativa falhou')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/Prisma|\/app\/github-sync/);
@@ -410,10 +539,16 @@ describe('ProjectDetailsPage E9', () => {
     const githubCard = (await screen.findByRole('heading', { name: 'GitHub' })).closest(
       '.project-overview-group--github'
     );
-    expect(within(githubCard).getByText('Não integrado')).toBeInTheDocument();
-    expect(within(githubCard).getByText('Nenhum repositório conectado.')).toBeInTheDocument();
+    expect(within(githubCard).getByText('Não conectado')).toBeInTheDocument();
+    expect(
+      within(githubCard).getByText('Nenhum repositório GitHub vinculado.')
+    ).toBeInTheDocument();
     expect(within(githubCard).getByText('Repositório')).toBeInTheDocument();
     expect(within(githubCard).queryByText('Última sincronização')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Conectar GitHub/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Conectar repositório' })).not.toBeInTheDocument();
+    expect(mocks.getProjectGithubSyncStatus).not.toHaveBeenCalled();
   });
 
   it('oculta a ação de sync para MEMBER', async () => {
@@ -440,7 +575,11 @@ describe('ProjectDetailsPage E9', () => {
       '.project-overview-surface'
     );
     expect(screen.getByText('Ativo')).toBeInTheDocument();
-    expect(within(overview).getByText('Nunca sincronizado')).toBeInTheDocument();
+    expect(
+      within(overview.querySelector('.project-overview-group--github')).getByText(
+        'Nunca sincronizado'
+      )
+    ).toBeInTheDocument();
     expect(screen.queryByText('GitHub sincronizado')).not.toBeInTheDocument();
   });
 
@@ -637,5 +776,138 @@ describe('ProjectDetailsPage E9', () => {
     expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeInTheDocument();
     expect(screen.queryByText(/Sincronização GitHub concluída/)).not.toBeInTheDocument();
     expect(screen.queryByText('Branches: 1/6')).not.toBeInTheDocument();
+  });
+  it('descobre sync automática com a Overview aberta e bloqueia a manual', async () => {
+    vi.useFakeTimers();
+    renderPage();
+    await act(async () => {});
+    mocks.getProjectGithubSyncStatus.mockResolvedValue({
+      run: { id: 301, origin: 'AUTOMATIC', status: 'RUNNING', step: 'COMMITS' }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(screen.getByText('Sincronizando automaticamente')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Sincronizando/ })).toBeDisabled();
+    expect(mocks.syncProjectGithub).not.toHaveBeenCalled();
+  });
+
+  it('recupera o probe ocioso após erros transitórios repetidos e acompanha a automática', async () => {
+    vi.useFakeTimers();
+    mocks.getProjectGithubSyncStatus
+      .mockRejectedValueOnce({ response: { status: 503 } })
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue({
+        run: { id: 401, origin: 'AUTOMATIC', status: 'RUNNING', step: 'COMMITS' }
+      });
+    renderPage();
+    await act(async () => {});
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(14999));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(3);
+    expect(screen.getByText('Sincronizando automaticamente')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Sincronizando/ })).toBeDisabled();
+    mocks.getProjectGithubSyncStatus.mockResolvedValue({
+      run: {
+        id: 401,
+        origin: 'AUTOMATIC',
+        status: 'SUCCEEDED',
+        step: 'COMPLETED'
+      }
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByText(/Sincronização GitHub concluída com sucesso/)).toBeVisible();
+  });
+
+  it.each([401, 403, 404])(
+    'não repete automaticamente erro terminal %s do probe',
+    async (status) => {
+      vi.useFakeTimers();
+      mocks.getProjectGithubSyncStatus.mockRejectedValue({ response: { status } });
+      renderPage();
+      await act(async () => {});
+      await act(async () => vi.advanceTimersByTimeAsync(120000));
+      expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledOnce();
+    }
+  );
+
+  it('respeita Retry-After inclusive ao ocultar e reabrir a aba', async () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    mocks.getProjectGithubSyncStatus
+      .mockRejectedValueOnce({
+        response: { status: 429, headers: { 'retry-after': '45' } }
+      })
+      .mockResolvedValue({ run: null });
+    renderPage();
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(24999));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledOnce();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(3);
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(120000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(3);
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => {});
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it('aborta retry em voo na troca de projeto e ignora resposta antiga mesmo sem cancelamento do transporte', async () => {
+    vi.useFakeTimers();
+    const pending = deferred();
+    mocks.getProjectGithubSyncStatus
+      .mockRejectedValueOnce({ response: { status: 500 } })
+      .mockImplementationOnce(() => pending.promise)
+      .mockResolvedValue({ run: null });
+    renderPage();
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    const signal = mocks.getProjectGithubSyncStatus.mock.calls[1][1].signal;
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledTimes(2);
+    mocks.api.get.mockResolvedValue({
+      data: { project: { ...project, id: 2, name: 'Projeto B' } }
+    });
+    await act(async () => navigateDetails('/projects/2'));
+    expect(signal.aborted).toBe(true);
+    await act(async () =>
+      pending.resolve({
+        run: {
+          id: 777,
+          origin: 'AUTOMATIC',
+          status: 'RUNNING',
+          step: 'ISSUES'
+        }
+      })
+    );
+    expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeVisible();
+    expect(screen.queryByText('Sincronizando automaticamente')).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(15000));
+    expect(mocks.getProjectGithubSyncStatus.mock.calls.filter(([id]) => id === '1')).toHaveLength(
+      2
+    );
+  });
+
+  it('cancela o timer de recuperação no unmount', async () => {
+    vi.useFakeTimers();
+    mocks.getProjectGithubSyncStatus.mockRejectedValue({ response: { status: 503 } });
+    const view = renderPage();
+    await act(async () => {});
+    view.unmount();
+    await act(async () => vi.advanceTimersByTimeAsync(120000));
+    expect(mocks.getProjectGithubSyncStatus).toHaveBeenCalledOnce();
   });
 });

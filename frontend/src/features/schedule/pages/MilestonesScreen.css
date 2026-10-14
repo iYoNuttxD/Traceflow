@@ -20,8 +20,7 @@
   font-size: clamp(var(--font-size-6), 3.2vw, var(--font-size-7));
 }
 
-.milestones-summary,
-.milestone-filters {
+.milestones-summary {
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface-primary);
@@ -137,23 +136,6 @@
 .milestone-filters__heading span {
   color: var(--color-text-secondary);
   font-size: var(--font-size-1);
-}
-
-.milestone-filters__clear {
-  min-height: var(--size-touch-target);
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-accent-text);
-  background: transparent;
-  font: inherit;
-  font-size: var(--font-size-2);
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-}
-
-.milestone-filters__clear:hover {
-  background: var(--color-accent-surface);
 }
 
 .milestone-filters__controls {

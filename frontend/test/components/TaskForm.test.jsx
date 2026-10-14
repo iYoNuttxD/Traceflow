@@ -47,7 +47,7 @@ describe('TaskForm', () => {
     });
   });
 
-  it('renderiza, preenche o título e submete o formulário atual', async () => {
+  it('renderiza os campos controlados e encaminha o evento de submit', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn((event) => event.preventDefault());
     render(<TaskFormHarness onSubmit={onSubmit} />);
@@ -102,17 +102,26 @@ describe('TaskForm', () => {
         onSubmit={vi.fn((event) => event.preventDefault())}
         members={[
           { id: 10, isActive: true, userId: 42, user: { id: 42, name: 'Pessoa ativa' } },
-          { id: 11, isActive: false, userId: 57, user: { id: 57, name: 'Pessoa inativa' } }
+          { id: 11, isActive: false, userId: 57, user: { id: 57, name: 'Pessoa inativa' } },
+          {
+            id: 12,
+            isActive: true,
+            userId: 58,
+            user: { id: 58, name: 'Conta inativa', isActive: false }
+          }
         ]}
       />
     );
 
     const responsible = screen.getByRole('combobox', { name: /Responsável/ });
     await user.click(responsible);
-    await user.click(await screen.findByRole('option', { name: 'Pessoa ativa' }));
+    const activeOption = await screen.findByRole('option', { name: 'Pessoa ativa' });
+    expect(screen.getByRole('listbox')).toBeVisible();
+    expect(screen.queryByRole('option', { name: 'Pessoa inativa' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Conta inativa' })).not.toBeInTheDocument();
+    await user.click(activeOption);
 
     expect(screen.getByRole('group', { name: 'Responsável' })).toHaveTextContent('Pessoa ativa');
-    expect(screen.queryByRole('option', { name: 'Pessoa inativa' })).not.toBeInTheDocument();
     expect(taskFormToPayload({ ...emptyTaskForm, responsibleUserId: '42' })).toMatchObject({
       responsibleUserId: 42
     });
@@ -126,7 +135,9 @@ describe('TaskForm', () => {
     const onChange = vi.fn();
     const sprints = [
       { id: 1, name: 'Sprint encerrada', status: 'CONCLUIDA' },
-      { id: 2, name: 'Sprint disponível', status: 'PLANEJADA' }
+      { id: 2, name: 'Sprint disponível', status: 'PLANEJADA' },
+      { id: 3, name: 'Sprint cancelada', status: 'CANCELADA' },
+      { id: 4, name: 'Sprint em andamento', status: 'EM_ANDAMENTO' }
     ];
     const props = {
       formData: { ...emptyTaskForm, sprintId: '1' },
@@ -140,8 +151,13 @@ describe('TaskForm', () => {
     expect(onChange).toHaveBeenCalledWith('sprintId', '');
     rerender(<TaskForm {...props} formData={emptyTaskForm} />);
     await user.click(screen.getByRole('combobox', { name: 'Sprint' }));
-    await user.click(await screen.findByRole('option', { name: 'Sprint disponível' }));
+    const plannedOption = await screen.findByRole('option', { name: 'Sprint disponível' });
+    expect(screen.getByRole('listbox')).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Sprint em andamento' })).toBeVisible();
     expect(screen.queryByRole('option', { name: 'Sprint encerrada' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Sprint cancelada' })).not.toBeInTheDocument();
+    expect(onChange.mock.calls).toEqual([['sprintId', '']]);
+    await user.click(plannedOption);
     expect(onChange).toHaveBeenCalledWith('sprintId', '2');
   });
 

@@ -25,19 +25,13 @@ export function SprintFilters({
 
   return (
     <CollapsibleFilterPanel
+      onClear={onClear}
+      canClear={active}
       id="sprint-filters-controls"
       className="sprint-filters"
       resultLabel={resultLabel}
       activeCount={activeCount}
     >
-      {active && (
-        <div className="planning-filter-panel__actions">
-          <button type="button" className="sprint-filters__clear" onClick={onClear}>
-            Limpar filtros
-          </button>
-        </div>
-      )}
-
       <div className="sprint-filters__controls">
         <label className="sprint-filter sprint-filter--search">
           <span>Pesquisar</span>

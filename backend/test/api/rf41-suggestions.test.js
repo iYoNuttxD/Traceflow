@@ -125,6 +125,20 @@ describe('RF41 — sugestões persistidas Commit → Task', () => {
     const suggestion = await prisma.taskCommitSuggestion.create({
       data: { projectId: project.id, taskId: task.id, commitId: commit.id }
     });
+    const earlier = [];
+    for (let index = 0; index < 2; index += 1) {
+      const extra = await createCommit(prisma, project.id, { message: `[TASK-${task.id}]` });
+      earlier.push(
+        await prisma.taskCommitSuggestion.create({
+          data: {
+            projectId: project.id,
+            taskId: task.id,
+            commitId: extra.id,
+            detectedAt: new Date('2020-01-01T00:00:00.000Z')
+          }
+        })
+      );
+    }
     const viewer = await register('rf41-viewer@example.invalid', 'VIEWER', project.id);
     const outsider = await register('rf41-outsider@example.invalid');
 
@@ -136,7 +150,7 @@ describe('RF41 — sugestões persistidas Commit → Task', () => {
       body: {
         status: 'PENDING',
         permissions: { canReview: false },
-        pagination: { page: 1, limit: 1, total: 1 }
+        pagination: { page: 1, limit: 1, total: 3, totalPages: 3 }
       }
     });
     expect(list.body.suggestions[0]).toMatchObject({
@@ -144,6 +158,17 @@ describe('RF41 — sugestões persistidas Commit → Task', () => {
       task: { id: task.id },
       commit: { id: commit.id }
     });
+    const page2 = await viewer.agent.get(
+      `/api/projects/${project.id}/traceability/commit-suggestions?page=2&limit=1`
+    );
+    const page3 = await viewer.agent.get(
+      `/api/projects/${project.id}/traceability/commit-suggestions?page=3&limit=1`
+    );
+    expect(page2.status).toBe(200);
+    expect(page3.status).toBe(200);
+    expect(page2.body.suggestions.map(({ id }) => id)).toEqual([earlier[1].id]);
+    expect(page3.body.suggestions.map(({ id }) => id)).toEqual([earlier[0].id]);
+    expect(list.body.suggestions).toHaveLength(1);
     expect(JSON.stringify(list.body)).not.toContain('authorEmail');
     expect(JSON.stringify(list.body)).not.toContain('privado@example.invalid');
     expect(

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     requestDeletion: vi.fn(),
     cancelDeletion: vi.fn(),
     exportData: vi.fn(),
+    exportGithubAuthoredCommits: vi.fn(),
     recordExport: vi.fn(),
     listGithubAuthorizations: vi.fn(),
     removeGithubAuthorization: vi.fn()
@@ -82,8 +85,10 @@ describe('configurações de conta L2', () => {
     mocks.repository.account.mockResolvedValue(activeUser);
     mocks.repository.pendingEmailChange.mockResolvedValue(null);
     mocks.repository.findUserByEmail.mockResolvedValue(null);
+    mocks.repository.exportGithubAuthoredCommits.mockResolvedValue([]);
     mocks.auth.verifyPassword.mockResolvedValue(true);
     mocks.auth.hashPassword.mockResolvedValue('argon2-hash');
+    mocks.repository.changePassword.mockResolvedValue(activeUser);
     mocks.githubAuth.identity.mockResolvedValue(null);
     for (const method of Object.values(mocks.email))
       method.mockResolvedValue({ status: 'accepted' });
@@ -109,6 +114,25 @@ describe('configurações de conta L2', () => {
       settingsService.updateUsername(7, 'novo-user', 'req-2', new Date('2030-01-20T00:00:00Z'))
     ).rejects.toMatchObject({ code: 'USERNAME_CHANGE_COOLDOWN' });
 
+    expect(mocks.repository.updateUsername).not.toHaveBeenCalled();
+    await expect(
+      settingsService.updateUsername(
+        7,
+        'novo-user',
+        'req-boundary',
+        new Date('2030-02-13T23:59:59.999Z')
+      )
+    ).rejects.toMatchObject({ code: 'USERNAME_CHANGE_COOLDOWN' });
+    expect(mocks.repository.updateUsername).not.toHaveBeenCalled();
+    mocks.repository.updateUsername.mockResolvedValue({ ...activeUser, username: 'novo-user' });
+    await expect(
+      settingsService.updateUsername(
+        7,
+        'novo-user',
+        'req-boundary',
+        new Date('2030-02-14T00:00:00Z')
+      )
+    ).resolves.toMatchObject({ username: 'novo-user' });
     mocks.repository.account.mockResolvedValue({
       ...activeUser,
       mustSetUsername: true,
@@ -139,7 +163,12 @@ describe('configurações de conta L2', () => {
       currentEmailSnapshot: activeUser.email,
       newEmail: 'novo@example.test'
     });
-    expect(persisted.tokenHash).toHaveLength(64);
+    expect(persisted.tokenHash).toBe(createHash('sha256').update(delivered.token).digest('hex'));
+    expect(persisted.expiresAt).toEqual(new Date('2030-01-01T00:30:00Z'));
+    expect(delivered).toMatchObject({
+      to: 'novo@example.test',
+      expiresAt: new Date('2030-01-01T00:30:00Z')
+    });
     expect(delivered.token).not.toBe(persisted.tokenHash);
     expect(JSON.stringify(mocks.repository.createEmailChange.mock.calls)).not.toContain(
       delivered.token
@@ -162,7 +191,8 @@ describe('configurações de conta L2', () => {
       22,
       'argon2-hash',
       expect.any(Date),
-      expect.objectContaining({ action: 'PASSWORD_CHANGED' })
+      expect.objectContaining({ action: 'PASSWORD_CHANGED' }),
+      { passwordHash: activeUser.passwordHash }
     );
   });
 
@@ -219,6 +249,8 @@ describe('configurações de conta L2', () => {
   it('lista apenas identificadores públicos de sessão', async () => {
     mocks.repository.listSessions.mockResolvedValue([
       {
+        id: 991,
+        tokenHash: 'private-session-sentinel',
         publicId: 'b6360643-0216-4cb7-873b-4e851250f524',
         rememberMe: false,
         createdAt: new Date(),
@@ -227,13 +259,24 @@ describe('configurações de conta L2', () => {
         revokedAt: null
       }
     ]);
+    mocks.repository.listSessions.mockResolvedValue([
+      ...(await mocks.repository.listSessions()),
+      { publicId: 'b6360643-0216-4cb7-873b-4e851250f525', id: 992, tokenHash: 'second-secret' }
+    ]);
     const sessions = await settingsService.sessions(7, 'b6360643-0216-4cb7-873b-4e851250f524');
     expect(sessions[0]).toMatchObject({ current: true, sessionId: expect.any(String) });
+    expect(sessions.map(({ sessionId, current }) => ({ sessionId, current }))).toEqual([
+      { sessionId: 'b6360643-0216-4cb7-873b-4e851250f524', current: true },
+      { sessionId: 'b6360643-0216-4cb7-873b-4e851250f525', current: false }
+    ]);
+    expect(JSON.stringify(sessions)).not.toMatch(
+      /private-session-sentinel|second-secret|tokenHash/
+    );
     expect(sessions[0]).not.toHaveProperty('id');
     expect(sessions[0]).not.toHaveProperty('tokenHash');
   });
 
-  it('bloqueia desativação e exclusão do único owner e mantém a sessão atual no pedido', async () => {
+  it('bloqueia desativação do único owner e agenda exclusão com a sessão atual', async () => {
     mocks.repository.deactivate.mockResolvedValue({ blocked: [{ id: 9, name: 'Projeto' }] });
     await expect(
       settingsService.deactivate(
@@ -262,11 +305,26 @@ describe('configurações de conta L2', () => {
   });
 
   it('exporta ZIP JSON sem hashes, tokens ou segredos', async () => {
+    const preferences = [
+      { projectId: 11, configurationVersion: 1, configuration: { widgets: ['I01'] } }
+    ];
+    const movements = [{ id: 12, projectId: 11, taskId: 13, toStatus: 'CONCLUIDO' }];
+    const commits = [
+      {
+        id: 14,
+        projectId: 11,
+        hash: 'abc',
+        githubUrl: 'https://github.com/example/repo/commit/abc'
+      }
+    ];
+    mocks.repository.exportGithubAuthoredCommits.mockResolvedValue(commits);
     mocks.repository.exportData.mockResolvedValue({
       ...activeUser,
       emailVerifiedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      dashboardPreferences: preferences,
+      responsibleMovementSnapshots: movements,
       memberships: [],
       responsibleTasks: [],
       sessions: [],
@@ -277,7 +335,25 @@ describe('configurações de conta L2', () => {
     mocks.repository.recordExport.mockResolvedValue({ id: 1 });
     const result = await settingsService.exportData(7, 'req-7', new Date('2030-01-01T00:00:00Z'));
     expect(result.filename).toMatch(/\.zip$/);
-    expect(result.zip.subarray(0, 2).toString()).toBe('PK');
+    const archive = await JSZip.loadAsync(result.zip, { checkCRC32: true });
+    const profile = JSON.parse(await archive.file('profile.json').async('string'));
+    expect(profile).toMatchObject({
+      id: 7,
+      name: 'Daniel Silva',
+      email: 'daniel@example.test',
+      accountStatus: 'ACTIVE'
+    });
+    for (const [filename, expected] of [
+      ['indicator-preferences.json', preferences],
+      ['task-responsibility-movements.json', movements],
+      ['github-authored-commits.json', commits]
+    ]) {
+      expect(JSON.parse(await archive.file(filename).async('string'))).toEqual(expected);
+    }
+    expect(profile).not.toHaveProperty('passwordHash');
+    const manifest = JSON.parse(await archive.file('manifest.json').async('string'));
+    expect(manifest.generatedAt).toBe('2030-01-01T00:00:00.000Z');
+    expect(manifest.files.sort()).toEqual(Object.keys(archive.files).sort());
     expect(result.zip.toString()).not.toMatch(/passwordHash|tokenHash|csrfToken|installationToken/);
   });
 
@@ -295,7 +371,18 @@ describe('configurações de conta L2', () => {
       githubInstallationAuthorizations: []
     });
     const result = await settingsService.buildExportArchive(7, new Date('2030-01-01T00:00:00Z'));
-    expect(result.zip.subarray(0, 2).toString()).toBe('PK');
+    const archive = await JSZip.loadAsync(result.zip, { checkCRC32: true });
+    const profile = JSON.parse(await archive.file('profile.json').async('string'));
+    expect(profile).toMatchObject({
+      id: 7,
+      name: 'Daniel Silva',
+      email: 'daniel@example.test',
+      accountStatus: 'ACTIVE'
+    });
+    expect(profile).not.toHaveProperty('passwordHash');
+    const manifest = JSON.parse(await archive.file('manifest.json').async('string'));
+    expect(manifest.generatedAt).toBe('2030-01-01T00:00:00.000Z');
+    expect(manifest.files.sort()).toEqual(Object.keys(archive.files).sort());
     expect(mocks.repository.recordExport).not.toHaveBeenCalled();
   });
 
@@ -311,6 +398,18 @@ describe('configurações de conta L2', () => {
       { currentPassword: 'senha-segura', confirmation: true },
       'req-8'
     );
+    expect(mocks.auth.verifyPassword).toHaveBeenCalledWith(7, 'senha-segura');
+    mocks.auth.verifyPassword.mockResolvedValue(false);
+    await expect(
+      settingsService.removeGithubAuthorization(
+        7,
+        { id: 22 },
+        5,
+        { currentPassword: 'wrong', confirmation: true },
+        'req-denied'
+      )
+    ).rejects.toMatchObject({ code: 'CURRENT_PASSWORD_INVALID' });
+    expect(mocks.repository.removeGithubAuthorization).toHaveBeenCalledTimes(1);
     expect(mocks.repository.removeGithubAuthorization).toHaveBeenCalledWith(
       7,
       5,
@@ -337,11 +436,39 @@ describe('configurações de conta L2', () => {
       )
     ).rejects.toMatchObject({ code: 'GITHUB_REAUTHENTICATION_REQUIRED' });
 
+    for (const [identityAt, sessionAt] of [
+      [new Date('2029-12-31T23:59:59.999Z'), now],
+      [null, now],
+      [now, null],
+      [undefined, now]
+    ]) {
+      mocks.githubAuth.identity.mockResolvedValue(
+        identityAt === undefined ? null : { lastAuthenticatedAt: identityAt }
+      );
+      await expect(
+        settingsService.requestDeletion(
+          7,
+          { id: 22, lastReauthenticatedAt: sessionAt },
+          { confirmation: true },
+          'req-invalid-proof',
+          now
+        )
+      ).rejects.toMatchObject({
+        code:
+          identityAt === undefined
+            ? 'GITHUB_IDENTITY_NOT_LINKED'
+            : 'GITHUB_REAUTHENTICATION_REQUIRED'
+      });
+    }
+    expect(mocks.repository.requestDeletion).not.toHaveBeenCalled();
+    mocks.githubAuth.identity.mockResolvedValue({
+      lastAuthenticatedAt: new Date('2030-01-01T00:00:00Z')
+    });
     mocks.repository.requestDeletion.mockResolvedValue({ request: { id: 12 } });
     await expect(
       settingsService.requestDeletion(
         7,
-        { id: 22, lastReauthenticatedAt: new Date('2030-01-01T00:09:00Z') },
+        { id: 22, lastReauthenticatedAt: new Date('2030-01-01T00:00:00Z') },
         { confirmation: true },
         'req-github-recent',
         now

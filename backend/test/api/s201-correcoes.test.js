@@ -84,13 +84,14 @@ async function* pages(...values) {
   for (const value of values) yield value;
 }
 
-function githubDouble({ branches, commitsByBranch = {}, pullRequests = [], issues = [] }) {
+function githubDouble({ branches, commitsByHead = {}, pullRequests = [], issues = [] }) {
   return {
     getRepository: vi.fn().mockResolvedValue(repository),
     listRepositoryPages: vi.fn(() => pages([repository])),
     listBranchPages: vi.fn(() => pages(branches)),
-    listCommitPages: vi.fn(({ branch }) => pages(commitsByBranch[branch] || [])),
+    listCommitPages: vi.fn(({ branch }) => pages(commitsByHead[branch] || [])),
     listPullRequestPages: vi.fn(() => pages(pullRequests)),
+    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(issues))
   };
 }
@@ -105,6 +106,9 @@ async function connectRepository(owner, projectId) {
       installedAt: new Date(),
       status: 'ACTIVE'
     }
+  });
+  await prisma.gitHubInstallationAuthorization.create({
+    data: { installationId: installation.id, userId: owner.user.id, verifiedAt: new Date() }
   });
   vi.spyOn(githubAppService, 'resolveAuthorizedRepository').mockResolvedValue({
     installation,
@@ -135,11 +139,11 @@ describe('Correções S2-01 — campos do GitHub no limite (S201-A03)', () => {
     expect((await connectRepository(owner, project.id)).status).toBe(200);
     githubBoundary.client = githubDouble({
       branches: [
-        { name: 'trunk', headSha: null },
-        { name: LONG_BRANCH, headSha: null }
+        { name: 'trunk', headSha: 'trunk-head' },
+        { name: LONG_BRANCH, headSha: 'long-branch-head' }
       ],
-      commitsByBranch: {
-        trunk: [
+      commitsByHead: {
+        'trunk-head': [
           {
             hash: 'c'.repeat(40),
             message: 'Commit com autor de nome longo',

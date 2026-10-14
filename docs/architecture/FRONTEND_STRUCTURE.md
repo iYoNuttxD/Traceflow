@@ -118,12 +118,63 @@ embutidas na Overview: edição usa `/projects/:projectId/edit`, e membros, conv
 usam `/projects/:projectId/members`. As telas continuam exibindo ações conforme o papel retornado
 pela API; o backend permanece autoritativo para autorização e lifecycle.
 
+O workspace completo vive em `/projects/:projectId/indicators`:
+`app/routes/AppRoutes.jsx` → `pages/IndicatorsPage.jsx` → `features/indicators/IndicatorsScreen.jsx`
+→ `DashboardPanel.jsx`. Geral e Meu Painel são views desse workspace; o editor é
+`components/DashboardEditor.jsx` e a personalização é apresentada por `components/CustomDashboard.jsx`.
+A Visão Geral em `/projects/:projectId` contém apenas `ProjectHealthSummary`, compacto e integrado
+ao container de contexto. Ele usa o aggregate com `view=GENERAL&healthOnly=true`; não monta o
+DashboardPanel completo nem cria outro endpoint de Health.
+
+A feature consulta catálogo e aggregate por visão/filtro, via o client real em
+`frontend/src/api/http-client.js`; widgets não fazem requests individuais de cálculo.
+Query string mantém view/filtros para Back/Forward. Geração e cancelamento impedem respostas
+antigas de substituir o contexto atual. Gráficos recebem pontos do backend sem recalcular
+indicadores. Projeto, membros e Sprints fornecem contexto/opções. As fronteiras continuam
+routes → pages → features → API compartilhada, sem mover regras de domínio para a UI.
+
 Overview, edição e membros usam `BackButton`, primitive shared com destino conhecido, nome acessível
 e touch target. A rota de membros organiza Equipe e Convites em tabs com a mesma primitive visual da
 navegação interna do projeto. Nome, username e perfil são filtrados client-side sobre a lista já
 autorizada; convites e código/link permanecem disponíveis somente conforme a autorização vigente.
 `TraceFlowIcon` centraliza a família outline utilizada por essas ações sem introduzir biblioteca
 externa.
+
+## Configuração GitHub do projeto — GITHUB-03
+
+A edição existente `/projects/:projectId/edit` continua OWNER-only e compõe Dados do projeto,
+`ProjectGitHubIntegration` e zona de perigo. `#github-integration` é o destino contextual dos
+CTA autorizado de Repository, com foco no heading. MANAGER continua sincronizando
+pela Visão Geral; os demais membros consultam os resumos e o catálogo sem ações OWNER-only.
+
+Os owners permanecem em `features/projects`: `GitHubRepositorySelector` é compartilhado por
+ProjectForm e vínculo posterior; `useGithubRepositoryCatalog` concentra a descoberta existente
+por GitHub App, normalização e reservas. Busca e filtro de conta usam o catálogo agregado
+canônico, conservando a instalação de cada opção. Não existe seletor, endpoint ou fluxo por URL
+paralelo. A API GitHub é consumida pelo barrel público de `features/github`.
+
+`useProjectGithubIntegration` coordena vínculo, preferência e sync separadamente do formulário
+geral. Aplica a mutation confirmada antes da reconciliação, usa gerações/abort e GET `fresh:true`
+para não reaproveitar leitura anterior à escrita. Erro no refresh oferece retry de consulta,
+sem desfazer o vínculo; polling consulta o estado persistido em 2,5s durante execução e 15s
+quando ocioso, com pausa em aba oculta. Erro de consulta pede ação explícita. Edição e Repository remontam por projectId, descartando estado transitório anterior.
+
+Repository consulta Project/membership pelos contratos existentes para distinguir integração
+ausente de catálogo vazio, preservando summary/filtros/catálogo sem contagens artificiais.
+GITHUB-04 usa a agenda nextSyncAt do backend e apresenta a origem do run. GitHubSyncProgress,
+extraído da Overview para a API pública de github, serve também à edição; não há progresso
+paralelo. Switch compartilhado aplica os tokens C2 e confirmação da preferência. Overview sem
+integração contém apenas consulta, sem CTA de conexão.
+
+GITHUB-04.1 remove também o CTA de configuração do Repository, preservando seu resumo, filtros
+e catálogo. A edição mantém o ponto de configuração e aplica a anatomia Settings C2:
+identidade/status juntos, ação de sync próxima ao estado, par de datas e setting row com Switch
+e descrição. Reutiliza Switch, FeedbackRegion, TraceFlowIcon e buttons existentes; não importa
+CSS interno da feature Settings nem cria primitives paralelas.
+O mesmo polling lê `automation` para reconciliar disponibilidade e agenda mesmo sem mudança de
+SyncRun. Sem heartbeat recente, não anuncia um horário como execução operacional; falha de
+consulta mantém disponibilidade não confirmada. Generation/abort das mutations também protege
+esse estado. Desabilitada mostra Não agendada; ativa acompanha o progresso já compartilhado.
 
 ## Auth público e ciclo de conta
 

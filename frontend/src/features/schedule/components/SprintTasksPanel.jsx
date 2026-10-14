@@ -60,10 +60,9 @@ export function SprintTasksPanel({
     [sprintTasks]
   );
   const removed = progress?.scopeChange?.removed || [];
-  const totalPoints =
-    frozen && sprintTasks.some((task) => task.estimatedEffort == null)
-      ? null
-      : sprintTasks.reduce((total, task) => total + (Number(task.estimatedEffort) || 0), 0);
+  const totalPoints = sprintTasks.some((task) => task.estimatedEffort == null)
+    ? null
+    : sprintTasks.reduce((total, task) => total + Number(task.estimatedEffort), 0);
   const completed =
     frozen && sprintTasks.some((task) => !task.status)
       ? null

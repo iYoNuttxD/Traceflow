@@ -1,0 +1,40 @@
+.indicator-progress {
+  position: relative;
+  margin-block: var(--space-2);
+}
+.indicator-progress progress {
+  display: block;
+  width: 100%;
+  height: var(--space-2);
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--color-surface-secondary);
+  color: var(--color-accent-primary);
+}
+.indicator-progress progress::-webkit-progress-bar {
+  background: var(--color-surface-secondary);
+}
+.indicator-progress progress::-webkit-progress-value {
+  background: currentColor;
+}
+.indicator-progress progress::-moz-progress-bar {
+  background: currentColor;
+}
+.indicator-progress__reference {
+  position: absolute;
+  top: calc(-1 * var(--space-1));
+  bottom: calc(-1 * var(--space-1));
+  border-left: 2px dashed var(--color-text-strong);
+  transform: translateX(-1px);
+}
+.indicator-progress--healthy progress {
+  color: var(--color-success-text);
+}
+.indicator-progress--attention progress {
+  color: var(--color-warning-text);
+}
+.indicator-progress--critical progress {
+  color: var(--color-danger-text);
+}

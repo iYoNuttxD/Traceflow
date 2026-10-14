@@ -40,6 +40,13 @@ describe('S1-08 domain contracts', () => {
         validatedByExecutionId: 27
       }
     }));
+  it('accepts complete valid creation and both correction modes', () => {
+    expect(createSchema.parse(input)).toEqual({ ...input, originTaskIds: [] });
+    for (const mode of [{ taskId: 7 }, { task: { title: 'Repair mismatch' } }]) {
+      const correction = { expectedRevision: 1, correctionCycle: 1, ...mode };
+      expect(correctionSchema.parse(correction)).toEqual(correction);
+    }
+  });
   it.each(['status', 'openedAt', 'currentCorrectionCycle', 'projectId', 'revision'])(
     'rejects client-controlled %s',
     (key) => expect(createSchema.safeParse({ ...input, [key]: 1 }).success).toBe(false)
@@ -55,13 +62,25 @@ describe('S1-08 domain contracts', () => {
     expect(createSchema.safeParse({ ...input, ...patch }).success).toBe(false)
   );
   it('enforces traceability without inventing links', () => {
-    expect(() => requireTraceability(null, [])).toThrow();
+    expect(() => requireTraceability(null, [])).toThrow(
+      expect.objectContaining({ code: 'DEFECT_TRACEABILITY_REQUIRED', statusCode: 400 })
+    );
     expect(() => requireTraceability(1, [])).not.toThrow();
     expect(() => requireTraceability(null, [1])).not.toThrow();
   });
   it('requires revision for edit and context for retest', () => {
     expect(updateSchema.safeParse({ title: 'X' }).success).toBe(false);
-    expect(retestSchema.safeParse({ defectId: 1, correctionCycle: 1 }).success).toBe(false);
+    expect(updateSchema.parse({ title: 'X', expectedRevision: 1 })).toEqual({
+      title: 'X',
+      expectedRevision: 1
+    });
+    const valid = { defectId: 1, correctionCycle: 2, expectedRevision: 3 };
+    expect(retestSchema.parse(valid)).toEqual(valid);
+    for (const key of Object.keys(valid)) {
+      const incomplete = { ...valid };
+      delete incomplete[key];
+      expect(retestSchema.safeParse(incomplete).success).toBe(false);
+    }
   });
   it.each([{ taskId: 1, task: { title: 'X' } }, {}, { task: { title: 'X', status: 'CONCLUIDO' } }])(
     'requires exactly one canonical correction task mode %j',
@@ -71,6 +90,13 @@ describe('S1-08 domain contracts', () => {
       ).toBe(false)
   );
   it('bounds pagination', () => {
+    expect(listSchema.parse({})).toEqual({ page: 1, limit: 20, search: '' });
+    expect(listSchema.parse({ page: '1000000', limit: '100' })).toEqual({
+      page: 1000000,
+      limit: 100,
+      search: ''
+    });
+    expect(listSchema.safeParse({ page: 1000001 }).success).toBe(false);
     expect(listSchema.safeParse({ limit: 101 }).success).toBe(false);
     expect(listSchema.safeParse({ page: 0 }).success).toBe(false);
   });

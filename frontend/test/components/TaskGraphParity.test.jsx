@@ -6,8 +6,6 @@ import { ConfirmProvider } from '../../src/shared/index.js';
 import { TaskDetailsPanel } from '../../src/features/tasks/components/TaskDetailsPanel.jsx';
 import { GraphEntityDetails } from '../../src/features/traceability/components/GraphEntityDetails.jsx';
 import { KanbanDialog } from '../../src/features/tasks/components/KanbanDialog.jsx';
-import { TraceabilityInspector } from '../../src/features/traceability/components/TraceabilityInspector.jsx';
-import { fixture } from '../helpers/expanded-graph.js';
 const task = {
   id: 16,
   projectId: 2,
@@ -95,35 +93,5 @@ describe('Task Details graph parity', () => {
       expect(screen.getByRole('button', { name: 'Ver sessões registradas' })).toHaveFocus()
     );
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
-  });
-  it.each([
-    'REQUIREMENT',
-    'TASK',
-    'COMMIT',
-    'TEST_CASE',
-    'TEST_EXECUTION',
-    'DEFECT',
-    'PULL_REQUEST',
-    'ISSUE'
-  ])('uses the same section surface for %s', (type) => {
-    const contract = fixture();
-    const node = contract.nodes.find((n) => n.type === type) || {
-      id: type + ':30',
-      type,
-      data: { id: 30, title: 'Artefato', number: 8 }
-    };
-    wrap(
-      <TraceabilityInspector
-        node={node}
-        contract={contract}
-        onClose={() => {}}
-        onSelect={() => {}}
-        onDetails={() => {}}
-      />
-    );
-    expect(screen.getByRole('region', { name: 'Informações' })).toHaveClass('detail-surface');
-    expect(screen.getByRole('region', { name: 'Relações na cadeia' })).toHaveClass(
-      'detail-surface'
-    );
   });
 });

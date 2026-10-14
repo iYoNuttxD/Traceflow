@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildSprintProgress,
   effectiveStatus,
@@ -228,14 +228,20 @@ describe('imutabilidade da sprint encerrada', () => {
 });
 
 describe('pureza e determinismo', () => {
-  it('nao depende do fuso da maquina nem do relogio', () => {
+  afterEach(() => vi.useRealTimers());
+  it('usa o corte explícito sem depender do relógio nem alterar entradas', () => {
     const participations = [
       participacao(1, { currentStatus: 'CONCLUIDO' }),
       participacao(2, { addedAfterStart: true, addedAt: new Date('2026-08-05T10:00:00.000Z') })
     ];
+    const original = structuredClone(participations);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2000-01-01'));
     const primeiro = progresso(participations);
+    vi.setSystemTime(new Date('2050-12-31'));
     const segundo = progresso(participations);
     expect(primeiro).toEqual(segundo);
+    expect(participations).toEqual(original);
     expect(primeiro.cutoff).toBe('2026-08-09T15:00:00.000Z');
   });
 

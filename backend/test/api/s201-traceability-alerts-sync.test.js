@@ -51,9 +51,10 @@ function githubDouble({ pullRequests = [], issues = [] } = {}) {
   return {
     getRepository: vi.fn().mockResolvedValue(repository),
     listRepositoryPages: vi.fn(() => pages([repository])),
-    listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: null }])),
+    listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
     listCommitPages: vi.fn(() => pages([])),
     listPullRequestPages: vi.fn(() => pages(pullRequests)),
+    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(issues))
   };
 }

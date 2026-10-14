@@ -142,7 +142,10 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     const updated = await authRepository.updateUser(user.id, { lastLoginAt: new Date() });
-    return { user: publicUser(updated), ...(await issueSession(updated, rememberMe)) };
+    return {
+      user: publicUser(updated),
+      ...(await issueSession({ ...updated, sessionVersion: user.sessionVersion }, rememberMe))
+    };
   },
   async authenticate(token) {
     if (!token) return null;
@@ -200,13 +203,19 @@ export const authService = {
     }
     if (record.user.accountStatus === 'ANONYMIZED') throw authError();
     ensurePasswordPolicy(password, record.user);
-    await authRepository.updateUser(record.userId, {
-      passwordHash: await this.hashPassword(password),
-      mustSetPassword: false,
-      sessionVersion: { increment: 1 }
-    });
-    await authRepository.useResetToken(record.id);
-    await authRepository.revokeUserSessions(record.userId);
+    const confirmed = await authRepository.completePasswordReset(
+      record.id,
+      record.userId,
+      await this.hashPassword(password)
+    );
+    if (!confirmed) {
+      throw new AppError({
+        message: 'Token de recuperação inválido ou expirado.',
+        statusCode: 400,
+        code: ERROR_CODES.INVALID_CREDENTIALS,
+        exposeTechnicalDetails: true
+      });
+    }
     projectEventPublisher.disconnectUser(record.userId);
   },
   async changePassword(userId, currentPassword, password) {
@@ -219,7 +228,13 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     ensurePasswordPolicy(password, user);
-    await authRepository.changePassword(userId, await this.hashPassword(password));
+    const changed = await authRepository.changePassword(
+      userId,
+      await this.hashPassword(password),
+      new Date(),
+      { passwordHash: user.passwordHash, sessionVersion: user.sessionVersion }
+    );
+    if (!changed) throw authError('A senha foi alterada durante a solicitação. Entre novamente.');
     projectEventPublisher.disconnectUser(userId);
   },
   async verifyPassword(userId, password) {
@@ -239,10 +254,16 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     }
-    await authRepository.updateUser(record.userId, { emailVerifiedAt: new Date() });
-    await authRepository.useEmailVerificationToken(record.id);
-    await authRepository.expireEmailVerificationTokens(record.userId);
-    return publicUser(await authRepository.findUserById(record.userId));
+    const user = await authRepository.completeEmailVerification(record.id, record.userId);
+    if (!user) {
+      throw new AppError({
+        message: 'Token de verificação inválido, expirado ou já utilizado.',
+        statusCode: 400,
+        code: ERROR_CODES.INVALID_CREDENTIALS,
+        exposeTechnicalDetails: true
+      });
+    }
+    return publicUser(user);
   },
   async updateUsername(userId, username) {
     const user = await authRepository.findUserById(userId);

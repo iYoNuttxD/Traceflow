@@ -3,13 +3,12 @@ import { buildSprintHistoricalSummary } from './sprint.summary.calculator.js';
 
 // Whitelist only the information rendered by Task Details. Never copy comments,
 // user profiles, author emails or internal integration payloads into history.
-export function buildClosingTaskSnapshot(task) {
+export function buildClosingTaskSnapshot(task, outgoingCarryOver = null) {
   if (!task) throw new Error('Closing Task snapshot requires an active Task');
   return {
-    // v3 acrescenta `estimatedEffort`: `pointsAtClose` representa ausência de
-    // estimativa e estimativa zero com o mesmo 0, o que impedia distinguir as duas
-    // ao consolidar o esforço da sprint encerrada.
-    version: 3,
+    // v3 preserves null versus explicit zero; v4 also freezes outgoing carry-over.
+    version: 4,
+    outgoingCarryOver,
     id: task.id,
     estimatedEffort: task.estimatedEffort ?? null,
     title: task.title,
@@ -40,9 +39,9 @@ export function buildClosingTaskSnapshot(task) {
   };
 }
 
-export function projectSprintTasks(sprint, participations) {
+export function projectSprintTasks(sprint, participations, events = []) {
   const isFrozen = isTerminalSprintStatus(sprint.status);
-  const historicalSummary = buildSprintHistoricalSummary(sprint, participations);
+  const historicalSummary = buildSprintHistoricalSummary(sprint, participations, events);
   const historicalLimitations = new Set(historicalSummary?.historicalLimitations ?? []);
   const tasks = participations
     .filter((p) => p.removedAt === null)
@@ -54,14 +53,14 @@ export function projectSprintTasks(sprint, participations) {
         exitStatus: p.exitStatus
       };
       if (!isFrozen) return p.task ? [{ ...p.task, ...context, isFrozen: false }] : [];
-      const snapshot = [1, 2, 3].includes(p.closingTaskSnapshot?.version)
+      const snapshot = [1, 2, 3, 4].includes(p.closingTaskSnapshot?.version)
         ? p.closingTaskSnapshot
         : null;
       if (!snapshot) historicalLimitations.add('LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE');
       else if (snapshot.version === 1)
         historicalLimitations.add('LEGACY_CLOSING_TASK_DETAILS_PARTIAL');
-      // Só o v3 guarda a estimativa da tarefa. Antes dele existia apenas
-      // `pointsAtClose`, onde "sem estimativa" e "estimativa zero" são o mesmo 0:
+      // v3+ guarda a estimativa da tarefa. Antes dele existia apenas
+      // `pointsAtClose`, onde "sem estimativa" e "estimativa zero" podiam ser o mesmo 0:
       // publicar esse 0 como limite fazia o congelado acusar estouro de um teto que
       // o planejamento nunca definiu. Sem o dado, o limite fica ausente e a sprint
       // declara a limitação.

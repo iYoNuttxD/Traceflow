@@ -1,3 +1,4 @@
+import { concurrentTransactions } from '../helpers/transaction-arrival-barrier.js';
 import { writeFileSync } from 'node:fs';
 import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
@@ -95,6 +96,11 @@ describe('S1-06 — esforço realizado por sessões de tempo (RF32/RF33/RF34)', 
       permissions: { canOperate: true, canModerate: false }
     });
 
+    const startedAt = new Date(Date.now() - 3600_000);
+    await prisma.taskTimeEntry.update({
+      where: { id: started.body.entry.id },
+      data: { startedAt }
+    });
     const stopped = await bruno.mutate('post', `${entriesPath(task.id)}/stop`).send({});
     expect(stopped).toMatchObject({
       status: 200,
@@ -108,8 +114,15 @@ describe('S1-06 — esforço realizado por sessões de tempo (RF32/RF33/RF34)', 
         effort: { running: null, completedCount: 1 }
       }
     });
-    expect(stopped.body.entry.durationSeconds).toBeGreaterThanOrEqual(0);
-    expect(typeof stopped.body.effort.actualHours).toBe('number');
+    const expectedSeconds = Math.floor(
+      (new Date(stopped.body.entry.endedAt).getTime() - startedAt.getTime()) / 1000
+    );
+    expect(expectedSeconds).toBeGreaterThanOrEqual(3600);
+    expect(stopped.body.entry.durationSeconds).toBe(expectedSeconds);
+    expect(stopped.body.entry.startedBy).toEqual({ id: ana.user.id, name: ana.user.name });
+    expect(stopped.body.entry.endedBy).toEqual({ id: bruno.user.id, name: bruno.user.name });
+    expect(stopped.body.effort.actualHours).toBe(Math.round(expectedSeconds / 36) / 100);
+    expect(stopped.body.effort.completedSeconds).toBe(expectedSeconds);
 
     expect((await ana.mutate('post', `${entriesPath(task.id)}/stop`).send({})).status).toBe(409);
 
@@ -142,7 +155,7 @@ describe('S1-06 — esforço realizado por sessões de tempo (RF32/RF33/RF34)', 
     const bruno = await register('s106-conc-b@example.invalid', 'MEMBER', project.id);
     const task = await createTask(prisma, project.id);
 
-    const responses = await Promise.all([
+    const responses = await concurrentTransactions(prisma, [
       ana.mutate('post', `${entriesPath(task.id)}/start`).send({}),
       bruno.mutate('post', `${entriesPath(task.id)}/start`).send({})
     ]);
@@ -465,7 +478,8 @@ it('audits timer adjustments, preserves clock timestamps, rejects other members 
         .send({ hours: 3, expectedUpdatedAt: entry.updatedAt })
     ).status
   ).toBe(403);
-  const edits = await Promise.all(
+  const edits = await concurrentTransactions(
+    prisma,
     [3, 4].map((hours) =>
       owner
         .mutate('patch', `${entriesPath(task.id)}/${entry.id}`)
@@ -473,6 +487,17 @@ it('audits timer adjustments, preserves clock timestamps, rejects other members 
     )
   );
   expect(edits.map((r) => r.status).sort()).toEqual([200, 409]);
+  const winningHours = edits[0].status === 200 ? 3 : 4;
+  expect(edits.find((r) => r.status === 200).body).toMatchObject({
+    entry: { durationSeconds: winningHours * 3600 },
+    effort: { actualHours: winningHours, completedSeconds: winningHours * 3600 }
+  });
+  expect((await prisma.taskTimeEntry.findUnique({ where: { id: entry.id } })).durationSeconds).toBe(
+    winningHours * 3600
+  );
+  expect(edits.find((r) => r.status === 409).body.message).toBe(
+    'A sessão mudou. Atualize o histórico antes de editar.'
+  );
   const history = (
     await owner.agent.get(`${entriesPath(task.id)}/history`).query({ source: 'TIMER' })
   ).body.items;

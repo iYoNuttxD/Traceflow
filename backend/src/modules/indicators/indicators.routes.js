@@ -1,0 +1,79 @@
+import { Router } from 'express';
+import { emptyObject, validateRequest } from '../../shared/validation/index.js';
+import { indicatorsController } from './indicators.controller.js';
+import {
+  dashboardQuerySchema,
+  dashboardPreferenceBodySchema,
+  flowTaskPeriodQuerySchema,
+  indicatorPeriodQuerySchema,
+  indicatorProjectParamsSchema,
+  sprintAnalyticsQuerySchema
+} from './indicators.validation.js';
+
+const router = Router();
+router.get(
+  '/projects/:projectId/indicator-preference',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
+  indicatorsController.preference
+);
+router.put(
+  '/projects/:projectId/indicator-preference',
+  validateRequest({
+    params: indicatorProjectParamsSchema,
+    query: emptyObject,
+    body: dashboardPreferenceBodySchema
+  }),
+  indicatorsController.savePreference
+);
+router.delete(
+  '/projects/:projectId/indicator-preference',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject, body: emptyObject }),
+  indicatorsController.resetPreference
+);
+router.get(
+  '/projects/:projectId/indicators/progress',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
+  indicatorsController.progress
+);
+router.get(
+  '/projects/:projectId/indicators/activity',
+  validateRequest({ params: indicatorProjectParamsSchema, query: indicatorPeriodQuerySchema }),
+  indicatorsController.activity
+);
+router.get(
+  '/projects/:projectId/indicators/github',
+  validateRequest({ params: indicatorProjectParamsSchema, query: indicatorPeriodQuerySchema }),
+  indicatorsController.github
+);
+router.get(
+  '/projects/:projectId/indicators/tasks',
+  validateRequest({ params: indicatorProjectParamsSchema, query: flowTaskPeriodQuerySchema }),
+  indicatorsController.tasks
+);
+router.get(
+  '/projects/:projectId/indicators/sprints',
+  validateRequest({ params: indicatorProjectParamsSchema, query: sprintAnalyticsQuerySchema }),
+  indicatorsController.sprints
+);
+router.get(
+  '/projects/:projectId/indicators/quality',
+  validateRequest({ params: indicatorProjectParamsSchema, query: flowTaskPeriodQuerySchema }),
+  indicatorsController.quality
+);
+router.get(
+  '/projects/:projectId/indicators/traceability',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
+  indicatorsController.traceability
+);
+router.get(
+  '/projects/:projectId/indicators/dashboard',
+  validateRequest({ params: indicatorProjectParamsSchema, query: dashboardQuerySchema }),
+  indicatorsController.dashboard
+);
+router.get(
+  '/projects/:projectId/indicators/catalog',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
+  indicatorsController.catalog
+);
+
+export default router;

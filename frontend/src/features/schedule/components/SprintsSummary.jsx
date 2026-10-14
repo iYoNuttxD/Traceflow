@@ -16,7 +16,7 @@ export function SprintsSummary({ sprints, scheduleById }) {
   const active = summary.active;
   const activeTasks = summary.activeTasks;
   const activeDetail = active
-    ? `${formatSprintCardPeriod(active)} · ${activeTasks.total} ${activeTasks.total === 1 ? 'tarefa' : 'tarefas'} · ${activeTasks.points} pts`
+    ? `${formatSprintCardPeriod(active)} · ${activeTasks.total} ${activeTasks.total === 1 ? 'tarefa' : 'tarefas'} · ${activeTasks.points ?? '—'} pts`
     : 'Nenhuma sprint em execução';
 
   return (

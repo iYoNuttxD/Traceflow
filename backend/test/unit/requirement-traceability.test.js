@@ -317,7 +317,9 @@ describe('S1-09 canonical policy', () => {
       ['--project-id=1', '--apply', '--dry-run'],
       ['--project-id=1', '--unknown']
     ])
-      expect(() => parseReconciliationArguments(args)).toThrow();
+      expect(() => parseReconciliationArguments(args)).toThrow(
+        'Uso: --project-id=<id> [--dry-run | --apply] [--policy]. Padrão: dry-run.'
+      );
   });
 });
 

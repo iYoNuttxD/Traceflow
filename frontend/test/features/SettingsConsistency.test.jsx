@@ -449,6 +449,8 @@ describe('Settings consistency', () => {
     await changeProfile(user, { name: 'Daniel Novo', username: 'daniel.novo' });
 
     expect(await screen.findByText('Alterações salvas.')).toBeInTheDocument();
+    expect(mocks.api.updateProfile).toHaveBeenCalledExactlyOnceWith('Daniel Novo');
+    expect(mocks.api.updateUsername).toHaveBeenCalledExactlyOnceWith('daniel.novo');
     expect(screen.getByLabelText('Nome')).toHaveValue('Daniel Novo');
     expect(screen.getByLabelText('Username')).toHaveValue('daniel.novo');
     expect(mocks.api.account).toHaveBeenCalledTimes(2);

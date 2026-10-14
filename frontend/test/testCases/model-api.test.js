@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  LIMITS,
-  EVIDENCE_LIMITS,
   evidenceError,
   validateForm,
   definitionPayload,
@@ -64,6 +62,7 @@ describe('S1-07 API and payload contracts', () => {
   });
   it('builds exact multipart fields and leaves Content-Type/boundary to the client', async () => {
     const file = new File(['{}'], 'file.json', { type: 'application/json' });
+    const stepFile = new File(['step image'], 'step.png', { type: 'image/png' });
     const body = executionFormData({
       testCaseVersion: 3,
       environment: 'LOCAL',
@@ -73,7 +72,9 @@ describe('S1-07 API and payload contracts', () => {
         shortHash: 'abcd',
         message: 'Fix'
       }),
-      stepResults: [{ position: 1, result: 'PASS', observedResult: '', evidences: [] }],
+      stepResults: [
+        { position: 1, result: 'PASS', observedResult: '', evidences: [{ file: stepFile }] }
+      ],
       evidences: [{ file }]
     });
     expect(JSON.parse(body.get('payload'))).toEqual({
@@ -82,6 +83,9 @@ describe('S1-07 API and payload contracts', () => {
       testedReference: { id: 9, type: 'COMMIT' },
       steps: [{ position: 1, result: 'PASS', observedResult: null }]
     });
+    expect([...body.keys()]).toEqual(['payload', 'evidence', 'stepEvidence.1']);
+    expect(body.get('evidence')).toBe(file);
+    expect(body.get('stepEvidence.1')).toBe(stepFile);
     await testCasesApi.record(1, body);
     expect(http.post).toHaveBeenCalledWith('/test-cases/1/executions', body, { timeout: 120000 });
   });
@@ -113,16 +117,43 @@ describe('S1-07 API and payload contracts', () => {
   });
 });
 describe('server-aligned client validation', () => {
-  it.each(['title', 'description', 'preconditions', 'expectedResult'])(
-    'enforces %s length',
-    (key) => {
-      expect(validateForm({ ...form, [key]: 'x'.repeat(LIMITS[key] + 1) })).toHaveProperty(key);
-    }
-  );
+  it.each([
+    ['title', 200],
+    ['description', 10000],
+    ['preconditions', 20000],
+    ['expectedResult', 20000]
+  ])('enforces %s length', (key, limit) => {
+    expect(validateForm({ ...form, requirementId: '4', [key]: 'x'.repeat(limit) })).toEqual({});
+    expect(validateForm({ ...form, requirementId: '4', [key]: 'x'.repeat(limit + 1) })).toEqual({
+      [key]: `Use até ${limit} caracteres.`
+    });
+  });
   it('requires responsible and step text, requires requirement or task traceability', () => {
     expect(validateForm(form)).toHaveProperty('traceability');
     expect(validateForm({ ...form, requirementId: '4' })).toEqual({});
     expect(validateForm({ ...form, taskIds: [9] })).toEqual({});
+    const valid = { ...form, requirementId: '4' };
+    expect(validateForm({ ...valid, steps: [] })).toEqual({ steps: 'Informe de 1 a 100 passos.' });
+    expect(
+      validateForm({
+        ...valid,
+        steps: Array.from({ length: 100 }, (_, id) => ({ ...form.steps[0], id }))
+      })
+    ).toEqual({});
+    expect(
+      validateForm({
+        ...valid,
+        steps: Array.from({ length: 101 }, (_, id) => ({ ...form.steps[0], id }))
+      })
+    ).toEqual({ steps: 'Informe de 1 a 100 passos.' });
+    for (const key of ['action', 'expectedResult']) {
+      expect(
+        validateForm({ ...valid, steps: [{ ...form.steps[0], [key]: 'x'.repeat(10000) }] })
+      ).toEqual({});
+      expect(
+        validateForm({ ...valid, steps: [{ ...form.steps[0], [key]: 'x'.repeat(10001) }] })
+      ).toEqual({ [`draft-1-${key}`]: 'Use até 10000 caracteres.' });
+    }
     expect(
       validateForm({
         ...form,
@@ -161,23 +192,17 @@ describe('server-aligned client validation', () => {
     const file = (name, size, type = '') => ({ name, size, type });
     expect(evidenceError([], [file('x.png', 1, 'text/html')], true, 0)).toMatch(/Formato/);
     expect(evidenceError([], [file('x.png', 0)], true, 0)).toMatch(/vazio/);
-    expect(evidenceError([], [file('x.png', EVIDENCE_LIMITS.fileBytes)], true, 0)).toBe('');
-    expect(evidenceError([], [file('x.png', EVIDENCE_LIMITS.fileBytes + 1)], true, 0)).toMatch(
-      /limite/
-    );
-    expect(evidenceError([], [file('x.mp4', EVIDENCE_LIMITS.videoBytes)], true, 0)).toBe('');
-    expect(evidenceError([], [file('x.mp4', EVIDENCE_LIMITS.videoBytes + 1)], true, 0)).toMatch(
-      /limite/
-    );
+    expect(evidenceError([], [file('x.png', 10 * 1024 ** 2)], true, 0)).toBe('');
+    expect(evidenceError([], [file('x.png', 10 * 1024 ** 2 + 1)], true, 0)).toMatch(/limite/);
+    expect(evidenceError([], [file('x.mp4', 50 * 1024 ** 2)], true, 0)).toBe('');
+    expect(evidenceError([], [file('x.mp4', 50 * 1024 ** 2 + 1)], true, 0)).toMatch(/limite/);
   });
   it('enforces per-step/general/execution counts and aggregate bytes', () => {
     const file = { name: 'x.png', size: 1 };
     expect(evidenceError([], [file], true, 3)).toMatch(/3 arquivos/);
     expect(evidenceError([], [file], false, 5)).toMatch(/5 arquivos/);
     expect(evidenceError(Array(20).fill(file), [file], false, 0)).toMatch(/20 arquivos/);
-    expect(evidenceError([{ size: EVIDENCE_LIMITS.totalBytes }], [file], false, 0)).toMatch(
-      /100 MiB/
-    );
+    expect(evidenceError([{ size: 100 * 1024 ** 2 }], [file], false, 0)).toMatch(/100 MiB/);
   });
   it('previews result precedence without replacing server authority and deduplicates IDs', () => {
     expect(resultOf([{ result: 'BLOCKED' }, { result: 'FAIL' }])).toBe('FAIL');

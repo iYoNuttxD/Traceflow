@@ -139,7 +139,7 @@ export function NewProjectDialog({
               {view === 'choose'
                 ? 'Escolha como deseja continuar.'
                 : view === 'create'
-                  ? 'Vincule um repositório autorizado para criar o projeto.'
+                  ? 'Informe os dados do projeto. A integração com GitHub é opcional.'
                   : 'Use o código ou link compartilhado pelo proprietário do projeto.'}
             </p>
           </div>
@@ -163,7 +163,7 @@ export function NewProjectDialog({
               <TraceFlowIcon name="plus" />
               <span>
                 <strong>Criar projeto</strong>
-                <small>Use a integração GitHub já autorizada.</small>
+                <small>Cadastre com ou sem repositório GitHub.</small>
               </span>
             </button>
             <button ref={joinChoiceRef} type="button" onClick={() => changeView('join')}>

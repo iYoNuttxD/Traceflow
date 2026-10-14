@@ -3,10 +3,31 @@ import { describe, expect, it } from 'vitest';
 import { checkArchitecture, extractImportSpecifiers } from '../../scripts/check-architecture.js';
 
 describe('verificador de fronteiras arquiteturais', () => {
-  it('extrai imports e reexports estáticos', () => {
+  it('extrai imports e reexports estáticos, inclusive multilinha e efeitos colaterais', () => {
     expect(
-      extractImportSpecifiers("import value from './value.js'; export { item } from './item.js';")
-    ).toEqual(['./value.js', './item.js']);
+      extractImportSpecifiers(`
+        import value from './value.js';
+        import "./side-effect.js";
+        import {
+          first,
+          second as renamed
+        } from "./multiline.js";
+        import * as namespace from './namespace.js';
+        export { item } from './item.js';
+        export {
+          other as publicOther
+        } from "./public.js";
+        export * from './barrel.js';
+      `)
+    ).toEqual([
+      './value.js',
+      './side-effect.js',
+      './multiline.js',
+      './namespace.js',
+      './item.js',
+      './public.js',
+      './barrel.js'
+    ]);
   });
 
   it('aprova as fontes atuais do backend e frontend', () => {

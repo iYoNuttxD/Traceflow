@@ -19,6 +19,21 @@ describe('serializableTransaction', () => {
     );
   });
 
+  it('propaga o último conflito após exatamente três tentativas esgotadas', async () => {
+    const failures = ['first', 'second', 'last'].map((message) =>
+      Object.assign(new Error(message), { code: 'P2034' })
+    );
+    const client = {
+      $transaction: vi
+        .fn()
+        .mockRejectedValue(failures[2])
+        .mockRejectedValueOnce(failures[0])
+        .mockRejectedValueOnce(failures[1])
+    };
+    await expect(serializableTransaction(vi.fn(), { client })).rejects.toBe(failures[2]);
+    expect(client.$transaction).toHaveBeenCalledTimes(3);
+  });
+
   it('não repete falha não transacional', async () => {
     const failure = Object.assign(new Error('database unavailable'), { code: 'P1001' });
     const client = { $transaction: vi.fn().mockRejectedValue(failure) };

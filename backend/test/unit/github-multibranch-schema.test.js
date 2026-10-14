@@ -10,11 +10,15 @@ const migrationPath = new URL(
 describe('schema e migration incremental multibranch L1.2', () => {
   it('modela branch e relação N:N sem manter Commit.branch no schema atual', async () => {
     const schema = await readFile(schemaPath, 'utf8');
-    expect(schema).toMatch(/model GitBranch[\s\S]*@@unique\(\[projectId, name\]\)/);
-    expect(schema).toMatch(/model CommitBranch[\s\S]*@@id\(\[commitId, branchId\]\)/);
+    expect(schema.match(/model GitBranch \{[\s\S]*?\n\}/)?.[0]).toMatch(
+      /@@unique\(\[projectId, name\]\)/
+    );
+    expect(schema.match(/model CommitBranch \{[\s\S]*?\n\}/)?.[0]).toMatch(
+      /@@id\(\[commitId, branchId\]\)/
+    );
     const commitModel = schema.match(/model Commit \{[\s\S]*?\n\}/)?.[0] || '';
     expect(commitModel).not.toMatch(/\n\s+branch\s+String\?/);
-    expect(schema).toMatch(/@@unique\(\[projectId, hash\]\)/);
+    expect(commitModel).toMatch(/@@unique\(\[projectId, hash\]\)/);
   });
 
   it('faz backfill de branches e vínculos sem SQL destrutivo', async () => {

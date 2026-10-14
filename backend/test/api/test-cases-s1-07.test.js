@@ -232,18 +232,42 @@ describe('S1-07 authenticated HTTP contract', () => {
     const f = await fixture();
     const row = await f.create();
     const before = await readdir(assertTestEvidenceRoot());
-    for (const builder of [
-      () => upload(f, row.id).field('payload', '{}'),
-      () => upload(f, row.id).field('extra', 'x'),
-      () => upload(f, row.id).attach('other', png, { filename: 'x.png' }),
-      () => upload(f, row.id).attach('evidence', png, { filename: 'x.svg' }),
-      () => upload(f, row.id).attach('evidence', Buffer.from('fake'), { filename: 'x.png' }),
-      () => upload(f, row.id).attach('evidence', Buffer.from('{bad}'), { filename: 'x.json' }),
-      () => upload(f, row.id).attach('stepEvidence.2', png, { filename: 'x.png' }),
-      () => upload(f, row.id).attach('stepEvidence.1', Buffer.from('ok'), { filename: 'x.txt' })
+    for (const [builder, status, code] of [
+      [() => upload(f, row.id).field('payload', '{}'), 413, 'TEST_EVIDENCE_LIMIT_EXCEEDED'],
+      [() => upload(f, row.id).field('extra', 'x'), 413, 'TEST_EVIDENCE_LIMIT_EXCEEDED'],
+      [
+        () => upload(f, row.id).attach('other', png, { filename: 'x.png' }),
+        400,
+        'TEST_EVIDENCE_LIMIT_EXCEEDED'
+      ],
+      [
+        () => upload(f, row.id).attach('evidence', png, { filename: 'x.svg' }),
+        400,
+        'VALIDATION_ERROR'
+      ],
+      [
+        () => upload(f, row.id).attach('evidence', Buffer.from('fake'), { filename: 'x.png' }),
+        400,
+        'VALIDATION_ERROR'
+      ],
+      [
+        () => upload(f, row.id).attach('evidence', Buffer.from('{bad}'), { filename: 'x.json' }),
+        400,
+        'VALIDATION_ERROR'
+      ],
+      [
+        () => upload(f, row.id).attach('stepEvidence.2', png, { filename: 'x.png' }),
+        400,
+        'VALIDATION_ERROR'
+      ],
+      [
+        () => upload(f, row.id).attach('stepEvidence.1', Buffer.from('ok'), { filename: 'x.txt' }),
+        400,
+        'VALIDATION_ERROR'
+      ]
     ]) {
       const res = await builder();
-      expect([400, 413], res.text).toContain(res.status);
+      expect(res, res.text).toMatchObject({ status, body: { code } });
       expect(await readdir(assertTestEvidenceRoot())).toEqual(before);
     }
     expect(await prisma.testExecution.count()).toBe(0);
@@ -252,15 +276,32 @@ describe('S1-07 authenticated HTTP contract', () => {
   it('enforces per-step and general quotas before accepting an execution', async () => {
     const f = await fixture();
     const row = await f.create();
+    const before = await readdir(assertTestEvidenceRoot());
     for (const [field, count] of [
       ['evidence', 6],
       ['stepEvidence.1', 4]
     ]) {
       let req = upload(f, row.id);
       for (let i = 0; i < count; i++) req = req.attach(field, png, { filename: `${i}.png` });
-      expect([400, 413]).toContain((await req).status);
+      expect(await req).toMatchObject({
+        status: 400,
+        body: { code: 'TEST_EVIDENCE_LIMIT_EXCEEDED' }
+      });
+      expect(await readdir(assertTestEvidenceRoot())).toEqual(before);
     }
     expect(await prisma.testExecution.count()).toBe(0);
+    let accepted = upload(f, row.id);
+    for (let index = 0; index < 5; index++)
+      accepted = accepted.attach('evidence', png, { filename: `general-${index}.png` });
+    for (let index = 0; index < 3; index++)
+      accepted = accepted.attach('stepEvidence.1', png, { filename: `step-${index}.png` });
+    expect(await accepted).toMatchObject({ status: 201 });
+    expect(await prisma.testEvidence.count()).toBe(8);
+    expect(await prisma.testExecution.count()).toBe(1);
+    const { unlink } = await import('node:fs/promises');
+    for (const item of await prisma.testEvidence.findMany())
+      await unlink(`${await realpath(assertTestEvidenceRoot())}/${item.storageKey}`);
+    expect(await readdir(assertTestEvidenceRoot())).toEqual(before);
   });
   it('accepts exactly 20 files and rejects the 21st without partial data', async () => {
     const f = await fixture();

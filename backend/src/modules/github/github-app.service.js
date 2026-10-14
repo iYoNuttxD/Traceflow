@@ -1,6 +1,11 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { env } from '../../config/env.js';
-import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
+import {
+  AppError,
+  ERROR_CODES,
+  ExternalServiceError,
+  resourceNotFoundError
+} from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
 import { authorizationService } from '../authorization/authorization.service.js';
 import { traceabilityAlertService } from '../traceability/traceability-alert.service.js';
@@ -8,6 +13,9 @@ import { githubAppCredentialProvider } from './github-credential.provider.js';
 import { githubInstallationClientFactory } from './github.client.js';
 import { collectGithubPages } from './github-pagination.js';
 import { githubRepository } from './github.repository.js';
+import { buildAuditEvent } from '../audit/audit.service.js';
+import { projectRepository } from '../projects/project.repository.js';
+import { githubSyncService } from './githubSync.service.js';
 
 const hashToken = (value) => createHash('sha256').update(value).digest('hex');
 export const GITHUB_WEBHOOK_STALE_AFTER_MS = 5 * 60 * 1000;
@@ -52,10 +60,38 @@ const repositorySwapConflict = () =>
     code: ERROR_CODES.GITHUB_REPOSITORY_SWAP_FORBIDDEN,
     exposeTechnicalDetails: true
   });
+const alreadyConnected = () =>
+  new AppError({
+    message: 'Este projeto já possui uma integração GitHub. Use a sincronização existente.',
+    statusCode: 409,
+    code: ERROR_CODES.GITHUB_PROJECT_ALREADY_CONNECTED,
+    exposeTechnicalDetails: true
+  });
+
+function connectionProviderError(error) {
+  if (!(error instanceof ExternalServiceError)) return error;
+  const publicErrors = {
+    [ERROR_CODES.GITHUB_AUTH_FAILED]: [403, 'A GitHub App não possui acesso ao repositório.'],
+    [ERROR_CODES.RESOURCE_NOT_FOUND]: [404, 'Repositório GitHub não encontrado ou inacessível.'],
+    [ERROR_CODES.GITHUB_RATE_LIMITED]: [429, 'Limite de requisições do GitHub atingido.']
+  };
+  const [statusCode, message] = publicErrors[error.code] || [
+    503,
+    'GitHub temporariamente indisponível. Tente vincular o repositório novamente.'
+  ];
+  return new AppError({
+    message,
+    statusCode,
+    code: statusCode === 503 ? ERROR_CODES.EXTERNAL_SERVICE_ERROR : error.code,
+    exposeTechnicalDetails: true,
+    cause: error
+  });
+}
 
 async function requireOwner(projectId, userId) {
   const membership = await authorizationService.membership(Number(projectId), userId);
-  if (!membership || membership.role !== 'OWNER')
+  if (!membership) throw resourceNotFoundError('Project');
+  if (membership.role !== 'OWNER')
     throw forbidden('Somente OWNER pode alterar a integração GitHub.');
 }
 
@@ -375,7 +411,7 @@ export const githubAppService = {
       });
     return { installation, repository };
   },
-  async connectProject({ projectId, userId, githubInstallationId, githubRepositoryId }) {
+  async connectProject({ projectId, userId, githubInstallationId, githubRepositoryId, requestId }) {
     await requireOwner(projectId, userId);
     const currentIntegration = await githubRepository.findIntegration(Number(projectId));
     if (
@@ -384,29 +420,102 @@ export const githubAppService = {
     ) {
       throw repositorySwapConflict();
     }
+    if (currentIntegration && currentIntegration.status !== 'RECONNECT_REQUIRED') {
+      throw alreadyConnected();
+    }
     const { installation, repository } = await this.resolveAuthorizedRepository(
       userId,
       githubInstallationId,
       githubRepositoryId
-    );
+    ).catch((error) => {
+      throw connectionProviderError(error);
+    });
+    if (
+      currentIntegration &&
+      !currentIntegration.githubRepositoryId &&
+      currentIntegration.repositoryFullName !== repository.fullName
+    ) {
+      throw repositorySwapConflict();
+    }
     await this.assertRepositoryAvailable(repository.githubRepositoryId, projectId, userId);
-    let integration;
+    let result;
     try {
-      integration = await githubRepository.connectProject(Number(projectId), installation.id, {
-        githubRepositoryId: repository.githubRepositoryId,
-        repositoryName: repository.name,
-        repositoryFullName: repository.fullName,
-        repositoryUrl: repository.url,
-        defaultBranch: repository.defaultBranch,
-        repositoryPrivate: repository.private
-      });
+      result = await githubRepository.connectProject(
+        Number(projectId),
+        installation.id,
+        {
+          githubRepositoryId: repository.githubRepositoryId,
+          repositoryName: repository.name,
+          repositoryFullName: repository.fullName,
+          repositoryUrl: repository.url,
+          defaultBranch: repository.defaultBranch,
+          repositoryPrivate: repository.private
+        },
+        {
+          userId,
+          auditData: buildAuditEvent({
+            actorUserId: userId,
+            projectId: Number(projectId),
+            requestId,
+            action: 'GITHUB_PROJECT_CONNECTED',
+            resourceType: 'ProjectGitHubIntegration',
+            metadata: { githubRepositoryId: repository.githubRepositoryId }
+          })
+        }
+      );
     } catch (error) {
       if (error?.code === 'GITHUB_REPOSITORY_SWAP_FORBIDDEN') throw repositorySwapConflict();
-      if (error?.code === 'P2002') throw repositoryConflict();
+      if (error?.code === 'P2002') {
+        await this.assertRepositoryAvailable(repository.githubRepositoryId, projectId, userId);
+        throw repositoryConflict();
+      }
+      if (error?.code === 'P2034') throw repositoryConflict();
       throw error;
     }
+    if (result.outcome === 'NOT_FOUND') throw resourceNotFoundError('Project');
+    if (result.outcome === 'FORBIDDEN')
+      throw forbidden('Somente OWNER pode alterar a integração GitHub.');
+    if (result.outcome === 'INSTALLATION_FORBIDDEN') throw forbidden();
+    if (result.outcome === 'ALREADY_CONNECTED') throw alreadyConnected();
     await traceabilityAlertService.reconcileAfterIntegration(Number(projectId));
-    return integration;
+
+    let initialSync = null;
+    if (result.outcome === 'CONNECTED') {
+      // The integration and its audit have committed. A later sync failure must never
+      // be reported as a failed connection or encourage another integration write.
+      try {
+        const run = await githubSyncService.requestProjectGithubSync(Number(projectId), userId);
+        initialSync = { status: run.status, run, error: run.error };
+      } catch {
+        const error = {
+          code: 'GITHUB_INITIAL_SYNC_FAILED',
+          message:
+            'Repositório vinculado. Não foi possível iniciar a sincronização; solicite uma nova sincronização.'
+        };
+        initialSync = { status: 'FAILED', run: null, error };
+        const attemptedAt = new Date();
+        try {
+          await projectRepository.markGithubSyncFailed(
+            Number(projectId),
+            attemptedAt,
+            error.message
+          );
+          Object.assign(result.integration, {
+            lastSyncStatus: 'FALHA',
+            lastSyncError: error.message,
+            lastSyncAttemptAt: attemptedAt
+          });
+          result.project.githubIntegration = result.integration;
+        } catch {
+          logger.warn('Não foi possível registrar a falha de solicitação do sync inicial.', {
+            event: 'github_initial_sync_status_failed',
+            projectId: Number(projectId),
+            requestId
+          });
+        }
+      }
+    }
+    return { project: result.project, integration: result.integration, initialSync };
   },
   verifyWebhookSignature(rawBody, suppliedSignature) {
     if (

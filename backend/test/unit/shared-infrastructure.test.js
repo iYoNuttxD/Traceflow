@@ -271,6 +271,7 @@ describe('logger e redaction', () => {
     });
     expect(JSON.parse(lines[0].line)).toEqual(event);
     expect(lines[0].line).not.toContain('Bearer-secret');
+    expect(lines[0].line).not.toContain('abc');
     expect(lines[0].line).not.toContain('user@example.com');
   });
 });

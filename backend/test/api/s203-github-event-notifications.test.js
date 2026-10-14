@@ -287,9 +287,10 @@ describe('S2-03 API: de ponta a ponta pela sincronização (UC04, C1, C3, C4)', 
         private: true,
         description: null
       }),
-      listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: null }])),
+      listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
       listCommitPages: vi.fn(() => pages([])),
       listPullRequestPages: vi.fn(() => pages([])),
+      listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
       listIssuePages: vi.fn(() => pages(issues))
     };
   }

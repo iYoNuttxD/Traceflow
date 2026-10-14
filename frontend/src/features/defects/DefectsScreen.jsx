@@ -248,7 +248,7 @@ function ProjectDefects({ project }) {
     state.clear();
   };
   return (
-    <div className="page-container sprints-screen tc-screen defects-screen">
+    <main className="page-container sprints-screen tc-screen defects-screen">
       <div inert={dialog ? true : undefined}>
         <header className="page-header sprints-screen__header">
           <div>
@@ -293,6 +293,8 @@ function ProjectDefects({ project }) {
           </dl>
         </section>
         <CollapsibleFilterPanel
+          onClear={clear}
+          canClear={Object.values(state.filters).some(Boolean)}
           className="sprint-filters"
           activeCount={Object.values(state.filters).filter(Boolean).length}
           resultLabel={`${state.catalog.total} defeitos`}
@@ -368,13 +370,6 @@ function ProjectDefects({ project }) {
               />
             ))}
           </div>
-          {Object.values(state.filters).some(Boolean) && (
-            <div className="planning-filter-panel__actions">
-              <button className="sprint-filters__clear" onClick={clear}>
-                Limpar filtros
-              </button>
-            </div>
-          )}
         </CollapsibleFilterPanel>
         {state.loading && <LoadingState message="Carregando defeitos…" />}
         {state.error && (
@@ -448,7 +443,7 @@ function ProjectDefects({ project }) {
           }}
         />
       )}
-    </div>
+    </main>
   );
 }
 export function DefectsScreen() {

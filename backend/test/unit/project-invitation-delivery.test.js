@@ -47,7 +47,31 @@ describe('convite quando SMTP falha', () => {
     expect(result.emailDelivery).toEqual({ status: 'temporary_failure', accepted: false });
     expect(result.invitation).toMatchObject({ id: 12, email: 'pessoa@example.invalid' });
     expect(result.token).toEqual(expect.any(String));
-    expect(mocks.audit.recordOperational).toHaveBeenCalledOnce();
+    expect(mocks.repository.createUnlessPending).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        projectId: 9,
+        createdById: 7,
+        email: 'pessoa@example.invalid',
+        role: 'MEMBER'
+      })
+    );
+    expect(mocks.email.sendProjectInvitation).toHaveBeenCalledExactlyOnceWith({
+      to: 'pessoa@example.invalid',
+      token: result.token,
+      expiresAt: expect.any(Date),
+      projectName: 'Projeto',
+      role: 'MEMBER',
+      projectId: 9,
+      invitationId: 12
+    });
+    expect(mocks.audit.recordOperational).toHaveBeenCalledExactlyOnceWith({
+      actorUserId: 7,
+      projectId: 9,
+      requestId: 'request-1',
+      action: 'PROJECT_INVITATION_CREATED',
+      resourceType: 'ProjectInvitation',
+      resourceId: 12
+    });
   });
 
   it('não envia e-mail nem audita convite quando o projeto deixa de estar ativo', async () => {

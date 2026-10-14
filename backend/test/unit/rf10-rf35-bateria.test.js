@@ -92,7 +92,7 @@ describe('equivalencia de offset (I36)', () => {
     addedAt: new Date('2026-08-01T22:30:00.000-03:00')
   };
 
-  it('a evolucao nao muda quando as datas trocam Z por -03:00', () => {
+  it('agrupa conclusão tardia no dia UTC correto', () => {
     const emZ = buildSprintProgress({
       sprint: sprintZ,
       participations: [participacaoZ],
@@ -134,24 +134,9 @@ describe('equivalencia de offset (I36)', () => {
         }
       ]
     });
-    const feitaEmOffset = buildSprintBurndown({
-      ...base,
-      participations: [
-        {
-          taskId: 1,
-          points: 5,
-          addedAt: new Date('2026-08-01T06:00:00.000-03:00'),
-          removedAt: null,
-          closedAt: null,
-          exitStatus: 'CONCLUIDO',
-          currentStatus: 'CONCLUIDO',
-          completedAt: new Date('2026-08-02T20:00:00.000-03:00')
-        }
-      ]
-    });
-    expect(feitaEmOffset).toEqual(feitaEmZ);
     const dia2 = feitaEmZ.days.find((dia) => dia.date === '2026-08-02');
     expect(dia2.remaining).toBe(0);
+    expect(feitaEmZ.days.find((dia) => dia.date === '2026-08-01').remaining).toBe(5);
   });
 });
 

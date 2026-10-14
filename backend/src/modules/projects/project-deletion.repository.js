@@ -56,6 +56,30 @@ export const projectDeletionRepository = {
         }
       });
       if (claimed.count !== 1) return { outcome: 'ALREADY_DELETED' };
+      await tx.projectGitHubIntegration.updateMany({
+        where: { projectId },
+        data: { nextSyncAt: null }
+      });
+      const interrupted = await tx.gitHubSyncRun.updateMany({
+        where: { projectId, activeProjectId: projectId },
+        data: {
+          status: 'FAILED',
+          activeProjectId: null,
+          automaticSlot: null,
+          automaticInstallationId: null,
+          finishedAt: now,
+          errorCode: 'PROJECT_DELETED',
+          errorMessage: 'O projeto foi excluído.'
+        }
+      });
+      if (interrupted.count)
+        await tx.projectGitHubIntegration.updateMany({
+          where: { projectId },
+          data: {
+            lastSyncStatus: 'FALHA',
+            lastSyncError: 'A execução foi interrompida pela exclusão do projeto.'
+          }
+        });
 
       await tx.projectInvitation.updateMany({
         where: {
@@ -108,6 +132,10 @@ export const projectDeletionRepository = {
         }
       });
       if (restored.count !== 1) return { outcome: 'CONFLICT' };
+      await tx.projectGitHubIntegration.updateMany({
+        where: { projectId },
+        data: { nextSyncAt: null }
+      });
       await auditRepository.create(auditData, tx);
       return {
         outcome: 'RESTORED',

@@ -10,7 +10,8 @@ import {
   ensureProjectExists,
   ensureTaskExists,
   formatTask,
-  formatMovement
+  formatMovement,
+  resolveResponsibleUser
 } from '../task.service-support.js';
 import { taskMovementRepository } from '../repositories/task-movement.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
@@ -44,10 +45,15 @@ export const taskKanbanService = {
     await ensureProjectExists(task.projectId);
     const payload = data && typeof data === 'object' ? data : {};
     validateStatus(payload.toStatus);
+    const responsibleUserId = await resolveResponsibleUser(
+      task.projectId,
+      payload.responsibleUserId
+    );
     const actor = context.actor;
     const result = await taskMovementRepository.transitionStatus({
       task,
       toStatus: payload.toStatus,
+      responsibleUserId,
       actor,
       validate: ({ sprint }) => {
         if (sprint && isTerminalSprintStatus(sprint.status)) {
@@ -80,8 +86,13 @@ export const taskKanbanService = {
     return { task: formatTask(result.task), movement: formatMovement(result.movement) };
   },
 
-  async updateTaskStatus(taskId, status, context = {}) {
-    const result = await taskKanbanService.moveTask(taskId, { toStatus: status }, context);
+  async updateTaskStatus(taskId, statusOrData, context = {}) {
+    const data = typeof statusOrData === 'string' ? { status: statusOrData } : statusOrData;
+    const result = await taskKanbanService.moveTask(
+      taskId,
+      { toStatus: data.status, responsibleUserId: data.responsibleUserId },
+      context
+    );
     return result.task;
   }
 };

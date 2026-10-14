@@ -85,6 +85,8 @@ it('preserves completed wizard and forbids duplicate retry after 409', async () 
   await screen.findByText(/Seu rascunho foi preservado/);
   expect(screen.getByText('Resumo da execução')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Registrar execução' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Registrar execução' }));
+  expect(api.record).toHaveBeenCalledTimes(1);
 });
 it('does not accept an old defect read after a successful retest', async () => {
   api.record.mockResolvedValue({ id: 39, displayId: 'EXEC-0039', result: 'PASS' });
@@ -116,13 +118,28 @@ it('blocks contextual creation for a viewer', async () => {
   expect(await screen.findByText(/não possui permissão/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Criar caso' })).toBeDisabled();
 });
-it('rejects a contextual response after project unmount', async () => {
-  const d = deferred();
-  api.members.mockReturnValue(d.promise);
+it('rejects obsolete project membership after the current project has loaded', async () => {
+  const oldMembers = deferred();
+  api.members.mockReturnValueOnce(oldMembers.promise).mockResolvedValueOnce(memberData);
   const view = wrap(<ContextualTestCaseCreate projectId={1} requirement={requirement} />);
-  view.unmount();
-  await act(() => d.resolve(memberData));
-  expect(screen.queryByRole('form')).not.toBeInTheDocument();
+  await waitFor(() => expect(api.members).toHaveBeenCalledOnce());
+  const oldSignal = api.members.mock.calls[0][1].signal;
+  expect(oldSignal.aborted).toBe(false);
+
+  view.rerender(
+    <MemoryRouter>
+      <ContextualTestCaseCreate projectId={2} requirement={requirement} />
+    </MemoryRouter>
+  );
+  await screen.findByLabelText('Título *');
+  expect(api.members).toHaveBeenLastCalledWith(2, expect.objectContaining({ fresh: true }));
+  expect(oldSignal.aborted).toBe(true);
+  expect(screen.getByRole('button', { name: 'Criar caso' })).toBeEnabled();
+
+  // The mock deliberately completes despite abort, so the response guard must also reject it.
+  await act(() => oldMembers.resolve({ ...memberData, currentMembership: { role: 'VIEWER' } }));
+  expect(screen.queryByText(/não possui permissão/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Criar caso' })).toBeEnabled();
 });
 it.each(['Enter', ' '])('opens card with %s and isolates footer actions', async (key) => {
   const open = vi.fn(),

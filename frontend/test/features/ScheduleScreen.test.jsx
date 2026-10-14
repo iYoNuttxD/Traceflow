@@ -538,6 +538,8 @@ describe('ScheduleCalendar — próximos prazos', () => {
     });
     expect(consoleError.mock.calls.flat().join(' ')).not.toMatch(/same key|unique "key"/i);
     expect(consoleWarn.mock.calls.flat().join(' ')).not.toMatch(/same key|unique "key"/i);
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(consoleWarn).not.toHaveBeenCalled();
     consoleError.mockRestore();
     consoleWarn.mockRestore();
   });
@@ -584,7 +586,11 @@ describe('ScheduleScreen — estados e integração', () => {
   it('exibe erro fatal com retry', async () => {
     mocks.projects.get.mockRejectedValue({ response: { status: 500, data: {} } });
     renderScreen();
-    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    const retry = await screen.findByRole('button', { name: 'Tentar novamente' });
+    mocks.projects.get.mockResolvedValue({ data: { project: { id: 1, name: 'Recuperado' } } });
+    await userEvent.click(retry);
+    expect(await screen.findByRole('heading', { name: 'Situação atual' })).toBeVisible();
+    expect(mocks.projects.get).toHaveBeenCalledTimes(2);
   });
 
   it('usa header de Planejamento e mantém Cronograma ativo', async () => {
@@ -615,6 +621,13 @@ describe('ScheduleScreen — estados e integração', () => {
   it('não envia recorte de mês nem cria request por célula ou hover', async () => {
     renderScreen();
     await screen.findByRole('heading', { name: 'Situação atual' });
+    const user = userEvent.setup();
+    const cells = [...document.querySelectorAll('.schedule-day')].slice(0, 3);
+    expect(cells).toHaveLength(3);
+    for (const cell of cells) {
+      await user.hover(cell);
+      await user.click(cell);
+    }
     expect(mocks.schedule.getSchedule).toHaveBeenCalledWith(
       '1',
       {},

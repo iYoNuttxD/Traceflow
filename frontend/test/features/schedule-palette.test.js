@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
@@ -6,6 +8,20 @@ import {
   scheduleEntityKey,
   scheduleEntityStyle
 } from '../../src/features/schedule/components/schedule-palette.js';
+
+import { parseStylesheet } from '../helpers/css-rules.js';
+
+// Base declarations only: this does not claim container layout or visual approval.
+function declarations(css, selector) {
+  return Object.assign(
+    {},
+    ...Array.from(parseStylesheet(css).cssRules)
+      .filter((rule) => rule.selectorText === selector)
+      .map((rule) =>
+        Object.fromEntries(Array.from(rule.style, (key) => [key, rule.style.getPropertyValue(key)]))
+      )
+  );
+}
 
 const entities = (total) =>
   Array.from({ length: total }, (_, index) => ({ type: 'sprint', id: index + 1 }));
@@ -79,6 +95,14 @@ describe('schedule automatic color CSS', () => {
     for (let index = 0; index < SCHEDULE_COLOR_SLOT_COUNT; index += 1) {
       expect(css.match(new RegExp(`--schedule-color-${index}:`, 'g'))).toHaveLength(1);
     }
+    const tokens = readFileSync('src/styles/tokens.css', 'utf8');
+    const slots = declarations(css, '.schedule-workspace');
+    for (let i = 0; i < SCHEDULE_COLOR_SLOT_COUNT; i++) {
+      const value = slots['--schedule-color-' + i];
+      const references = [...value.matchAll(/var\((--[a-z-]+)\)/g)].map((match) => match[1]);
+      expect(references.length).toBeGreaterThan(0);
+      for (const token of references) expect(tokens).toContain(token + ':');
+    }
     expect(css).toContain('var(--color-accent-primary)');
     expect(css).toContain('var(--color-success-text)');
     expect(css).not.toContain('data-schedule-palette');
@@ -88,8 +112,15 @@ describe('schedule automatic color CSS', () => {
   });
 
   it('define grid responsivo e altura limitada para próximos prazos', () => {
-    expect(css).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr))');
-    expect(css).toMatch(/\.schedule-upcoming\s*\{[^}]*max-height:/s);
-    expect(css).toMatch(/\.schedule-upcoming__list\s*\{[^}]*overflow-y: auto;/s);
+    expect(declarations(css, '.schedule-upcoming')).toMatchObject({
+      display: 'grid',
+      'max-height': 'min(31rem, 72vh)',
+      overflow: 'hidden'
+    });
+    expect(declarations(css, '.schedule-upcoming__list')).toMatchObject({
+      display: 'grid',
+      'grid-template-columns': 'repeat(auto-fit, minmax(min(100%, 20rem), 1fr))',
+      'overflow-y': 'auto'
+    });
   });
 });

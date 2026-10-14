@@ -24,9 +24,51 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | notificação de evento de issue e PR (S2-03)               | MySQL                               |                                       180 dias por default | mesma regra da notificação de tarefa (`NOTIFICATION_RETENTION_DAYS`) |
 | fila de eventos de issue e PR (S2-03)                     | MySQL                               |                     180 dias depois de processado por default | `privacy:retention` apaga `GitHubArtifactEvent` `DISPATCHED` ou `FAILED` com `detectedAt` acima de `NOTIFICATION_RETENTION_DAYS`; `PENDING` e `PROCESSING` não expiram por idade; o retrato sai por cascata |
 | preferência de notificação (S2-02)                        | MySQL                               |                                       enquanto a conta existir | anonimização apaga |
+| PR lifecycle (`PullRequestLifecycleEvent`)                | MySQL                               |                                           ciclo da PR/projeto     | eventos GitHub append-only; soft delete preserva; FK de Project/PR remove no hard purge; nenhum payload integral do evento é guardado                         |
+| IDs técnicos P1 de autoria/responsabilidade                | MySQL                               |                                           ciclo do artefato       | `Commit.authorGithubUserId` externo e `TaskMovement.responsibleUserIdSnapshot` nullable; sem nome/e-mail novos; legado permanece null                             |
 | logs                                                       | destino operacional                 |              a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador                                                                                                               |
 | e-mails técnicos                                           | provedor SMTP                       |                                              política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação                                                                                                     |
 | backup                                                     | infraestrutura                      |                                        a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros                                |
+
+## GitHub SyncRun — PR24-FIX-02
+
+`GitHubSyncRun` é registro operacional de execução, distinto de commits, PRs, issues, branches,
+requisitos, tarefas, vínculos, snapshots e auditoria. Guarda origem, progresso/contadores,
+timestamps, códigos/mensagens sanitizados e `requestedByUserId` nullable. Não guarda token,
+payload integral GitHub nem cópia do nome/e-mail do ator. AUTOMATIC tem ator nulo; MANUAL conserva
+referência ao User pseudonimizado após anonimização (ADR-010). A FK SET NULL/CASCADE preserva o run
+em eventual remoção física do User, sem autorizar um novo fluxo de exclusão de conta.
+
+**D-A / M4 — DECISION REQUIRED:** não existe prazo numérico aprovado para descarte de SyncRuns.
+Até a decisão, são preservados durante o ciclo do projeto; soft delete preserva, hard purge do
+projeto remove por cascade conforme a política vigente. Não há limpeza periódica desses runs.
+O intervalo nominal de 30 minutos representa até cerca de 48 runs/dia e 17.520/ano por projeto;
+jitter, duração e backoff reduzem a frequência efetiva. A operação deve acompanhar o crescimento.
+
+| Categoria | Proposta em avaliação, sem execução automática |
+| --- | --- |
+| AUTOMATIC SUCCEEDED | 90 dias |
+| MANUAL concluído | 180 dias |
+| FAILED de qualquer origem | 180 dias |
+| QUEUED/RUNNING, lease/reserva ativa | Excluídos da seleção; devem terminar ou ser recuperados |
+| Run necessário ao status atual | Preservar a referência, inclusive o último run por projeto |
+| Artefatos, vínculos, snapshots e AuditEvent | Políticas próprias; não serão apagados por expurgo de SyncRun |
+
+Esses números são propostas do review, não decisão jurídica ou aprovação operacional. A equipe e
+o controlador devem confirmar finalidade, prazo, exceções e efeitos em backup/auditoria antes de
+implementar descarte. Esta entrega registra a decisão pendente, sem afirmar conformidade LGPD.
+
+Backlog objetivo: integrar ao `privacy:retention` existente, após aprovação; não criar outro daemon.
+Exigir dry-run de contagens sanitizadas, seleção explícita por origem/estado/finishedAt UTC,
+limites por lote, logs sem PII, idempotência, revalidação transacional da elegibilidade e proteção
+contra cleanup concorrente. Provar que nenhuma reserva/lease ativa é removida, que GET sync/status
+mantém a referência necessária e que artefatos/joins/snapshots/auditoria permanecem iguais.
+`AuditEvent.resourceId` pode referenciar um ID de run sem FK; sua retenção de 365 dias deve continuar
+independente. Validar fixtures legadas com finishedAt ausente e obter critério explícito para elas.
+Executar testes somente em `TEST_DATABASE_URL` e validar dry-run antes de operação autorizada.
+
+`GitHubSchedulerWorker` é liveness efêmera sem ator pessoal: o worker remove sua própria entrada
+no shutdown e entradas com mais de 24h durante operação. Essa limpeza não se aplica a SyncRuns.
 
 ## Exclusão e recuperação de projeto
 
@@ -53,6 +95,10 @@ avaliação jurídica; esta implementação não declara apagamento instantâneo
 conformidade legal absoluta.
 
 Na E9, sincronização GitHub atualiza ou acrescenta artefatos por identificador externo e não apaga automaticamente itens ausentes em uma execução posterior. Essa preservação protege rastreabilidade e vínculos; uma política de reconciliação destrutiva exigirá decisão específica de retenção e auditoria.
+
+No P1, apenas `CommitBranch` passou a representar membership **corrente** da branch após varredura completa ancorada no SHA: links não observados são removidos exclusivamente daquela branch no commit da reconciliação. O `Commit` canônico e seus vínculos com Tasks permanecem. Falha parcial não remove links. `PullRequestLifecycleEvent` é append-only; o sync importa IDs e timestamps da API oficial sem inferir estados anteriores.
+
+`Commit.authorGithubUserId` permanece como identificador técnico de artefato externo no histórico do projeto após unlink ou anonimização; a relação local `GitHubIdentity` é removida e nenhuma associação por nome/e-mail é criada. A exportação pessoal inclui apenas Commits cujo ID está exatamente ligado ao titular no momento da exportação e somente em projetos com membership ativa. Esse tratamento de retenção técnica não constitui conclusão jurídica; uma decisão de remoção do identificador em artefatos de projetos compartilhados exige política própria, inclusive para ressincronização. `TaskMovement.responsibleUserIdSnapshot` referencia o `User` pseudonimizado e sua exportação é igualmente limitada ao titular e ao projeto ativo.
 
 `Task.responsible` e `TaskMovement.movedBy` permanecem como snapshots históricos somente leitura. IDs canônicos só podem ser preenchidos com seleção válida para Tasks ou evidência técnica inequívoca para movimentos; nome textual nunca é prova de identidade. A LR.2 removeu `ProjectMember` e `TaskMovement.projectMemberId` após auditoria com zero linhas/referências na base atual e guard para outras bases.
 
@@ -98,3 +144,36 @@ Não há upload OCI, retenção automática de vídeo nem coleta periódica nova
   `actorUserId` seja o titular, sempre em projetos com membership ativa. Ator nulo e
   registros de terceiros ficam de fora. O evento funcional é preservado quando a
   identidade direta deixa de resolver.
+
+## Personalização e histórico de indicadores — PR23-FIX-06
+
+- `ProjectDashboardPreference` não possui TTL próprio. Enquanto há participação ativa, permanece
+  até save/reset ou fim do ciclo aplicável. GET tolerante a catálogo antigo é apresentação apenas.
+- Desativação de membership pelo OWNER e saída voluntária removem a preferência **somente do par
+  usuário/projeto**, dentro da transação de membership. Falha da transação preserva ambos.
+  Reativação não restaura a configuração anterior: retorna o padrão e aceita novo save explícito.
+- Desativação da **conta** é operação distinta e reversível: não apaga automaticamente a preferência.
+  Acesso fica sujeito ao estado da conta. Anonimização remove todas as preferências do usuário.
+- Soft delete de **projeto** mantém a preferência inacessível; restore do projeto recupera o contexto
+  quando a membership continua ativa. Hard purge usa cascade. Exclusão física do usuário também
+  possui cascade. Não há rotina de expurgo retroativo de memberships já inativas nesta entrega.
+- Export pessoal filtra preferências e fatos vinculados por projetos acessíveis/memberships ativas.
+  Nenhuma preferência de outro usuário é exportada. Os arquivos e a identificação por snapshot/ID
+  GitHub estão no [inventário pessoal](PERSONAL_DATA_INVENTORY.md).
+- `SprintBurnupEvent` conserva fatos de escopo/esforço/status mesmo após exclusão física da Task;
+  `taskKey` é chave técnica sem FK e não contém autoria pessoal própria. Soft delete conserva;
+  hard purge de Sprint/Project remove por cascade. Sem prazo numérico autônomo ou titular pessoal
+  inferido. Não se deve reconstruir identidade a partir dessa chave para fabricar export pessoal.
+- I02/I03/I05 não persistem score individual. Sua disponibilidade deriva das fontes, da membership
+  e da anonimização; a apresentação por pessoa não prolonga a retenção das entidades de origem.
+
+Implementação: [membership](../../backend/src/modules/projects/project-membership.repository.js),
+[anonimização](../../backend/src/modules/privacy/privacy.repository.js),
+[schema](../../backend/prisma/schema.prisma). Regressões transacionais e de escopo em
+[indicators-p9.test.js](../../backend/test/api/indicators-p9.test.js).
+
+
+PR23-FIX-07 / D-D: retenção interna não implica exposição geral. O presenter de commits remove
+`authorGithubUserId` do payload de listagem; a correlação interna continua exata. A exportação
+pessoal e seus filtros não foram ampliados. `TaskMovement.responsibilitySnapshotState` registra
+somente ASSIGNED/UNASSIGNED, sem identidade adicional; estado nulo continua legado desconhecido.

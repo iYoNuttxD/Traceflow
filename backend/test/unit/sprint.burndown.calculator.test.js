@@ -41,23 +41,18 @@ describe('janela e denominador', () => {
     ]);
   });
 
-  it('sem pontos nao ha grafico', () => {
-    const resultado = buildSprintBurndown({
-      sprint: sprint(),
-      participations: [participacao({ points: 0 })],
-      cutoff: corte('2026-08-03T12:00:00.000Z')
-    });
-    expect(resultado).toMatchObject({ hasData: false, totalPoints: 0, days: [] });
-  });
-
-  it('sem participacoes nao ha grafico', () => {
-    const resultado = buildSprintBurndown({
-      sprint: sprint(),
-      participations: [],
-      cutoff: corte('2026-08-03T12:00:00.000Z')
-    });
-    expect(resultado.hasData).toBe(false);
-  });
+  it.each([[[]], [[participacao({ points: 0 })]]])(
+    'sem denominador positivo nao ha grafico (%j)',
+    (participations) => {
+      expect(
+        buildSprintBurndown({
+          sprint: sprint(),
+          participations,
+          cutoff: corte('2026-08-03T12:00:00.000Z')
+        })
+      ).toEqual({ hasData: false, totalPoints: 0, frozen: false, cutoffDate: null, days: [] });
+    }
+  );
 
   it('janela de um dia nao gera grafico', () => {
     const resultado = buildSprintBurndown({
@@ -316,12 +311,17 @@ describe('sprint encerrada', () => {
     expect(hoje.frozen).toBe(true);
   });
 
-  it('sprint cancelada tambem congela', () => {
-    const resultado = buildSprintBurndown({
-      sprint: sprint({ status: 'CANCELADA', completedAt: null }),
-      participations: [participacao({ points: 5 })],
-      cutoff: corte('2026-08-02T12:00:00.000Z')
-    });
-    expect(resultado.frozen).toBe(true);
+  it('sprint cancelada congela no encerramento mesmo com relógios posteriores', () => {
+    const cancelled = sprint({ status: 'CANCELADA', closedAt: corte('2026-08-02T10:00:00.000Z') });
+    const calculate = (cutoff) =>
+      buildSprintBurndown({
+        sprint: cancelled,
+        participations: [participacao({ points: 5 })],
+        cutoff: corte(cutoff)
+      });
+    const first = calculate('2026-08-03T12:00:00.000Z');
+    expect(first).toMatchObject({ frozen: true, cutoffDate: '2026-08-02', totalPoints: 5 });
+    expect(first).toEqual(calculate('2026-09-02T12:00:00.000Z'));
+    expect(first.days.map(({ remaining }) => remaining)).toEqual([5, 5, null, null, null]);
   });
 });

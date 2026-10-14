@@ -39,7 +39,10 @@ function ProjectFormHarness({
           selectedRepositoryUrl: selected?.url || ''
         }));
       }}
-      onSubmit={onSubmit}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit(formData);
+      }}
       submitLabel="Cadastrar projeto"
       submitting={submitting}
     />
@@ -49,26 +52,37 @@ function ProjectFormHarness({
 describe('ProjectForm', () => {
   it('preenche os campos e submete usando a validação visual atual', async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn((event) => event.preventDefault());
+    const onSubmit = vi.fn();
     render(<ProjectFormHarness onSubmit={onSubmit} />);
 
     expect(screen.getByLabelText('Nome do projeto *')).toBeRequired();
     expect(screen.getByLabelText('Área ou equipe responsável *')).toBeRequired();
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeRequired();
+    expect(screen.getByLabelText('Repositório GitHub (opcional)')).not.toBeRequired();
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto artificial');
     await user.type(screen.getByLabelText('Descrição'), 'Descrição artificial');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe artificial');
-    await user.selectOptions(screen.getByLabelText('Repositório GitHub *'), repository.fullName);
+    await user.selectOptions(
+      screen.getByLabelText('Repositório GitHub (opcional)'),
+      repository.fullName
+    );
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
     expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Projeto artificial',
+        description: 'Descrição artificial',
+        responsibleTeam: 'Equipe artificial',
+        selectedRepositoryFullName: repository.fullName
+      })
+    );
     expect(screen.getByText(/Repositório selecionado:/)).toHaveTextContent(repository.fullName);
   });
 
   it('preserva estados desabilitados de carregamento e submissão', () => {
     render(<ProjectFormHarness onSubmit={vi.fn()} loadingRepositories submitting />);
 
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(screen.getByLabelText('Repositório GitHub (opcional)')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Salvando...' })).toBeDisabled();
   });
 

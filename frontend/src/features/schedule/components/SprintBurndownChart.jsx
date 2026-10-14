@@ -14,28 +14,49 @@ const RAIO = 5;
 const arredonda = (valor) => Math.round(valor * 10) / 10;
 
 export function SprintBurndownChart({ burndown }) {
-  if (!burndown?.hasData) {
+  const days = Array.isArray(burndown?.days)
+    ? burndown.days.filter((day) => !Number.isNaN(Date.parse(day.date)))
+    : [];
+  const finite = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  const scaleValues = days.flatMap((day) => [day.remaining, day.ideal]).filter(finite);
+  const chartMax = Math.max(
+    0,
+    ...(finite(burndown?.chartMax) ? [burndown.chartMax] : []),
+    ...scaleValues
+  );
+  const limitations = burndown?.historicalLimitations ?? [];
+  const estimateMissing = limitations.some((code) =>
+    ['TASK_ESTIMATE_MISSING', 'BURNUP_ESTIMATE_UNKNOWN'].includes(code)
+  );
+  if (!burndown?.hasData || chartMax <= 0 || !scaleValues.length) {
     return (
       <p className="field-help">
-        Sem tarefas pontuadas nesta sprint — o burndown aparece quando houver tarefas associadas com
-        estimativa.
+        {estimateMissing || burndown?.historicalState === 'PARTIAL'
+          ? 'Dados parciais. Não é possível calcular completamente o Burndown porque parte das tarefas não possui estimativa ou o histórico está incompleto.'
+          : 'Sem tarefas pontuadas nesta sprint — o burndown aparece quando houver tarefas associadas com estimativa.'}
       </p>
     );
   }
 
-  const { days, totalPoints, frozen, cutoffDate } = burndown;
+  const { totalPoints, frozen, cutoffDate } = burndown;
+  const baselineKnown = finite(totalPoints);
   const ultimo = days.length - 1;
   const x = (indice) =>
     ultimo === 0
       ? arredonda((ESQUERDA + DIREITA) / 2)
       : arredonda(ESQUERDA + (indice * (DIREITA - ESQUERDA)) / ultimo);
-  const y = (valor) => arredonda(TOPO + (1 - valor / totalPoints) * (BASE - TOPO));
+  const y = (valor) => arredonda(TOPO + (1 - valor / chartMax) * (BASE - TOPO));
 
-  const ideal = `${x(0)},${y(totalPoints)} ${x(ultimo)},${y(0)}`;
+  const ideais = days.map((dia, indice) => ({ ...dia, indice })).filter((dia) => finite(dia.ideal));
+  const ideal = ideais.map((dia) => `${x(dia.indice)},${y(dia.ideal)}`).join(' ');
   const medidos = days
     .map((dia, indice) => ({ ...dia, indice }))
-    .filter((dia) => dia.remaining !== null);
-  const real = medidos.map((dia) => `${x(dia.indice)},${y(dia.remaining)}`).join(' ');
+    .filter((dia) => finite(dia.remaining));
+  const segmentos = [];
+  for (const dia of medidos) {
+    if (!segmentos.length || dia.indice !== segmentos.at(-1).at(-1).indice + 1) segmentos.push([]);
+    segmentos.at(-1).push(dia);
+  }
   const ponta = medidos[medidos.length - 1] || null;
   const indiceCorte = cutoffDate ? days.findIndex((dia) => dia.date === cutoffDate) : -1;
 
@@ -44,10 +65,12 @@ export function SprintBurndownChart({ burndown }) {
   const restante = ponta ? ponta.remaining : totalPoints;
   const esperado = ponta ? days[ponta.indice].ideal : totalPoints;
   const nota = frozen
-    ? `Sprint encerrada com ${restante} de ${totalPoints} ponto(s) restante(s) — gráfico congelado.`
+    ? `Sprint encerrada com ${restante}${baselineKnown ? ` de ${totalPoints}` : ''} ponto(s) restante(s) — gráfico congelado.`
     : ponta
-      ? `Restam ${restante} de ${totalPoints} pontos. A linha ideal previa ${esperado} para este dia.`
-      : 'A sprint ainda não começou — a linha real aparece a partir do início.';
+      ? `Restam ${restante}${baselineKnown ? ` de ${totalPoints}` : ''} pontos.${finite(esperado) ? ` A linha ideal previa ${esperado} para este dia.` : ' A referência inicial está indisponível.'}`
+      : estimateMissing
+        ? 'Dados parciais: o trabalho restante é desconhecido porque há tarefas sem estimativa.'
+        : 'Ainda não há medições de trabalho restante disponíveis.';
 
   return (
     <div>
@@ -57,10 +80,12 @@ export function SprintBurndownChart({ burndown }) {
           <span className="burndown-swatch burndown-swatch--real" aria-hidden="true" />
           Restante real
         </span>
-        <span>
-          <span className="burndown-swatch burndown-swatch--ideal" aria-hidden="true" />
-          Linha ideal
-        </span>
+        {ideal && (
+          <span>
+            <span className="burndown-swatch burndown-swatch--ideal" aria-hidden="true" />
+            Linha ideal
+          </span>
+        )}
       </p>
       <svg viewBox={CAIXA} className="burndown-chart" role="img" aria-label={nota}>
         <line
@@ -86,7 +111,7 @@ export function SprintBurndownChart({ burndown }) {
           fontSize={FONTE}
           textAnchor="end"
         >
-          {totalPoints}
+          {chartMax}
         </text>
         <text
           x={ESQUERDA - 6}
@@ -119,25 +144,29 @@ export function SprintBurndownChart({ burndown }) {
             </text>
           </>
         )}
-        {ultimo === 0 ? (
-          <circle cx={x(0)} cy={y(days[0].ideal)} r={RAIO} fill="var(--color-text-muted)" />
-        ) : (
-          <polyline
-            points={ideal}
-            fill="none"
-            stroke="var(--color-text-muted)"
-            strokeWidth="2"
-            strokeDasharray="6 6"
-          />
-        )}
-        {real && ultimo > 0 && (
-          <polyline
-            points={real}
-            fill="none"
-            stroke="var(--color-accent-primary)"
-            strokeWidth="2.5"
-          />
-        )}
+        {ideal &&
+          (ultimo === 0 ? (
+            <circle cx={x(0)} cy={y(ideais[0].ideal)} r={RAIO} fill="var(--color-text-muted)" />
+          ) : (
+            <polyline
+              points={ideal}
+              fill="none"
+              stroke="var(--color-text-muted)"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+            />
+          ))}
+        {segmentos
+          .filter((segmento) => segmento.length > 1)
+          .map((segmento) => (
+            <polyline
+              key={segmento[0].indice}
+              points={segmento.map((dia) => `${x(dia.indice)},${y(dia.remaining)}`).join(' ')}
+              fill="none"
+              stroke="var(--color-accent-primary)"
+              strokeWidth="2.5"
+            />
+          ))}
         {ponta && (
           <circle
             cx={x(ponta.indice)}
@@ -160,6 +189,13 @@ export function SprintBurndownChart({ burndown }) {
         ))}
       </svg>
       <p className="field-help">{nota}</p>
+      {burndown.historicalState === 'PARTIAL' && (
+        <p className="field-help">
+          {estimateMissing
+            ? 'Dados parciais: há tarefas sem estimativa em parte do histórico.'
+            : 'Histórico parcial; a referência inicial não é presumida.'}
+        </p>
+      )}
     </div>
   );
 }

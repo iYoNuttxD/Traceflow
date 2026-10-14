@@ -1,6 +1,6 @@
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import { useEffect } from 'react';
-import { TraceFlowIcon } from '../../../shared/index.js';
+import { TraceFlowIcon, githubStateLabel } from '../../../shared/index.js';
 import { TestResultBadge, environments, referenceLabel } from '../../testCases/index.js';
 import { DefectBadge } from '../../defects/index.js';
 import { taskStatusLabels, taskPriorityLabels } from '../../tasks/index.js';
@@ -98,7 +98,7 @@ export function graphFields(type, d) {
       ['Data', date(d.date)]
     ];
   return [
-    ['Estado', d.state],
+    ['Estado', githubStateLabel(d.state)],
     ['Autor', d.authorUsername],
     ['Branches', d.sourceBranch ? `${d.sourceBranch} → ${d.targetBranch}` : null]
   ];
@@ -140,7 +140,9 @@ export function GraphStatus({ type, detail: d }) {
         <DefectBadge value={d.status} />
       </>
     );
-  return d.state ? <span className="tc-badge tc-badge--neutral">{d.state}</span> : null;
+  return d.state ? (
+    <span className="tc-badge tc-badge--neutral">{githubStateLabel(d.state)}</span>
+  ) : null;
 }
 const noPorts = [];
 export function GraphNode({ id, data }) {

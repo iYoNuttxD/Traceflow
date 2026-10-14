@@ -61,6 +61,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState(null);
   const refreshPromiseRef = useRef(null);
+  const sessionGeneration = useRef(0);
+  const alive = useRef(true);
+
+  const invalidatePendingRefresh = useCallback(() => {
+    sessionGeneration.current += 1;
+    refreshPromiseRef.current = null;
+  }, []);
 
   const clearAuthenticatedState = useCallback(() => {
     setCsrfToken();
@@ -69,9 +76,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const invalidateAuthenticatedSession = useCallback(() => {
+    invalidatePendingRefresh();
     resetHttpSessionScope();
     clearAuthenticatedState();
-  }, [clearAuthenticatedState]);
+    setLoading(false);
+  }, [clearAuthenticatedState, invalidatePendingRefresh]);
 
   const signOutLocally = useCallback(() => {
     invalidateAuthenticatedSession();
@@ -89,29 +98,37 @@ export function AuthProvider({ children }) {
       return refreshPromiseRef.current;
     }
 
+    const generation = sessionGeneration.current;
+    const current = () => alive.current && sessionGeneration.current === generation;
     const operation = (async () => {
       try {
         let meResponse;
         try {
           meResponse = await authApi.me(bootstrapRequestOptions);
         } catch (error) {
+          if (!current()) return;
           if (isAuthenticationFailure(error)) clearAuthenticatedState();
           else handleBootstrapFailure(error);
           return;
         }
 
+        if (!current()) return;
         try {
           const csrfResponse = await authApi.csrf(bootstrapRequestOptions);
+          if (!current()) return;
           setUser(meResponse.data.user);
           setCsrfToken(csrfResponse.data.csrfToken);
           setBootstrapError(null);
         } catch (error) {
+          if (!current()) return;
           if (isAuthenticationFailure(error)) invalidateAuthenticatedSession();
           else handleBootstrapFailure(error);
         }
       } finally {
-        setLoading(false);
-        refreshPromiseRef.current = null;
+        if (current()) {
+          setLoading(false);
+          refreshPromiseRef.current = null;
+        }
       }
     })();
 
@@ -119,7 +136,11 @@ export function AuthProvider({ children }) {
     return operation;
   }, [clearAuthenticatedState, handleBootstrapFailure, invalidateAuthenticatedSession]);
   useEffect(() => {
+    alive.current = true;
     void refresh();
+    return () => {
+      alive.current = false;
+    };
   }, [refresh]);
   useEffect(() => {
     window.addEventListener('traceflow:unauthorized', signOutLocally);
@@ -137,7 +158,10 @@ export function AuthProvider({ children }) {
         const payload = JSON.parse(event.newValue);
         if (payload.type === 'signed-out') invalidateAuthenticatedSession();
         if (payload.type === 'authenticated') {
+          invalidatePendingRefresh();
           resetHttpSessionScope();
+          clearAuthenticatedState();
+          setLoading(true);
           void refresh();
         }
       } catch {
@@ -146,16 +170,23 @@ export function AuthProvider({ children }) {
     }
     window.addEventListener('storage', synchronizeTabs);
     return () => window.removeEventListener('storage', synchronizeTabs);
-  }, [invalidateAuthenticatedSession, refresh]);
-  const authenticate = useCallback(async (operation, values) => {
-    const { data } = await operation(values);
-    resetHttpSessionScope();
-    setUser(data.user);
-    setCsrfToken(data.csrfToken);
-    setBootstrapError(null);
-    publishAuthSessionEvent('authenticated');
-    return data.user;
-  }, []);
+  }, [clearAuthenticatedState, invalidateAuthenticatedSession, invalidatePendingRefresh, refresh]);
+  const authenticate = useCallback(
+    async (operation, values) => {
+      const generation = sessionGeneration.current;
+      const { data } = await operation(values);
+      if (!alive.current || sessionGeneration.current !== generation) return null;
+      invalidatePendingRefresh();
+      resetHttpSessionScope();
+      setUser(data.user);
+      setCsrfToken(data.csrfToken);
+      setBootstrapError(null);
+      setLoading(false);
+      publishAuthSessionEvent('authenticated');
+      return data.user;
+    },
+    [invalidatePendingRefresh]
+  );
   const value = useMemo(
     () => ({
       user,
@@ -165,8 +196,9 @@ export function AuthProvider({ children }) {
       register: (values) => authenticate(authApi.register, values),
       updateUser: setUser,
       logout: async () => {
+        const generation = sessionGeneration.current;
         await authApi.logout();
-        signOutLocally();
+        if (alive.current && sessionGeneration.current === generation) signOutLocally();
       },
       refresh
     }),

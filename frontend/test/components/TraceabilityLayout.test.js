@@ -70,6 +70,14 @@ describe('Real ELK layout', () => {
       base = presentGraph(g),
       positions = new Map(base.nodes.map((n, i) => [n.id, { x: i * 400, y: 100 }]));
     positions.set('task:2', { x: 900, y: 1200 });
+    const group = base.nodes.find((n) => n.type === 'GROUP');
+    const anchor = positions.get(group.id);
+    // A manually moved node partly covers the first candidate row, without equal coordinates.
+    positions.set('requirement:1', {
+      x: anchor.x + graphLayout.width + 120,
+      y: anchor.y + 20
+    });
+    const originalPositions = structuredClone(positions);
     const expanded = presentGraph(
       g,
       base.nodes.filter((n) => n.type === 'GROUP').map((n) => n.id)
@@ -77,6 +85,23 @@ describe('Real ELK layout', () => {
     const next = placeNewNodes(expanded, positions);
     for (const [id, p] of positions) expect(next.get(id)).toEqual(p);
     expect(next.size).toBe(expanded.nodes.length);
+    expect(positions).toEqual(originalPositions);
+    const newcomers = expanded.nodes.filter((n) => !positions.has(n.id));
+    expect(newcomers.length).toBeGreaterThan(1);
+    for (const node of newcomers) {
+      const position = next.get(node.id);
+      expect(Number.isFinite(position.x) && Number.isFinite(position.y)).toBe(true);
+      for (const [otherId, other] of next) {
+        if (otherId === node.id) continue;
+        // Rectangle separation checks old/new and new/new pairs using rendered node dimensions.
+        const separated =
+          position.x + graphLayout.width <= other.x ||
+          other.x + graphLayout.width <= position.x ||
+          position.y + graphLayout.height <= other.y ||
+          other.y + graphLayout.height <= position.y;
+        expect(separated, `${node.id} overlaps ${otherId}`).toBe(true);
+      }
+    }
   });
   it('focuses semantic neighbours without hiding unrelated entities', () => {
     const g = fixture(),

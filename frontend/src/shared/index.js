@@ -1,4 +1,5 @@
 export { Card } from './components/Card.jsx';
+export { SummaryPanel } from './components/SummaryPanel.jsx';
 export { BackButton } from './components/BackButton.jsx';
 export {
   LoadingState,
@@ -28,6 +29,7 @@ export {
   resolveErrorPageContext
 } from './services/page-error.js';
 export { compactParams } from './utils/compact-params.js';
+export { githubStateLabel } from './utils/github-state-label.js';
 
 export { SearchCombobox } from './components/SearchCombobox.jsx';
 export { EntityRow } from './components/EntityRow.jsx';
@@ -39,3 +41,4 @@ export { DetailSurface, DescriptionSurface } from './components/DetailSurface.js
 export { SelectControl } from './components/SelectControl.jsx';
 
 export { LifecycleTrail } from './components/LifecycleTrail.jsx';
+export { Switch } from './components/Switch.jsx';

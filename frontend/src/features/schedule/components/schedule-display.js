@@ -164,7 +164,9 @@ export const statusBadgeClass = (key) => `status-badge status-${String(key).toLo
 export function summarizeSprintTasks(scheduleSprint) {
   const tasks = scheduleSprint?.tasks || [];
   const pontos = (list) =>
-    list.reduce((soma, task) => soma + (Number(task.estimatedEffort) || 0), 0);
+    list.some((task) => task.estimatedEffort == null)
+      ? null
+      : list.reduce((soma, task) => soma + Number(task.estimatedEffort), 0);
   const concluidas = tasks.filter((task) => task.status === 'CONCLUIDO');
   const total = pontos(tasks);
   const feitos = pontos(concluidas);
@@ -173,13 +175,15 @@ export function summarizeSprintTasks(scheduleSprint) {
     done: concluidas.length,
     points: total,
     donePoints: feitos,
-    percent: total > 0 ? Math.round((feitos / total) * 100) : null
+    percent: total > 0 && feitos !== null ? Math.round((feitos / total) * 100) : null
   };
 }
 
 export function getSprintDisplayMetrics(sprint, scheduleSprint = sprint) {
-  if (!isTerminalSprint(sprint?.status))
-    return { ...summarizeSprintTasks(scheduleSprint), unavailable: false };
+  if (!isTerminalSprint(sprint?.status)) {
+    const summary = summarizeSprintTasks(scheduleSprint);
+    return { ...summary, estimateIncomplete: summary.points === null, unavailable: false };
+  }
   const frozen = sprint?.historicalSummary ?? scheduleSprint?.historicalSummary;
   return {
     total: frozen?.totalTasks ?? null,
@@ -187,6 +191,9 @@ export function getSprintDisplayMetrics(sprint, scheduleSprint = sprint) {
     points: frozen?.totalPoints ?? null,
     donePoints: frozen?.completedPoints ?? null,
     percent: frozen?.percentage ?? null,
+    estimateIncomplete:
+      Boolean(frozen?.estimateCoverage?.current?.unknownEstimateCount) ||
+      (frozen?.totalTasks > 0 && frozen.totalPoints === null),
     unavailable:
       !frozen ||
       frozen.completedTasks == null ||

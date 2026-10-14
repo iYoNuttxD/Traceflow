@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useCountdown } from '../hooks/useCountdown.js';
 import './FeedbackRegion.css';
 
@@ -16,7 +18,8 @@ export function FeedbackRegion({
   info,
   rateLimit,
   retryAfterSeconds = 0,
-  remainingRetryAfterSeconds
+  remainingRetryAfterSeconds,
+  transient = false
 }) {
   const internalRemaining = useCountdown(
     remainingRetryAfterSeconds === undefined ? retryAfterSeconds : 0
@@ -35,26 +38,55 @@ export function FeedbackRegion({
             ? ['info', info]
             : null;
 
-  if (!entry) return <div className="feedback-region" aria-live="polite" aria-atomic="true" />;
-
-  const [variant, message] = entry;
+  const [variant, message] = entry ?? [];
+  const key = entry ? `${variant}:${message}` : null;
+  const [dismissed, setDismissed] = useState(null);
+  useEffect(() => {
+    setDismissed(null);
+    if (!transient || !['success', 'info'].includes(variant)) return;
+    const timer = window.setTimeout(() => setDismissed(key), 4000);
+    return () => window.clearTimeout(timer);
+  }, [transient, variant, key]);
   const semantics = feedback[variant];
-  return (
-    <div
-      className={`message message-${variant}`}
-      role={semantics.role}
-      aria-live={semantics.role === 'status' ? 'polite' : undefined}
-      aria-atomic="true"
-    >
-      <span className="message-icon" aria-hidden="true">
-        {semantics.icon}
-      </span>
-      <span>
-        {message}
-        {variant === 'rate-limit' && remaining > 0 && (
-          <small className="message-countdown">Tente novamente em {remaining}s.</small>
-        )}
-      </span>
+  const content =
+    entry && dismissed !== key ? (
+      <div
+        className={`message message-${variant}`}
+        role={semantics.role}
+        aria-live={semantics.role === 'status' ? 'polite' : undefined}
+        aria-atomic="true"
+      >
+        <span className="message-icon" aria-hidden="true">
+          {semantics.icon}
+        </span>
+        <span>
+          {message}
+          {variant === 'rate-limit' && (
+            <>
+              <span className="sr-only">
+                {retryAfterSeconds > 0
+                  ? ` Aguarde ${retryAfterSeconds} segundos antes de tentar novamente.`
+                  : ' Aguarde o prazo informado antes de tentar novamente.'}
+              </span>
+              {remaining > 0 && (
+                <small className="message-countdown" aria-hidden="true">
+                  Tente novamente em {remaining}s.
+                </small>
+              )}
+            </>
+          )}
+        </span>
+      </div>
+    ) : null;
+  const region = (
+    <div className={transient ? 'feedback-region feedback-region--transient' : 'feedback-region'}>
+      <div aria-live="polite" aria-atomic="true">
+        {semantics?.role === 'status' ? content : null}
+      </div>
+      <div aria-live="assertive" aria-atomic="true">
+        {semantics?.role === 'alert' ? content : null}
+      </div>
     </div>
   );
+  return transient ? createPortal(region, document.body) : region;
 }

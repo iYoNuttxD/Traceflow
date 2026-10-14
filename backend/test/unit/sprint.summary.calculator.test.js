@@ -59,6 +59,7 @@ describe('Sprint historical display summary', () => {
     });
     expect(result.historicalLimitations).toEqual([
       'LEGACY_PLANNING_SNAPSHOT_UNAVAILABLE',
+      'TASK_ESTIMATE_MISSING',
       'LEGACY_CLOSING_POINTS_UNAVAILABLE',
       'LEGACY_CLOSING_STATUS_UNAVAILABLE',
       'LEGACY_CLOSING_CUTOFF_UNAVAILABLE'
@@ -71,7 +72,11 @@ describe('Sprint historical display summary', () => {
       percentage: null,
       historicalLimitations: []
     });
-    expect(buildSprintHistoricalSummary(sprint, [{ ...row, pointsAtClose: 0 }])).toMatchObject({
+    expect(
+      buildSprintHistoricalSummary(sprint, [
+        { ...row, pointsAtClose: 0, closingTaskSnapshot: { version: 3, estimatedEffort: 0 } }
+      ])
+    ).toMatchObject({
       totalTasks: 1,
       completedTasks: 1,
       totalPoints: 0,

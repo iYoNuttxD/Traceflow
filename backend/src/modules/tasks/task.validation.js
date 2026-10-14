@@ -83,7 +83,10 @@ export const updateTaskBodySchema = strictObject({
   title: taskFields.title.optional()
 });
 
-export const taskStatusBodySchema = strictObject({ status: taskStatus });
+export const taskStatusBodySchema = strictObject({
+  status: taskStatus,
+  responsibleUserId: nullableId('ID do usuário responsável inválido.').optional()
+});
 export const taskRequirementBodySchema = strictObject({
   requirementId: positiveInteger('ID do requisito inválido.')
 });
@@ -100,7 +103,8 @@ export const taskIssueBodySchema = strictObject({
   issueId: positiveInteger('ID da issue inválido.')
 });
 export const moveTaskBodySchema = strictObject({
-  toStatus: taskStatus
+  toStatus: taskStatus,
+  responsibleUserId: nullableId('ID do usuário responsável inválido.').optional()
 });
 
 export const taskCommentBodySchema = strictObject({

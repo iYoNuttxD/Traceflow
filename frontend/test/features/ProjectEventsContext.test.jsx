@@ -44,6 +44,7 @@ function setVisibility(value) {
 describe('ProjectEventsProvider', () => {
   beforeEach(() => {
     FakeEventSource.instances = [];
+    vi.stubEnv('VITE_API_URL', 'http://localhost:3001/api');
     vi.stubGlobal('EventSource', FakeEventSource);
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
@@ -54,6 +55,7 @@ describe('ProjectEventsProvider', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it('mantém uma conexão autenticada por projeto para múltiplos consumidores', () => {
@@ -68,7 +70,7 @@ describe('ProjectEventsProvider', () => {
 
     expect(FakeEventSource.instances).toHaveLength(1);
     const source = FakeEventSource.instances[0];
-    expect(source.url).toBe(buildProjectEventsUrl(7));
+    expect(source.url).toBe('http://localhost:3001/api/projects/7/events');
     expect(source.options).toEqual({ withCredentials: true });
     expect(source.url).not.toMatch(/[?&](token|session|jwt)=/i);
 
@@ -83,6 +85,18 @@ describe('ProjectEventsProvider', () => {
     });
     expect(firstListener).toHaveBeenCalledOnce();
     expect(secondListener).toHaveBeenCalledOnce();
+  });
+
+  it('usa a base configurada sem barra duplicada e codifica o identificador no caminho', () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.example.test/custom/api/');
+    render(<ProjectEventsProvider projectId="team/7 ?#ç" />);
+
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(FakeEventSource.instances[0].url).toBe(
+      'https://api.example.test/custom/api/projects/team%2F7%20%3F%23%C3%A7/events'
+    );
+    expect(FakeEventSource.instances[0].options).toEqual({ withCredentials: true });
+    expect(buildProjectEventsUrl(7, '/api/')).toBe('/api/projects/7/events');
   });
 
   it('fecha quando hidden, reabre quando visible e sinaliza uma reconciliação', () => {

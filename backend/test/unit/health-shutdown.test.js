@@ -48,6 +48,51 @@ describe('health probes', () => {
 });
 
 describe('shutdown controlado', () => {
+  it.each(['timeout', 'close throws', 'close callback', 'disconnect rejects'])(
+    'fails safely when %s and clears the deadline once',
+    async (mode) => {
+      let deadline;
+      let closeCallback;
+      const timer = { unref: vi.fn() };
+      const failure = new Error('controlled failure');
+      const setTimer = vi.fn((callback) => {
+        deadline = callback;
+        return timer;
+      });
+      const clearTimer = vi.fn();
+      const server = {
+        close: vi.fn((callback) => {
+          closeCallback = callback;
+          if (mode === 'close throws') throw failure;
+          if (mode === 'close callback') callback(failure);
+          if (mode === 'disconnect rejects') callback();
+        }),
+        closeAllConnections: vi.fn()
+      };
+      const disconnect =
+        mode === 'disconnect rejects'
+          ? vi.fn().mockRejectedValue(failure)
+          : vi.fn().mockResolvedValue(undefined);
+      const exit = vi.fn();
+      const shutdown = createGracefulShutdown({
+        server,
+        disconnect,
+        exit,
+        logger: { info: vi.fn(), error: vi.fn() },
+        setTimer,
+        clearTimer
+      });
+      const result = shutdown('SIGTERM');
+      expect(setTimer).toHaveBeenCalledWith(expect.any(Function), 10000);
+      if (mode === 'timeout') deadline();
+      expect(await result).toBe(1);
+      closeCallback();
+      expect(clearTimer).toHaveBeenCalledExactlyOnceWith(timer);
+      expect(disconnect).toHaveBeenCalledOnce();
+      expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+      expect(server.closeAllConnections).toHaveBeenCalledTimes(mode === 'timeout' ? 1 : 0);
+    }
+  );
   it('fecha HTTP, desconecta Prisma e evita execução duplicada', async () => {
     const server = { close: vi.fn((callback) => callback()), closeAllConnections: vi.fn() };
     const disconnect = vi.fn(async () => {});

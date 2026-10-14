@@ -19,9 +19,57 @@ export function isGithubRateLimitError(error) {
   if (externalStatus === 429) return true;
   if (externalStatus !== 403) return false;
 
-  const remaining = Number(header(error, 'x-ratelimit-remaining'));
-  const retryAfter = Number(header(error, 'retry-after'));
-  return remaining === 0 || (Number.isFinite(retryAfter) && retryAfter >= 0);
+  const remainingHeader = header(error, 'x-ratelimit-remaining');
+  const remaining =
+    remainingHeader == null || remainingHeader === '' ? NaN : Number(remainingHeader);
+  const retryHeader = header(error, 'retry-after');
+  const retryAfter = retryHeader == null || retryHeader === '' ? NaN : Number(retryHeader);
+  // GitHub may identify secondary limits only in its structured response message.
+  // Never pass provider text through to clients or logs.
+  const message = error?.response?.data?.message;
+  const providerRateLimit =
+    typeof message === 'string' &&
+    /\b(?:secondary rate limit|(?:api )?rate limit exceeded|abuse detection)\b/i.test(message);
+  return (
+    providerRateLimit ||
+    remaining === 0 ||
+    (Number.isFinite(retryAfter) && retryAfter >= 0) ||
+    (typeof retryHeader === 'string' &&
+      !Number.isFinite(retryAfter) &&
+      Number.isFinite(Date.parse(retryHeader)))
+  );
+}
+
+export function githubRetryNotBefore(error, now = new Date()) {
+  if (error?.retryAt instanceof Date) return error.retryAt;
+  if (error?.cause) {
+    const nested = githubRetryNotBefore(error.cause, now);
+    if (nested) return nested;
+  }
+  const retry = header(error, 'retry-after');
+  const transientWithRetry = Number(error?.status ?? error?.externalStatus) >= 500 && retry != null;
+  if (
+    !isGithubRateLimitError(error) &&
+    error?.code !== ERROR_CODES.GITHUB_RATE_LIMITED &&
+    !transientWithRetry
+  )
+    return null;
+  const seconds = retry == null || retry === '' ? NaN : Number(retry);
+  const parsed = typeof retry === 'string' ? Date.parse(retry) : NaN;
+  const retryMs = Number.isFinite(seconds)
+    ? seconds >= 0
+      ? now.getTime() + seconds * 1000
+      : NaN
+    : parsed;
+  const reset = Number(header(error, 'x-ratelimit-reset')) * 1000;
+  const explicit = Number.isFinite(retryMs) || (Number.isFinite(reset) && reset > 0);
+  return new Date(
+    Math.max(
+      now.getTime() + (explicit ? 0 : 60000),
+      Number.isFinite(retryMs) ? retryMs : 0,
+      Number.isFinite(reset) ? reset : 0
+    )
+  );
 }
 
 export function normalizeGithubError(error) {
@@ -88,6 +136,8 @@ function storageCauseOf(error) {
 export function githubSyncFailure(error) {
   if (
     error?.code === ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY ||
+    error?.code === 'PROJECT_WRITE_BUSY' ||
+    error?.code === 'GITHUB_SYNC_BUSY' ||
     isLockBusy(error) ||
     isLockWaitTimeout(error)
   )
@@ -103,9 +153,10 @@ export function githubSyncFailure(error) {
       message: STORAGE_FAILURE_MESSAGE,
       causeCode
     };
+  const normalized = normalizeGithubError(error);
   return {
-    code: String(error?.code || 'GITHUB_SYNC_FAILED'),
-    message: error instanceof DomainError ? error.message : normalizeGithubError(error).message,
+    code: String(error?.code || normalized.code || 'GITHUB_SYNC_FAILED'),
+    message: error instanceof DomainError ? error.message : normalized.message,
     causeCode: null
   };
 }

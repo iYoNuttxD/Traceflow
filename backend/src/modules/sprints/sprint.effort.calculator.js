@@ -27,7 +27,7 @@ function taskStatus(row) {
 export function buildSprintEffort(rows = []) {
   const withEstimate = rows.filter(hasEstimate);
   const withActual = rows.filter(hasActual);
-  const unknownEstimate = rows.filter((row) => row.estimateUnknown);
+  const unknownEstimate = rows.filter((row) => !hasEstimate(row));
   const unknownActual = rows.filter((row) => row.actualUnknown);
   const incomplete = unknownEstimate.length > 0 || unknownActual.length > 0;
 
@@ -62,7 +62,7 @@ export function buildSprintEffort(rows = []) {
         taskId: row.taskId ?? null,
         estimatedHours: hasEstimate(row) ? row.estimatedHours : null,
         actualHours: hasActual(row) ? row.actualHours : null,
-        estimateUnknown: Boolean(row.estimateUnknown),
+        estimateUnknown: !hasEstimate(row),
         actualUnknown: Boolean(row.actualUnknown),
         status: taskStatus(row)
       }))

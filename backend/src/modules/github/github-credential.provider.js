@@ -17,12 +17,15 @@ function installationDto(item) {
 }
 
 function unavailable(cause) {
-  return new ExternalServiceError(
+  if (['GITHUB_RATE_LIMITED', 'EXTERNAL_SERVICE_ERROR'].includes(cause?.code)) return cause;
+  const error = new ExternalServiceError(
     'Integração GitHub App indisponível.',
     503,
     ERROR_CODES.GITHUB_AUTH_FAILED,
     { cause }
   );
+  error.externalStatus = cause?.externalStatus ?? cause?.status;
+  return error;
 }
 
 export function createGithubAppCredentialProvider({
@@ -77,6 +80,9 @@ export function createGithubAppCredentialProvider({
       if (codeVerifier) body.set('code_verifier', codeVerifier);
       const response = await fetchImpl('https://github.com/login/oauth/access_token', {
         method: 'POST',
+        signal: AbortSignal.timeout(
+          environment.githubRequestTimeoutMs ?? env.githubRequestTimeoutMs
+        ),
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -95,9 +101,11 @@ export function createGithubAppCredentialProvider({
     isConfigured: () => environment.githubAppConfigured === true,
     async createInstallationToken(installationId) {
       try {
-        const response = await appClient().rest.apps.createInstallationAccessToken({
-          installation_id: Number(installationId)
-        });
+        const response = await requestExecutor(() =>
+          appClient().rest.apps.createInstallationAccessToken({
+            installation_id: Number(installationId)
+          })
+        );
         return response.data.token;
       } catch (error) {
         throw unavailable(error);

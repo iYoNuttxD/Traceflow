@@ -411,6 +411,36 @@ export function createEnvironment(source = {}) {
       min: 1,
       max: 1000
     }),
+    githubSchedulerEnabled: parseBoolean(
+      source.GITHUB_SCHEDULER_ENABLED,
+      'GITHUB_SCHEDULER_ENABLED',
+      false
+    ),
+    githubSyncIntervalMs: parseInteger(source.GITHUB_SYNC_INTERVAL_MS, 'GITHUB_SYNC_INTERVAL_MS', {
+      defaultValue: 30 * 60 * 1000,
+      min: 60000,
+      max: 86400000
+    }),
+    githubSchedulerTickMs: parseInteger(
+      source.GITHUB_SCHEDULER_TICK_MS,
+      'GITHUB_SCHEDULER_TICK_MS',
+      { defaultValue: 15000, min: 1000, max: 60000 }
+    ),
+    githubAutomaticConcurrency: parseInteger(
+      source.GITHUB_AUTOMATIC_CONCURRENCY,
+      'GITHUB_AUTOMATIC_CONCURRENCY',
+      { defaultValue: 2, min: 1, max: 20 }
+    ),
+    githubSyncLeaseMs: parseInteger(source.GITHUB_SYNC_LEASE_MS, 'GITHUB_SYNC_LEASE_MS', {
+      defaultValue: 30 * 60 * 1000,
+      min: 60000,
+      max: 86400000
+    }),
+    githubSyncBackoffMaxMs: parseInteger(
+      source.GITHUB_SYNC_BACKOFF_MAX_MS,
+      'GITHUB_SYNC_BACKOFF_MAX_MS',
+      { defaultValue: 6 * 60 * 60 * 1000, min: 60000, max: 86400000 }
+    ),
     githubRequestTimeoutMs: parseInteger(
       source.GITHUB_REQUEST_TIMEOUT_MS,
       'GITHUB_REQUEST_TIMEOUT_MS',

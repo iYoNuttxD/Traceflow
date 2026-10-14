@@ -70,10 +70,25 @@ describe('ProjectMembersPanel', () => {
     expect(memberCard.querySelector('.member-item-header')).toBeInTheDocument();
     expect(memberCard.querySelector('.member-actions')).toBeInTheDocument();
     expect(memberCard.querySelector('.member-action-buttons')).toBeInTheDocument();
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        currentMembership: { id: 1, role: 'OWNER', isActive: true },
+        members: [{ ...member, role: 'MANAGER' }]
+      }
+    });
+    const readsBefore = apiMock.get.mock.calls.length;
     await user.selectOptions(select, 'MANAGER');
     await waitFor(() =>
       expect(apiMock.patch).toHaveBeenCalledWith('/projects/1/members/2', { role: 'MANAGER' })
     );
+    await waitFor(() =>
+      expect(screen.getByLabelText('Perfil de Pessoa artificial')).toHaveValue('MANAGER')
+    );
+    expect(apiMock.get.mock.calls.length).toBeGreaterThan(readsBefore);
+    expect(apiMock.get.mock.calls.slice(readsBefore)).toContainEqual([
+      '/projects/1/members',
+      expect.any(Object)
+    ]);
   });
 
   it('permite saída própria confirmada sem tentar recarregar o projeto', async () => {
@@ -82,9 +97,11 @@ describe('ProjectMembersPanel', () => {
     const user = userEvent.setup();
     renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Sair do projeto' }));
+    const readsBefore = apiMock.get.mock.calls.length;
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sair' }));
     expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/members/me');
     expect(await screen.findByText('Você saiu do projeto.')).toBeInTheDocument();
+    expect(apiMock.get).toHaveBeenCalledTimes(readsBefore);
   });
 
   it('confirma a desativação de membro', async () => {
@@ -101,7 +118,12 @@ describe('ProjectMembersPanel', () => {
     mockList('OWNER');
     apiMock.post.mockResolvedValue({
       data: {
-        invitation: { id: 4, email: 'invite@example.invalid', role: 'VIEWER' },
+        invitation: {
+          id: 4,
+          email: 'invite@example.invalid',
+          role: 'VIEWER',
+          token: 'private-invitation-token-sentinel'
+        },
         emailDelivery: { status: 'accepted', accepted: true }
       }
     });
@@ -119,6 +141,7 @@ describe('ProjectMembersPanel', () => {
       })
     );
     expect(await screen.findByText(/E-mail enviado com sucesso/)).toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain('private-invitation-token-sentinel');
   });
 
   it('mostra histórico de convite e permite revogar somente estado pendente', async () => {
@@ -156,6 +179,13 @@ describe('ProjectMembersPanel', () => {
     expect(await screen.findByText('pending@example.invalid')).toBeInTheDocument();
     expect(screen.getByText('Recusado')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Revogar' })).toHaveLength(1);
+    const pending = screen.getByText('pending@example.invalid').closest('article');
+    const declined = screen.getByText('declined@example.invalid').closest('article');
+    expect(within(declined).queryByRole('button', { name: 'Revogar' })).not.toBeInTheDocument();
+    apiMock.delete.mockResolvedValue({});
+    await userEvent.click(within(pending).getByRole('button', { name: 'Revogar' }));
+    expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/invitations/10');
+    expect(await screen.findByText('Convite revogado.')).toBeVisible();
   });
 
   it('explica e bloqueia ações que removeriam o último proprietário', async () => {

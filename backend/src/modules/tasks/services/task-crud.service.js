@@ -68,12 +68,12 @@ export const taskCrudService = {
     );
     if (responsibleUserId !== undefined) taskData.responsibleUserId = responsibleUserId;
     if (Object.keys(taskData).length === 0) return formatTask(current);
-    const historyEntries = buildTaskHistoryChanges(current, taskData).map((entry) => ({
-      ...entry,
-      actorUserId: context.actorUserId
-    }));
     const task = await taskRepository.updateTaskAtomic(id, taskData, {
-      historyEntries,
+      buildHistory: (previous) =>
+        buildTaskHistoryChanges(previous, taskData).map((entry) => ({
+          ...entry,
+          actorUserId: context.actorUserId
+        })),
       previousRequirementId: current.requirementId,
       auditEvent: buildAuditEvent({
         actorUserId: context.actorUserId,

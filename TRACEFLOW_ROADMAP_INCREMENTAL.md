@@ -537,6 +537,23 @@ Seguem fora do cartão o E2E (S104-F02) e a dependência relaxada no quadro Kanb
 - [ ] testar filtros, dados ausentes, cálculo e autorização;
 - [ ] documentar métricas e atualizar matriz RF.
 
+**Marco incremental P9 — 2026-10-04:**
+
+- [x] Meu painel: seleção de 1–12 indicadores aprovados, ordem por teclado e
+  preferência por usuário/projeto; default e restore com autoridade backend.
+- [x] API agregada CUSTOM, isolamento/autorização, migration incremental e
+  lifecycle; filtros, fórmulas e Health canônicos preservados.
+- [x] Gates locais completos e inspeção visual com API real, sete larguras,
+  Light/Dark/System. **S2 P9 PERSONALIZED INDICATORS DASHBOARD — PASS LOCAL**.
+
+Detalhes e limites de evidência no
+[relatório P9](docs/deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).
+Registro limitado ao P9. A revisão interna final IND-P10 foi executada posteriormente;
+resultados, correções e pendências estão no
+[relatório P10](docs/deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+Essa auditoria não conclui automaticamente S2-04/S2-05 nem os cartões de PDF,
+notificações, OCI ou validação acadêmica.
+
 ### S2-06 - Gerar relatórios resumidos do projeto
 
 **Requisito:** RF37.  
@@ -904,3 +921,113 @@ flowchart TD
 | Validação e aperfeiçoamento | Capítulo 4 e Apêndice B; sem novo RF funcional | Sprint 3 |
 
 Total: **39 RFs remanescentes** distribuídos entre as Sprints 1 e 2. A Sprint 3 valida o produto integrado e executa as correções derivadas das evidências, sem inventar novos RFs.
+
+## Fases internas de indicadores (IND)
+
+`IND-P*` identifica etapas internas da frente de indicadores. **Não equivale** a `S2-01…S2-10`,
+que continuam sendo cartões reais do roadmap. Em especial IND-P10 é a revisão interna final de
+indicadores, enquanto S2-10 mantém seu escopo próprio. Arquivos `S2_P*.md` e suas conclusões
+históricas conservam os nomes para preservar links; novos registros usam o prefixo inequívoco.
+Os cartões S2-04/S2-05 continuam sujeitos ao fechamento do review, sem promoção automática a DONE.
+
+| Fase interna | Nome / entrega | Cartões relacionados | Relatório / autoridade |
+| --- | --- | --- | --- |
+| IND-P0 | Contrato e prontidão de dados | S2-04 / S2-05 | [Catálogo](docs/indicators/S2_INDICATOR_CATALOG.md) |
+| IND-P1 | Indicator Data Foundation: relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P1_INDICATOR_DATA_FOUNDATION_REPORT.md) |
+| IND-P2 | Indicator Engine e RF15/RF16/RF17/RF36 | S2-04 | [Entrega](docs/deliveries/S2_P2_INDICATOR_ENGINE_RF15_RF16_RF17_RF36_REPORT.md) |
+| IND-P3 | GitHub Analytics + RF18/RF54 — relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P3_GITHUB_ANALYTICS_RF18_RF54_REPORT.md) |
+| IND-P4 | Flow + Task Analytics — relatório local | S2-04 | [Entrega](docs/deliveries/S2_P4_FLOW_TASK_ANALYTICS_REPORT.md) |
+| IND-P5 | Sprint Analytics — relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P5_SPRINT_ANALYTICS_REPORT.md) |
+| IND-P5.1 | Burnup Historical Foundation — relatório local | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P5_1_BURNUP_HISTORICAL_FOUNDATION_REPORT.md) |
+| IND-P5.2 | consistência histórica entre Burndown e Burnup | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P5_2_BURNDOWN_BURNUP_CONSISTENCY_REPORT.md) |
+| IND-P6 | Quality + Traceability Analytics | S2-05 | [Entrega](docs/deliveries/S2_P6_QUALITY_TRACEABILITY_ANALYTICS_REPORT.md) |
+| IND-P7 | Dashboard Aggregate API e RF56 | S2-05 | [Entrega](docs/deliveries/S2_P7_DASHBOARD_AGGREGATE_API_RF56_REPORT.md) |
+| IND-P8 | Dashboard na Visão Geral e RF55 | S2-05 | [Entrega](docs/deliveries/S2_P8_DASHBOARD_OVERVIEW_RF55_REPORT.md) |
+| IND-P8.1 | Homologação do Dashboard com dados reais | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_1_REAL_DASHBOARD_HOMOLOGATION_REPORT.md) |
+| IND-P8.2 | Dashboard visual e UX | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_2_DASHBOARD_VISUAL_UX_REDESIGN_REPORT.md) |
+| IND-P8.3 | Indicator Health + Project Health | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_3_INDICATOR_PROJECT_HEALTH_REPORT.md) |
+| IND-P8.4 | Validação integral e recuperação do Dashboard | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md) |
+| IND-P8.5 | Indicators Workspace + Commercial Analytics UX | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_5_INDICATORS_WORKSPACE_COMMERCIAL_UX_REPORT.md) |
+| IND-P8.6A | UI Consistency & Commercial UX Recovery | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md) |
+| IND-P8.6B | Analytics Data Enrichment & Visualization Completeness | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md) |
+| IND-P8.6C-1 | Final Indicators Experience Validation | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6C_FINAL_INDICATORS_VALIDATION_REPORT.md) |
+| IND-P8.6C-2 | Indicators visual & data hardening | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md) |
+| IND-P8.6D | Final Indicators Polish | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md) |
+| IND-P8.6E | Security Dependency Closure | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6E_SECURITY_DEPENDENCY_CLOSURE_REPORT.md) |
+| IND-P8.6F | Final visual consistency sweep | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md) |
+| IND-P9 | Personalized Indicators Dashboard | S2-05 | [Entrega](docs/deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md) |
+| IND-P9.1 | Personalized dashboard visual polish | S2-05 | [Entrega](docs/deliveries/S2_P9_1_PERSONALIZED_DASHBOARD_VISUAL_POLISH_REPORT.md) |
+| IND-P9.1.1 | Feedback de salvamento | S2-05 | [Registro de validação](docs/design/validation/VISUAL_VALIDATION_LOG.md#2026-10-04--p911-feedback-de-salvamento) |
+| IND-P10 | Final code review, QA e release readiness | S2-04 / S2-05 | [Entrega](docs/deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md) |
+
+S2-04 concentra RF15/RF16/RF17/RF18/RF36: motor, progresso, atividade e produtividade
+(IND-P2/P3/P4). S2-05 concentra RF54/RF55/RF56: qualidade, apresentação auditável, filtros e
+consolidação (IND-P3/P6/P7/P8). Fundação histórica, Sprint analytics, Health, homologação e fixes
+são suporte transversal à frente; Meu Painel (IND-P9) é evolução técnica da apresentação S2-05,
+sem criar RF oficial adicional. O vínculo transversal da tabela não afirma que cada fase implemente
+todos os requisitos de ambos os cartões.
+
+**P8.6C desambiguado:** IND-P8.6C-1 é a validação de 28/09/2026; IND-P8.6C-2 é o hardening posterior
+registrado em 03/10/2026. Para decisões posteriores de UI (incluindo Overview compacto), consultar
+IND-P8.6C-2 e suas sucessoras, sem atribuí-las retroativamente à rodada -1.
+
+## GITHUB — Criação opcional e vinculação posterior
+
+Incrementos complementares de RF01/RF02, sem alterar o texto acadêmico oficial.
+
+| Entrega | Escopo | Estado |
+| --- | --- | --- |
+| GITHUB-01 — Criação opcional de projetos | Cadastro com dados básicos ou com repositório autorizado, OWNER atômico e ausência legítima de integração | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_01_OPTIONAL_PROJECT_CREATION_REPORT.md) |
+| GITHUB-02 — Vinculação posterior | PUT de integração existente reutilizado; OWNER, reserva concorrente, auditoria atômica e sync inicial após commit | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_02_POST_CREATION_REPOSITORY_LINKING_REPORT.md) |
+| GITHUB-03 — Gerenciamento e UX | Seção GitHub na edição, seleção compartilhada, vínculo posterior, sync/preferência e navegação contextual | PASS LOCAL; gates e limites no [relatório](docs/deliveries/GITHUB_03_PROJECT_GITHUB_INTEGRATION_MANAGEMENT_UX_REPORT.md) |
+
+**GITHUB OPTIONAL INTEGRATION — COMPLETE LOCAL.** Fluxos A/B/C/D validados em aplicação real,
+banco isolado, desktop/tablet/mobile e Light/Dark. GITHUB-01/02 já compõem o baseline
+`1abb750`; GITHUB-01/02/03 já integram o HEAD `50cb7af` auditado na entrega GITHUB-04.
+
+O bloqueio funcional de disponibilizar criação opcional sem UI de vinculação foi resolvido
+localmente. Liberação externa continua condicionada à revisão final, integração, CI e deploy.
+Isso não conclui S2-09/S2-10, OCI ou homologação em produção. GITHUB-03 persistia somente a
+preferência automática; GITHUB-04 acrescenta a execução periódica descrita abaixo.
+Troca/desvinculação de repositório permanecem fora desta sequência sem decisão específica de
+domínio. Nenhuma feature flag complexa foi introduzida.
+
+### GITHUB-04 — UX e sincronização periódica
+
+**PASS LOCAL** no encerramento da GITHUB-04, em `daniel-dev`; naquela rodada o agente não
+executou commit/push/deploy. A publicação posterior está registrada em PR24-FIX-01 abaixo.
+Worker independente com agenda persistida, jitter, slots globais, mesma reserva manual/automática,
+fencing transacional e recuperação. UI agrupada, switch, progresso compartilhado e descoberta
+por polling. [Relatório e gates locais](docs/deliveries/GITHUB_04_INTEGRATION_UX_AUTOMATIC_SYNC_SCHEDULER_REPORT.md).
+OCI/deploy permanecem fora desta entrega; sem troca/desvinculação de repositório.
+
+### GITHUB-04.1 — Confiabilidade da automação e refinamento UX
+
+**PASS LOCAL**, em `daniel-dev`.
+Correção da distinção entre agenda e worker operacional, startup explícito, heartbeat mínimo,
+logs de adiamento e refinamento Settings C2. Repository preserva sua estrutura sem CTA.
+[Diagnóstico e validação local](docs/deliveries/GITHUB_04_1_AUTOSYNC_RELIABILITY_UX_REFINEMENT_REPORT.md).
+Sem OCI/deploy; migration aplicada somente em schemas isolados de teste.
+
+### PR24-FIX-01 — Correções de review e CI
+
+**PASS LOCAL**, em `daniel-dev`, sobre o HEAD revisado `6b739433da`.
+Oito comentários de Copilot/Codex e o validador LR.2 corrigidos: fairness por paginação,
+elegibilidade durante espera por capacidade, secondary rate limit, recuperação do polling,
+requests do Repository e contratos/rastreabilidade. Gates locais completos e migrations PASS.
+[Matriz de fechamento e evidências](docs/deliveries/PR24_FIX_01_CODE_REVIEW_CI_CORRECTIONS_REPORT.md).
+Na conclusão local da FIX-01, CI #138 estava falha e o agente não executou commit/push/deploy.
+Posteriormente foi publicado `ae9a265b6347f288b9c3b4c1ab0f01553c1f19b6`: a
+[CI #139](https://github.com/iYoNuttxD/Traceflow/actions/runs/38159318408) passou nos cinco checks,
+conforme consulta da FIX-02 em 11/10/2026. Esse resultado se refere à FIX-01, não ao diff seguinte.
+
+### PR24-FIX-02 — Fechamento de arquitetura, banco e review
+
+Correção incremental da FK de ator, gate de drift da cadeia SQL, ADR-017, contenção GitHub limitada
+e Retry-After. Migrations anteriores preservadas porque já foram aplicadas no desenvolvimento.
+Relatório: [matriz e gates](docs/deliveries/PR24_FIX_02_FINAL_ARCHITECTURE_DATABASE_REVIEW_CLOSURE_REPORT.md).
+Retenção de SyncRun (D-A): DECISION REQUIRED; proposta 90/180 dias sem cleanup automático até
+aprovação da finalidade/prazo e dos critérios documentados na política de dados.
+S2-09/S2-10 devem incluir worker supervisionado, reinício, heartbeat/alerta WORKER_NOT_OBSERVED,
+NTP e pools dimensionados. OCI continua implantação futura, conforme ADR-017 e decisão histórica
+`fe05208`; nenhuma entrega de infraestrutura ou merge com `joao-dev-v2` é iniciada aqui.

@@ -1,12 +1,13 @@
 // Repository de projetos: concentra o acesso a Project no MySQL via Prisma.
 import { prisma } from '../../database/prismaClient.js';
 import { SYNC_WRITE, withActiveProjectWrite } from './active-project-write.js';
+import { distributedSyncAt, eligibleIntegration } from '../github/github-sync-schedule.js';
 
 export const projectRepository = {
   async createProject(data, ownerUserId) {
-    if (!ownerUserId) return prisma.project.create({ data });
+    if (!ownerUserId) return prisma.project.create({ data, include: { githubIntegration: true } });
     return prisma.$transaction(async (tx) => {
-      const project = await tx.project.create({ data });
+      const project = await tx.project.create({ data, include: { githubIntegration: true } });
       await tx.projectMembership.create({
         data: { projectId: project.id, userId: ownerUserId, role: 'OWNER' }
       });
@@ -74,7 +75,9 @@ export const projectRepository = {
   },
 
   async updateProject(id, data) {
-    return withActiveProjectWrite(id, (tx) => tx.project.update({ where: { id }, data }));
+    return withActiveProjectWrite(id, (tx) =>
+      tx.project.update({ where: { id }, data, include: { githubIntegration: true } })
+    );
   },
 
   async findById(id) {
@@ -98,12 +101,24 @@ export const projectRepository = {
   },
 
   async updateGithubSyncSettings(id, githubAutoSyncEnabled) {
-    await withActiveProjectWrite(id, (tx) =>
-      tx.projectGitHubIntegration.update({
+    await withActiveProjectWrite(id, async (tx) => {
+      const current = await tx.projectGitHubIntegration.findUnique({
         where: { projectId: id },
-        data: { autoSyncEnabled: githubAutoSyncEnabled }
-      })
-    );
+        include: { installation: true }
+      });
+      const active = await tx.gitHubSyncRun.findUnique({ where: { activeProjectId: id } });
+      const enabled = { ...current, autoSyncEnabled: githubAutoSyncEnabled };
+      await tx.projectGitHubIntegration.update({
+        where: { projectId: id },
+        data: {
+          autoSyncEnabled: githubAutoSyncEnabled,
+          nextSyncAt:
+            eligibleIntegration(enabled) && !active
+              ? current.nextSyncAt || distributedSyncAt(id, new Date())
+              : null
+        }
+      });
+    });
     return this.findById(id);
   },
 

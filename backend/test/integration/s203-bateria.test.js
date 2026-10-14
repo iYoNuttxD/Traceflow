@@ -1297,9 +1297,10 @@ describe('S2-03 bateria — bloco S: sincronização e gancho (UC04)', () => {
         private: true,
         description: null
       }),
-      listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: null }])),
+      listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
       listCommitPages: vi.fn(() => pages([])),
       listPullRequestPages: vi.fn(() => pages(pullRequests)),
+      listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
       listIssuePages: vi.fn(() => pages(issues))
     };
   }

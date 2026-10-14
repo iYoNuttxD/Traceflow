@@ -117,6 +117,27 @@ it('encodes retest concurrency explicitly while ordinary executions omit it', as
 it('explains status using server counts and validation execution', () => {
   expect(statusReason(defect)).toMatch(/Nenhuma tarefa/);
   expect(
+    statusReason({
+      ...defect,
+      status: 'EM_CORRECAO',
+      statusReason: { correctionTasksTotal: 4, done: 2, inProgress: 1 }
+    })
+  ).toBe('2 de 4 tarefas de correção concluídas. 1 em andamento.');
+  expect(
+    statusReason({
+      ...defect,
+      status: 'AGUARDANDO_RETESTE',
+      statusReason: { correctionTasksTotal: 1 }
+    })
+  ).toBe('A tarefa de correção foi concluída.');
+  expect(
+    statusReason({
+      ...defect,
+      status: 'AGUARDANDO_RETESTE',
+      statusReason: { correctionTasksTotal: 3 }
+    })
+  ).toBe('Todas as 3 tarefas de correção foram concluídas.');
+  expect(
     statusReason({ ...defect, status: 'VALIDADO', statusReason: { validatedByExecutionId: 39 } })
   ).toContain('EXEC-0039');
 });

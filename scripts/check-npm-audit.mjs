@@ -5,6 +5,64 @@ import { pathToFileURL } from "node:url";
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 
+const SEVERITIES = ["info", "low", "moderate", "high", "critical"];
+const isRecord = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+function validateReport(report) {
+  const invalid = (detail) => `Relatório npm audit inválido: ${detail}.`;
+  if (!isRecord(report) || Object.hasOwn(report, "error")) {
+    return invalid("resposta de erro ou objeto ausente");
+  }
+  if (report.auditReportVersion !== 2 || !isRecord(report.vulnerabilities)) {
+    return invalid("schema v2 e vulnerabilities obrigatórios");
+  }
+  const totals = report.metadata?.vulnerabilities;
+  if (!isRecord(totals)) return invalid("metadata.vulnerabilities ausente");
+  for (const severity of [...SEVERITIES, "total"]) {
+    if (!Number.isSafeInteger(totals[severity]) || totals[severity] < 0) {
+      return invalid(`contagem ${severity} inválida`);
+    }
+  }
+  const counts = Object.fromEntries(
+    SEVERITIES.map((severity) => [severity, 0]),
+  );
+  for (const [name, vulnerability] of Object.entries(report.vulnerabilities)) {
+    if (
+      !isRecord(vulnerability) ||
+      vulnerability.name !== name ||
+      !SEVERITIES.includes(vulnerability.severity) ||
+      !Array.isArray(vulnerability.via) ||
+      vulnerability.via.length === 0
+    ) {
+      return invalid(`vulnerabilidade ${name} incompleta`);
+    }
+    counts[vulnerability.severity] += 1;
+    for (const entry of vulnerability.via) {
+      if (typeof entry === "string") {
+        if (!Object.hasOwn(report.vulnerabilities, entry)) {
+          return invalid(`referência ${entry} não resolvida`);
+        }
+      } else if (
+        !isRecord(entry) ||
+        !SEVERITIES.includes(entry.severity) ||
+        typeof entry.dependency !== "string" ||
+        !entry.dependency ||
+        !(typeof entry.url === "string" || Number.isSafeInteger(entry.source))
+      ) {
+        return invalid(`advisory de ${name} incompleto`);
+      }
+    }
+  }
+  if (
+    SEVERITIES.some((severity) => counts[severity] !== totals[severity]) ||
+    totals.total !== Object.keys(report.vulnerabilities).length
+  ) {
+    return invalid("contagens inconsistentes com vulnerabilities");
+  }
+  return null;
+}
+
 function advisoryId(advisory) {
   const match = advisory.url?.match(/\/advisories\/([^/]+)$/);
   return match?.[1] || String(advisory.source || "UNKNOWN_ADVISORY");
@@ -62,7 +120,17 @@ function validateException(exception, now) {
 }
 
 export function evaluateAudit(report, policy, { now = new Date() } = {}) {
-  const vulnerabilities = report.vulnerabilities || {};
+  const reportError = validateReport(report);
+  if (reportError) {
+    return {
+      ok: false,
+      errors: [reportError],
+      approved: [],
+      blocked: [],
+      totals: {},
+    };
+  }
+  const vulnerabilities = report.vulnerabilities;
   const exceptions = policy.exceptions || [];
   const errors = exceptions
     .map((item) => validateException(item, now))
@@ -127,17 +195,28 @@ function runAudit(projectDirectory) {
     cwd: projectDirectory,
     encoding: "utf8",
     maxBuffer: 20 * 1024 * 1024,
-    shell: true,
+    shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
+  if (result.signal || ![0, 1].includes(result.status)) {
+    throw new Error(
+      `npm audit falhou (status ${result.status}, sinal ${result.signal}).`,
+    );
+  }
   if (!result.stdout?.trim()) {
     throw new Error(`npm audit não produziu JSON para ${projectDirectory}.`);
   }
   try {
-    return JSON.parse(result.stdout);
-  } catch {
+    const report = JSON.parse(result.stdout);
+    const error = validateReport(report);
+    if (error) throw new Error(error);
+    if (result.status === 1 && report.metadata.vulnerabilities.total === 0) {
+      throw new Error("npm audit falhou sem relatar vulnerabilidades.");
+    }
+    return report;
+  } catch (error) {
     throw new Error(
-      `npm audit produziu JSON inválido para ${projectDirectory}.`,
+      `npm audit produziu JSON inválido para ${projectDirectory}: ${error.message}`,
     );
   }
 }

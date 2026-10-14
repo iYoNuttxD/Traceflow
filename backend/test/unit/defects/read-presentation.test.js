@@ -30,7 +30,27 @@ it('keeps catalog reads bounded and selects only task identity/status for summar
   await createDefectRepository({
     defect: { findMany, count, groupBy },
     task: { findMany: taskRead }
-  }).list(2, { page: 1, limit: 20 });
+  }).list(2, { page: 3, limit: 20, status: 'ABERTO', search: 'regression' });
+  expect(findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { projectId: 2, deletedAt: null, status: 'ABERTO', title: { contains: 'regression' } },
+      take: 20,
+      skip: 40,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+    })
+  );
+  expect(count).toHaveBeenCalledWith({
+    where: { projectId: 2, deletedAt: null, status: 'ABERTO', title: { contains: 'regression' } }
+  });
+  expect(groupBy).toHaveBeenCalledWith({
+    by: ['status'],
+    where: { projectId: 2, deletedAt: null },
+    _count: true
+  });
+  expect(findMany.mock.calls[0][0].include.retests).toMatchObject({
+    take: 1,
+    orderBy: { id: 'desc' }
+  });
   expect(findMany).toHaveBeenCalledTimes(1);
   expect(count).toHaveBeenCalledTimes(1);
   expect(groupBy).toHaveBeenCalledTimes(1);

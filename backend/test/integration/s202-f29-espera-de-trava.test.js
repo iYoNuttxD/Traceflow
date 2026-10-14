@@ -172,7 +172,7 @@ describe('S202-F29 — Fase 2: espera esgotada fora do HTTP', () => {
     expect(githubSyncFailure(error).code).toBe('GITHUB_SYNC_PROJECT_BUSY');
   }, 30000);
 
-  it('F2-06 a expiração de uma execução vencida não derruba a leitura do estado com o projeto travado', async () => {
+  it('F2-06 a leitura do estado com o projeto travado não cai nem expira a execução vencida; liberada a trava, a leitura seguinte expira', async () => {
     const project = await createProject(prisma);
     const owner = await prisma.user.create({
       data: {
@@ -215,23 +215,28 @@ describe('S202-F29 — Fase 2: espera esgotada fora do HTTP', () => {
         heartbeatAt: old
       }
     });
-    loggerMock.warn.mockClear();
 
-    const { value, error } = await underLock(project.id, 8000, () =>
+    const { value, error, ms } = await underLock(project.id, 8000, () =>
       getProjectGithubSyncStatus(project.id)
     );
 
     expect(error).toBeUndefined();
-    expect(value).toMatchObject({ id: run.id, status: 'FAILED' });
+    expect(ms).toBeLessThan(3500);
+    expect(value).toMatchObject({ id: run.id, status: 'RUNNING' });
     expect(
       await prisma.gitHubSyncRun.findUnique({ where: { id: run.id }, select: { status: true } })
-    ).toEqual({ status: 'FAILED' });
-    expect(loggerMock.warn).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        event: 'github_sync_project_failure_unrecorded',
-        projectId: project.id
+    ).toEqual({ status: 'RUNNING' });
+
+    expect(await getProjectGithubSyncStatus(project.id)).toMatchObject({
+      id: run.id,
+      status: 'FAILED',
+      error: { code: 'GITHUB_SYNC_STALE' }
+    });
+    expect(
+      await prisma.projectGitHubIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { lastSyncStatus: true }
       })
-    );
+    ).toEqual({ lastSyncStatus: 'FALHA' });
   }, 30000);
 });

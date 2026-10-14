@@ -656,9 +656,10 @@ describe('S2-03 despacho: gancho na sincronização (D9, V16.5.3)', () => {
         private: true,
         description: null
       }),
-      listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: null }])),
+      listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
       listCommitPages: vi.fn(() => pages([])),
       listPullRequestPages: vi.fn(() => pages(pullRequests)),
+      listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
       listIssuePages: vi.fn(() => {
         if (issuesFail)
           return (async function* failing() {

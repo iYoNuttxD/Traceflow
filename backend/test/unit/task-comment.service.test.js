@@ -102,20 +102,21 @@ describe('taskCommentService — conteúdo', () => {
   });
 
   it('rejeita conteúdo acima do limite e aceita o limite exato', async () => {
+    expect(COMMENT_MAX_LENGTH).toBe(2000);
     await expect(
-      taskCommentService.createTaskComment(
-        42,
-        { content: 'a'.repeat(COMMENT_MAX_LENGTH + 1) },
-        { actorUserId: 10 }
-      )
+      taskCommentService.createTaskComment(42, { content: 'a'.repeat(2001) }, { actorUserId: 10 })
     ).rejects.toMatchObject({ statusCode: 400 });
     await expect(
       taskCommentService.createTaskComment(
         42,
-        { content: 'a'.repeat(COMMENT_MAX_LENGTH) },
+        { content: 'a'.repeat(2000) },
         { actorUserId: 10, membershipRole: 'MEMBER' }
       )
-    ).resolves.toBeTruthy();
+    ).resolves.toMatchObject({ id: 5 });
+    expect(mocks.repository.createAtomic).toHaveBeenCalledExactlyOnceWith(
+      { projectId: 7, taskId: 42, authorUserId: 10, content: 'a'.repeat(2000) },
+      expect.any(Object)
+    );
   });
 
   it('propaga 404 quando a tarefa não existe', async () => {
@@ -207,7 +208,7 @@ describe('taskCommentService — política de edição e exclusão', () => {
 });
 
 describe('taskCommentService — listagem e permissões do DTO', () => {
-  it('calcula flags por papel e não expõe e-mail do autor', async () => {
+  it('calcula flags por papel usando a projeção pública do repository', async () => {
     const asViewer = await taskCommentService.listTaskComments(
       42,
       {},
@@ -216,6 +217,7 @@ describe('taskCommentService — listagem e permissões do DTO', () => {
     expect(asViewer.permissions).toEqual({ canComment: false, canModerate: false });
     expect(asViewer.comments[0]).toMatchObject({ canEdit: false, canDelete: false });
     expect(JSON.stringify(asViewer)).not.toContain('email');
+    // Email exclusion belongs to the real repository projection, exercised by the API suite.
 
     const asManager = await taskCommentService.listTaskComments(
       42,

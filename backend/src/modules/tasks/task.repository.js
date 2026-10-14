@@ -4,6 +4,7 @@ import { AppError } from '../../shared/errors/index.js';
 // Repository do modulo de tarefas. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { captureBurnupEstimate, captureBurnupScope } from '../sprints/sprint-burnup.events.js';
 
 const pullRequestSelect = {
   id: true,
@@ -240,7 +241,7 @@ export const taskRepository = {
     return links.map((link) => link.issue);
   },
 
-  async updateTaskAtomic(id, data, { historyEntries, auditEvent, previousRequirementId }) {
+  async updateTaskAtomic(id, data, { buildHistory, auditEvent, previousRequirementId }) {
     return traceabilityTransaction(
       {
         taskIds: [id],
@@ -250,6 +251,22 @@ export const taskRepository = {
         sourceEntityId: id
       },
       async (tx) => {
+        if (Object.hasOwn(data, 'estimatedEffort')) {
+          const pointer = await tx.task.findUnique({
+            where: { id },
+            select: { projectId: true, sprintId: true }
+          });
+          if (pointer?.sprintId) {
+            await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${pointer.sprintId} AND projectId = ${pointer.projectId} FOR UPDATE`;
+          }
+        }
+        await tx.$queryRaw`SELECT id FROM Task WHERE id = ${id} FOR UPDATE`;
+        // History describes the committed predecessor, not an editor's stale preflight.
+        const previous = await tx.task.findUniqueOrThrow({ where: { id } });
+        const historyEntries = buildHistory(previous);
+        if (Object.hasOwn(data, 'estimatedEffort')) {
+          await captureBurnupEstimate(tx, previous, data.estimatedEffort, new Date());
+        }
         const task = await tx.task.update({ where: { id }, data, include: taskInclude });
         if (historyEntries.length) {
           await tx.taskHistoryEntry.createMany({
@@ -288,7 +305,25 @@ export const taskRepository = {
         // status que ela tinha, e a FK deixa `taskId` nulo. O denominador de uma
         // sprint encerrada nao pode mudar porque alguem apagou a tarefa depois —
         // o snapshot de titulo e o que resta para identifica-la (ADR-010 D09).
+        const memberships = await tx.sprintTask.findMany({
+          where: { taskId: id, removedAt: null, closedAt: null },
+          select: { id: true, sprintId: true },
+          orderBy: [{ sprintId: 'asc' }, { id: 'asc' }]
+        });
+        for (const sprintId of [...new Set(memberships.map((row) => row.sprintId))]) {
+          await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} FOR UPDATE`;
+        }
+        await tx.$queryRaw`SELECT id FROM Task WHERE id = ${id} FOR UPDATE`;
         const atual = await tx.task.findUnique({ where: { id }, select: { status: true } });
+        const removedAt = new Date();
+        await captureBurnupScope(tx, null, {
+          close: memberships.map((row) => ({
+            id: row.id,
+            at: removedAt,
+            exitStatus: atual?.status ?? null
+          })),
+          open: []
+        });
         await tx.sprintTask.updateMany({
           // `closedAt: null` exclui as participacoes ja congeladas: numa sprint
           // encerrada a composicao e registro, e marcar a saida agora tiraria a
@@ -296,7 +331,7 @@ export const taskRepository = {
           // `taskId` e o snapshot de titulo passa a ser o que resta dela.
           where: { taskId: id, removedAt: null, closedAt: null },
           data: {
-            removedAt: new Date(),
+            removedAt,
             removalReason: 'TAREFA_EXCLUIDA',
             exitStatus: atual?.status ?? null
           }

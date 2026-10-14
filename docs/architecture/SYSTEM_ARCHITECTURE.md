@@ -131,6 +131,32 @@ GitHub OAuth pertence ao módulo Auth e cria `GitHubIdentity` somente para cadas
 
 Uma `GitHubInstallation` pode alimentar várias `ProjectGitHubIntegration`. Cada integração aponta para um projeto e um repositório únicos; `installationId` é apenas FK/index, nunca unique. Reconectar o mesmo repositório revalida a conexão; trocar para outro repositório retorna `409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`, preservando artifacts e histórico. O lifecycle da instalação é `PENDING`, `ACTIVE`, `SUSPENDED` ou `REMOVED`; somente `ACTIVE` seleciona e sincroniza. Callback não reativa `SUSPENDED`/`REMOVED`.
 
+GITHUB-02 completa a vinculação posterior na rota PUT existente. Integração ausente é criada
+sem recriar Project/membership, sob lock de lifecycle/OWNER e constraints únicas. Auditoria e
+integração compartilham a transação; consulta externa a precede e sync inicial a sucede.
+Integração ACTIVE repetida retorna 409, sem sobrescrever estado ou agendar sync. A reconexão
+RECONNECT_REQUIRED mantém o mesmo repositório e não substitui instalação já persistida.
+O resultado da conexão distingue o vínculo confirmado do run assíncrono, inclusive quando
+solicitação/execução de sync falha. GITHUB-03 consome esse resultado na seção GitHub da edição do projeto, com seleção compartilhada,
+reconciliação independente e navegação contextual do Repository. GITHUB-04 organiza a seção
+em Repositório/Sincronização/Automação e executa a preferência pelo worker independente.
+A agenda e os slots globais residem no mesmo banco; activeProjectId continua a autoridade
+por projeto. As escritas da pipeline verificam o run ativo dentro da transação de Project,
+usando contexto assíncrono para alcançar também artifacts/sugestões. Recuperação segue a
+mesma ordem de locks e não reativa IDs expirados. Detalhes no
+[runbook operacional](../runbooks/GITHUB_AUTOMATIC_SYNC.md).
+
+GITHUB-04.1 distingue agenda de executor: `GitHubSchedulerWorker` guarda somente UUID e último
+heartbeat de cada processo. Status consulta essa liveness no mesmo banco, com janela limitada;
+shutdown remove apenas a própria entrada. Ela não decide claims, capacidade, lease ou fencing.
+O worker permanece separado da API, com comando explícito no README e aviso no startup HTTP.
+Uma agenda futura sem worker é apresentada como indisponibilidade operacional, sem desligar
+a preferência. PR24-FIX-01 usa essa observação também para distinguir recuperação de parada
+da entrada de uma réplica com executor recente; ela não substitui locks/claims/leases.
+O corte de recuperação permanece fixo durante o processo, preservando quem aguarda capacidade.
+A busca avança por páginas/cursor estável entre ticks, sob limites de trabalho e as mesmas
+reservas transacionais. Logs de adiamento identificam motivo e horários.
+
 Sync pagina coleções, persiste por identificador externo e usa `GitHubSyncRun.activeProjectId` para
 exclusão mútua no banco, com stale detection. Webhook público usa raw body, HMAC e delivery ID, sem
 sessão/CSRF. Delivery possui claim `PROCESSING`, estado terminal e retry de `FAILED` ou processamento
@@ -151,6 +177,19 @@ ativos. O purge remove a integração e os artefatos do projeto, mas não a Inst
 autorizações, pois essas entidades podem ser compartilhadas.
 
 ## Assíncronos e concorrência
+
+O [ADR-017](ADR-017-GITHUB-ASYNC-SYNC.md) formaliza o worker GitHub independente, alternativas,
+agenda/slots/leases/fencing, privacidade e operação pretendida na OCI. Na coordenação GitHub,
+Project e SyncRun usam NOWAIT: reserva/claim/recovery adiam disputa; heartbeat adiado não renova
+a lease nem é tratado como perda imediata. O contexto de fencing estende o lock imediato às
+escritas da pipeline. Sync manual coalesce corridas com até três tentativas curtas em transações
+novas e retorna 503 se continuar ocupado. Não altera o timeout global ou todos os escritores.
+
+Projects consome a política de agenda GitHub para atualizar preferência atomicamente com
+`nextSyncAt`; GitHub consome o guard de lifecycle de Projects. São dependências entre domínios,
+sem ciclo de imports de arquivo no grafo verificado na PR24-FIX-02. A política depende somente de
+configuração e crypto, e o guard de Prisma/erros/contexto. Mantêm-se essas dependências pequenas;
+não se move regra GitHub para shared nem se separa agenda da transação para ocultar o acoplamento.
 
 O lifecycle de exclusão usa `Project.purgeStartedAt` e um `purgeClaimId` de fencing persistido.
 Delete, restore e purge manual tomam o lock do Project antes do lock da membership relevante e

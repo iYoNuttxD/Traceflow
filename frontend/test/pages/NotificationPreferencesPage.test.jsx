@@ -127,7 +127,7 @@ describe('S2-02 preferências de notificação (D7)', () => {
     await user.click(overdueSwitch());
     await user.click(saveButton());
 
-    expect(await screen.findByText(/40/)).toBeInTheDocument();
+    expect(await screen.findByText(/Aguarde 40 segundos/)).toBeInTheDocument();
   });
 
   it('falha ao carregar mostra erro com nova tentativa', async () => {

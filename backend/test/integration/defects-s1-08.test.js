@@ -1,3 +1,4 @@
+import { concurrentTransactions } from '../helpers/transaction-arrival-barrier.js';
 import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
 import {
   configureTestDatabaseEnvironment,
@@ -330,6 +331,8 @@ describe('S1-08 persisted domain foundation', () => {
         };
         return work(tx);
       });
+    const projectionBefore = await prisma.requirementTraceabilityState.findMany();
+    const projectionHistoryBefore = await prisma.requirementTraceabilityHistoryEntry.findMany();
     const before = [
       await prisma.task.count(),
       await prisma.auditEvent.count(),
@@ -348,6 +351,10 @@ describe('S1-08 persisted domain foundation', () => {
       await prisma.defectHistoryEntry.count()
     ]).toEqual(before);
     expect((await defects.read(d.id, f.context)).revision).toBe(d.revision);
+    expect(await prisma.requirementTraceabilityState.findMany()).toEqual(projectionBefore);
+    expect(await prisma.requirementTraceabilityHistoryEntry.findMany()).toEqual(
+      projectionHistoryBefore
+    );
   });
   it('derives lifecycle from all current corrections and ignores origins', async () => {
     const f = await fixture();
@@ -441,10 +448,30 @@ describe('S1-08 persisted domain foundation', () => {
       { testCaseId: f.tc.id }
     ])
       expect((await defects.list(f.project.id, { ...page, ...filter }, f.context)).total).toBe(1);
+    for (const filter of [
+      { search: 'does-not-exist' },
+      { severity: 'BAIXA' },
+      { responsibleUserId: 999999 },
+      { requirementId: 999999 },
+      { originTaskId: 999999 },
+      { correctionTaskId: 999999 },
+      { testCaseId: 999999 }
+    ]) {
+      expect(
+        (await defects.list(f.project.id, { ...page, ...filter }, f.context)).items,
+        JSON.stringify(filter)
+      ).toEqual([]);
+    }
+    const second = await f.create({ title: 'Second catalog row', severity: 'BAIXA' });
+    const firstPage = await defects.list(f.project.id, { ...page, limit: 1 }, f.context);
+    const secondPage = await defects.list(f.project.id, { ...page, page: 2, limit: 1 }, f.context);
+    expect(firstPage.items.map(({ id }) => id)).toEqual([second.id]);
+    expect(secondPage.items.map(({ id }) => id)).toEqual([d.id]);
+    await defects.delete(second.id, f.context);
     await defects.delete(d.id, f.context);
     await expect(defects.read(d.id, f.context)).rejects.toMatchObject({ statusCode: 404 });
     expect((await defects.list(f.project.id, page, f.context)).summary.total).toBe(0);
-    expect(await prisma.defectTask.count()).toBe(2);
+    expect(await prisma.defectTask.count()).toBe(3);
     expect(await prisma.testExecution.count()).toBe(1);
     expect(
       (await tasks.getTaskById(d.correctionCycles[0].tasks[0].id)).correctionDefects[0].deletedAt
@@ -498,7 +525,11 @@ describe('S1-08 persisted domain foundation', () => {
     async (result) => {
       const f = await fixture(),
         d = await f.ready();
-      const outcomes = await Promise.allSettled([f.retest(d, result), f.retest(d, result)]);
+      const outcomes = await concurrentTransactions(
+        prisma,
+        [() => f.retest(d, result), () => f.retest(d, result)],
+        { settled: true }
+      );
       expect(outcomes.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
       expect(outcomes.find((r) => r.status === 'rejected').reason).toMatchObject({
         code: 'DEFECT_CONFLICT'
@@ -511,12 +542,31 @@ describe('S1-08 persisted domain foundation', () => {
     const f = await fixture(),
       d = await f.create();
     const before = await prisma.task.count();
-    const outcomes = await Promise.allSettled([
-      f.correction(d, { task: { title: 'A' } }),
-      f.correction(d, { task: { title: 'B' } })
-    ]);
+    const outcomes = await concurrentTransactions(
+      prisma,
+      [
+        () => f.correction(d, { task: { title: 'A' } }),
+        () => f.correction(d, { task: { title: 'B' } })
+      ],
+      { settled: true }
+    );
+    expect(outcomes.find((r) => r.status === 'rejected').reason).toMatchObject({
+      code: 'DEFECT_CONFLICT'
+    });
+    expect(
+      await prisma.defectTask.count({ where: { defectId: d.id, relationType: 'CORRECTION' } })
+    ).toBe(1);
     expect(outcomes.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(await prisma.task.count()).toBe(before + 1);
+    expect((await defects.read(d.id, f.context)).revision).toBe(d.revision + 1);
+    expect(
+      await prisma.defectHistoryEntry.count({
+        where: { defectId: d.id, action: 'CORRECTION_TASK_CREATED' }
+      })
+    ).toBe(1);
+    expect(
+      await prisma.defectHistoryEntry.count({ where: { defectId: d.id, action: 'STATUS_CHANGED' } })
+    ).toBe(0);
   });
   it('serializes multiple task movements and task/retest races under the same project lock', async () => {
     const f = await fixture();
@@ -659,44 +709,64 @@ describe('S1-08 persisted domain foundation', () => {
   it('enforces FK, uniqueness and role/cycle checks at storage boundary', async () => {
     const f = await fixture(),
       d = await f.create();
+    const before = await prisma.defectTask.findMany();
     await expect(
       prisma.defectTask.create({
         data: { defectId: d.id, taskId: f.origin.id, relationType: 'ORIGIN', correctionCycle: 1 }
       })
-    ).rejects.toBeDefined();
+    ).rejects.toThrow(/DefectTask_role_cycle/);
     await expect(
       prisma.defectTask.create({
         data: { defectId: d.id, taskId: f.origin.id, relationType: 'ORIGIN', correctionCycle: 0 }
       })
-    ).rejects.toBeDefined();
+    ).rejects.toMatchObject({ code: 'P2002' });
     await expect(
       prisma.defect.update({ where: { id: d.id }, data: { currentCorrectionCycle: 0 } })
-    ).rejects.toBeDefined();
+    ).rejects.toThrow(/Defect_cycle_positive/);
     await expect(
       prisma.testExecutionStep.delete({ where: { id: f.execution.steps[0].id } })
-    ).rejects.toBeDefined();
+    ).rejects.toMatchObject({ code: 'P2003' });
     expect(await prisma.defect.count()).toBe(1);
+    expect(await prisma.defectTask.findMany()).toEqual(before);
+    expect(await prisma.defect.findUnique({ where: { id: d.id } })).toMatchObject({
+      currentCorrectionCycle: 1
+    });
+    expect(
+      await prisma.testExecutionStep.findUnique({ where: { id: f.execution.steps[0].id } })
+    ).not.toBeNull();
   });
-  it('serializes definition edits and ordinary execution with contextual retests', async () => {
+  it('coordinates definition edits with contextual retests', async () => {
     const f = await fixture(),
       d = await f.ready();
-    const outcomes = await Promise.allSettled([
-      f.retest(d),
-      cases.update(f.tc.id, { expectedVersion: 1, title: 'Next definition' }, f.context)
-    ]);
+    const outcomes = await concurrentTransactions(
+      prisma,
+      [
+        () => f.retest(d),
+        () => cases.update(f.tc.id, { expectedVersion: 1, title: 'Next definition' }, f.context)
+      ],
+      { settled: true }
+    );
     expect(outcomes[1].status).toBe('fulfilled');
-    if (outcomes[0].status === 'fulfilled')
+    if (outcomes[0].status === 'fulfilled') {
       expect((await defects.read(d.id, f.context)).status).toBe('VALIDADO');
-    else expect(outcomes[0].reason).toMatchObject({ code: 'TEST_CASE_VERSION_CONFLICT' });
-    const current = await defects.read(d.id, f.context);
-    if (current.status === 'AGUARDANDO_RETESTE') {
-      await Promise.all([
-        f.retest(current, 'PASS', { testCaseVersion: 2 }),
-        executions.record(f.tc.id, { ...f.payload, testCaseVersion: 2 }, null, f.context)
-      ]);
+      expect(await prisma.defectRetest.count()).toBe(1);
+    } else {
+      expect(outcomes[0].reason).toMatchObject({ code: 'TEST_CASE_VERSION_CONFLICT' });
+      expect((await defects.read(d.id, f.context)).status).toBe('AGUARDANDO_RETESTE');
+      expect(await prisma.defectRetest.count()).toBe(0);
     }
+  });
+  it('always exercises ordinary execution competing with a contextual retest', async () => {
+    const f = await fixture(),
+      d = await f.ready();
+    await cases.update(f.tc.id, { expectedVersion: 1, title: 'Next definition' }, f.context);
+    await concurrentTransactions(prisma, [
+      () => f.retest(d, 'PASS', { testCaseVersion: 2 }),
+      () => executions.record(f.tc.id, { ...f.payload, testCaseVersion: 2 }, null, f.context)
+    ]);
     expect((await defects.read(d.id, f.context)).status).toBe('VALIDADO');
     expect(await prisma.defectRetest.count()).toBe(1);
+    expect(await prisma.testExecution.count()).toBe(3);
   });
 });
 

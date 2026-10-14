@@ -216,7 +216,7 @@ describe('FIX-04 complete closing snapshot v2', () => {
     const snapshot = before.tasks.find((t) => t.id === id);
     expect(before.historicalLimitations).toEqual([]);
     expect(snapshot).toMatchObject({
-      snapshotVersion: 3,
+      snapshotVersion: 4,
       title: 'Implementar checkout',
       description: 'Descrição original da tarefa',
       priority: 'ALTA',
@@ -422,8 +422,8 @@ describe('S1-06 — esforço da sprint no encerramento', () => {
     expect(closed.effort).toMatchObject({
       estimatedHours: null,
       actualHours: 1,
-      incomplete: false,
-      status: 'SEM_ESTIMATIVA'
+      incomplete: true,
+      status: 'INDISPONIVEL'
     });
   });
 
@@ -467,7 +467,7 @@ describe('S1-06 — esforço da sprint no encerramento', () => {
     ];
     // `pointsAtClose` representa ausência e zero com o mesmo 0; o detalhe congelado
     // lia esse 0 como limite e acusava estouro de um teto nunca planejado.
-    expect(sem).toMatchObject({ snapshotVersion: 3, estimatedEffort: null, actualEffort: 2 });
-    expect(com).toMatchObject({ snapshotVersion: 3, estimatedEffort: 4 });
+    expect(sem).toMatchObject({ snapshotVersion: 4, estimatedEffort: null, actualEffort: 2 });
+    expect(com).toMatchObject({ snapshotVersion: 4, estimatedEffort: 4 });
   });
 });

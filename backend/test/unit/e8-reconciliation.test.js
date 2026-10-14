@@ -62,26 +62,52 @@ describe('E8 contract canônico', () => {
   it('reconcilia artefatos por projeto e classifica dado ambíguo ou convertível', () => {
     expect(normalizeArtifactType('pull-request')).toBe('PULL_REQUEST');
     const result = reconcileArtifactRecords({
-      projects: [project],
+      projects: [project, { id: 2 }],
       artifacts: [
         { id: 1, projectId: 1, type: 'COMMIT', sha: 'abc' },
         { id: 2, projectId: 1, type: 'PR', externalId: '22' },
         { id: 3, projectId: 1, type: 'COMMIT', sha: 'novo-hash' },
-        { id: 4, projectId: 1, type: 'DESCONHECIDO' }
+        { id: 4, projectId: 1, type: 'DESCONHECIDO' },
+        { id: 5, projectId: 2, type: 'COMMIT', sha: 'abc' },
+        { id: 6, projectId: 1, type: 'PR', externalId: '23' }
       ],
       commits: [{ id: 1, projectId: 1, hash: 'abc' }],
-      pullRequests: [{ id: 2, projectId: 1, githubId: 'pr-22', number: 22 }],
+      pullRequests: [
+        { id: 2, projectId: 1, githubId: 'pr-22', number: 22 },
+        { id: 3, projectId: 1, githubId: '23', number: 24 },
+        { id: 4, projectId: 1, githubId: 'pr-23', number: 23 }
+      ],
       issues: []
     });
     expect(result.report).toMatchObject({
-      examined: 4,
+      examined: 6,
       matchedCommit: 1,
       matchedPullRequest: 1,
-      convertibleCommit: 1,
+      convertibleCommit: 2,
       unknownType: 1,
-      exclusiveRecords: 1
+      ambiguous: 1,
+      exclusiveRecords: 2
     });
-    expect(result.convertibleCommits).toHaveLength(1);
+    expect(result.convertibleCommits).toEqual([
+      {
+        projectId: 1,
+        hash: 'novo-hash',
+        message: null,
+        authorName: null,
+        date: null,
+        branch: null,
+        githubUrl: null
+      },
+      {
+        projectId: 2,
+        hash: 'abc',
+        message: null,
+        authorName: null,
+        date: null,
+        branch: null,
+        githubUrl: null
+      }
+    ]);
   });
 
   it('materializa TraceLink tipado e bloqueia tipo desconhecido', () => {
@@ -152,7 +178,10 @@ describe('E8 contract canônico', () => {
   });
 
   it('mantém helpers anteriores determinísticos e sem exposição de PII', () => {
-    expect(checksumIds([3, 1, 3, 2])).toBe(checksumIds([1, 2, 3]));
+    expect(checksumIds([3, 1, 3, 2])).toBe(
+      '8a6ae15122001229edb8866f56e342af12ae8187203c3e3b33931743e7c0c48d'
+    );
+    expect(checksumIds([1, 2, 4])).not.toBe(checksumIds([1, 2, 3]));
     expect(mapLegacyRole('dono')).toBe('OWNER');
     expect(mapLegacyRole('papel-historico')).toBeNull();
     const memberships = [
@@ -170,6 +199,12 @@ describe('E8 contract canônico', () => {
       status: 'MATCHED',
       userId: 7
     });
+    const ambiguous = resolveUniqueUserByName('Pessoa Artificial', [
+      ...memberships,
+      { ...memberships[0], userId: 8 }
+    ]);
+    expect(ambiguous).toEqual({ status: 'AMBIGUOUS', userId: null });
+    expect(JSON.stringify(ambiguous)).not.toMatch(/pessoa@example.invalid|Pessoa Artificial/);
     expect(canonicalProjectPatch({ githubOwner: 'owner', githubRepo: 'repo' })).toMatchObject({
       githubRepositoryFullName: 'owner/repo'
     });

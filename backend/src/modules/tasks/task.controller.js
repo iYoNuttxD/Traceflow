@@ -46,7 +46,7 @@ export const taskController = {
 
   updateStatus: asyncHandler(
     async (req, res) => {
-      const task = await taskService.updateTaskStatus(req.params.id, req.body.status, context(req));
+      const task = await taskService.updateTaskStatus(req.params.id, req.body, context(req));
       return res.json({ message: 'Status da tarefa atualizado com sucesso.', task });
     },
     { fallbackMessage: taskFallback }

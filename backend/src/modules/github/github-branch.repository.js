@@ -1,6 +1,7 @@
 import { prisma } from '../../database/prismaClient.js';
 import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
 import { changedFields } from '../../shared/persistence/changed-fields.js';
+import { randomUUID } from 'node:crypto';
 
 export const githubBranchRepository = {
   async syncObserved(projectId, branches, defaultBranch, now = new Date()) {
@@ -66,15 +67,53 @@ export const githubBranchRepository = {
     );
   },
 
-  markSuccessfullySynced(projectId, branchId, headSha) {
+  reconcileMembership(projectId, branchId, headSha, commitIds) {
+    if (!headSha) throw new Error('Head da branch ausente; membership não pode ser confirmado.');
+    const generation = randomUUID();
+    const uniqueIds = [...new Set(commitIds)];
     return withActiveProjectWrite(
       projectId,
-      (tx) =>
-        tx.gitBranch.update({
+      async (tx) => {
+        const branch = await tx.gitBranch.findFirst({
+          where: { id: branchId, projectId, isActive: true }
+        });
+        if (!branch || branch.headSha !== headSha) {
+          throw new Error('Head da branch mudou durante a sincronização.');
+        }
+        let created = 0;
+        for (let offset = 0; offset < uniqueIds.length; offset += 500) {
+          const ids = uniqueIds.slice(offset, offset + 500);
+          const owned = await tx.commit.count({ where: { projectId, id: { in: ids } } });
+          if (owned !== ids.length) {
+            throw new Error('Commit observado não pertence ao projeto da branch.');
+          }
+          const result = await tx.commitBranch.createMany({
+            data: ids.map((commitId) => ({
+              commitId,
+              branchId,
+              lastObservedGeneration: generation
+            })),
+            skipDuplicates: true
+          });
+          created += result.count;
+          await tx.commitBranch.updateMany({
+            where: { branchId, commitId: { in: ids } },
+            data: { lastObservedGeneration: generation }
+          });
+        }
+        await tx.commitBranch.deleteMany({
+          where: {
+            branchId,
+            OR: [{ lastObservedGeneration: null }, { lastObservedGeneration: { not: generation } }]
+          }
+        });
+        await tx.gitBranch.update({
           where: { id: branchId, projectId },
-          data: { lastSyncedHeadSha: headSha || null }
-        }),
-      SYNC_WRITE
+          data: { lastSyncedHeadSha: headSha, lastSyncedGeneration: generation }
+        });
+        return { count: created };
+      },
+      { timeout: 120000 }
     );
   },
 

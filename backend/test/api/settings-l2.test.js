@@ -1,6 +1,7 @@
+import JSZip from 'jszip';
 import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -28,6 +29,7 @@ beforeAll(async () => {
   await cleanTestDatabase(prisma);
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   clearCapturedEmails();
   await cleanTestDatabase(prisma);
 });
@@ -71,20 +73,16 @@ async function loginOn(targetApp, identifier) {
   };
 }
 
-function readStoredJsonFiles(zip) {
-  const files = {};
-  let offset = 0;
-  while (zip.readUInt32LE(offset) === 0x04034b50) {
-    const size = zip.readUInt32LE(offset + 18);
-    const filenameLength = zip.readUInt16LE(offset + 26);
-    const extraLength = zip.readUInt16LE(offset + 28);
-    const nameStart = offset + 30;
-    const contentStart = nameStart + filenameLength + extraLength;
-    const name = zip.subarray(nameStart, nameStart + filenameLength).toString('utf8');
-    files[name] = JSON.parse(zip.subarray(contentStart, contentStart + size).toString('utf8'));
-    offset = contentStart + size;
-  }
-  return files;
+async function readStoredJsonFiles(zip) {
+  const archive = await JSZip.loadAsync(zip, { checkCRC32: true });
+  return Object.fromEntries(
+    await Promise.all(
+      Object.keys(archive.files).map(async (name) => [
+        name,
+        JSON.parse(await archive.file(name).async('string'))
+      ])
+    )
+  );
 }
 
 function parseBinary(response, callback) {
@@ -167,6 +165,7 @@ describe('contratos de conta e privacidade L2', () => {
 
   it('confirma novo e-mail por token único e revoga todas as sessões', async () => {
     const auth = await register('old-email@example.invalid');
+    const second = await loginOn(app, 'old-email@example.invalid');
     clearCapturedEmails();
     await auth.mutate('post', '/api/settings/account/email-change').send({
       newEmail: 'new-email@example.invalid',
@@ -178,6 +177,14 @@ describe('contratos de conta e privacidade L2', () => {
       (await request(app).get('/api/settings/account/email-change/confirm').query({ token })).status
     ).toBe(200);
     expect((await auth.agent.get('/api/auth/me')).status).toBe(401);
+    expect((await second.agent.get('/api/auth/me')).status).toBe(401);
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/login')
+          .send({ identifier: 'old-email@example.invalid', password, rememberMe: false })
+      ).status
+    ).toBe(401);
     expect(
       (
         await request(app)
@@ -193,8 +200,9 @@ describe('contratos de conta e privacidade L2', () => {
 
   it('expõe UUID público, preserva sessão atual na troca de senha e gera ZIP', async () => {
     const auth = await register('security@example.invalid');
+    const second = await loginOn(app, 'security@example.invalid');
     const sessions = await auth.agent.get('/api/settings/security/sessions');
-    expect(sessions.body.sessions[0]).toMatchObject({
+    expect(sessions.body.sessions.find((session) => session.current)).toMatchObject({
       sessionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       current: true
     });
@@ -209,6 +217,7 @@ describe('contratos de conta e privacidade L2', () => {
       ).status
     ).toBe(200);
     expect((await auth.agent.get('/api/settings/security/sessions')).status).toBe(200);
+    expect((await second.agent.get('/api/auth/me')).status).toBe(401);
     const exported = await auth
       .mutate('post', '/api/settings/privacy/export')
       .buffer(true)
@@ -216,6 +225,9 @@ describe('contratos de conta e privacidade L2', () => {
       .send({});
     expect(exported).toMatchObject({ status: 200 });
     expect(exported.headers['content-type']).toMatch(/application\/zip/);
+    expect((await readStoredJsonFiles(exported.body))['profile.json']).toMatchObject({
+      email: 'security@example.invalid'
+    });
   });
 
   it('exporta conteúdo de projeto somente com membership atual', async () => {
@@ -328,7 +340,15 @@ describe('contratos de conta e privacidade L2', () => {
       .parse(parseBinary)
       .send({});
     expect(exported.status).toBe(200);
-    const files = readStoredJsonFiles(exported.body);
+    const files = await readStoredJsonFiles(exported.body);
+    const serialized = JSON.stringify(files);
+    for (const session of await prisma.session.findMany()) {
+      expect(serialized).not.toContain(session.tokenHash);
+      expect(serialized).not.toContain(session.csrfTokenHash);
+    }
+    for (const account of await prisma.user.findMany())
+      if (account.passwordHash) expect(serialized).not.toContain(account.passwordHash);
+    expect(serialized).not.toMatch(/passwordHash|tokenHash|csrfTokenHash|installationToken/);
     expect(files['manifest.json'].authorizationScope).toBe(
       'CURRENT_PROJECT_ACCESS_AND_DATA_SUBJECT'
     );
@@ -393,7 +413,15 @@ describe('contratos de conta e privacidade L2', () => {
       .parse(parseBinary)
       .send({});
     expect(exported.status).toBe(200);
-    const files = readStoredJsonFiles(exported.body);
+    const files = await readStoredJsonFiles(exported.body);
+    const serialized = JSON.stringify(files);
+    for (const session of await prisma.session.findMany()) {
+      expect(serialized).not.toContain(session.tokenHash);
+      expect(serialized).not.toContain(session.csrfTokenHash);
+    }
+    for (const account of await prisma.user.findMany())
+      if (account.passwordHash) expect(serialized).not.toContain(account.passwordHash);
+    expect(serialized).not.toMatch(/passwordHash|tokenHash|csrfTokenHash|installationToken/);
     expect(JSON.stringify(files)).not.toMatch(
       /Projeto pendente privado|Requisito pendente privado|Tarefa pendente privada/
     );
@@ -416,11 +444,19 @@ describe('contratos de conta e privacidade L2', () => {
     expect(
       (await auth.mutate('delete', `/api/settings/security/sessions/${other.sessionId}`)).status
     ).toBe(204);
+    expect((await secondAgent.get('/api/auth/me')).status).toBe(401);
+    expect((await auth.agent.get('/api/auth/me')).status).toBe(200);
     expect(
       (await auth.mutate('post', '/api/settings/security/sessions/revoke-others')).body
     ).toEqual({
       revoked: 0
     });
+    const third = await loginOn(app, 'sessions@example.invalid');
+    expect(
+      (await auth.mutate('post', '/api/settings/security/sessions/revoke-others')).body
+    ).toEqual({ revoked: 1 });
+    expect((await third.agent.get('/api/auth/me')).status).toBe(401);
+    expect((await auth.agent.get('/api/auth/me')).status).toBe(200);
   });
 
   it('restringe imediatamente exclusão/desativação e permite cancelar exclusão', async () => {
@@ -537,7 +573,12 @@ describe('contratos de conta e privacidade L2', () => {
     const authorization = await prisma.gitHubInstallationAuthorization.create({
       data: { installationId: installation.id, userId: user.id, verifiedAt: new Date() }
     });
+    const { githubAppService } = await import('../../src/modules/github/github-app.service.js');
+    const external = vi
+      .spyOn(githubAppService, 'listRepositories')
+      .mockRejectedValue(new Error('Unexpected provider call'));
     const listed = await auth.agent.get('/api/settings/integrations/github');
+    expect(external).not.toHaveBeenCalled();
     expect(listed).toMatchObject({
       status: 200,
       body: {
@@ -725,27 +766,29 @@ describe('rate limiting pós-L2', () => {
     const authenticated = await loginOn(protectedApp, 'rate-sensitive@example.invalid');
     await authenticated.mutate('post', '/api/auth/email-verification/resend').send({});
     expect(
-      (await authenticated.mutate('post', '/api/auth/email-verification/resend').send({})).body
-        .scope
-    ).toBe('email-delivery');
+      await authenticated.mutate('post', '/api/auth/email-verification/resend').send({})
+    ).toMatchObject({ status: 429, body: { scope: 'email-delivery' } });
 
     await authenticated
       .mutate('patch', '/api/settings/account/profile')
       .send({ name: 'Nome com limite' });
     expect(
-      (
-        await authenticated
-          .mutate('patch', '/api/settings/account/profile')
-          .send({ name: 'Nome bloqueado' })
-      ).body.scope
-    ).toBe('sensitive-mutation');
+      await authenticated
+        .mutate('patch', '/api/settings/account/profile')
+        .send({ name: 'Nome bloqueado' })
+    ).toMatchObject({ status: 429, body: { scope: 'sensitive-mutation' } });
+    expect(
+      await prisma.user.findUnique({ where: { email: 'rate-sensitive@example.invalid' } })
+    ).toMatchObject({ name: 'Nome com limite' });
 
     expect(
       (await authenticated.mutate('post', '/api/settings/privacy/export').send({})).status
     ).toBe(200);
+    const beforeBlockedExport = await prisma.personalDataExport.count();
     expect(
-      (await authenticated.mutate('post', '/api/settings/privacy/export').send({})).body.scope
-    ).toBe('data-export');
+      await authenticated.mutate('post', '/api/settings/privacy/export').send({})
+    ).toMatchObject({ status: 429, body: { scope: 'data-export' } });
+    expect(await prisma.personalDataExport.count()).toBe(beforeBlockedExport);
   });
 
   it.each([

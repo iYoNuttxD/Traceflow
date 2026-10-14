@@ -163,6 +163,24 @@ describe('configuração centralizada', () => {
 
   it('valida o provedor de e-mail sem revelar credenciais', () => {
     expect(createEnvironment(validSource)).toMatchObject({ emailProvider: 'capture' });
+    for (const invalid of [{ EMAIL_FROM: 'invalid' }, { EMAIL_FROM: 'mail@example.com' }]) {
+      let failure;
+      try {
+        createEnvironment({
+          ...validSource,
+          EMAIL_PROVIDER: 'smtp',
+          SMTP_USER: 'credential-user-sentinel',
+          SMTP_PASS: 'credential-password-sentinel',
+          ...invalid
+        });
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      expect(`${failure.message} ${JSON.stringify(failure)}`).not.toMatch(
+        /credential-user-sentinel|credential-password-sentinel/
+      );
+    }
     expect(() =>
       createEnvironment({ ...validSource, EMAIL_PROVIDER: 'smtp', EMAIL_FROM: 'invalid' })
     ).toThrowError(/EMAIL_FROM/);

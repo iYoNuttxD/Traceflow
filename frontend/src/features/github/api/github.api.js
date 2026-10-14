@@ -15,11 +15,18 @@ export const githubApi = {
   startInstallation(payload) {
     return data(httpClient.post('/github/app/installations/start', payload));
   },
-  connectProject(projectId, data) {
-    return data(httpClient.put(`/projects/${projectId}/github/integration`, data));
+  connectProject(projectId, payload) {
+    return data(httpClient.put(`/projects/${projectId}/github/integration`, payload));
   },
   syncProject(projectId) {
     return data(httpClient.post(`/projects/${projectId}/github/sync`));
+  },
+  updateSyncSettings(projectId, enabled) {
+    return data(
+      httpClient.patch(`/projects/${projectId}/github/sync-settings`, {
+        githubAutoSyncEnabled: enabled
+      })
+    );
   },
   syncStatus(projectId, options = {}) {
     return data(httpClient.get(`/projects/${projectId}/github/sync/status`, options));

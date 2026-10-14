@@ -71,10 +71,12 @@ export function buildSprintProgress({ sprint, participations = [], cutoff }) {
   const carryOver = participations
     .filter((participation) => participation.movedToSprintId)
     .map((participation) => ({
-      taskId: participation.taskId,
+      taskId: frozen
+        ? (participation.closingTaskSnapshot?.id ?? participation.taskId)
+        : participation.taskId,
       toSprintId: participation.movedToSprintId,
       exitStatus: participation.exitStatus ?? null,
-      at: toIso(participation.removedAt)
+      at: toIso(participation.carriedAt ?? participation.removedAt)
     }))
     .sort(porTarefa);
 

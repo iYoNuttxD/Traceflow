@@ -42,6 +42,14 @@ async function withHistoricalSummaries(sprints) {
   const history = terminal.length
     ? await sprintRepository.findHistoryBySprints(terminal.map((sprint) => sprint.id))
     : [];
+  const events = terminal.length
+    ? await sprintRepository.findBaselineEventsBySprints(terminal.map((sprint) => sprint.id))
+    : [];
+  const eventsBySprint = new Map();
+  for (const event of events) {
+    if (!eventsBySprint.has(event.sprintId)) eventsBySprint.set(event.sprintId, []);
+    eventsBySprint.get(event.sprintId).push(event);
+  }
   const bySprint = new Map();
   for (const participation of history) {
     if (!bySprint.has(participation.sprintId)) bySprint.set(participation.sprintId, []);
@@ -49,7 +57,11 @@ async function withHistoricalSummaries(sprints) {
   }
   return sprints.map((sprint) => ({
     ...sprint,
-    historicalSummary: buildSprintHistoricalSummary(sprint, bySprint.get(sprint.id))
+    historicalSummary: buildSprintHistoricalSummary(
+      sprint,
+      bySprint.get(sprint.id),
+      eventsBySprint.get(sprint.id)
+    )
   }));
 }
 
@@ -328,7 +340,7 @@ export const sprintCrudService = {
     const id = parseSprintId(sprintId);
     const data = await sprintRepository.readTaskProjection(id);
     if (!data) throw sprintNotFoundError();
-    return projectSprintTasks(data.sprint, data.participations);
+    return projectSprintTasks(data.sprint, data.participations, data.events);
   },
 
   async findTasksBySprint(sprintId) {

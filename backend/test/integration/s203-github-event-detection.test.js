@@ -110,11 +110,12 @@ function githubDouble(project, { issuePages = [[]], pullRequestPages = [[]] } = 
       private: true,
       description: null
     }),
-    listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: null }])),
+    listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
     listCommitPages: vi.fn(() => pages([])),
     listPullRequestPages: vi.fn(() =>
       pages(...pullRequestPages.map((page) => page.map(mapGithubPullRequest)))
     ),
+    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() =>
       pages(...issuePages.map((page) => page.map(mapGithubIssue).filter(Boolean)))
     )

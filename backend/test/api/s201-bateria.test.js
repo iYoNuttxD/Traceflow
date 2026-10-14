@@ -151,9 +151,10 @@ function githubDouble({ pullRequests = [], issues = [] } = {}) {
   return {
     getRepository: vi.fn().mockResolvedValue(repository),
     listRepositoryPages: vi.fn(() => pages([repository])),
-    listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: null }])),
+    listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
     listCommitPages: vi.fn(() => pages([])),
     listPullRequestPages: vi.fn(() => pages(pullRequests)),
+    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(issues))
   };
 }
@@ -168,6 +169,9 @@ async function connectRepository(owner, projectId) {
       installedAt: new Date(),
       status: 'ACTIVE'
     }
+  });
+  await prisma.gitHubInstallationAuthorization.create({
+    data: { installationId: installation.id, userId: owner.user.id, verifiedAt: new Date() }
   });
   vi.spyOn(githubAppService, 'resolveAuthorizedRepository').mockResolvedValue({
     installation,

@@ -5,6 +5,7 @@ import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
 import { notificationRepository } from '../../notifications/notification.repository.js';
+import { captureBurnupStatus } from '../../sprints/sprint-burnup.events.js';
 
 function movementWhere(projectId, filters = {}) {
   return {
@@ -21,6 +22,7 @@ export const taskMovementRepository = {
   async transitionStatus({
     task,
     toStatus,
+    responsibleUserId,
     actor,
     auditEvent,
 
@@ -50,12 +52,16 @@ export const taskMovementRepository = {
         }
 
         const [atual] = await tx.$queryRaw`
-        SELECT sprintId, requirementId FROM Task WHERE id = ${task.id} FOR UPDATE`;
+        SELECT sprintId, requirementId, responsibleUserId FROM Task WHERE id = ${task.id} FOR UPDATE`;
         if (!atual) return { conflict: true };
         const sprintAtual = atual.sprintId == null ? null : Number(atual.sprintId);
         if (sprintAtual !== sprintId) return { conflict: true };
 
         if (validate) await validate({ sprint });
+        const previousResponsibleUserId =
+          atual.responsibleUserId == null ? null : Number(atual.responsibleUserId);
+        const resultingResponsibleUserId =
+          responsibleUserId === undefined ? previousResponsibleUserId : responsibleUserId;
 
         const changed = await tx.task.updateMany({
           where: {
@@ -64,7 +70,10 @@ export const taskMovementRepository = {
             status: task.status,
             sprintId: sprintAtual
           },
-          data: { status: toStatus }
+          data: {
+            status: toStatus,
+            ...(responsibleUserId !== undefined ? { responsibleUserId } : {})
+          }
         });
         if (changed.count !== 1) return { conflict: true };
 
@@ -76,10 +85,19 @@ export const taskMovementRepository = {
             toStatus,
             movedBy: actor.name,
             movedByUserId: actor.id,
+            responsibleUserIdSnapshot: resultingResponsibleUserId,
+            responsibilitySnapshotState:
+              resultingResponsibleUserId == null ? 'UNASSIGNED' : 'ASSIGNED',
             sprintId: sprintAtual
           },
           include: { movedByUser: { select: { id: true, name: true } } }
         });
+        await captureBurnupStatus(
+          tx,
+          { ...task, sprintId: sprintAtual },
+          toStatus,
+          movement.movedAt
+        );
         await tx.taskHistoryEntry.create({
           data: {
             projectId: task.projectId,
@@ -91,6 +109,21 @@ export const taskMovementRepository = {
             occurredAt: movement.movedAt
           }
         });
+        if (resultingResponsibleUserId !== previousResponsibleUserId) {
+          await tx.taskHistoryEntry.create({
+            data: {
+              projectId: task.projectId,
+              taskId: task.id,
+              actorUserId: actor.id,
+              field: 'RESPONSIBLE',
+              fromValue:
+                previousResponsibleUserId == null ? null : String(previousResponsibleUserId),
+              toValue:
+                resultingResponsibleUserId == null ? null : String(resultingResponsibleUserId),
+              occurredAt: movement.movedAt
+            }
+          });
+        }
         await reconcileTaskDefects(tx, task.id, actor.id);
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         const updatedTask = await tx.task.findUnique({

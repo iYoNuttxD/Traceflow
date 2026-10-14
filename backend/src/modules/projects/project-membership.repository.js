@@ -69,6 +69,13 @@ export const projectMembershipRepository = {
         data: { isActive },
         select: memberSelect
       });
+      // Personal layout has no retention purpose after this participation ends.
+      // The same membership lock also serializes preference writes.
+      if (!isActive) {
+        await tx.projectDashboardPreference.deleteMany({
+          where: { projectId, userId: current.userId }
+        });
+      }
       if (auditData) await auditRepository.create(auditData, tx);
       return updated;
     });

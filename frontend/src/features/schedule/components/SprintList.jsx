@@ -127,11 +127,13 @@ function SprintCard({
           <div>
             <span>Progresso por pontos</span>
             <strong>
-              {summary.unavailable
-                ? '—'
-                : summary.percent === null
-                  ? 'Sem estimativa'
-                  : `${summary.percent}%`}
+              {summary.estimateIncomplete
+                ? 'Dados parciais'
+                : summary.unavailable
+                  ? '—'
+                  : summary.percent === null
+                    ? 'Sem estimativa'
+                    : `${summary.percent}%`}
             </strong>
           </div>
           <div
@@ -142,11 +144,13 @@ function SprintCard({
             aria-valuemax={summary.percent === null ? undefined : 100}
             aria-valuenow={summary.percent ?? undefined}
             aria-valuetext={
-              summary.unavailable
-                ? 'Dados históricos indisponíveis'
-                : summary.percent === null
-                  ? 'Sem pontos estimados'
-                  : `${summary.donePoints} de ${summary.points ?? '—'} pontos concluídos`
+              summary.estimateIncomplete
+                ? 'Dados parciais: parte das tarefas não possui estimativa conhecida'
+                : summary.unavailable
+                  ? 'Dados históricos indisponíveis'
+                  : summary.percent === null
+                    ? 'Sem pontos estimados'
+                    : `${summary.donePoints} de ${summary.points ?? '—'} pontos concluídos`
             }
           >
             <span style={{ width: `${summary.percent || 0}%` }} />

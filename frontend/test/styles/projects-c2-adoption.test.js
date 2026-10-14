@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { conditionalRules, parseStylesheet, ruleDeclarations } from '../helpers/css-rules.js';
 
 const projectStylePaths = [
   'src/features/projects/pages/ProjectsScreen.css',
@@ -64,23 +65,51 @@ describe('adoção do Concept C2 em Projects', () => {
   });
 
   it('reorganiza Overview e Members pela largura disponível no owner', () => {
-    expect(overviewCss).toContain('container-name: project-overview-page');
-    expect(overviewCss).toMatch(/@container project-overview-page \(max-width: 45rem\)/);
     expect(overviewCss).not.toContain('@media (max-width: 1180px)');
     expect(membersCss).toContain('container-name: member-panel');
-    expect(membersCss).toMatch(/@container member-panel \(max-width: 46rem\)/);
+    const overview = parseStylesheet(overviewCss),
+      members = parseStylesheet(membersCss);
+    expect(ruleDeclarations(overview, '.project-details-screen.page-container')).toMatchObject({
+      'container-name': 'project-overview-page',
+      'container-type': 'inline-size'
+    });
+    expect(
+      ruleDeclarations(
+        conditionalRules(overview, 'container', 'project-overview-page (max-width: 45rem)'),
+        '.project-details-screen__header'
+      )
+    ).toMatchObject({ 'flex-direction': 'column', 'align-items': 'flex-start' });
+    expect(
+      ruleDeclarations(
+        conditionalRules(members, 'container', 'member-panel (max-width: 46rem)'),
+        '.member-filter-bar, .invitation-form, .invitation-item'
+      )
+    ).toMatchObject({ 'grid-template-columns': '1fr' });
   });
 
   it('remove o flex-basis horizontal do título quando o header vira coluna', () => {
-    expect(overviewCss).toMatch(
-      /@container project-overview-page \(max-width: 45rem\)[\s\S]*\.project-details-screen__title-group \{\s*flex: 0 1 auto;/
-    );
+    expect(
+      ruleDeclarations(
+        conditionalRules(
+          parseStylesheet(overviewCss),
+          'container',
+          'project-overview-page (max-width: 45rem)'
+        ),
+        '.project-details-screen__title-group'
+      )
+    ).toMatchObject({ flex: '0 1 auto' });
   });
 
   it('mantém o retorno compartilhado como icon button de touch target completo', () => {
-    expect(backButtonCss).toContain('width: var(--size-touch-target)');
-    expect(backButtonCss).toContain('height: var(--size-touch-target)');
-    expect(backButtonCss).toContain('.back-button:focus-visible');
+    const sheet = parseStylesheet(backButtonCss);
+    expect(ruleDeclarations(sheet, '.back-button')).toMatchObject({
+      width: 'var(--size-touch-target)',
+      height: 'var(--size-touch-target)'
+    });
+    expect(ruleDeclarations(sheet, '.back-button:focus-visible')).toMatchObject({
+      outline: 'var(--focus-ring-width) solid var(--color-focus-ring)',
+      'outline-offset': 'var(--focus-ring-offset)'
+    });
   });
 
   it('mantém confirmações e feedbacks auxiliares no sistema semântico C2', () => {
@@ -108,30 +137,50 @@ describe('adoção do Concept C2 em Projects', () => {
   });
 
   it('reserva espaço para a busca e normaliza as ações do código de acesso', () => {
-    expect(membersCss).toContain('.team-panel .member-search-control input');
-    expect(membersCss).toContain('padding-inline-start: calc(');
-    expect(membersCss).toContain('pointer-events: none');
-    expect(accessCodeCss).toContain('display: inline-flex');
-    expect(accessCodeCss).toContain('min-width: var(--size-touch-target)');
-    expect(accessCodeCss).toContain('height: var(--size-touch-target)');
-    expect(accessCodeCss).toContain('align-items: center');
-    expect(accessCodeCss).toContain('justify-content: center');
-    expect(accessCodeCss).toContain('background: var(--color-surface-interactive)');
+    const members = parseStylesheet(membersCss),
+      access = parseStylesheet(accessCodeCss);
+    expect(ruleDeclarations(members, '.team-panel .member-search-control input')).toMatchObject({
+      'padding-inline-start': 'calc(var(--space-3) + var(--size-icon-sm) + var(--space-3))'
+    });
+    expect(ruleDeclarations(members, '.member-search-control .traceflow-icon')).toMatchObject({
+      'pointer-events': 'none'
+    });
+    expect(ruleDeclarations(access, '.access-code-icon-button')).toMatchObject({
+      display: 'inline-flex',
+      'min-width': 'var(--size-touch-target)',
+      height: 'var(--size-touch-target)',
+      'align-items': 'center',
+      'justify-content': 'center',
+      background: 'var(--color-surface-interactive)'
+    });
     expect(accessCodeCss).not.toContain('[data-theme');
   });
 
   it('adapta o grid ao container e preserva uma largura mínima saudável', () => {
-    expect(projectsCss).toContain('container-type: inline-size');
-    expect(projectsCss).toContain('repeat(3, minmax(min(100%, 17.5rem), 1fr))');
-    expect(projectsCss).toMatch(
-      /@container projects-page \(max-width: 58rem\)[\s\S]*repeat\(2, minmax\(min\(100%, 17\.5rem\), 1fr\)\)/
-    );
-    expect(projectsCss).toMatch(
-      /@container projects-page \(max-width: 37\.5rem\)[\s\S]*grid-template-columns: minmax\(0, 1fr\)/
-    );
     expect(projectsCss).not.toMatch(
       /@media \(max-width: 1180px\)[\s\S]*grid-template-columns: repeat\(2/
     );
+    const sheet = parseStylesheet(projectsCss);
+    expect(ruleDeclarations(sheet, '.projects-screen.page-container')).toMatchObject({
+      'container-type': 'inline-size',
+      'container-name': 'projects-page'
+    });
+    expect(ruleDeclarations(sheet, '.projects-grid')).toMatchObject({
+      display: 'grid',
+      'grid-template-columns': 'repeat(3, minmax(min(100%, 17.5rem), 1fr))'
+    });
+    expect(
+      ruleDeclarations(
+        conditionalRules(sheet, 'container', 'projects-page (max-width: 58rem)'),
+        '.projects-grid'
+      )
+    ).toMatchObject({ 'grid-template-columns': 'repeat(2, minmax(min(100%, 17.5rem), 1fr))' });
+    expect(
+      ruleDeclarations(
+        conditionalRules(sheet, 'container', 'projects-page (max-width: 37.5rem)'),
+        '.projects-grid'
+      )
+    ).toMatchObject({ 'grid-template-columns': 'minmax(0, 1fr)' });
   });
 
   it('não reintroduz conteúdo fictício ou redundante na Overview', () => {

@@ -143,8 +143,10 @@ export function summarizeMilestoneSprints(milestoneId, sprints = [], scheduleByI
     active: related.filter((sprint) => sprint.status === 'EM_ANDAMENTO').length,
     cancelled: related.filter((sprint) => sprint.status === 'CANCELADA').length,
     points: related.reduce((total, sprint) => {
-      const points = getSprintDisplayMetrics(sprint, scheduleById[sprint.id]).points;
-      return total === null || points === null ? null : total + points;
+      const metrics = getSprintDisplayMetrics(sprint, scheduleById[sprint.id]);
+      return total === null || metrics.points === null || metrics.estimateIncomplete
+        ? null
+        : total + metrics.points;
     }, 0)
   };
 }

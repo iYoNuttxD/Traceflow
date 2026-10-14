@@ -55,26 +55,26 @@ describe('S2-03 correções — C1-03 classificação das falhas da sincronizaç
     [
       '401 cru',
       failing({ status: 401 }),
-      'GITHUB_SYNC_FAILED',
+      'GITHUB_AUTH_FAILED',
       'Token GitHub inválido, expirado ou sem permissão.'
     ],
     [
       '403 cru',
       failing({ status: 403 }),
-      'GITHUB_SYNC_FAILED',
+      'GITHUB_AUTH_FAILED',
       'Token GitHub inválido, expirado ou sem permissão.'
     ],
     [
       '404 cru',
       failing({ status: 404 }),
-      'GITHUB_SYNC_FAILED',
+      'RESOURCE_NOT_FOUND',
       'Repositório GitHub não encontrado ou sem permissão de acesso.'
     ],
     ['conexão', failing({ code: 'ENOTFOUND' }), 'ENOTFOUND', 'Falha de conexão com o GitHub.'],
     [
       'desconhecido',
       failing({}),
-      'GITHUB_SYNC_FAILED',
+      'EXTERNAL_SERVICE_ERROR',
       'Não foi possível sincronizar com o GitHub.'
     ]
   ])('falha do GitHub (%s) mantém o código e a mensagem de hoje', (_, error, code, message) => {

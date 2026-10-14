@@ -96,15 +96,18 @@ describe('RF08 terceira bateria — contrato do move consumido pelo painel de de
     expect(Array.isArray(response.body.task.issues)).toBe(true);
   });
 
-  it('recusa mover tarefa de sprint concluida e nao registra nada', async () => {
+  it.each([
+    ['CONCLUIDA', 'A_FAZER'],
+    ['CANCELADA', 'EM_ANDAMENTO']
+  ])('recusa mover tarefa de sprint %s e nao registra nada', async (status, toStatus) => {
     const project = await createProject(prisma);
-    const sprint = await createSprint(prisma, project.id, { status: 'CONCLUIDA' });
+    const sprint = await createSprint(prisma, project.id, { status });
     const task = await createTask(prisma, project.id, {
       sprintId: sprint.id,
       status: 'CONCLUIDO'
     });
 
-    const response = await api.patch(`/api/tasks/${task.id}/move`).send({ toStatus: 'A_FAZER' });
+    const response = await api.patch(`/api/tasks/${task.id}/move`).send({ toStatus });
 
     expect(response.status).toBe(409);
     expect(response.body).toMatchObject({
@@ -121,24 +124,5 @@ describe('RF08 terceira bateria — contrato do move consumido pelo painel de de
         where: { action: 'TASK_MOVED', resourceId: String(task.id) }
       })
     ).toBe(0);
-  });
-
-  it('recusa mover tarefa de sprint cancelada', async () => {
-    const project = await createProject(prisma);
-    const sprint = await createSprint(prisma, project.id, { status: 'CANCELADA' });
-    const task = await createTask(prisma, project.id, {
-      sprintId: sprint.id,
-      status: 'CONCLUIDO'
-    });
-
-    const response = await api
-      .patch(`/api/tasks/${task.id}/move`)
-      .send({ toStatus: 'EM_ANDAMENTO' });
-
-    expect(response.status).toBe(409);
-    expect(response.body.code).toBe('TASK_SPRINT_LOCKED');
-    expect(await prisma.task.findUnique({ where: { id: task.id } })).toMatchObject({
-      status: 'CONCLUIDO'
-    });
   });
 });

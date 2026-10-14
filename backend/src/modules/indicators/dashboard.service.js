@@ -1,0 +1,345 @@
+import { createIndicatorReadContext } from './indicator-read-context.js';
+import { planDashboardReads } from './dashboard-read.plan.js';
+import { dashboardRepository } from './dashboard.repository.js';
+import { resourceNotFoundError } from '../../shared/errors/index.js';
+import {
+  DASHBOARD_VIEWS,
+  dashboardFilterPolicy,
+  dashboardSource
+} from './dashboard-view.catalog.js';
+import { flowTaskService } from './flow-task.service.js';
+import { readHealth } from './health/health.service.js';
+import { healthWindow } from './health/health.policy.js';
+import { githubAnalyticsService } from './github-analytics.service.js';
+import { INDICATORS } from './indicators.catalog.js';
+import { indicatorResult } from './indicators.mapper.js';
+import { indicatorsService } from './indicators.service.js';
+import { normalizeIndicatorPeriod } from './policies/indicator-period.policy.js';
+import { qualityAnalyticsService } from './quality-analytics.service.js';
+import { sprintAnalyticsService } from './sprint-analytics.service.js';
+import { traceabilityAnalyticsService } from './traceability-analytics.service.js';
+
+const CURRENT_WITHOUT_PERIOD = Object.freeze({
+  taskHistory: new Set(['I24']),
+  github: new Set(['I10', 'I13', 'I17', 'I73']),
+  tasks: new Set(['I23', 'I24', ...Array.from({ length: 10 }, (_, index) => `I${26 + index}`)]),
+  quality: new Set(['I52', 'I53', 'I54', 'I59', 'I60'])
+});
+
+function publicPeriod(period) {
+  return period
+    ? {
+        startDate: period.startDate,
+        endDate: period.endDate,
+        timeZone: period.timeZone,
+        startInclusive: period.startInclusive.toISOString(),
+        endExclusive: period.endExclusive.toISOString()
+      }
+    : null;
+}
+
+function currentOnlyPeriod(asOf) {
+  const day = asOf.toISOString().slice(0, 10);
+  return normalizeIndicatorPeriod({ startDate: day, endDate: day, timeZone: 'UTC' });
+}
+
+function placeholder(metricId, projectId, asOf, limitation) {
+  return indicatorResult(
+    metricId,
+    projectId,
+    { value: null, state: 'UNAVAILABLE', limitations: [limitation] },
+    asOf
+  );
+}
+
+function useful(indicator) {
+  if (!['AVAILABLE', 'PARTIAL', 'STALE'].includes(indicator.state)) return false;
+  if (typeof indicator.value === 'number') return indicator.value !== 0;
+  if (indicator.value && typeof indicator.value === 'object')
+    return Object.values(indicator.value).some((value) => typeof value === 'number' && value !== 0);
+  return Boolean(indicator.items?.length || indicator.points?.length);
+}
+
+export function deriveDashboardViewState(indicators) {
+  if (!indicators.length) return 'NO_DATA';
+  const degraded = indicators.some((indicator) =>
+    ['PARTIAL', 'STALE', 'UNAVAILABLE'].includes(indicator.state)
+  );
+  const observed = indicators.some((indicator) => indicator.state !== 'UNAVAILABLE');
+  if (!observed) return 'UNAVAILABLE';
+  if (degraded) return 'PARTIAL';
+  return indicators.some(useful) ? 'AVAILABLE' : 'NO_DATA';
+}
+
+function decorate(indicator, requested, sprint) {
+  const policy = Object.fromEntries(
+    ['period', 'sprint', 'responsible'].map((filter) => [
+      filter,
+      dashboardFilterPolicy(indicator.metricId, filter)
+    ])
+  );
+  const appliedFilters = {
+    period: Boolean(requested.period && policy.period === 'SUPPORTED' && indicator.period),
+    sprint: Boolean(
+      policy.sprint === 'SUPPORTED' && sprint && indicator.scope?.sprintId === sprint.id
+    ),
+    responsible: false
+  };
+  const unsafe = Object.entries(policy)
+    .filter(
+      ([filter, status]) =>
+        status === 'UNSAFE' &&
+        (filter === 'period'
+          ? requested.period
+          : filter === 'sprint'
+            ? requested.sprintId
+            : requested.responsibleUserId)
+    )
+    .map(([filter]) => `${filter.toUpperCase()}_FILTER_UNSAFE_NOT_APPLIED`);
+  return {
+    ...indicator,
+    filterCompatibility: policy,
+    appliedFilters,
+    limitations: [...new Set([...indicator.limitations, ...unsafe])]
+  };
+}
+
+async function readGroup(group, projectId, query, period, servicePeriod, ids, context) {
+  const periodQuery = servicePeriod ?? query;
+  switch (group) {
+    case 'progress':
+      return { indicators: [await indicatorsService.progress(projectId, context)] };
+    case 'activity':
+      return period
+        ? context.read('activity', () =>
+            indicatorsService.activity(projectId, query, period, [...ids])
+          )
+        : { indicators: [] };
+    case 'github':
+      return githubAnalyticsService.read(projectId, periodQuery, servicePeriod, [...ids], context);
+    case 'tasks':
+    case 'taskHistory':
+      return flowTaskService.read(
+        projectId,
+        { ...periodQuery, timeZone: query.timeZone ?? periodQuery.timeZone },
+        () => context.asOf,
+        servicePeriod,
+        { requestedIds: [...ids], readContext: context }
+      );
+    case 'sprints':
+      return context.read('sprints', () =>
+        sprintAnalyticsService.read(projectId, { sprintId: query.sprintId }, [...ids])
+      );
+    case 'qualityProjection':
+      return qualityAnalyticsService.requirementConcentration(projectId, context);
+    case 'quality':
+      if (ids.size === 1 && ids.has('I53'))
+        return {
+          indicators: [
+            await context.read('defectStates', () =>
+              qualityAnalyticsService.defectStates(projectId)
+            )
+          ]
+        };
+      return qualityAnalyticsService.read(
+        projectId,
+        periodQuery,
+        () => context.asOf,
+        servicePeriod,
+        { requestedIds: [...ids], readContext: context }
+      );
+    case 'traceability':
+      return traceabilityAnalyticsService.read(projectId, () => context.asOf, context);
+    default:
+      throw new Error(`Unknown dashboard source: ${group}`);
+  }
+}
+
+export const dashboardService = {
+  async read(projectId, query, now = () => new Date(), requestOptions = {}) {
+    const id = Number(projectId);
+    const view = query.view ?? 'GENERAL';
+    const generatedAt = now().toISOString();
+    const project = await dashboardRepository.project(id);
+    if (!project) throw resourceNotFoundError('Project');
+    const [requestedSprint, responsible] = await Promise.all([
+      query.sprintId == null ? null : dashboardRepository.sprint(id, query.sprintId),
+      query.responsibleUserId == null
+        ? null
+        : dashboardRepository.responsible(id, query.responsibleUserId)
+    ]);
+    if (query.sprintId != null && !requestedSprint) throw resourceNotFoundError('Sprint');
+    if (query.responsibleUserId != null && !responsible) throw resourceNotFoundError('User');
+    const period = query.startDate ? normalizeIndicatorPeriod(query) : null;
+    const requestedFilters = {
+      period: publicPeriod(period),
+      sprintId: query.sprintId ?? null,
+      responsibleUserId: query.responsibleUserId ?? null
+    };
+    const sections = query.healthOnly
+      ? []
+      : view === 'CUSTOM'
+        ? [{ id: 'custom', metricIds: query.widgets }]
+        : DASHBOARD_VIEWS[view];
+    const includeHealth =
+      view === 'CUSTOM' || view === 'GENERAL' || query.includeProjectHealth === true;
+    const groups = planDashboardReads(sections, {
+      period,
+      includeHealth,
+      githubApplicable: project.githubIntegration != null,
+      sprintApplicable: !requestedSprint || requestedSprint.status === 'EM_ANDAMENTO'
+    });
+    const context = createIndicatorReadContext({
+      asOf: new Date(generatedAt),
+      timeZone: query.timeZone ?? 'UTC',
+      taskIds: [
+        ...new Set([
+          ...(groups.get('tasks') ?? []),
+          ...(includeHealth || view === 'TRACEABILITY' ? ['I01'] : [])
+        ])
+      ],
+      historyIds: [...(groups.get('taskHistory') ?? [])],
+      qualityIds: [
+        ...new Set([
+          ...(groups.get('quality') ?? []),
+          ...(includeHealth ? ['I49', 'I52', 'I58'] : [])
+        ])
+      ],
+      healthPeriod:
+        healthWindow(period, new Date(generatedAt), query.timeZone ?? 'UTC')?.current ?? null,
+      requestId: requestOptions.requestId
+    });
+    let internalPeriod = null;
+    const requests = [...groups.entries()].map(async ([group, ids]) => {
+      if (!period && group === 'activity') return { group, response: { indicators: [] } };
+      if (
+        !period &&
+        CURRENT_WITHOUT_PERIOD[group] &&
+        ![...ids].some((metricId) => CURRENT_WITHOUT_PERIOD[group].has(metricId))
+      )
+        return { group, response: { indicators: [] } };
+      const needsRequestedPeriod = [...ids].some((metricId) =>
+        INDICATORS[metricId].supportedFilters.includes('period')
+      );
+      const isCurrentSummary = group === 'quality' && ids.size === 1 && ids.has('I53');
+      const servicePeriod = isCurrentSummary
+        ? null
+        : period && needsRequestedPeriod
+          ? period
+          : CURRENT_WITHOUT_PERIOD[group]
+            ? (internalPeriod ??= currentOnlyPeriod(new Date(generatedAt)))
+            : null;
+      return {
+        group,
+        response: await readGroup(group, id, query, period, servicePeriod, ids, context)
+      };
+    });
+    const settled = await Promise.allSettled(requests);
+    const byId = new Map();
+    const warnings = [];
+    let selectedSprint = requestedSprint;
+    for (const [index, outcome] of settled.entries()) {
+      const group = [...groups.keys()][index];
+      if (outcome.status === 'rejected') {
+        context.unavailable(outcome.reason, group);
+        continue;
+      }
+      const response = outcome.value.response;
+      if (group === 'sprints' && response.sprint) selectedSprint = response.sprint;
+      for (const indicator of response.indicators) byId.set(indicator.metricId, indicator);
+    }
+    const outputSections = sections.map((section) => ({
+      id: section.id,
+      indicators: section.metricIds.map((metricId) => {
+        const fromSource = byId.get(metricId);
+        const requiresPeriod = !period && INDICATORS[metricId].supportedFilters.includes('period');
+        const notConfigured =
+          !project.githubIntegration &&
+          (dashboardSource(metricId) === 'github' || metricId === 'I02');
+        const indicator = notConfigured
+          ? placeholder(metricId, id, generatedAt, 'GITHUB_NOT_CONFIGURED')
+          : requiresPeriod
+            ? placeholder(metricId, id, generatedAt, 'PERIOD_REQUIRED')
+            : (fromSource ?? placeholder(metricId, id, generatedAt, 'SOURCE_UNAVAILABLE'));
+        return decorate(indicator, requestedFilters, selectedSprint);
+      })
+    }));
+    const health = await readHealth(
+      id,
+      includeHealth ? 'GENERAL' : view,
+      period,
+      generatedAt,
+      [...byId.values()],
+      outputSections.flatMap((section) => section.indicators),
+      {
+        sprintApplicable: selectedSprint?.status === 'EM_ANDAMENTO',
+        sprintActive: selectedSprint?.status === 'EM_ANDAMENTO',
+        githubApplicable: project.githubIntegration != null,
+        timeZone: query.timeZone ?? 'UTC',
+        readContext: context
+      }
+    );
+    for (const section of outputSections)
+      section.indicators = section.indicators.map((indicator) => ({
+        ...indicator,
+        assessment: health.assessments[indicator.metricId]
+      }));
+    warnings.push(...context.warnings());
+    const indicators = outputSections.flatMap((section) => section.indicators);
+    const githubIndicators = indicators.filter((indicator) => indicator.sourceSyncStatus != null);
+    const freshness = {
+      local: { generatedAt },
+      github: githubIndicators.length
+        ? {
+            sourceUpdatedAt:
+              githubIndicators
+                .map((indicator) => indicator.sourceUpdatedAt)
+                .filter(Boolean)
+                .sort()
+                .at(-1) ?? null,
+            sourceSyncStatus:
+              githubIndicators.map((indicator) => indicator.sourceSyncStatus).find(Boolean) ?? null
+          }
+        : null
+    };
+    if (
+      !period &&
+      indicators.some((indicator) => indicator.limitations.includes('PERIOD_REQUIRED'))
+    )
+      warnings.push({ code: 'PERIOD_REQUIRED_FOR_EVENT_INDICATORS' });
+    if (
+      period &&
+      !health.projectHealth &&
+      !indicators.some((indicator) => indicator.appliedFilters.period)
+    )
+      warnings.push({ code: 'PERIOD_FILTER_NOT_APPLIED_TO_VIEW' });
+    if (query.sprintId != null && !indicators.some((indicator) => indicator.appliedFilters.sprint))
+      warnings.push({ code: 'SPRINT_FILTER_NOT_APPLIED_TO_VIEW' });
+    if (
+      query.responsibleUserId != null &&
+      !indicators.some((indicator) => indicator.appliedFilters.responsible)
+    )
+      warnings.push({ code: 'RESPONSIBLE_FILTER_NOT_APPLIED_TO_VIEW' });
+    return {
+      projectId: id,
+      dashboardContractVersion: 1,
+      view,
+      viewState: deriveDashboardViewState(indicators),
+      generatedAt,
+      requestedFilters,
+      context: {
+        project: { id: project.id, name: project.name },
+        sprint: selectedSprint,
+        responsible: responsible?.user.anonymizedAt
+          ? { userId: responsible.user.id, displayName: null }
+          : responsible
+            ? { userId: responsible.user.id, displayName: responsible.user.name }
+            : null
+      },
+      freshness,
+      ...(includeHealth ? { projectHealth: health.projectHealth } : {}),
+      sections: outputSections,
+      warnings
+    };
+  }
+};

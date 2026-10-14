@@ -195,6 +195,8 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
     const task = await createTask(prisma, project.id);
     const comment = await createComment(task.id, project.id, member.user.id, 'Visível a todos.');
 
+    const storedBeforeDenial = await prisma.taskComment.findUnique({ where: { id: comment.id } });
+    const auditBeforeDenial = await prisma.auditEvent.count();
     const list = await viewer.agent.get(`/api/tasks/${task.id}/comments`);
     expect(list).toMatchObject({
       status: 200,
@@ -217,6 +219,11 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
     expect(
       (await viewer.mutate('delete', `/api/tasks/${task.id}/comments/${comment.id}`)).status
     ).toBe(403);
+    expect(await prisma.taskComment.findUnique({ where: { id: comment.id } })).toEqual(
+      storedBeforeDenial
+    );
+    expect(await prisma.taskComment.count({ where: { taskId: task.id } })).toBe(1);
+    expect(await prisma.auditEvent.count()).toBe(auditBeforeDenial);
   });
 
   it('restringe a edição ao autor, marca editedAt e audita', async () => {

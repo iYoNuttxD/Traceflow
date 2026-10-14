@@ -11,6 +11,71 @@ const dias = [
 ];
 
 describe('SprintBurndownChart', () => {
+  it.each([false, true])(
+    'guards unknown estimates even with hasData=%s from an older API',
+    (hasData) => {
+      const { container } = render(
+        <SprintBurndownChart
+          burndown={{
+            hasData,
+            totalPoints: 0,
+            historicalState: 'PARTIAL',
+            historicalLimitations: ['BURNUP_ESTIMATE_UNKNOWN'],
+            days: [{ date: '2026-08-01', ideal: null, remaining: null }]
+          }}
+        />
+      );
+      expect(
+        screen.getByText(/Dados parciais.*parte das tarefas não possui estimativa/)
+      ).toBeVisible();
+      expect(screen.queryByText(/a sprint ainda não começou/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+      expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
+    }
+  );
+
+  it('fits historical values above the final scope and uses the supplied ideal values', () => {
+    const { container } = render(
+      <SprintBurndownChart
+        burndown={{
+          hasData: true,
+          totalPoints: 20,
+          chartMax: 40,
+          days: [
+            { date: '2026-08-01', ideal: 20, remaining: 40 },
+            { date: '2026-08-02', ideal: 10, remaining: 20 }
+          ]
+        }}
+      />
+    );
+    expect(container.querySelector('svg').outerHTML).not.toMatch(/NaN|Infinity/);
+    for (const node of container.querySelectorAll('polyline')) {
+      for (const point of node.getAttribute('points').split(' ')) {
+        const y = Number(point.split(',')[1]);
+        expect(y).toBeGreaterThanOrEqual(26);
+        expect(y).toBeLessThanOrEqual(258);
+      }
+    }
+    expect(container.querySelector('polyline').getAttribute('points')).toBe('60,142 1080,200');
+  });
+
+  it('does not bridge unknown measured days', () => {
+    const { container } = render(
+      <SprintBurndownChart
+        burndown={{
+          hasData: true,
+          totalPoints: 4,
+          days: [
+            { date: '2026-08-01', ideal: null, remaining: 4 },
+            { date: '2026-08-02', ideal: null, remaining: null },
+            { date: '2026-08-03', ideal: null, remaining: 2 }
+          ]
+        }}
+      />
+    );
+    expect(screen.getByRole('img')).toHaveAccessibleName(/referência inicial está indisponível/);
+    expect(container.querySelectorAll('polyline')).toHaveLength(0);
+  });
   it('sem dados mostra uma frase, nunca um gráfico zerado', () => {
     render(<SprintBurndownChart burndown={{ hasData: false }} />);
     expect(screen.getByText(/Sem tarefas pontuadas nesta sprint/)).toBeInTheDocument();

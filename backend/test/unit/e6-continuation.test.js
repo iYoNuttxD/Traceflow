@@ -24,6 +24,12 @@ describe('e-mail transacional da E6', () => {
     });
     expect(invitation.html).toContain('&lt;script&gt;');
     expect(invitation.html).not.toContain('<script>');
+    for (const resetUrl of ['javascript:alert(1)', 'data:text/html,unsafe']) {
+      expect(() => passwordResetTemplate({ resetUrl, expiresAt })).toThrow();
+    }
+    expect(
+      passwordResetTemplate({ resetUrl: 'https://traceflow.test/reset?a=1&b=2', expiresAt }).html
+    ).toContain('href="https://traceflow.test/reset?a=1&amp;b=2"');
     expect(
       passwordResetTemplate({ resetUrl: 'https://traceflow.test/reset?token=fake', expiresAt })
         .subject
@@ -42,10 +48,19 @@ describe('e-mail transacional da E6', () => {
       smtpPassword: 'secret'
     });
     await provider.send({ to: 'fake@example.invalid', subject: 'Teste', text: 'Teste' });
-    expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ host: 'smtp.example.invalid', port: 587 })
-    );
-    expect(sendMail).toHaveBeenCalledOnce();
+    expect(spy).toHaveBeenCalledWith({
+      host: 'smtp.example.invalid',
+      port: 587,
+      secure: false,
+      disableFileAccess: true,
+      disableUrlAccess: true,
+      auth: { user: 'mailer', pass: 'secret' }
+    });
+    expect(sendMail).toHaveBeenCalledExactlyOnceWith({
+      to: 'fake@example.invalid',
+      subject: 'Teste',
+      text: 'Teste'
+    });
     spy.mockRestore();
   });
 });
@@ -80,10 +95,48 @@ describe('limpeza operacional da E6', () => {
       githubConnectionStateRetentionDays: 7,
       githubWebhookDeliveryRetentionDays: 30
     };
-    expect((await cleanupAuthRecords({ client, configuration })).mode).toBe('dry-run');
+    const now = new Date('2030-02-01T00:00:00.000Z');
+    expect((await cleanupAuthRecords({ client, configuration, now })).mode).toBe('dry-run');
     expect(calls.some(([type]) => type === 'transaction')).toBe(false);
-    expect((await cleanupAuthRecords({ client, configuration, apply: true })).mode).toBe('apply');
-    expect(calls.some(([type]) => type === 'transaction')).toBe(true);
+    expect((await cleanupAuthRecords({ client, configuration, now, apply: true })).mode).toBe(
+      'apply'
+    );
+    const shortCutoff = new Date('2030-01-25T00:00:00.000Z');
+    const longCutoff = new Date('2030-01-02T00:00:00.000Z');
+    expect(calls.find(([type]) => type === 'transaction')[1]).toEqual([
+      {
+        name: 'github-state',
+        where: { OR: [{ expiresAt: { lt: shortCutoff } }, { usedAt: { lt: shortCutoff } }] }
+      },
+      {
+        name: 'github-oauth-state',
+        where: { OR: [{ expiresAt: { lt: shortCutoff } }, { usedAt: { lt: shortCutoff } }] }
+      },
+      {
+        name: 'session',
+        where: { OR: [{ expiresAt: { lt: longCutoff } }, { revokedAt: { lt: longCutoff } }] }
+      },
+      {
+        name: 'verification',
+        where: { OR: [{ expiresAt: { lt: shortCutoff } }, { usedAt: { lt: shortCutoff } }] }
+      },
+      {
+        name: 'reset',
+        where: { OR: [{ expiresAt: { lt: shortCutoff } }, { usedAt: { lt: shortCutoff } }] }
+      },
+      {
+        name: 'invitation',
+        where: {
+          OR: [
+            { expiresAt: { lt: longCutoff } },
+            { revokedAt: { lt: longCutoff } },
+            { acceptedAt: { lt: longCutoff } },
+            { declinedAt: { lt: longCutoff } }
+          ]
+        }
+      },
+      { name: 'github-delivery', where: { receivedAt: { lt: longCutoff } } }
+    ]);
   });
 });
 
@@ -113,6 +166,14 @@ describe('matriz RBAC da E6', () => {
     expect(authorizationService.permits('MEMBER', 'MEMBER')).toBe(true);
     expect(authorizationService.permits('MANAGER', 'MANAGER')).toBe(true);
     expect(authorizationService.permits('OWNER', 'OWNER')).toBe(true);
+    const roles = ['VIEWER', 'MEMBER', 'MANAGER', 'OWNER'];
+    roles.forEach((actual, level) =>
+      roles.forEach((required, minimum) => {
+        expect(authorizationService.permits(actual, required)).toBe(level >= minimum);
+      })
+    );
+    for (const required of roles)
+      expect(authorizationService.permits('UNKNOWN', required)).toBe(false);
     expect(
       authorizationService.requiredRole({ method: 'PATCH', path: '/projects/1/members/2' })
     ).toBe('OWNER');

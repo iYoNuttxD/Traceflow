@@ -1,14 +1,28 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let authState;
 vi.mock('../../src/features/auth/AuthContext.jsx', () => ({ useAuth: () => authState }));
 const { GuestOnlyRoute } = await import('../../src/features/auth/GuestOnlyRoute.jsx');
 
+function LocationProbe() {
+  const { pathname, search, hash } = useLocation();
+  return <output aria-label="Destino">{JSON.stringify({ pathname, search, hash })}</output>;
+}
+
+function expectDestination(pathname, search = '', hash = '') {
+  expect(JSON.parse(screen.getByLabelText('Destino').textContent)).toEqual({
+    pathname,
+    search,
+    hash
+  });
+}
+
 function renderRoute(initialEntry = '/login') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
+      <LocationProbe />
       <Routes>
         <Route
           path="/login"
@@ -63,6 +77,7 @@ describe('GuestOnlyRoute', () => {
       state: { from: '/settings/security?from=deep#sessions' }
     });
     expect(screen.getByRole('heading', { name: 'Segurança' })).toBeInTheDocument();
+    expectDestination('/settings/security', '?from=deep', '#sessions');
   });
   it('preserva convite e rejeita destino externo', () => {
     authState = { user: { id: 1 }, loading: false };
@@ -71,8 +86,10 @@ describe('GuestOnlyRoute', () => {
       state: { from: '/invitations/accept?token=ABC#confirmar' }
     });
     expect(screen.getByRole('heading', { name: 'Convite' })).toBeInTheDocument();
+    expectDestination('/invitations/accept', '?token=ABC', '#confirmar');
     view.unmount();
     renderRoute({ pathname: '/login', state: { from: '//evil.example/path' } });
+    expectDestination('/projects');
     expect(screen.getByRole('heading', { name: 'Projetos' })).toBeInTheDocument();
   });
 });

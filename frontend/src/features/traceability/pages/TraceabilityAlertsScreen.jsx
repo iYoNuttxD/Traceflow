@@ -44,14 +44,8 @@ function AlertFilters({ filters, onChange, onClear, count }) {
       className="sprint-filters"
       resultLabel={count === undefined ? '' : `${count} ${count === 1 ? 'alerta' : 'alertas'}`}
       activeCount={activeCount}
+      onClear={onClear}
     >
-      {activeCount > 0 && (
-        <div className="planning-filter-panel__actions">
-          <button type="button" className="sprint-filters__clear" onClick={onClear}>
-            Limpar filtros
-          </button>
-        </div>
-      )}
       <div className="trace-alert-filter-grid">
         <label className="sprint-filter">
           <span>Situação</span>
