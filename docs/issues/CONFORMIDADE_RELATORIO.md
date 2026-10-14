@@ -11,7 +11,7 @@ de referência muda.
 | Item | Valor |
 |---|---|
 | Commit verificado | `7952b01fad68da0d91dd3e2f79c759f5745bb1db` (`joao-dev-v2`, 69 commits à frente de `origin/joao-dev-v2`, sem CI) |
-| Última fase concluída | 0 |
+| Última fase concluída | 1 |
 | Pontos ⚑1–⚑8 | aprovados com as recomendações do enunciado (14/10/2026) |
 | Ponto ⚑9 | aprovado só `node scripts/check-npm-audit.mjs`; recusados `gh api`, os validadores `db:test:validate-*` e o worker e o job em processo separado |
 | Efeito do ⚑9 | ARQ-04 (drift) e ARQ-31 (proteção da branch) ficam `NÃO VERIFICÁVEL LOCALMENTE` até a CI da PR; H05 e H22 rodam em processo único |
@@ -145,6 +145,336 @@ justificativas de "não aplicável" da Parte A citam as linhas abaixo.
 | INV-20 | Dependências de runtime do frontend | `react` 19, `react-dom` 19, `react-router` 8.3.0, `axios`, `@xyflow/react`, `elkjs`; `vite` e `@vitejs/plugin-react` também estão em `dependencies`, embora sejam de build (indício para ARQ-05) |
 | INV-21 | Superfícies ausentes | sem GraphQL, WebSocket, WebRTC, SSR, OIDC (o OAuth do GitHub não emite ID Token) e sem consumo de token autocontido; o único token autocontido é o JWT que o backend **emite** para o GitHub |
 | INV-22 | HTML do SPA | `frontend/index.html` com script inline, servido pelo host de implantação, sem cabeçalhos versionados no repositório |
+| INV-23 | Fatores de autenticação | senha local e OAuth do GitHub; sem MFA, OTP, TOTP, código fora de banda, segredo de consulta, SMS ou telefonia, SAML ou asserção assinada consumida |
+| INV-24 | Intérpretes e runtime | sem LDAP, XPath, XML, LaTeX, memcache, JNDI, chamada ao sistema operacional (`child_process`), `eval` ou editor WYSIWYG; código próprio só em runtime de memória gerenciada (Node.js e navegador) |
+| INV-25 | Formatos de upload | arquivos simples (imagem, vídeo, PDF, texto, log, JSON); sem arquivo compactado nem extração |
+| INV-26 | Mensagens entre janelas | o frontend não usa `postMessage` nem escuta o evento `message` |
+| INV-27 | Papéis criptográficos e OAuth | a aplicação não cifra dados com chave simétrica, não usa mTLS, não deriva chave de senha e não é servidor de autorização, servidor de recursos nem provedor OpenID |
+
+## 4. Parte A — OWASP ASVS 5.0.0, níveis 1 e 2
+
+Matriz completa em `docs/security/ASVS_5_0_L1_L2_MATRIX.md`, com o catálogo congelado em
+`backend/test/fixtures/asvs-5.0.0-l1-l2.json` e a completude travada por
+`backend/test/conformance/asvs-matrix.test.js`.
+
+### 4.1 Números
+
+| Veredito | L1 | L1+L2 |
+|---|---:|---:|
+| ATENDIDO | 40 | 103 |
+| PARCIAL | 5 | 37 |
+| NÃO ATENDIDO | 6 | 19 |
+| NÃO VERIFICÁVEL LOCALMENTE | 4 | 18 |
+| NÃO APLICÁVEL | 15 | 76 |
+| **Total** | **70** | **253** |
+
+- **Aplicáveis:** 177.
+- **Aplicáveis e verificáveis localmente:** 159, dos quais 103 atendidos (64,8%).
+- **L1 não atendidos (6):** V3.3.1, V3.5.3, V6.2.4, V7.2.4, V14.2.1 e V14.3.1.
+- **A meta L2 da §13.1 do anexo não é atingida hoje.** São 19 requisitos não atendidos e 37 parciais; os
+  18 não verificáveis dependem de S2-08 a S2-10.
+
+### 4.2 Verificações automatizadas novas (⚑1)
+
+| Arquivo | O que trava |
+|---|---|
+| `backend/test/conformance/asvs-http.test.js` | cabeçalhos, CSP, `nosniff`, `Referrer-Policy` e `Content-Type` com charset em 200, 400, 401, 403, 404, 413, 415 e 429; HSTS de produção; CORS; formulário entre sites recusado (415); `TRACE` sem eco; parâmetro repetido e `__proto__` |
+| `backend/test/conformance/asvs-sessao-senha.test.js` | atributos do cookie; tamanhos e composição livre da senha; conferência exata da senha; senha atual na troca; `no-store` autenticado; parâmetro repetido e campo extra em rota autenticada; ID acima do INT do MySQL responde 4xx |
+| `backend/test/conformance/asvs-matrix.test.js` | 253 identificadores com o nível certo; vereditos admitidos; todo positivo com caminho existente; todo não aplicável com inventário; todo não verificável com dono |
+
+A hipótese de que um ID acima do INT do MySQL derrubaria a API com 500 foi **refutada**: as quatro rotas
+testadas respondem 4xx.
+
+### 4.3 Reproduções (testes vermelhos, fora de commit)
+
+Rodadas em 14/10/2026 num arquivo temporário de `backend/test/conformance/`, apagado antes do commit.
+
+| Reprodução | Resultado |
+|---|---|
+| o nome do cookie de sessão tem prefixo `__Host-` ou `__Secure-` | falhou: `expected false to be true` (CF-01) |
+| novo login, enviando o cookie anterior, encerra esse cookie | falhou: `/api/auth/me` com o cookie anterior respondeu 200 (CF-02) |
+| cadastro recusa `1qaz2wsx3edc`, `1q2w3e4r5t6y`, `passwordpassword` e `qazwsxedcrfv` | falhou nas quatro: 201 (CF-03) |
+| sessão com `lastSeenAt` de 7 dias atrás exige nova autenticação | falhou: 200 (CF-04) |
+
+### 4.4 Achados conhecidos confirmados na Fase 1
+
+| ID | Situação | Evidência |
+|---|---|---|
+| K1 | confirmado | `ASVS_BASELINE.md:31` dá upload como atendido, e a L77 põe o V5 como não aplicável "sem upload" |
+| K2 | confirmado | a baseline cita 58 identificadores com prefixo V (cerca de 60 no total) de 253 |
+| K8 | confirmado | `ASVS_BASELINE.md:16` cita `backend/src/shared/auth/`, que não existe; a L12 não menciona as 5 chamadas `Unsafe` |
+| K9 | confirmado | a troca de código OAuth tem timeout, mas não define `redirect` (`github-credential.provider.js:81-91`) |
+| K10 | confirmado | `app.js:201` monta o handler sem `includeErrorStack`; o teste `shared-infrastructure.test.js:164` trava o log sem stack |
+| K11 | confirmado | `@octokit/request` 9.2.4 repassa ao `fetch` só `redirect` e `signal`; zero ocorrências de "timeout" no pacote |
+| K21 | confirmado | `THREAT_MODEL.md:95` afirma URLs persistidas só HTTPS do GitHub; `github.mapper.js:27` grava `html_url` sem validação |
+
+### 4.5 Achados da Parte A
+
+Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
+
+### [ALTA] CF-01 — Cookie de sessão sem prefixo `__Host-`
+
+- Onde: `backend/src/config/env.js:585` (nome padrão `traceflow_session`); `backend/src/modules/auth/auth.controller.js:6-15`
+- Norma: ASVS V3.3.1 (L1) e V3.3.3 (L2)
+- Esperado: nome com `__Host-`, com `Secure`, `Path=/` e sem `Domain`
+- Observado: `traceflow_session=…; HttpOnly; SameSite=Lax; Path=/`, sem prefixo; `Secure` só em produção
+- Reprodução: cadastro e leitura do `Set-Cookie` (seção 4.3)
+- Consequência: sem a garantia do prefixo, um subdomínio ou um intermediário comprometido pode fixar ou sobrescrever o cookie
+- Origem: S1-01 (ADR-002)
+- Proposta: nome padrão `__Host-traceflow_session` em produção, mantendo `Secure` e `Path=/`
+
+### [ALTA] CF-02 — Novo login não encerra o token apresentado
+
+- Onde: `backend/src/modules/auth/auth.service.js:125-147`
+- Norma: ASVS V7.2.4 (L1)
+- Esperado: o login emite token novo e encerra o token que o agente apresentou
+- Observado: depois do segundo login, `GET /api/auth/me` com o cookie anterior responde 200
+- Reprodução: login A; login B enviando o cookie A; `/me` com A (seção 4.3)
+- Consequência: token roubado ou fixado continua válido mesmo depois de a vítima autenticar de novo
+- Origem: S1-01
+- Proposta: revogar a sessão do cookie apresentado no login local e no login pelo GitHub
+
+### [ALTA] CF-03 — Senhas comuns aceitas; sem senhas vazadas nem palavras de contexto
+
+- Onde: `backend/src/modules/auth/identity-policy.js:19-35` (15 itens, 5 deles com menos de 12 caracteres)
+- Norma: ASVS V6.2.4 (L1), V6.1.2, V6.2.11 e V6.2.12 (L2)
+- Esperado: recusa das 3000 senhas mais comuns que cabem na política; checagem contra senhas vazadas; lista documentada de palavras de contexto
+- Observado: quatro senhas comuns de 12 ou mais caracteres aceitas com 201
+- Reprodução: `POST /api/auth/register` com cada senha (seção 4.3)
+- Consequência: contas com senha trivial ficam expostas a credential stuffing, mesmo com o limitador
+- Origem: S1-01 e S1-02
+- Proposta: lista versionada com pelo menos 3000 senhas comuns de 12 ou mais caracteres; palavras de contexto documentadas (TraceFlow, PUCPR, nomes do produto); avaliar checagem contra base de vazadas por k-anonimato
+
+### [MÉDIA] CF-04 — Sem timeout por inatividade; política de sessão não documentada
+
+- Onde: `backend/src/modules/auth/auth.service.js:150-164`; `docs/architecture/ADR-002-AUTHENTICATION-SESSION.md`
+- Norma: ASVS V7.3.1, V7.1.1 e V7.1.2 (L2)
+- Esperado: reautenticação depois de inatividade definida; documentação de vida máxima, inatividade e sessões simultâneas, com justificativa frente ao NIST
+- Observado: sessão com `lastSeenAt` de 7 dias responde 200; nenhum documento trata de inatividade nem de sessões simultâneas
+- Reprodução: seção 4.3
+- Consequência: sessão esquecida em máquina compartilhada vale até 30 dias
+- Origem: S1-01
+- Proposta: conferir `lastSeenAt` contra um limite de inatividade configurável e registrar a política no ADR-002
+
+### [MÉDIA] CF-05 — CSP com `base-uri 'self'`
+
+- Onde: `backend/src/shared/security/headers.js:4-10`
+- Norma: ASVS V3.4.3 (L2)
+- Esperado: no mínimo `object-src 'none'` e `base-uri 'none'`
+- Observado: `base-uri 'self'`, herdado do padrão do Helmet
+- Reprodução: `GET /health` com configuração de produção e leitura do cabeçalho
+- Consequência: pequena na API JSON; a CSP do SPA, ainda inexistente, tende a copiar a da API
+- Origem: fundação de segurança (E-phase)
+- Proposta: acrescentar `baseUri: ["'none'"]` às diretivas
+
+### [ALTA] CF-06 — Token sensível em URL e confirmação por GET
+
+- Onde: `backend/src/shared/email/email.service.js:15-19`; `backend/src/modules/settings/settings-public.routes.js:7-16`; `frontend/src/features/settings/settings.api.js:95-100`
+- Norma: ASVS V14.2.1 (L1), V3.5.3 (L1) e V3.4.5 (L2)
+- Esperado: token fora da query string; confirmação por POST; política de referrer também no SPA
+- Observado: links com `?token=`; `GET /api/settings/account/email-change/confirm?token=` e `GET /api/account/reactivation/confirm?token=` mudam estado; o SPA não define política de referrer nem limpa a URL
+- Reprodução: inventário de rotas (Apêndice A) e leitura dos templates
+- Consequência: o token fica no histórico do navegador, em logs de proxy e pode sair no `Referer`
+- Origem: S1-02 e L-phases (troca de e-mail e reativação)
+- Proposta: token no fragmento do link ou lido pela página e enviado por POST; confirmações por POST; política de referrer no SPA; `history.replaceState` depois da leitura
+
+### [ALTA] CF-07 — Logout deixa dados do usuário no navegador
+
+- Onde: `frontend/src/features/auth/AuthContext.jsx:72-88`; `frontend/src/app/layout/quick-projects.js:31-37`
+- Norma: ASVS V14.3.1 (L1)
+- Esperado: dados autenticados apagados do armazenamento do cliente ao encerrar a sessão
+- Observado: as chaves `traceflow.projects.pinned:<id>` e `traceflow.projects.recent:<id>` continuam; o logout não envia `Clear-Site-Data`
+- Reprodução: H18 da Parte D (jsdom)
+- Consequência: em máquina compartilhada, a próxima pessoa vê quais projetos a anterior fixou e abriu (só IDs)
+- Origem: frontend (navegação rápida de projetos)
+- Proposta: apagar as chaves do usuário no logout e enviar `Clear-Site-Data: "storage"` na resposta do logout
+
+### [MÉDIA] CF-08 — Chamadas de saída sem timeout efetivo e seguindo redirect
+
+- Onde: `backend/src/modules/github/github.client.js:34-38`; `backend/src/modules/github/github-credential.provider.js:56-70` e `:81-91`
+- Norma: ASVS V15.2.2, V15.3.2, V16.5.2 e V15.1.3 (L2); §8 do anexo (cliente externo com timeout)
+- Esperado: timeout efetivo por chamada; redirect não seguido
+- Observado: `request: { timeout }` é ignorado pelo `@octokit/request` 9.2.4, que só repassa `signal` e `redirect`; o Octokit e a troca OAuth seguem redirect
+- Reprodução: inspeção do pacote; sonda H01 na Parte D
+- Consequência: um GitHub lento prende a sincronização manual ou a do worker; o POST com `client_secret` pode ser reenviado num 307 ou 308
+- Origem: cliente GitHub (E5, E9) e login pelo GitHub
+- Proposta: `AbortSignal.timeout(ms)` por chamada, por hook do Octokit, e `redirect: 'error'` nas duas saídas
+
+### [MÉDIA] CF-09 — Sem inventário criptográfico; política de chaves parcial
+
+- Onde: `docs/security/SECRETS_POLICY.md`
+- Norma: ASVS V11.1.1, V11.1.2, V11.2.2 e V11.2.3 (L2)
+- Esperado: inventário de chaves, algoritmos e certificados; política alinhada a um padrão; exceção da chave RSA de 2048 bits registrada
+- Observado: só a política de segredos; algoritmos e parâmetros fixos no código
+- Reprodução: inspeção
+- Consequência: troca de algoritmo e resposta a incidente sem mapa do que existe
+- Origem: documentação de segurança
+- Proposta: seção de inventário (SHA-256, HMAC SHA-256, Argon2id, RS256 da App, `randomBytes`) com a exceção da RSA 2048 imposta pelo GitHub
+
+### [MÉDIA] CF-10 — Allowlist de saída sem uso em runtime
+
+- Onde: `backend/src/shared/security/ssrf.js:27-52`; `backend/src/shared/validation/common.schemas.js:95-98`
+- Norma: ASVS V13.2.4 (L2)
+- Esperado: destinos externos definidos por allowlist aplicada
+- Observado: `isAllowedExternalUrl` só é usada em teste; os destinos são fixos no código
+- Reprodução: inspeção
+- Consequência: pequena hoje, porque nenhuma URL vem do usuário; a regra não impede regressão
+- Origem: fundação de segurança (E-phase)
+- Proposta: aplicar a allowlist nos clientes de saída, ou remover o código sem uso e registrar a decisão
+
+### [MÉDIA] CF-11 — Erro 500 registrado sem stack e com mensagem genérica
+
+- Onde: `backend/src/app.js:201`; `backend/src/middlewares/error-handler.middleware.js:103`, `:119` e `:162-168`
+- Norma: ASVS V16.2.1 e V16.3.4 (L2); §13.10 do anexo (detalhe técnico só no servidor)
+- Esperado: log do servidor com o detalhe técnico do erro inesperado
+- Observado: `includeErrorStack` desligado e mensagem trocada pelo texto genérico quando o status é 500 ou maior
+- Reprodução: `backend/test/unit/shared-infrastructure.test.js:164` trava o comportamento atual
+- Consequência: incidente de produção sem informação para diagnóstico
+- Origem: fundação de erros (E-phase)
+- Proposta: registrar stack e mensagem real no log (com redaction), mantendo a resposta genérica
+
+### [MÉDIA] CF-12 — Inventário de logs e eventos de segurança não documentados
+
+- Onde: `docs/privacy/DATA_FLOW_MAP.md:13`
+- Norma: ASVS V16.1.1 e V16.3.3 (L2)
+- Esperado: inventário de eventos por camada, formato, destino, acesso e retenção; lista dos eventos de segurança registrados
+- Observado: uma linha no mapa de fluxo de dados
+- Reprodução: inspeção
+- Consequência: operação sem referência para alertas e retenção dos logs
+- Origem: documentação de operação
+- Proposta: documento de logging com os eventos do app, do worker e dos jobs
+
+### [MÉDIA] CF-13 — Evidências sem verificação antivírus
+
+- Onde: `backend/src/modules/testCases/storage/test-evidence.validation.js`
+- Norma: ASVS V5.4.3 (L2)
+- Esperado: arquivo de fonte não confiável verificado antes de ser servido
+- Observado: há allowlist e detecção de tipo, mas nenhuma varredura
+- Reprodução: inspeção
+- Consequência: PDF ou vídeo malicioso enviado por um membro chega aos outros membros do projeto
+- Origem: S1-07
+- Proposta: varredura (ClamAV) antes do registro, ou exceção registrada com justificativa
+
+### [MÉDIA] CF-14 — Sem encerramento administrativo de sessões
+
+- Onde: produto inteiro (D-TCC-01)
+- Norma: ASVS V7.4.5 (L2); UC05 e UC06 do TCC
+- Esperado: administrador encerra as sessões de um usuário ou de todos
+- Observado: não há papel administrativo global
+- Reprodução: inspeção
+- Consequência: conta comprometida depende do próprio titular para encerrar sessões
+- Origem: S1-03 (decisões de produto)
+- Proposta: depende da decisão sobre o D-TCC-01
+
+### [BAIXA] CF-15 — Regras de autorização por campo não documentadas
+
+- Onde: `docs/security/AUTHORIZATION_MATRIX.md`
+- Norma: ASVS V8.1.2 (L2)
+- Esperado: regras de leitura e escrita por campo documentadas
+- Observado: a matriz é por rota; a minimização (por exemplo, o e-mail na lista de membros) está só nos mappers
+- Reprodução: inspeção
+- Consequência: regra implícita se perde em refatoração
+- Origem: documentação de segurança
+- Proposta: seção de campos restritos por papel na matriz
+
+### [MÉDIA] CF-16 — Regras de validação e limites de negócio sem documento de referência
+
+- Onde: `docs/api/API_CONTRACTS.md`; `backend/src/shared/validation/common.schemas.js`
+- Norma: ASVS V2.1.1 (L1), V2.1.2, V2.1.3 e V2.3.2 (L2)
+- Esperado: regras de validação, consistência entre dados e limites de negócio documentados
+- Observado: entradas por rota no contrato; limites comuns e de negócio só no código ou em documentos de cada módulo
+- Reprodução: inspeção
+- Consequência: não há como conferir se um limite implementado é o pretendido
+- Origem: documentação de API
+- Proposta: seção "Validação e limites" no contrato, gerada ou conferida a partir dos schemas
+
+### [MÉDIA] CF-17 — Encerrar sessões não pede reautenticação
+
+- Onde: `backend/src/modules/settings/settings.service.js:428-435`; `backend/src/modules/settings/settings.routes.js:42-48`
+- Norma: ASVS V7.5.2 (L2)
+- Esperado: encerrar sessões depois de nova autenticação com pelo menos um fator
+- Observado: listar e revogar sessões funciona sem reautenticação
+- Reprodução: inspeção
+- Consequência: quem tomou uma sessão pode derrubar as do titular
+- Origem: L-phase (configurações)
+- Proposta: `requireSensitiveAuthentication` nas revogações
+
+### [MÉDIA] CF-18 — URL do repositório gravada sem validação de protocolo e host
+
+- Onde: `backend/src/modules/github/github.mapper.js:27`; `docs/security/THREAT_MODEL.md:95`
+- Norma: ASVS V1.2.2 (L1); documento que afirma o contrário do código (K21)
+- Esperado: só `https://github.com/…`, como já se faz com `githubUrl` dos artefatos
+- Observado: `html_url` gravado como veio e exibido como link
+- Reprodução: inspeção; a sonda entra na Parte D (H35)
+- Consequência: pequena enquanto o GitHub for a fonte; o modelo de ameaças afirma uma garantia que não existe
+- Origem: integração GitHub (E9, GITHUB-02)
+- Proposta: validar com o mesmo `safeGithubUrl` dos artefatos e corrigir o `THREAT_MODEL.md`
+
+### [BAIXA] CF-19 — Dados sensíveis sem nível de proteção
+
+- Onde: `docs/privacy/PERSONAL_DATA_INVENTORY.md`
+- Norma: ASVS V14.1.1, V14.1.2 e V14.2.4 (L2)
+- Esperado: classificação por nível e requisitos por nível
+- Observado: inventário de dados pessoais, sem níveis
+- Reprodução: inspeção
+- Consequência: controles aplicados caso a caso
+- Origem: documentação de privacidade
+- Proposta: coluna de nível no inventário e requisitos por nível
+
+### [MÉDIA] CF-20 — Prazos de remediação de dependências sem número
+
+- Onde: `docs/security/DEPENDENCY_RISK_REGISTER.md:126-133`
+- Norma: ASVS V15.1.1 (L1)
+- Esperado: prazos por risco
+- Observado: "imediatamente" para crítico e "no ciclo atual" para alto; nada para moderado e baixo
+- Reprodução: inspeção
+- Consequência: não há como medir atraso de remediação
+- Origem: documentação de supply chain
+- Proposta: prazos em dias por severidade
+
+### [BAIXA] CF-21 — Documentação de upload sem o download seguro
+
+- Onde: `docs/data/TEST_CASE_HISTORY.md:103-119`
+- Norma: ASVS V5.1.1 (L2)
+- Esperado: tipos, extensões, tamanhos e como o arquivo é servido com segurança
+- Observado: tipos e limites documentados; download (`attachment`, `nosniff`, nome opaco) não
+- Reprodução: inspeção
+- Consequência: a proteção de download pode se perder numa refatoração
+- Origem: S1-07
+- Proposta: parágrafo de download no documento
+
+### [BAIXA] CF-22 — Sessão federada sem documentação
+
+- Onde: `docs/architecture/ADR-012-GITHUB-OAUTH-APP-DECOUPLING.md`
+- Norma: ASVS V7.1.3 e V7.6.1 (L2)
+- Esperado: como a sessão local se relaciona com a sessão no GitHub e quando há reautenticação
+- Observado: o ADR descreve o fluxo, não a vida da sessão
+- Reprodução: inspeção
+- Consequência: expectativa errada sobre logout e reautenticação pelo GitHub
+- Origem: login pelo GitHub (L1)
+- Proposta: seção de sessão no ADR-012
+
+### [MÉDIA] CF-23 — Desativação da conta mantém a sessão atual
+
+- Onde: `backend/src/modules/settings/settings.repository.js:293-320`; `docs/architecture/ADR-002-AUTHENTICATION-SESSION.md`
+- Norma: ASVS V7.4.2 (L1)
+- Esperado: todas as sessões encerradas quando a conta é desativada
+- Observado: as outras sessões são revogadas; a atual continua, restrita à reativação e ao cancelamento
+- Reprodução: inspeção
+- Consequência: decisão registrada no ADR-002, mas diverge do requisito L1
+- Origem: L-phase (ciclo de vida da conta, ADR-010)
+- Proposta: decisão explícita do João: aceitar com justificativa no ADR-002 ou encerrar a sessão e usar link de reativação
+
+### [MÉDIA] CF-24 — Baseline ASVS desatualizada e contraditória
+
+- Onde: `docs/security/ASVS_BASELINE.md:12`, `:16`, `:31`, `:77` e `:78`
+- Norma: §13.1 do anexo (matriz ASVS mantida); documento que afirma o contrário do código (K1, K2, K8)
+- Esperado: baseline coerente com o código e com a matriz por requisito
+- Observado: V5 "sem upload" contra o upload do S1-07; "não há OAuth no runtime" contra o login pelo GitHub; caminho inexistente; chamadas `Unsafe` omitidas; cerca de 60 de 253 identificadores
+- Reprodução: inspeção
+- Consequência: a baseline induz a erro quem a usa como fonte
+- Origem: documentação de segurança
+- Proposta: reduzir a baseline a um resumo que aponta para a matriz e corrigir as quatro afirmações
 
 ## Apêndice A — Rotas registradas
 
