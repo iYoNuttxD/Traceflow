@@ -1,6 +1,10 @@
 // Cliente Prisma compartilhado pelos repositories.
 // Client Prisma compartilhado exclusivamente pelas fronteiras de persistência autorizadas.
 import { PrismaClient } from '@prisma/client';
-import { limitLockWaits } from './lock-wait.js';
+import { guardTransactions } from './transaction-guard.js';
 
-export const prisma = limitLockWaits(new PrismaClient());
+export function createPrismaClient(options) {
+  return guardTransactions(new PrismaClient(options));
+}
+
+export const prisma = createPrismaClient();
