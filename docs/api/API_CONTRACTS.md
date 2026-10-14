@@ -427,6 +427,10 @@ Ver [histórico de esforço](../data/TASK_EFFORT_HISTORY.md) para retenção, ad
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação ocorre somente na leitura externa
 do GitHub; os contratos públicos de listagem permanecem inalterados.
 
+**Resumo da execução** (`run.summary`). Em `pullRequests` e `issues`, `found` é o total lido do
+GitHub, `created` o de itens novos e `updated` o de itens que já existiam e mudaram. Desde
+13/10/2026 (ADR-021), item sem mudança não conta em `updated` e não é regravado.
+
 **Erro da execução** (`run.error`, ou `null`): `{code, message}`, com código estável e mensagem
 segura, sem resposta bruta do GitHub nem código interno do banco.
 - Falhas do GitHub usam os códigos da integração (`GITHUB_RATE_LIMITED`, `GITHUB_AUTH_FAILED`,

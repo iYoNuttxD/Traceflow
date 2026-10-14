@@ -185,11 +185,11 @@ Restrições do terreno:
 - A data da reabertura de uma issue é aproximada: é a última atualização observada.
 - A página com transição faz até cinco instruções a mais que a página sem transição, qualquer que
   seja o número de transições.
-- A página sem transição já faz cerca de três instruções por item (um upsert por item, anterior ao
-  S2-03). Com latência de rede até o banco, a página de 100 itens chega aos 5 s da transação por
-  volta de 15 ms: leva 4,8 s com 14,7 ms e cai com `P2028` com 17,6 ms (medição de 13/10/2026,
-  com ou sem transição). O desenho da nuvem (S2-08) precisa manter o banco abaixo disso
-  (S203-F22).
+- A página sem transição fazia cerca de três instruções por item (um upsert por item, anterior ao
+  S2-03). Com latência de rede até o banco, a página de 100 itens chegava aos 5 s da transação
+  por volta de 15 ms: levava 4,8 s com 14,7 ms e caía com `P2028` com 17,6 ms (medição de
+  13/10/2026, com ou sem transição). Desde o [ADR-021](ADR-021-GRAVACAO-POR-DIFERENCA.md), a
+  página grava só o que mudou, e o orçamento de latência está lá (S203-F22).
 - Notificações de projeto excluído existem, ocultas, até a restauração ou a purga.
 - `Notification` ganha cinco colunas anuláveis e o contrato de preferências muda.
 - O ADR-016 previa o S2-03 "sem migration nova"; os valores novos do enum e o contexto do artefato
