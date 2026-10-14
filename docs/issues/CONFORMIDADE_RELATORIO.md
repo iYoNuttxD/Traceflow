@@ -11,7 +11,7 @@ de referência muda.
 | Item | Valor |
 |---|---|
 | Commit verificado | `7952b01fad68da0d91dd3e2f79c759f5745bb1db` (`joao-dev-v2`, 69 commits à frente de `origin/joao-dev-v2`, sem CI) |
-| Última fase concluída | 2 |
+| Última fase concluída | 3 |
 | Pontos ⚑1–⚑8 | aprovados com as recomendações do enunciado (14/10/2026) |
 | Ponto ⚑9 | aprovado só `node scripts/check-npm-audit.mjs`; recusados `gh api`, os validadores `db:test:validate-*` e o worker e o job em processo separado |
 | Efeito do ⚑9 | ARQ-04 (drift) e ARQ-31 (proteção da branch) ficam `NÃO VERIFICÁVEL LOCALMENTE` até a CI da PR; H05 e H22 rodam em processo único |
@@ -704,6 +704,187 @@ Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
 - Consequência: quem lê o documento decide com informação errada (por exemplo, que não há agendador)
 - Origem: da `main`, K12, K14, a L214 do K16, a L186 do K17 e o validador de drift do K19; da `joao-dev-v2`, a L94 do K16 (resolvida na junção `0ce1516`), a ausência do S2-01 ao S2-03 no K17, os jobs do K19 e o K24; o K20 vem de entregas paralelas das duas branches
 - Proposta: corrigir os sete pontos num commit de documentação; versionar ou deslinkar os prompts citados
+
+## 6. Parte C — `TRACEFLOW_ROADMAP_INCREMENTAL.md`
+
+Matriz completa em `docs/issues/CONFORMIDADE_MATRIZ_ROADMAP.md`. As evidências de cada critério
+vieram de cinco levantamentos somente leitura, um por grupo de cartões. Os vereditos negativos e as
+linhas citadas nos achados foram conferidos no código.
+
+### 6.1 Números
+
+| Bloco | EVIDENCIADO | PARCIAL | AUSENTE | SÓ DOCUMENTADO | NÃO INICIADO | Total |
+|---|---:|---:|---:|---:|---:|---:|
+| Critérios de aceite, S1-01 a S2-05 | 54 | 25 | 1 | 0 | 0 | 80 |
+| Critérios de aceite, S2-06 a S3-05 | 0 | 0 | 0 | 0 | 61 | 61 |
+| DoD comum (14 cartões × 10 itens) | 39 | 76 | 3 | 22 | 0 | 140 |
+
+- Critérios dos cartões iniciados com prova completa: 54 de 80 (67,5%).
+- O único `AUSENTE` é o e-mail real do S1-02 (CF-44).
+- A H09, autorização furada por ID codificado (Parte D), pesa em vários vereditos:
+  - cinco critérios caem para `PARCIAL` só por causa dela (RM-S101-5, RM-S103-3, RM-S103-4,
+    RM-S105-6 e RM-S201-6);
+  - ela também pesa no RM-S205-6;
+  - no DoD, derruba o item 2 de nove cartões.
+- Das 54 caixas `[x]`: 37 com evidência, 14 parciais, 1 sem evidência e 2 contraditas.
+- Nem a Sprint 1 nem a Sprint 2 podem ser declaradas concluídas. Faltam E2E, homologação externa,
+  os RFs parciais, a correção da H09 e a coerência documental.
+
+### 6.2 Achados conhecidos verificados na Fase 3
+
+| ID | Situação | Evidência |
+|---|---|---|
+| K4 | confirmado | `fe05208` (04/08/2026, "docs: substituir implantação Azure por OCI") trocou a nuvem do roadmap sem ADR; o ADR-017:96-97 só diz que "a implantação pretendida é OCI"; o S2-08 mantém "[ ] criar ADR e diagrama da implantação planejada" (cópia, L628) |
+| K5 | confirmado | a cópia trocou "adicionar testes unitários, API e E2E" por "unitários, API e frontend automatizados" e marcou `[x]` (L104), mas os entregáveis do S1-01 ainda pedem "testes E2E" (L88); o backlog dá MÉDIA ao E15-F10 (L13) e ALTA ao S104-F02 (L23), sem decisão de dispensa (já é a CF-37) |
+| K6 | confirmado | S2-02 (L440-464) e S2-03 (L465-489) com as 10 caixas `[ ]` e nenhuma nota de estado, embora a matriz dê RF30, RF59, RF60 e RF61 como implementados localmente |
+| K7 | confirmado | `TECHNICAL_BACKLOG.md:16` (E15-F13) lista RF29–RF34, RF42–RF46 e RF54–RF57 como "fora do produto"; a matriz dá RF29, RF31–RF34, RF42, RF55 e RF56 como implementados, e o parêntese tira o RF59 "com o S2-02", mas deixa o RF30 dentro de RF29–RF34 |
+| K18 | confirmado | o cabeçalho LR.7 (L7-13) diz que "os checklists funcionais abaixo não foram promovidos" e cita "39 migrations"; hoje há 46 `[x]` nos cartões da Sprint 1 e 74 pastas de migration |
+| K22 | confirmado | "Retenção específica de SyncRun: DECISION REQUIRED (D-A)" no ADR-017:89 e nos relatórios da PR #24; nenhum item do backlog trata dela |
+| K23 | confirmado | `TECHNICAL_BACKLOG.md:35` (S104-F15, de 01/09) diz que a criação sem marco responde `400 SPRINT_MILESTONE_REQUIRED`; o código foi aposentado em 04/09 (`6c95bec`, FIX-03; `API_CONTRACTS.md:1046-1047`) e não existe mais em `backend/src` |
+
+### 6.3 Achados da Parte C
+
+Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
+
+### [ALTA] CF-41 — Horas exibidas como pontos nas telas de sprint
+
+- Onde: `frontend/src/features/schedule/components/schedule-display.js:164-179`; `frontend/src/features/schedule/components/SprintList.jsx:122,128,152-153`; `frontend/src/features/schedule/components/SprintsSummary.jsx:19`; também `SprintTasksPanel`, `SprintProgressPanel`, `ScheduleCalendar`, `MilestoneSprintsPanel`, `SprintBurndownChart` e `KanbanSummary`
+- Norma: roadmap S1-06, critério "unidade de esforço é única e exibida em criação, edição e consulta"; caixa `[x]` "definir unidade e fórmula em decisão documentada"
+- Esperado: horas em toda tela que mostra esforço
+- Observado:
+  - o contrato fixa "Unidade única: **horas**" (`docs/api/API_CONTRACTS.md:387`);
+  - o backend copia `estimatedEffort` para `SprintTask.pointsAtPlanning` (`backend/src/modules/sprints/repositories/sprint.repository.js:68`);
+  - `summarizeSprintTasks` soma `estimatedEffort`, e as telas de sprint, marco, cronograma e Kanban rotulam a soma como "pts" e "pontos";
+  - o painel de indicadores mostra o burndown da mesma sprint em horas (`frontend/test/features/DashboardPanel.test.jsx:1665`, "18 h");
+  - os testes das telas de sprint travam "pontos".
+- Reprodução: leitura de `summarizeSprintTasks` e dos rótulos citados
+- Consequência: a mesma grandeza aparece com duas unidades; quem planeja a sprint lê horas como pontos de história
+- Origem: S1-04 (`f3fc475`, design das sprints com "pts") e S1-06 (decisão por horas, sem rever as telas de sprint)
+- Proposta: rotular em horas nas telas de sprint, marco, cronograma e Kanban, ajustando os testes; registrar a unidade num ADR
+
+### [MÉDIA] CF-42 — Notas "CONCLUÍDO" do S1-07 e do S1-08 sem a homologação que afirmam
+
+- Onde: `TRACEFLOW_ROADMAP_INCREMENTAL.md:287-293` e `:319-323`
+- Norma: §4 do roadmap (DoD); D-RM-07 (cada marcação é alegação a verificar)
+- Esperado: nota de estado igual à evidência que cita
+- Observado:
+  - as notas dizem que tudo foi "implementado e homologado";
+  - os relatórios que elas citam dizem o contrário:
+    - "homologação visual completa ainda pendente. Não é um PASS global da entrega" (`docs/deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md:9-10`);
+    - "CI remoto **NOT RUN**" (`docs/deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md:3-5`);
+    - o relatório FIX-03 registra que o QA integrado final do S1-08 não começou (`docs/deliveries/S1_08_UX_STANDARDIZATION_FIX_03_REPORT.md:260-261`);
+  - a matriz RF deixa o RF42 com homologação visual pendente e o RF45 e o RF46 como `PARCIAL`.
+- Reprodução: leitura cruzada das notas, dos relatórios e da matriz RF
+- Consequência: o roadmap declara homologado o que a própria evidência dá como pendente
+- Origem: entrega do S1-09 na `main` ("feat: complete integration and testing for S1-09")
+- Proposta: trocar por "implementado localmente; homologação visual e CI pendentes", como na nota do S2-01
+
+### [MÉDIA] CF-43 — Caixas `[x]` sem evidência ou contraditas
+
+- Onde: checklists do S1-01 ao S1-09, do S2-01 e do marco P9 em `TRACEFLOW_ROADMAP_INCREMENTAL.md`
+- Norma: D-RM-07; a Parte C exige que toda caixa marcada se ligue a evidência
+- Esperado: toda caixa `[x]` com evidência
+- Observado: das 54 caixas `[x]`:
+  - 2 são contraditas pelo código: a autorização do S1-03, pela H09, e a unidade do S1-06, pela CF-41;
+  - 1 não tem evidência: os eventos de autenticação do S1-01, que só existem no código, sem teste;
+  - 14 têm evidência parcial (lista na seção 4 da matriz do roadmap).
+- Reprodução: `docs/issues/CONFORMIDADE_MATRIZ_ROADMAP.md`, seção 4
+- Consequência: a cópia do roadmap afirma mais do que o repositório prova
+- Origem: as marcações problemáticas são de entregas da `main` (S1-01, S1-02, S1-03, S1-06, S1-07, S1-08, S1-09 e o marco P9); as do S1-04, do S1-05 e do S2-01 se sustentam
+- Proposta: desmarcar as 3 caixas contraditas ou sem evidência até a correção; anotar a pendência nas parciais
+
+### [MÉDIA] CF-44 — Capturador de e-mail fora dos testes e SMTP real sem homologação
+
+- Onde: `backend/src/config/env.js:179`; `backend/src/shared/email/email.provider.js:7-14`; `backend/.env.example:57`; `docs/architecture/ADR-002-AUTHENTICATION-SESSION.md:22`
+- Norma: roadmap S1-02, critério "e-mail real é enviado em homologação; capturadores permanecem restritos a testes"
+- Esperado: SMTP real em homologação; capturador só em teste
+- Observado:
+  - fora de produção, o padrão é o capturador, inclusive em desenvolvimento, e ele guarda as últimas 100 mensagens em memória;
+  - o ADR-002 aceita o capturador em "desenvolvimento/teste" sem registrar a divergência com o anexo;
+  - não há homologação com SMTP real (L1-F01 aberto) nem runbook de SMTP;
+  - a recusa do capturador em produção (`env.js:183-186`) não tem teste.
+- Reprodução: leitura de `parseEmailConfiguration`
+- Consequência: o fluxo de recuperação de senha nunca foi provado com entrega real
+- Origem: E6 e L1 (`main`)
+- Proposta: registrar a escolha para desenvolvimento como divergência; testar a recusa em produção; homologar o SMTP no S2-08
+
+### [MÉDIA] CF-45 — Implantação trocada de Azure para OCI sem ADR
+
+- Onde: `TRACEFLOW_ROADMAP_INCREMENTAL.md` (26 menções à OCI, nenhuma à Azure); `docs/architecture/ADR-017-GITHUB-ASYNC-SYNC.md:96-97`
+- Norma: §20 do anexo de arquitetura (decisão relevante exige ADR); D-RM-01 (DR)
+- Esperado: ADR da nuvem e da topologia de implantação
+- Observado: K4 (seção 6.2)
+- Reprodução: `git show fe05208`; busca por ADR de implantação em `docs/architecture`
+- Consequência: S2-08 a S2-10 partem de uma decisão sem contexto, alternativas nem consequências registradas
+- Origem: `main` (`fe05208`)
+- Proposta: ADR da implantação antes de iniciar o S2-08
+
+### [MÉDIA] CF-46 — Retenção do SyncRun sem decisão nem item no backlog
+
+- Onde: `docs/architecture/ADR-017-GITHUB-ASYNC-SYNC.md:89`; `docs/privacy/DATA_RETENTION_POLICY.md:42`
+- Norma: §14 do anexo de arquitetura (retenção definida); LGPD
+- Esperado: prazo de descarte aprovado, ou item no backlog com dono
+- Observado: "D-A / M4 — DECISION REQUIRED: não existe prazo numérico aprovado para descarte de SyncRuns"; a execução guarda `requestedByUserId`; nenhum item do backlog acompanha a decisão (K22)
+- Reprodução: leitura dos dois documentos e busca no backlog
+- Consequência: dado ligado a pessoa sem prazo de descarte
+- Origem: PR #24 (`main`)
+- Proposta: decidir o prazo e abrir o item no backlog, com o job de limpeza
+
+### [MÉDIA] CF-47 — Roadmap e backlog desatualizados
+
+- Onde: `TRACEFLOW_ROADMAP_INCREMENTAL.md:7-13` e `:440-489`; `docs/issues/TECHNICAL_BACKLOG.md:16` e `:35`
+- Norma: §3 do anexo de arquitetura (documentação viva)
+- Esperado: estado dos cartões e itens do backlog iguais ao código
+- Observado: K6, K7, K18 e K23 (seção 6.2)
+- Reprodução: seção 6.2
+- Consequência: o backlog põe fora do produto RFs entregues, e o roadmap esconde o estado do S2-02 e do S2-03
+- Origem: K6, K7 e K23 da `joao-dev-v2` (cartões S2-02 e S2-03 sem marcação; últimas edições do E15-F13 e do S104-F15); K18 da `main`
+- Proposta: atualizar as quatro passagens num commit de documentação
+
+### [MÉDIA] CF-48 — Saúde do projeto sem fórmula, fonte e horário na interface
+
+- Onde: `frontend/src/features/indicators/components/ProjectHealth.jsx:40-52`; `frontend/test/features/DashboardPanel.test.jsx:568`
+- Norma: roadmap S2-05, critério "cada número permite identificar fórmula, fonte e horário de atualização"; RF55
+- Esperado: a nota de saúde tão auditável quanto as fichas dos indicadores
+- Observado:
+  - a ajuda da saúde mostra a nota, a cobertura e um aviso, sem fórmula, fontes nem horário do cálculo;
+  - o teste trava a ausência de pesos na ajuda;
+  - a fórmula está só em `docs/indicators/PROJECT_HEALTH_MODEL_V1.md`, embora a API já devolva `calculatedAt`.
+- Reprodução: leitura do componente e do teste
+- Consequência: a nota de 0 a 100 do painel não é auditável por quem a lê
+- Origem: indicadores P8 (`main`)
+- Proposta: mostrar na ajuda a fórmula resumida, as fontes e o `calculatedAt`
+
+### [MÉDIA] CF-49 — Aprovação em revisões sem fonte de dados nem item no backlog
+
+- Onde: `backend/src/modules/github/github.client.js:55-133`; `backend/src/modules/indicators/indicators.catalog.js:81-95`; `docs/indicators/S2_INDICATOR_CATALOG.md:73`
+- Norma: roadmap S2-05, critério "qualidade apresenta taxa de retrabalho e taxa de aprovação em revisões" e dependência "dados de revisão de PR"
+- Esperado: taxa de aprovação a partir das revisões do GitHub, ou divergência registrada
+- Observado:
+  - o cliente GitHub não lê revisões;
+  - o I06 mostra mescladas sobre fechadas;
+  - o catálogo registra que as revisões "ainda não [são] coletadas" (I19);
+  - nenhum item do backlog acompanha a coleta.
+- Reprodução: busca por `listReviews` e por `PullRequestReview` em `backend/src`, sem resultado
+- Consequência: um critério do S2-05 fica sem caminho de entrega
+- Origem: indicadores (`main`)
+- Proposta: item no backlog para a coleta das revisões, ou registro da divergência com o anexo
+
+### [BAIXA] CF-50 — Documentos de cartão em desacordo com o código
+
+- Onde e observado:
+  - S1-01: `frontend/src/api/http-client.js:7-8` trata `SESSION_INVALID` e `SESSION_EXPIRED`, que o backend nunca emite; a expiração da sessão no backend não tem teste.
+  - S1-04: `docs/api/API_CONTRACTS.md:1035` e `:1037` dão `SPRINT_TASK_LIMIT_REACHED` e `SPRINT_DATE_RANGE_INVALID` a casos que a API responde com `VALIDATION_ERROR`; `docs/security/ASVS_BASELINE.md:43` diz `startDate <= endDate`, mas o código exige início antes do fim.
+  - S1-05: o comentário da migration `20260829120000_s1_05_add_task_comments` diz que a listagem mostra só comentários ativos, mas ela mostra os excluídos como marcador.
+  - S1-07: `docs/traceability/RF_TECHNICAL_MATRIX.md:79-81` dá como pendente a criação de caso de teste a partir de tarefa ou requisito, que existe desde `e93c47c` (`ContextualTestCaseCreate`).
+  - S1-08: `docs/data/DEFECT_HISTORY.md:5-8` dá a interface de defeitos como pendente; `docs/design/UI_SURFACE_INVENTORY.md:646` dá os estados da tela de defeitos como validados por teste automatizado, que não existe.
+  - Configuração: `backend/README.md:26` diz que produção exige `GITHUB_TOKEN`, e `docs/api/API_CONTRACTS.md:69` diz que essa configuração não existe mais.
+- Norma: §3 do anexo de arquitetura (documentação viva)
+- Esperado: documentos iguais ao código
+- Reprodução: leitura dos trechos citados
+- Consequência: quem consulta o documento espera um código, um erro ou uma pendência que o produto não tem
+- Origem: S1-04 da `joao-dev-v2`; os demais, de entregas da `main`
+- Proposta: corrigir os oito pontos num commit de documentação
 
 ## Apêndice A — Rotas registradas
 
