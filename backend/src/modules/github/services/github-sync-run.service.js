@@ -1,3 +1,4 @@
+import { createBackgroundTasks } from '../../../shared/runtime/background-tasks.js';
 import { githubSyncRunRepository } from '../github-sync-run.repository.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import { auditService } from '../../audit/audit.service.js';
@@ -210,16 +211,23 @@ export async function executeGithubSyncRun(runId) {
   }
 }
 
+const manualSyncTasks = createBackgroundTasks();
+export const waitForManualGithubSyncRuns = () => manualSyncTasks.wait();
+
 function scheduleInProcess(runId) {
-  setImmediate(() => {
-    void executeGithubSyncRun(runId).catch((error) => {
+  // Register before setImmediate: draining must observe even work not started yet.
+  void manualSyncTasks
+    .track(async () => {
+      await new Promise((resolve) => setImmediate(resolve));
+      return executeGithubSyncRun(runId);
+    })
+    .catch((error) => {
       logger.error('Falha inesperada ao iniciar a execução persistida do GitHub.', {
         event: 'github_sync_run_worker_failed',
         runId,
         errorCode: error.code || 'GITHUB_SYNC_WORKER_FAILED'
       });
     });
-  });
 }
 
 function isStale(run, cutoff) {

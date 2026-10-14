@@ -1,6 +1,9 @@
+import { env, assertWorkerEnvironment } from './config/env.js';
 import { createGithubSyncScheduler } from './modules/github/services/github-sync-scheduler.service.js';
 import { prisma } from './database/prismaClient.js';
 import { logger } from './shared/logger/index.js';
+
+assertWorkerEnvironment(env);
 
 const worker = createGithubSyncScheduler();
 if (!worker.start()) await prisma.$disconnect();

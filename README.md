@@ -99,6 +99,14 @@ npm run db:test:status
 
 Não use `prisma migrate reset` em banco com dados. Antes de mudança destrutiva, siga o [runbook de banco](docs/runbooks/DATABASE_MIGRATIONS.md) e o [runbook de backup/restore](docs/runbooks/BACKUP_RESTORE.md).
 
+## Preparação de produção
+
+O [contrato OCI de ambiente/runtime](docs/runbooks/OCI_ENVIRONMENT.md) define configuração
+explícita, API loopback, SMTP TLS, storage privado existente, health e shutdown limitado.
+Os exemplos `.env.production.example` não contêm segredos nem autorizam deploy. Build da SPA
+usa `/api`; API e worker continuam processos separados. HeatWave/TLS gerenciado permanece
+pendente de homologação operacional.
+
 ## Execução local
 
 Em terminais separados:

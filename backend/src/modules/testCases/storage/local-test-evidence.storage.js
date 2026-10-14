@@ -69,7 +69,11 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
     this.environment = environment;
     this.limits = limits;
   }
-  async root() {
+  async checkReadiness() {
+    await this.root({ create: false });
+    return true;
+  }
+  async root({ create = this.environment !== 'production' } = {}) {
     try {
       if (this.environment === 'production' && (!this.directory || !isAbsolute(this.directory)))
         throw unavailable();
@@ -80,6 +84,11 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
         join(backendRoot, 'dist')
       ])
         if (inside(publicRoot, root) || inside(root, publicRoot)) throw unavailable();
+      if (this.environment === 'production') {
+        for (const forbidden of [backendRoot, '/opt/traceflow', '/var/www']) {
+          if (inside(forbidden, root) || inside(root, forbidden)) throw unavailable();
+        }
+      }
       // Validate the existing ancestor before mkdir, then every component of the result.
       let ancestor = root;
       for (;;) {
@@ -92,9 +101,14 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
         }
       }
       await noSymlinks(ancestor);
-      await mkdir(root, { recursive: true, mode: 0o700 });
+      if (create) await mkdir(root, { recursive: true, mode: 0o700 });
       await noSymlinks(root);
-      await access(root, constants.W_OK | constants.R_OK);
+      await access(root, constants.W_OK | constants.R_OK | constants.X_OK);
+      if (this.environment === 'production') {
+        const stat = await lstat(root);
+        if ((stat.mode & 0o077) !== 0 || (process.getuid && stat.uid !== process.getuid()))
+          throw unavailable();
+      }
       if ((await realpath(root)) !== root) throw unavailable();
       return root;
     } catch {

@@ -181,6 +181,15 @@ identifica apenas a categoria pública da quota, sem expor sua chave, usuário o
 | GET      | `/health/ready`   | Nenhuma | `200`, `{status:"ready"}`           | `503` dependência indisponível |
 | qualquer | rota desconhecida | —       | —                                   | `404`, `ROUTE_NOT_FOUND`       |
 
+OCI-DEPLOY-03 preserva esses endpoints. Readiness acrescenta estado startup/draining, storage
+privado existente e ledger/tabelas operacionais ao SELECT 1, com deadline (default 3s), no-store
+e resposta 503 genérica. Não executa escrita, DDL ou criação de diretórios. Liveness independe
+de MySQL/SMTP/GitHub. Durante draining, novas requisições de aplicação recebem 503
+`{code:"SERVICE_DRAINING",message:"Serviço em encerramento."}` e Connection: close. Requests
+já em andamento são drenadas dentro do orçamento; a reserva persistida do sync não é alterada
+pelo encerramento. Exposição do ingress e detalhes estão no [contrato OCI](../runbooks/OCI_ENVIRONMENT.md).
+
+
 ## Projects e memberships
 
 GITHUB-01 reutiliza os dois cadastros existentes. `POST /projects` exige `name` e

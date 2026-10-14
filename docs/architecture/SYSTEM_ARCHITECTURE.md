@@ -255,6 +255,13 @@ execução só é chamada de `CI-equivalent` quando Node, banco e ordem dos gate
 equivalentes. A CI de pull request pode testar um merge ref sintético; diagnósticos distinguem esse
 resultado do commit isolado da branch.
 
+O contrato de produção é definido em [OCI_ENVIRONMENT](../runbooks/OCI_ENVIRONMENT.md):
+API em loopback com trust proxy loopback e frontend `/api`; SMTP com TLS obrigatório;
+readiness limitada, somente leitura de schema/storage, e draining com acompanhamento das
+sincronizações manuais antes de Prisma disconnect. Um único deadline inclui a desconexão;
+expiração preserva recuperação por lease/fencing. Storage é externo à release e já provisionado.
+Isso prepara o código localmente; não comprova ingress, supervisão ou HeatWave gerenciado.
+
 TLS termina no proxy. Os contadores de rate limit HTTP ainda usam memória local; a exclusão mútua do sync usa claim persistido em `GitHubSyncRun`, unique por projeto e stale detection, portanto não depende de lock em memória. Logs, backup, restore, secret manager, monitoramento e proteção de branch precisam ser configurados no ambiente conforme os runbooks.
 
 ## S1-07 — backend de casos de teste

@@ -31,3 +31,8 @@ docs/design/DESIGN_EXPLORATION.md
 
 # Private local test evidence; never public/static or versioned.
 backend/.data/test-evidence/
+
+# Runtime environments are private; only explicit examples may be versioned.
+.env.*
+!.env.example
+!.env.*.example

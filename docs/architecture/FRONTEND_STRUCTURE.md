@@ -17,6 +17,14 @@ app/routes → pages → features/<domain> → shared + api/http-client
 
 `shared` não importa feature ou page. Uma feature não importa internals de outra; integrações usam o `index.js` público ou são coordenadas pela page. Pages não importam Axios ou o cliente HTTP. O verificador arquitetural comprova essas regras.
 
+## Base pública da API
+
+`api/api-base.js` compartilha a base entre `api/http-client.js` e EventSource de Projects.
+Builds Vite exigem `/api`, mesma origem, e validam o bundle; desenvolvimento conserva localhost.
+`VITE_API_URL` e `VITE_API_TIMEOUT_MS` são as únicas variáveis VITE aceitas e são públicas.
+O [contrato OCI](../runbooks/OCI_ENVIRONMENT.md) especifica o ingress futuro, sem alterar rotas,
+CSRF, credenciais ou UX.
+
 ## Estrutura vigente
 
 ```text
