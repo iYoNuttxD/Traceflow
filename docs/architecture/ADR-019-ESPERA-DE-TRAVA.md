@@ -58,6 +58,7 @@ devolve o 1205 antes do prazo do Prisma, e nada falha depois.
    - Todas as transações interativas passam pelo cliente compartilhado.
    - A regra de arquitetura proíbe `new PrismaClient(` em `src/` fora de `src/database/`.
    - O cliente de recuperação do S203-A01 também fica em `src/database/` e só faz `update` simples.
+     Nos testes, ele usa o mesmo `TEST_DATABASE_URL` do cliente compartilhado (14/10/2026).
 5. **Observabilidade (D5).**
    - Todo erro do Prisma que chega ao handler HTTP é registrado com o código (`causeCode`).
    - O 1205 gera o evento `database_lock_wait_timeout` (`warn`), com rota e `requestId`.
@@ -67,8 +68,10 @@ devolve o 1205 antes do prazo do Prisma, e nada falha depois.
    - O 1205 é classificado como `GITHUB_SYNC_PROJECT_BUSY`, como o `NOWAIT` esgotado.
    - A gravação de sugestões de commit, que serve à sincronização e à varredura manual, recebe o
      limite da sessão.
-   - A expiração de uma execução vencida, feita durante o `GET .../github/sync/status`, registra a
-     falha ao marcar o projeto e não derruba a leitura.
+   - A expiração de uma execução vencida, feita durante o `GET .../github/sync/status`, não derruba
+     a leitura. Desde a junção com a main (14/10/2026), a execução e o projeto são marcados na mesma
+     transação, com `NOWAIT` no projeto. Com o projeto travado, a leitura devolve a execução ainda
+     ativa, e a expiração fica para a leitura seguinte.
 
 ## Alternativas consideradas
 
