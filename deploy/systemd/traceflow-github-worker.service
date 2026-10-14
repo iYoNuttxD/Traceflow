@@ -1,0 +1,53 @@
+[Unit]
+Description=TraceFlow GitHub automatic sync worker
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=traceflow
+Group=traceflow
+WorkingDirectory=/opt/traceflow/current/backend
+Environment=NODE_ENV=production
+Environment=HTTP_HOST=127.0.0.1
+Environment=PORT=3001
+Environment=TRUST_PROXY=loopback
+Environment=SHUTDOWN_TIMEOUT_MS=30000
+Environment=GITHUB_SCHEDULER_ENABLED=true
+EnvironmentFile=/etc/traceflow/runtime.env
+EnvironmentFile=/etc/traceflow/github-worker.env
+ExecStartPre=/usr/bin/node /opt/traceflow/current/deploy/scripts/validate-service-environment.mjs worker
+ExecStart=/usr/bin/node /opt/traceflow/current/backend/src/github-worker.js
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=30s
+TimeoutStopSec=90s
+KillSignal=SIGTERM
+KillMode=control-group
+SendSIGKILL=yes
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectKernelLogs=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+InaccessiblePaths=/etc/nginx/ssl /etc/traceflow
+InaccessiblePaths=/var/lib/traceflow/test-evidence
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=traceflow-github-worker
+
+[Install]
+WantedBy=multi-user.target
