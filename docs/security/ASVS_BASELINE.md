@@ -339,3 +339,18 @@ interativa do backend. Evidência nos testes F1 e F2 de `test/unit`, `test/integ
 
 O `P2028` por trabalho lento continua possível e está no S202-F33 (avaliação do Prisma) e no S202-F30
 (transações pesadas de 5 s).
+
+## Delta S202-F33 — prazo próprio das transações interativas
+
+A correção do S202-F33 (ADR-020) é transversal: nenhuma instrução fica em andamento quando o prazo
+do Prisma vence, e a conexão não volta ao pool fora de sincronia. Evidência nos testes F1 e F2 de
+`test/unit`, `test/integration` e `test/api` (`s202-f33-prazo-da-transacao.test.js`) e no C2-04 de
+`test/integration/s203-correcoes.test.js`.
+
+| Requisito | Nível | Aplicação | Implementação | Evidência | Status |
+|---|---|---|---|---|---|
+| V16.5.2 | L2 | a lentidão do banco numa operação não entrega resposta errada nem erro a outras requisições | prazo próprio com `KILL QUERY` em `src/database/transaction-guard.js`; segunda camada com `KILL` da conexão | F1-01 a F1-04, F2-01, F2-03 | ATENDIDO |
+| V16.5.3 | L2 | falha fechada: a transação além do prazo é desfeita e nunca confirma, mesmo quando a instrução interrompida volta sem erro | `TransactionDeadlineError` e 503 `OPERATION_TIMEOUT` | F1-03, F2-01, F2-02 | ATENDIDO |
+| V16.3.4 | L2 | prazo vencido, conexão descartada e pânico do motor registrados com código, sem dado pessoal | `error-handler.middleware.js`, envoltório e `health.js` | F2-02, F2-03, F2-05 | ATENDIDO |
+
+A reavaliação do Prisma 7 está no S202-F36.

@@ -150,13 +150,22 @@ defeitos, casos de teste e alertas).
 - Nada da operação é gravado, e o cliente pode repetir a requisição.
 - O `PUT` de preferências mantém o próprio `409 NOTIFICATION_PREFERENCES_BUSY`.
 
+**Operação além do prazo (desde 13/10/2026, ADR-020).** Qualquer rota que usa transação pode
+responder `503 OPERATION_TIMEOUT` quando o trabalho no banco passa do prazo da transação (5 s no
+padrão; 15 s em tarefas, requisitos, defeitos, casos de teste e alertas).
+- O corpo é `{message,code,requestId}`, com "A operação demorou mais que o permitido e foi
+  desfeita. Tente de novo em instantes.", e o header `Retry-After: 5`.
+- A transação é desfeita por inteiro: nada da operação é gravado, e o cliente pode repetir a
+  requisição.
+- A mesma resposta vale quando não há conexão livre para iniciar a transação a tempo.
+
 ## Infraestrutura
 
 | Método   | Caminho           | Entrada | Sucesso                             | Erros principais               |
 | -------- | ----------------- | ------- | ----------------------------------- | ------------------------------ |
 | GET      | `/health`         | Nenhuma | `200`, `{status,message}` histórico | `500` inesperado               |
-| GET      | `/health/live`    | Nenhuma | `200`, `{status:"ok"}`              | `500` inesperado               |
-| GET      | `/health/ready`   | Nenhuma | `200`, `{status:"ready"}`           | `503` dependência indisponível |
+| GET      | `/health/live`    | Nenhuma | `200`, `{status:"ok"}`              | `503`, `{status:"not_live"}` depois de pânico do motor do banco (ADR-020); `500` inesperado |
+| GET      | `/health/ready`   | Nenhuma | `200`, `{status:"ready"}`           | `503` dependência indisponível ou pânico do motor do banco |
 | qualquer | rota desconhecida | —       | —                                   | `404`, `ROUTE_NOT_FOUND`       |
 
 ## Projects e memberships
@@ -949,6 +958,8 @@ ativa; o histórico completo vive em `SprintTask` e é exposto por `/sprints/:id
 - Erros de recurso e conflito permanecem `404` e `409` com mensagens atuais.
 - Recurso ocupado por outra alteração além do limite de espera: `409 RESOURCE_BUSY` com
   `Retry-After` (ADR-019).
+- Trabalho no banco além do prazo da transação: `503 OPERATION_TIMEOUT` com `Retry-After`
+  (ADR-020).
 - Erros inesperados permanecem seguros e carregam `INTERNAL_ERROR` e request ID.
 
 ## S1-07 — Casos de teste, versões, execução e evidências
