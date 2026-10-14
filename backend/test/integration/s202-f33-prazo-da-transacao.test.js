@@ -21,12 +21,16 @@ vi.mock('../../src/shared/logger/index.js', async (importOriginal) => ({
 let prisma;
 let createPrismaClient;
 let disconnectRecoveryPrisma;
+let guardTransactions;
+let PrismaClient;
 let sequence = 0;
 
 beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
   ({ prisma, createPrismaClient } = await import('../../src/database/prismaClient.js'));
   ({ disconnectRecoveryPrisma } = await import('../../src/database/recovery-prisma.js'));
+  ({ guardTransactions } = await import('../../src/database/transaction-guard.js'));
+  ({ PrismaClient } = await import('@prisma/client'));
 }, 60000);
 
 afterEach(async () => {
@@ -241,4 +245,49 @@ describe('S202-F33 — Fase 1: prazo próprio da transação interativa', () => 
     expect(fifteen).toBe('confirmada');
     expect(await storedName(data.user.id)).toBe('Confirmada em 15 s');
   }, 60000);
+});
+
+describe('S202-F33 — Fase 2: segunda camada', () => {
+  it('F2-03 P2028 que escapa do prazo próprio: a conexão é encerrada, ninguém recebe resposta errada, e 3 rodadas não escalam', async () => {
+    const data = await fixture();
+    const client = guardTransactions(new PrismaClient(), {
+      killQuery: async () => {
+        throw Object.assign(new Error('KILL QUERY indisponível'), { code: 'KILL_UNAVAILABLE' });
+      }
+    });
+    loggerMock.warn.mockClear();
+    const wrong = ['errado', 'P2025', 'PrismaClientRustPanicError', 'TypeError'];
+
+    try {
+      for (let round = 1; round <= 3; round += 1) {
+        const { error } = await timed(() =>
+          client.$transaction(async (tx) => {
+            await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado antes' } });
+            await slowQuery(tx);
+          })
+        );
+
+        expectDeadline(error);
+        expect(error.cause?.code).toBe('P2028');
+        expect(await storedName(data.user.id)).not.toMatch(/^Gravado/);
+        const rows = await probe(client, data);
+        const values = rows.flatMap((row) => Object.values(row));
+        expect(
+          values.filter((value) => wrong.includes(value)),
+          `rodada ${round}: ${JSON.stringify(rows)}`
+        ).toEqual([]);
+        expect(rows.slice(1), `rodada ${round}`).toEqual(Array(3).fill(ALL_RIGHT));
+      }
+    } finally {
+      await client.$disconnect();
+    }
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'database_connection_discarded',
+        connectionId: expect.any(Number)
+      })
+    );
+  }, 120000);
 });

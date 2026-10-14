@@ -164,29 +164,22 @@ describe('S202-F29 — F2-02 handler de erro', () => {
     }
   });
 
-  it.each([
-    [
-      'P2028',
-      Object.assign(new Error('Transaction already closed'), {
-        name: 'PrismaClientKnownRequestError',
-        code: 'P2028'
-      }),
-      'P2028'
-    ],
-    ['deadlock desconhecido', unknownDeadlock, 'PrismaClientUnknownRequestError']
-  ])('erro do Prisma (%s) continua 500, com o código no log', (_, error, causeCode) => {
-    const log = logger();
-    const res = response();
+  it.each([['deadlock desconhecido', unknownDeadlock, 'PrismaClientUnknownRequestError']])(
+    'erro do Prisma (%s) continua 500, com o código no log',
+    (_, error, causeCode) => {
+      const log = logger();
+      const res = response();
 
-    createErrorHandler({ logger: log })(error, request, res, vi.fn());
+      createErrorHandler({ logger: log })(error, request, res, vi.fn());
 
-    expect(res.statusCode).toBe(500);
-    expect(res.body.code).toBe('INTERNAL_ERROR');
-    expect(log.error).toHaveBeenCalledWith(
-      'HTTP request failed.',
-      expect.objectContaining({ errorCode: 'INTERNAL_ERROR', causeCode })
-    );
-  });
+      expect(res.statusCode).toBe(500);
+      expect(res.body.code).toBe('INTERNAL_ERROR');
+      expect(log.error).toHaveBeenCalledWith(
+        'HTTP request failed.',
+        expect.objectContaining({ errorCode: 'INTERNAL_ERROR', causeCode })
+      );
+    }
+  );
 
   it('o log leva o código do Prisma, nunca o texto do erro com dados da pessoa', () => {
     const uniqueFailure = Object.assign(

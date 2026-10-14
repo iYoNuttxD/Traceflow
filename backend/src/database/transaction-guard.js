@@ -1,6 +1,6 @@
 import { logger } from '../shared/logger/index.js';
 import { lockWaitSecondsFor } from './lock-wait.js';
-import { killQuery } from './recovery-prisma.js';
+import { killConnection, killQuery } from './recovery-prisma.js';
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const KILL_REPEAT_MS = 100;
@@ -37,6 +37,7 @@ function startWatchdog(timeoutMs, interrupt, log) {
         .catch((error) => {
           log.warn('Não foi possível interromper a instrução da transação vencida.', {
             event: 'database_transaction_kill_failed',
+            scope: 'query',
             connectionId,
             causeCode: causeCodeOf(error)
           });
@@ -61,35 +62,63 @@ function startWatchdog(timeoutMs, interrupt, log) {
   };
 }
 
-export function guardTransactions(client, { killQuery: interrupt = killQuery, log = logger } = {}) {
+const isExpired = (error) => error?.code === 'P2028';
+
+async function discardConnection(connectionId, discard, log) {
+  try {
+    await discard(connectionId);
+    log.warn('Conexão da transação expirada encerrada no banco.', {
+      event: 'database_connection_discarded',
+      connectionId
+    });
+  } catch (error) {
+    log.warn('Não foi possível encerrar a conexão da transação expirada.', {
+      event: 'database_transaction_kill_failed',
+      scope: 'connection',
+      connectionId,
+      causeCode: causeCodeOf(error)
+    });
+  }
+}
+
+export function guardTransactions(
+  client,
+  { killQuery: interrupt = killQuery, killConnection: discard = killConnection, log = logger } = {}
+) {
   const transaction = client.$transaction;
   client.$transaction = function guardedTransaction(argument, options) {
     if (typeof argument !== 'function') return transaction.call(this, argument, options);
     const timeoutMs = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+    let connectionId = null;
 
-    return transaction.call(
-      this,
-      async (tx) => {
-        const watchdog = startWatchdog(timeoutMs, interrupt, log);
-        let outcome;
-        try {
-          await tx.$executeRawUnsafe(
-            `SET SESSION innodb_lock_wait_timeout = ${lockWaitSecondsFor(timeoutMs)}`
-          );
-          watchdog.state.connectionId = Number(
-            (await tx.$queryRawUnsafe('SELECT CONNECTION_ID() AS id'))[0].id
-          );
-          outcome = { value: await argument(tx) };
-        } catch (error) {
-          outcome = { error };
-        }
-        await watchdog.stop();
-        if (watchdog.state.fired) throw new TransactionDeadlineError(timeoutMs, outcome.error);
-        if ('error' in outcome) throw outcome.error;
-        return outcome.value;
-      },
-      { ...options, timeout: timeoutMs + DEADLINE_MARGIN_MS }
-    );
+    return transaction
+      .call(
+        this,
+        async (tx) => {
+          const watchdog = startWatchdog(timeoutMs, interrupt, log);
+          let outcome;
+          try {
+            await tx.$executeRawUnsafe(
+              `SET SESSION innodb_lock_wait_timeout = ${lockWaitSecondsFor(timeoutMs)}`
+            );
+            connectionId = Number((await tx.$queryRawUnsafe('SELECT CONNECTION_ID() AS id'))[0].id);
+            watchdog.state.connectionId = connectionId;
+            outcome = { value: await argument(tx) };
+          } catch (error) {
+            outcome = { error };
+          }
+          await watchdog.stop();
+          if (watchdog.state.fired) throw new TransactionDeadlineError(timeoutMs, outcome.error);
+          if ('error' in outcome) throw outcome.error;
+          return outcome.value;
+        },
+        { ...options, timeout: timeoutMs + DEADLINE_MARGIN_MS }
+      )
+      .catch(async (error) => {
+        if (connectionId && (isExpired(error) || isExpired(error?.cause)))
+          await discardConnection(connectionId, discard, log);
+        throw error;
+      });
   };
   return client;
 }

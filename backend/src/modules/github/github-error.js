@@ -78,6 +78,7 @@ export function normalizeGithubError(error) {
 }
 
 function storageCauseOf(error) {
+  if (error?.code === 'TRANSACTION_DEADLINE') return 'TRANSACTION_DEADLINE';
   for (const value of [error?.code, error?.errorCode])
     if (STORAGE_CAUSE.test(String(value ?? ''))) return String(value);
   const name = String(error?.name ?? '');

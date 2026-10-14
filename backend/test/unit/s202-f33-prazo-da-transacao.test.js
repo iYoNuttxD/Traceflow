@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { guardTransactions } from '../../src/database/transaction-guard.js';
+import {
+  guardTransactions,
+  TransactionDeadlineError
+} from '../../src/database/transaction-guard.js';
+import { createErrorHandler } from '../../src/middlewares/error-handler.middleware.js';
+import { createHealthHandlers } from '../../src/shared/http/health.js';
 
 function fakeClient() {
   const calls = [];
@@ -199,5 +204,229 @@ describe('S202-F33 — F1-06 envoltório do prazo próprio', () => {
         causeCode: 'P1001'
       })
     );
+  });
+});
+
+const expired = () =>
+  Object.assign(
+    new Error('Transaction already closed: Tarefa sigilosa de pessoa@example.invalid'),
+    {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2028'
+    }
+  );
+
+describe('S202-F33 — F2-03 segunda camada (unidade)', () => {
+  it('P2028 de transação iniciada: encerra a conexão e registra', async () => {
+    const { client, deps } = guarded();
+    const error = expired();
+
+    await expect(
+      client.$transaction(async () => {
+        throw error;
+      })
+    ).rejects.toBe(error);
+
+    expect(deps.killConnection).toHaveBeenCalledWith(41);
+    expect(deps.log.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ event: 'database_connection_discarded', connectionId: 41 })
+    );
+  });
+
+  it('TransactionDeadlineError com P2028 na causa também encerra a conexão', async () => {
+    vi.useFakeTimers();
+    const { client, deps } = guarded();
+    const work = deferred();
+
+    const outcome = client.$transaction(() => work.promise).catch((failure) => failure);
+    await vi.advanceTimersByTimeAsync(5000);
+    work.reject(expired());
+
+    expect(await outcome).toMatchObject({
+      name: 'TransactionDeadlineError',
+      cause: { code: 'P2028' }
+    });
+    expect(deps.killConnection).toHaveBeenCalledWith(41);
+  });
+
+  it('P2028 sem transação iniciada (maxWait esgotado) e erro comum não encerram nada', async () => {
+    const { client, original, deps } = guarded();
+    original.mockImplementationOnce(async () => {
+      throw expired();
+    });
+
+    await expect(client.$transaction(async () => 'nunca')).rejects.toMatchObject({
+      code: 'P2028'
+    });
+    await expect(
+      client.$transaction(async () => {
+        throw new Error('falha comum');
+      })
+    ).rejects.toThrow('falha comum');
+
+    expect(deps.killConnection).not.toHaveBeenCalled();
+  });
+
+  it('falha ao encerrar a conexão é registrada e não substitui o erro', async () => {
+    const { client, deps } = guarded({
+      killConnection: vi.fn(async () => {
+        throw Object.assign(new Error('sem conexão'), { code: 'P1001' });
+      })
+    });
+    const error = expired();
+
+    await expect(
+      client.$transaction(async () => {
+        throw error;
+      })
+    ).rejects.toBe(error);
+
+    expect(deps.log.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'database_transaction_kill_failed',
+        scope: 'connection',
+        connectionId: 41,
+        causeCode: 'P1001'
+      })
+    );
+  });
+});
+
+describe('S202-F33 — F2-02 e F2-05 handler e saúde', () => {
+  function response() {
+    return {
+      headersSent: false,
+      statusCode: 200,
+      headers: {},
+      body: null,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      set(name, value) {
+        this.headers[name] = value;
+        return this;
+      },
+      json(body) {
+        this.body = body;
+        return this;
+      }
+    };
+  }
+  const request = { method: 'POST', path: '/api/tasks/7/comments', requestId: 'req-prazo' };
+  const logger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() });
+  const TIMEOUT_BODY = {
+    message: 'A operação demorou mais que o permitido e foi desfeita. Tente de novo em instantes.',
+    code: 'OPERATION_TIMEOUT',
+    requestId: 'req-prazo'
+  };
+  const leaked = /sigilosa|pessoa@example|1317|Raw query|Transaction already closed/;
+
+  it('TransactionDeadlineError → 503 OPERATION_TIMEOUT com Retry-After e database_transaction_deadline', () => {
+    const log = logger();
+    const res = response();
+    const cause = Object.assign(
+      new Error('Raw query failed. Code: `1317`. Tarefa sigilosa de pessoa@example.invalid'),
+      { name: 'PrismaClientKnownRequestError', code: 'P2010', meta: { code: '1317' } }
+    );
+
+    createErrorHandler({ logger: log })(
+      new TransactionDeadlineError(5000, cause),
+      request,
+      res,
+      vi.fn()
+    );
+
+    expect([res.statusCode, res.headers['Retry-After'], res.body]).toEqual([
+      503,
+      '5',
+      TIMEOUT_BODY
+    ]);
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'database_transaction_deadline',
+        method: 'POST',
+        path: '/api/tasks/7/comments',
+        requestId: 'req-prazo',
+        statusCode: 503,
+        errorCode: 'OPERATION_TIMEOUT',
+        causeCode: 'TRANSACTION_DEADLINE'
+      })
+    );
+    expect(log.error).not.toHaveBeenCalled();
+    expect(JSON.stringify([log.warn.mock.calls, res.body])).not.toMatch(leaked);
+  });
+
+  it('P2028 → 503 OPERATION_TIMEOUT com database_transaction_expired', () => {
+    const log = logger();
+    const res = response();
+
+    createErrorHandler({ logger: log })(expired(), request, res, vi.fn());
+
+    expect([res.statusCode, res.headers['Retry-After'], res.body]).toEqual([
+      503,
+      '5',
+      TIMEOUT_BODY
+    ]);
+    expect(log.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'database_transaction_expired',
+        requestId: 'req-prazo',
+        causeCode: 'P2028'
+      })
+    );
+    expect(JSON.stringify([log.error.mock.calls, res.body])).not.toMatch(leaked);
+  });
+
+  it('pânico do motor: 500, evento database_engine_panic e aviso à saúde do processo', () => {
+    const log = logger();
+    const res = response();
+    const onEnginePanic = vi.fn();
+    const panic = Object.assign(new Error('PANIC: Could not figure out an ID in create'), {
+      name: 'PrismaClientRustPanicError'
+    });
+
+    createErrorHandler({ logger: log, onEnginePanic })(panic, request, res, vi.fn());
+
+    expect([res.statusCode, res.body.code]).toEqual([500, 'INTERNAL_ERROR']);
+    expect(onEnginePanic).toHaveBeenCalledTimes(1);
+    expect(log.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'database_engine_panic',
+        requestId: 'req-prazo',
+        causeCode: 'PrismaClientRustPanicError'
+      })
+    );
+    expect(JSON.stringify([log.error.mock.calls, res.body])).not.toMatch(/figure out/);
+  });
+
+  it('saúde: depois do pânico, live e ready respondem 503; sem pânico, 200', async () => {
+    const broken = createHealthHandlers({
+      readinessCheck: async () => true,
+      engineHealthy: () => false
+    });
+    const healthy = createHealthHandlers({
+      readinessCheck: async () => true,
+      engineHealthy: () => true
+    });
+
+    const live = response();
+    broken.live({}, live);
+    const ready = response();
+    await broken.ready({}, ready);
+    const liveOk = response();
+    healthy.live({}, liveOk);
+    const readyOk = response();
+    await healthy.ready({}, readyOk);
+
+    expect([live.statusCode, live.body.status]).toEqual([503, 'not_live']);
+    expect([ready.statusCode, ready.body.status]).toEqual([503, 'not_ready']);
+    expect([liveOk.statusCode, liveOk.body.status]).toEqual([200, 'ok']);
+    expect([readyOk.statusCode, readyOk.body.status]).toEqual([200, 'ready']);
   });
 });

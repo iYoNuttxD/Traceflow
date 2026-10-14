@@ -7,6 +7,7 @@ import {
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
+import { slowQuery } from '../helpers/slow-statement.js';
 
 const boundary = vi.hoisted(() => ({ client: null }));
 const loggerMock = vi.hoisted(() => ({
@@ -25,7 +26,8 @@ vi.mock('../../src/modules/github/github.client.js', () => ({
 const queries = vi.hoisted(() => ({ enabled: false, texts: [] }));
 vi.mock('../../src/database/prismaClient.js', async () => {
   const { PrismaClient } = await import('@prisma/client');
-  const client = new PrismaClient({ log: [{ emit: 'event', level: 'query' }] });
+  const { guardTransactions } = await import('../../src/database/transaction-guard.js');
+  const client = guardTransactions(new PrismaClient({ log: [{ emit: 'event', level: 'query' }] }));
   client.$on('query', (event) => {
     if (queries.enabled) queries.texts.push(event.query);
   });
@@ -511,7 +513,7 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
     expect(dispatch).toHaveBeenCalledWith(context.project.id);
   });
 
-  it('C2-04 página que estoura o tempo com uma consulta em andamento termina FAILED, sem RUNNING preso', async () => {
+  it('C2-04 F2-04 página que passa do prazo com uma consulta em andamento: FAILED pelo prazo próprio, sem RUNNING preso, sem contaminar a conexão, e a próxima é aceita', async () => {
     const context = await syncedPullRequests([1]);
     boundary.client = githubDouble(context.repositoryId, {
       pullRequests: [prItem(1, 'closed', OCCURRED)]
@@ -519,22 +521,41 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
     const original = githubEventRepository.recordTransitions;
     vi.spyOn(githubEventRepository, 'recordTransitions').mockImplementationOnce(
       async (tx, input) => {
-        await tx.$queryRaw`SELECT SLEEP(6)`;
+        await slowQuery(tx);
         return original.call(githubEventRepository, tx, input);
       }
     );
+    loggerMock.warn.mockClear();
 
-    let run;
-    try {
-      run = await runSync(context);
-    } finally {
-      await prisma.$disconnect();
-    }
+    const run = await runSync(context);
 
     expect(run.status).toBe('FAILED');
     expect(run.error.code).toBe('GITHUB_SYNC_STORAGE_FAILED');
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: 'github_sync_run_failed',
+        errorCode: 'GITHUB_SYNC_STORAGE_FAILED',
+        causeCode: 'TRANSACTION_DEADLINE'
+      })
+    );
     const stored = await prisma.gitHubSyncRun.findUnique({ where: { id: run.id } });
     expect(stored).toMatchObject({ status: 'FAILED', activeProjectId: null });
+    expect(
+      await prisma.project.findUnique({ where: { id: context.project.id }, select: { id: true } })
+    ).toEqual({ id: context.project.id });
+    expect(
+      await prisma.user.update({
+        where: { id: context.owner.id },
+        data: { name: 'Pessoa depois da página lenta' },
+        select: { id: true }
+      })
+    ).toEqual({ id: context.owner.id });
+
+    boundary.client = githubDouble(context.repositoryId, {
+      pullRequests: [prItem(1, 'closed', OCCURRED)]
+    });
+    expect((await runSync(context)).status).toBe('SUCCEEDED');
   }, 60000);
 
   it('C2-05 as escritas da sincronização travam o projeto com NOWAIT; as outras escritas não', async () => {
