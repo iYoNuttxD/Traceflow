@@ -186,6 +186,11 @@ local descartável. Nenhuma configuração foi instalada na OCI. O cap Cloudflar
 continua incompatível com o envelope multipart atual; preservar os limites requer decisão
 operacional antes do deploy. Consulte o [relatório OCI-04](docs/deliveries/OCI_DEPLOY_04_NGINX_SYSTEMD_STORAGE_REPORT.md).
 
+O [processo de releases](docs/runbooks/OCI_RELEASE_DEPLOYMENT.md) e o
+[job de migrations](docs/runbooks/OCI_MIGRATIONS.md) separam artefatos ARM64, staging, ativação,
+rollback e dados persistentes. A [OCI-05](docs/deliveries/OCI_DEPLOY_05_RELEASE_MIGRATION_ROLLBACK_REPORT.md)
+valida esse fluxo em laboratório descartável; produção continua sujeita aos bloqueadores registrados.
+
 ## Integração GitHub
 
 GitHub OAuth é opcional e serve apenas para cadastro/login, vínculo de identidade e reautenticação sensível. Repositórios e artefatos usam exclusivamente GitHub App por instalação, inclusive para contas locais sem `GitHubIdentity`. O callback comprova o acesso do ator à Installation sem transformar essa prova em identidade TraceFlow; leitura e sync usam Installation Access Token gerado sob demanda e nunca persistido. A sincronização manual e a periódica reutilizam a mesma pipeline paginada/idempotente e preservam artefatos. O worker independente e a agenda persistida estão no [runbook automático](docs/runbooks/GITHUB_AUTOMATIC_SYNC.md). Projetos anteriores à L1 ficam `RECONNECT_REQUIRED` até um OWNER reconectar. Operação, permissões e incidentes estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).

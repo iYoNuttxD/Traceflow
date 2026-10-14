@@ -1,0 +1,38 @@
+{
+  "formatVersion": 1,
+  "branch": "daniel-dev",
+  "head": "3e52d69c4ac5abf17881d185284fe1b1afb83398",
+  "initialWorkingTree": "clean",
+  "trackedBaselineCount": 1388,
+  "unchangedTrackedCount": 1387,
+  "modifiedTrackedFiles": [
+    "README.md"
+  ],
+  "stagedChanges": false,
+  "sourceExportMatchesCurrentRecipesAndApplication": true,
+  "sourceExportSha256": "398a554baa4a3b49d4c84f5ecb00953e277946f2311768ca3e06e3d78ea7c0c1",
+  "protected": {
+    "backend": true,
+    "frontend": true,
+    "lockfiles": true,
+    "migrations": true,
+    "ci": true,
+    "priorOciDeliveries": true,
+    "academicDocuments": true
+  },
+  "files": {
+    "deploy/lib/release_contract.py": "3909cf8b9647717ebc58ab47576cb25708d4de869048bbe47ddd7c972141ef96",
+    "deploy/scripts/artifact-smoke.mjs": "ac9c49fe95e5b001c6067a207da9ef810513dea63833148540c45e7a6366da86",
+    "deploy/scripts/release-database.mjs": "f9b0745ab7cbbe996a5e4b37f6710367fb3ec912838a99c1f367873f349e90fb",
+    "deploy/scripts/release.py": "cc779cf95a8a42b0d6bb8e635a1c98672468c5a76b11c275c2bb3632b26d1ed2",
+    "deploy/systemd/traceflow-release-guard.conf": "bfc1dc6440a6715846e3677a640c8447cc71f76eb085fc8b02f8d22fd402f99f",
+    "deploy/tests/run-release-linux.py": "d9024f669bd0d45744b2c798db9ae47c539d458aca45e9977d1dc7ff14ca1672",
+    "deploy/tests/test_releases.py": "aff05f507aaab6cbfe76686d233de5474fa2e64c6947d66cb038bfa0c790453f",
+    "docs/deliveries/OCI_DEPLOY_05_RELEASE_MIGRATION_ROLLBACK_REPORT.md": "72cde599a27c8ecb4da100d13e606e990eef5df8a4082c26b08ab56ef15625f2",
+    "docs/runbooks/OCI_MIGRATIONS.md": "e3ee5860cfc61d8ea5a0bbe77f086a62c50f24b1fc0ae59e7cfeb58f230a2016",
+    "docs/runbooks/OCI_RELEASE_DEPLOYMENT.md": "0f39badbae1de8dfe2f973ddf56a2a6a36dd7b22044809c29c754211cff056b1",
+    "scripts/package-release.mjs": "6fc597f5e4d480c50f5d519d47a68c8072ea6b8b9fd030e0cb829b401a04b841",
+    "scripts/package_release.py": "984045a85835735490a604c08401ce8be57c0ad17f2958d79d1ee24d1e3446ae",
+    "README.md": "40c1b5d0f056b04b4dab140246e5b7ed3ae65554a71dae67fdabbc7b6e52b519"
+  }
+}
