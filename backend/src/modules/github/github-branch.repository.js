@@ -1,5 +1,6 @@
 import { prisma } from '../../database/prismaClient.js';
 import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
+import { changedFields } from '../../shared/persistence/changed-fields.js';
 
 export const githubBranchRepository = {
   async syncObserved(projectId, branches, defaultBranch, now = new Date()) {
@@ -15,12 +16,17 @@ export const githubBranchRepository = {
           data: { isActive: false, isDefault: false, inactiveAt: now }
         });
 
-        for (const branch of branches) {
-          const previous = existingByName.get(branch.name);
-          const reactivated = previous && !previous.isActive;
-          await tx.gitBranch.upsert({
-            where: { projectId_name: { projectId, name: branch.name } },
-            create: {
+        const known = branches.filter(({ name }) => existingByName.has(name));
+        if (known.length)
+          await tx.gitBranch.updateMany({
+            where: { projectId, name: { in: known.map(({ name }) => name) } },
+            data: { lastSeenAt: now }
+          });
+
+        const fresh = branches.filter(({ name }) => !existingByName.has(name));
+        if (fresh.length)
+          await tx.gitBranch.createMany({
+            data: fresh.map((branch) => ({
               projectId,
               name: branch.name,
               headSha: branch.headSha,
@@ -28,13 +34,25 @@ export const githubBranchRepository = {
               isActive: true,
               firstSeenAt: now,
               lastSeenAt: now
-            },
-            update: {
-              headSha: branch.headSha,
-              isDefault: branch.name === defaultBranch,
-              isActive: true,
-              lastSeenAt: now,
-              ...(reactivated ? { reactivatedAt: now, reactivationCount: { increment: 1 } } : {})
+            }))
+          });
+
+        for (const branch of known) {
+          const previous = existingByName.get(branch.name);
+          const reactivated = !previous.isActive;
+          const changes = changedFields(
+            previous,
+            { headSha: branch.headSha, isDefault: branch.name === defaultBranch },
+            ['headSha', 'isDefault']
+          );
+          if (!reactivated && Object.keys(changes).length === 0) continue;
+          await tx.gitBranch.updateMany({
+            where: { id: previous.id },
+            data: {
+              ...changes,
+              ...(reactivated
+                ? { isActive: true, reactivatedAt: now, reactivationCount: { increment: 1 } }
+                : {})
             }
           });
         }

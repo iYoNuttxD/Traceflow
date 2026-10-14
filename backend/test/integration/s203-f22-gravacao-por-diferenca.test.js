@@ -20,6 +20,7 @@ vi.mock('../../src/database/prismaClient.js', async () => {
 let prisma;
 let pullRequestRepository;
 let issueRepository;
+let githubBranchRepository;
 let mapGithubPullRequest;
 let mapGithubIssue;
 let disconnectRecoveryPrisma;
@@ -30,6 +31,8 @@ beforeAll(async () => {
   ({ pullRequestRepository } =
     await import('../../src/modules/pullRequests/pullRequest.repository.js'));
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
+  ({ githubBranchRepository } =
+    await import('../../src/modules/github/github-branch.repository.js'));
   ({ mapGithubPullRequest, mapGithubIssue } =
     await import('../../src/modules/github/github.mapper.js'));
   ({ disconnectRecoveryPrisma } = await import('../../src/database/recovery-prisma.js'));
@@ -296,4 +299,112 @@ describe('S203-F22 — Fase 1: página de PRs e issues por diferença', () => {
     },
     60000
   );
+});
+
+describe('S203-F22 — Fase 2: branches por diferença', () => {
+  const at = (minutes) => new Date(Date.UTC(2026, 9, 13, 12, minutes));
+  const observed = (total) =>
+    Array.from({ length: total }, (_, index) => ({ name: `b-${index}`, headSha: `sha-${index}` }));
+
+  it('F2-01 300 branches, novas ou sem mudança, custam até 10 instruções', async () => {
+    const project = await createProject(prisma);
+
+    const created = await counted(() =>
+      githubBranchRepository.syncObserved(project.id, observed(300), 'b-0', at(0))
+    );
+    const unchanged = await counted(() =>
+      githubBranchRepository.syncObserved(project.id, observed(300), 'b-0', at(1))
+    );
+
+    expect(created.result).toHaveLength(300);
+    expect(unchanged.result).toHaveLength(300);
+    expect(created.statements).toBeLessThanOrEqual(10);
+    expect(unchanged.statements).toBeLessThanOrEqual(10);
+  }, 60000);
+
+  it('F2-02 visto, desativada, trocada de padrão, nova e reativada como antes', async () => {
+    const project = await createProject(prisma);
+    const rows = async () =>
+      Object.fromEntries(
+        (
+          await prisma.gitBranch.findMany({
+            where: { projectId: project.id },
+            select: {
+              name: true,
+              headSha: true,
+              isDefault: true,
+              isActive: true,
+              firstSeenAt: true,
+              lastSeenAt: true,
+              inactiveAt: true,
+              reactivatedAt: true,
+              reactivationCount: true
+            }
+          })
+        ).map(({ name, ...row }) => [name, row])
+      );
+
+    await githubBranchRepository.syncObserved(project.id, observed(4), 'b-0', at(0));
+    const second = await githubBranchRepository.syncObserved(
+      project.id,
+      [
+        { name: 'b-0', headSha: 'sha-0' },
+        { name: 'b-1', headSha: 'sha-1-nova' },
+        { name: 'b-2', headSha: 'sha-2' },
+        { name: 'b-9', headSha: 'sha-9' }
+      ],
+      'b-2',
+      at(5)
+    );
+    const afterSecond = await rows();
+    const third = await githubBranchRepository.syncObserved(
+      project.id,
+      [
+        { name: 'b-0', headSha: 'sha-0' },
+        { name: 'b-1', headSha: 'sha-1-nova' },
+        { name: 'b-2', headSha: 'sha-2' },
+        { name: 'b-3', headSha: 'sha-3-volta' },
+        { name: 'b-9', headSha: 'sha-9' }
+      ],
+      'b-2',
+      at(10)
+    );
+    const afterThird = await rows();
+
+    expect(second.map(({ name }) => name)).toEqual(['b-2', 'b-0', 'b-1', 'b-9']);
+    expect(afterSecond['b-0']).toMatchObject({
+      isDefault: false,
+      firstSeenAt: at(0),
+      lastSeenAt: at(5)
+    });
+    expect(afterSecond['b-1']).toMatchObject({ headSha: 'sha-1-nova', lastSeenAt: at(5) });
+    expect(afterSecond['b-2']).toMatchObject({ isDefault: true, lastSeenAt: at(5) });
+    expect(afterSecond['b-3']).toMatchObject({
+      isActive: false,
+      isDefault: false,
+      inactiveAt: at(5),
+      lastSeenAt: at(0)
+    });
+    expect(afterSecond['b-9']).toMatchObject({
+      isActive: true,
+      isDefault: false,
+      firstSeenAt: at(5),
+      lastSeenAt: at(5),
+      reactivationCount: 0
+    });
+
+    expect(third.map(({ name }) => name)).toEqual(['b-2', 'b-0', 'b-1', 'b-3', 'b-9']);
+    expect(afterThird['b-3']).toMatchObject({
+      isActive: true,
+      isDefault: false,
+      headSha: 'sha-3-volta',
+      inactiveAt: at(5),
+      reactivatedAt: at(10),
+      reactivationCount: 1,
+      lastSeenAt: at(10),
+      firstSeenAt: at(0)
+    });
+    for (const name of ['b-0', 'b-1', 'b-2', 'b-9'])
+      expect([name, afterThird[name].lastSeenAt]).toEqual([name, at(10)]);
+  }, 60000);
 });
