@@ -11,7 +11,7 @@ de referência muda.
 | Item | Valor |
 |---|---|
 | Commit verificado | `7952b01fad68da0d91dd3e2f79c759f5745bb1db` (`joao-dev-v2`, 69 commits à frente de `origin/joao-dev-v2`, sem CI) |
-| Última fase concluída | 1 |
+| Última fase concluída | 2 |
 | Pontos ⚑1–⚑8 | aprovados com as recomendações do enunciado (14/10/2026) |
 | Ponto ⚑9 | aprovado só `node scripts/check-npm-audit.mjs`; recusados `gh api`, os validadores `db:test:validate-*` e o worker e o job em processo separado |
 | Efeito do ⚑9 | ARQ-04 (drift) e ARQ-31 (proteção da branch) ficam `NÃO VERIFICÁVEL LOCALMENTE` até a CI da PR; H05 e H22 rodam em processo único |
@@ -475,6 +475,235 @@ Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
 - Consequência: a baseline induz a erro quem a usa como fonte
 - Origem: documentação de segurança
 - Proposta: reduzir a baseline a um resumo que aponta para a matriz e corrigir as quatro afirmações
+
+## 5. Parte B — `TRACEFLOW_CONTEXTO_ARQUITETURA.md`
+
+Matriz completa em `docs/issues/CONFORMIDADE_MATRIZ_ARQUITETURA.md`.
+
+### 5.1 Números
+
+| Veredito | Regras |
+|---|---:|
+| CONFORME | 12 |
+| NÃO CONFORME | 21 |
+| NÃO VERIFICÁVEL LOCALMENTE | 3 (ARQ-04, ARQ-31 e ARQ-32, por causa do ⚑9) |
+| **Total** | **36** |
+
+Conformidade sobre as regras verificáveis: 12 de 33 (36,4%).
+
+### 5.2 Verificações estáticas
+
+**Verdes, no commit** (`backend/test/conformance/architecture-rules.test.js`):
+- ARQ-02: zero mock, fake, stub, dummy ou lorem em `backend/src` e `frontend/src`;
+- ARQ-06: Octokit só no módulo GitHub;
+- ARQ-09: frontend sem Octokit e sem chamada a `api.github.com`;
+- ARQ-19: SQL `Unsafe` só em `recovery-prisma.js`, `transaction-guard.js` e `health.js`;
+- ARQ-23: o schema só guarda hashes de token e o `claimToken` interno.
+
+**Vermelhas, só como reprodução** (script no scratchpad, saída abaixo):
+
+| Verificação | Resultado |
+|---|---|
+| ARQ-11: campo de estado fechado como enum | 31 campos `String`, entre eles `Project.status`, `Task.status`, `Task.priority`, `Requirement.type`, `Requirement.status`, `PullRequest.state` e `Issue.state` |
+| ARQ-12: toda relação com `onDelete` explícito | 10 de 132 sem: `ProjectInvitation.createdBy`, `acceptedBy` e `declinedBy`, `Task.project`, `Task.requirement`, `TaskMovement.project`, `TaskMovement.task`, `TaskHistoryEntry.actorUser`, `TaskComment.authorUser` e `TaskTimeEntry.startedBy` |
+| ARQ-34: todo RF do §5 do anexo na matriz técnica | 60 no anexo, 58 na matriz; faltam RF37 ("Emitir relatórios do projeto") e RF57 ("Exportar relatórios em PDF") |
+| ARQ-35: nove campos e número único por ADR | 8 de 23 completos; ADR-009, ADR-010 e ADR-011 duplicados |
+| ARQ-16: todo `code` emitido em `ERROR_CODES` | 12 fora do catálogo; 9 deles também fora do contrato, entre eles `GITHUB_SYNC_BUSY`, `PROJECT_WRITE_BUSY`, `GITHUB_SYNC_LEASE_LOST` e `GITHUB_INITIAL_SYNC_FAILED`; os códigos `*_NOT_APPLIED_TO_VIEW` dos indicadores podem ser limitações e não erros, o que a H36 separa na Fase 4 |
+
+### 5.3 Achados conhecidos verificados na Fase 2
+
+| ID | Situação | Evidência |
+|---|---|---|
+| K3 | confirmado | duplicados e campos na tabela acima |
+| K12 | confirmado | `GITHUB_SYNC_BUSY` e `PROJECT_WRITE_BUSY` fora de `ERROR_CODES` e de `API_CONTRACTS.md` |
+| K13 | confirmado | `backend/src/app.js:68-73` monta limitador em `/api/auth/github/repositories/authorization/start`, sem rota |
+| K14 | confirmado | a linha `SHARED-SWITCH` de `docs/design/UI_SURFACE_INVENTORY.md:922` fica depois de uma linha em branco, fora da tabela, e `scripts/check-ui-inventory.mjs` só conta linhas sob um cabeçalho: o total declarado na L69 é 244, e sem a linha em branco seria 245; já vinha assim da `main` |
+| K15 | refutado em parte | as linhas 35 e 38 de `docs/privacy/PERSONAL_DATA_INVENTORY.md` dizem que a exportação inclui as notificações e as preferências; só faltam os nomes `notifications.json` e `notification-preferences.json` (`settings.service.js:154-155`), que as seções de casos de teste e de defeitos listam (L107 e L124) |
+| K16 | confirmado | `RF_TECHNICAL_MATRIX.md:94` cita RF37 e RF57, que não têm linha, e diz que RF42, RF55 e RF56 estão "já marcados como `IMPLEMENTADO`", embora as três linhas tenham ressalva; a mesma nota dá a homologação visual do RF30 e do RF59 como pendente, enquanto o inventário de UI marca a central e as preferências de notificação como `VISUALLY APPROVED` em 13/10; a L214 diz que não há agendador periódico, contra a linha do RF21 |
+| K17 | confirmado | `SYSTEM_ARCHITECTURE.md` não menciona notificações, alertas nem os ADR-019 a ADR-021; a L186 diz que a espera de trava não altera o timeout global nem todos os escritores, contra o ADR-019 |
+| K19 | confirmado | README e CONTRIBUTING sem `notifications:due`, `notifications:github-events`, `traceability:alerts` e `db:test:validate-schema-drift`; nenhum `package.json` declara `engines` |
+| K20 | confirmado | carimbos `20260910120000` (S1-06 e S1-09) e `20261011010000` (PR #24 e S2-02) repetidos em `backend/prisma/migrations` |
+| K24 | confirmado | 25 linhas em 14 arquivos versionados citam prompts que não estão no repositório; 14 delas são links Markdown quebrados (relatórios e mapas das campanhas), e as outras 11 são caminhos (8 no backlog, ADR-020:21, ADR-021:14 e `S2_01_MAPA_TESTES.md:3`); os runbooks `TASK_NOTIFICATIONS.md:89` e `GITHUB_EVENT_NOTIFICATIONS.md:91` citam a divergência D-RM-01 sem indicar a fonte; até o commit `7569479` ela só existia no prompt da v1, e hoje está na seção 2.3 deste relatório |
+
+### 5.4 Achados da Parte B
+
+Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
+
+### [MÉDIA] CF-25 — Interface sem aviso de privacidade
+
+- Onde: `frontend/src/features/auth/pages/RegisterScreen.jsx`; `frontend/src/features/settings/PrivacySettingsPage.jsx`; `docs/privacy/PRIVACY_NOTICE_DRAFT.md`
+- Norma: §14.3 do anexo ("exibir aviso de privacidade claro"); ARQ-28
+- Esperado: aviso de privacidade acessível ao titular, ao menos no cadastro e nas configurações de privacidade
+- Observado: nenhuma tela mostra aviso; existe só o rascunho técnico, que se declara pendente de validação jurídica e operacional (prazos, base legal, controlador, canal formal, transferências e backups)
+- Reprodução: busca por "aviso de privacidade", "política de privacidade" e "privacy notice" em `frontend/src`, sem resultado
+- Consequência: tratamento de dados pessoais sem transparência ao titular, inclusive de produtividade e de autoria de commits
+- Origem: E7 (`b4c682f`, rascunho) e L2 (`b1f0303`, telas de privacidade)
+- Proposta: página de aviso com link no cadastro e nas configurações; texto final depende da validação jurídica (E15-F11)
+
+### [BAIXA] CF-26 — Commits sem RF, cartão ou fase
+
+- Onde: histórico da `joao-dev-v2` (últimos 200 commits sem merge)
+- Norma: §6.3 do anexo; ARQ-03
+- Esperado: commits mencionam os RFs sempre que possível
+- Observado: 91 de 200 sem RF, cartão nem fase; 47 deles são `feat:`
+- Reprodução: `git log --no-merges -200 --format=%s` com a busca de `RF\d+`, cartões e fases
+- Consequência: rastreabilidade RF → commit depende de memória
+- Origem: entregas da `main` (77 dos 91) e da `joao-dev-v2` (14)
+- Proposta: regra de commit (commitlint) que aceite RF, cartão ou fase, com exceção explícita para manutenção
+
+### [MÉDIA] CF-27 — Dependência sem justificativa e ferramentas de build em runtime
+
+- Onde: `frontend/package.json`
+- Norma: §7 e §6.4 do anexo; ARQ-05
+- Esperado: dependência nova justificada em ADR ou PR; ferramentas de build fora das dependências de runtime
+- Observado: `elkjs` só aparece em `docs/deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md:8`, como "já presente no baseline", sem justificativa nem ADR (o `FRONTEND_STRUCTURE.md` cita só o `@xyflow/react`); `vite` e `@vitejs/plugin-react` em `dependencies`
+- Reprodução: busca de `elkjs` em `docs/`, README e CONTRIBUTING; leitura do manifesto
+- Consequência: auditoria de supply chain e imagem de produção carregam o que não roda
+- Origem: S1-09 (`dbc50a6`, `elkjs`) e estrutura inicial (`ceb0abe`, `vite` em `dependencies`)
+- Proposta: registrar o `elkjs` no ADR do grafo e mover as duas ferramentas de build para `devDependencies`
+
+### [MÉDIA] CF-28 — Prisma fora de repository e pontos cegos do `architecture:check`
+
+- Onde: `backend/src/shared/maintenance/auth-cleanup.js`, `backend/src/shared/maintenance/privacy-retention.js`, `backend/src/shared/http/health.js`; `backend/scripts/check-architecture.js`
+- Norma: §8.1 e regra 8 da §18 do anexo; ARQ-06
+- Esperado: acesso ao Prisma concentrado em repository; regra automática que o garanta
+- Observado: jobs de manutenção e o health usam o Prisma direto; o check não cobre services, helpers, `shared` nem jobs, e não enxerga `import()` dinâmico
+- Reprodução: leitura do check (`layerOf` só classifica route, controller, service, repository e client, e a proibição de acesso ao banco vale só para route, controller, mapper e client; `extractImportSpecifiers` exige espaço depois de `import`) e busca de `prisma` fora de `*.repository.js`
+- Consequência: a separação de camadas pode regredir sem alarme
+- Origem: E3 (`7b0c25b`, `health.js`), E6 (`4a02b67`, `auth-cleanup.js`) e E7 (`b4c682f`, `privacy-retention.js`)
+- Proposta: repositories para a manutenção e regra do check para qualquer arquivo fora de repository e de `src/database`
+
+### [MÉDIA] CF-29 — Organização de módulos diferente do anexo sem registro
+
+- Onde: `backend/src/modules/`; `docs/architecture/MODULE_CONVENTIONS.md`
+- Norma: §9 do anexo; ARQ-08 (divergência DR)
+- Esperado: módulos por domínio (`users`, `alerts`, `comments`, `reports`) ou registro da escolha diferente
+- Observado: alertas dentro de `traceability`, comentários dentro de `tasks`, usuários divididos entre `auth`, `settings` e `privacy`; nada registra a decisão
+- Reprodução: listagem de `backend/src/modules`
+- Consequência: quem segue o anexo procura módulos que não existem
+- Origem: L2 (`b1f0303`, módulo `settings`), comentários do RF29 e do RF31 (`666d31a`, em `tasks`) e S2-01 (`1ab5361`, alertas em `traceability`)
+- Proposta: registrar a organização real em `MODULE_CONVENTIONS.md` (ou ADR), com o mapa domínio → módulo
+
+### [MÉDIA] CF-30 — Vínculos de rastreabilidade sem origem, autor nem evidência
+
+- Onde: `backend/prisma/schema.prisma` (`TaskCommit`, `TaskIssue`, `TestCaseTask`, `Task.pullRequestId`)
+- Norma: §10.3 do anexo; ARQ-10
+- Esperado: cada vínculo com tipo, origem manual ou automática, autor, data, validade, evidência e última verificação, conforme aplicável
+- Observado: só ids e `createdAt` (nem isso em `TestCaseTask`); a sugestão de commit confirmada vira `TaskCommit` sem marca de origem; o autor só fica no `AuditEvent`, que expira em 365 dias
+- Reprodução: leitura do schema
+- Consequência: vínculo automático indistinguível de manual e sem autor depois da retenção da auditoria
+- Origem: vínculo de tarefa e commit (`23d34a8`, 10/06/2026) e casos de teste (`bd218af`, `TestCaseTask`)
+- Proposta: colunas de origem e autor nas tabelas de vínculo, preenchidas pelos serviços, com migration de dados para os vínculos existentes
+
+### [MÉDIA] CF-31 — Estados fechados como `String` e listas duplicadas
+
+- Onde: `backend/prisma/schema.prisma`; `backend/src/modules/tasks/task.schema.js:4` e `backend/src/modules/tasks/task.validation.js:14`
+- Norma: §11.1 do anexo; ARQ-11
+- Esperado: enum no Prisma ou validação centralizada única
+- Observado: 31 campos de estado como `String`; a lista de status da tarefa repetida em dois arquivos
+- Reprodução: script da seção 5.2
+- Consequência: valor inválido gravado por caminho que pule a validação; listas divergem com o tempo
+- Origem: campos `String` desde a estrutura inicial (`ceb0abe`); listas da E2 (`2ac8421`) e da E4 (`ade0ff2`)
+- Proposta: enums para os estados de domínio, a começar por tarefa, requisito, projeto, PR e issue, ou uma constante única importada pelos dois arquivos
+
+### [MÉDIA] CF-32 — Relações sem política de exclusão explícita
+
+- Onde: `backend/prisma/schema.prisma`
+- Norma: §11.1 do anexo; ARQ-12
+- Esperado: `onDelete` declarado em cada relação
+- Observado: 10 de 132 relações dependem do padrão implícito (`RESTRICT` ou `SET NULL`)
+- Reprodução: script da seção 5.2
+- Consequência: exclusão ou anonimização falha ou deixa órfão sem que o schema mostre a intenção
+- Origem: estrutura inicial (`Task`), quadro Kanban (`547c485`, `TaskMovement`), E6 (convites), E11 (histórico), comentários (`666d31a`) e S1-06 (`32af5b2`, tempo)
+- Proposta: declarar a política nas 10 relações, em migration que não mude o comportamento atual
+
+### [MÉDIA] CF-33 — Contrato da API diferente do anexo sem ADR
+
+- Onde: `backend/src/app.js:199`; `backend/src/shared/errors/app-error.js`; `docs/api/API_CONTRACTS.md:2143-2147`
+- Norma: §12.1 a §12.3 e §20 do anexo; ARQ-14, ARQ-15 e ARQ-16 (divergência DR)
+- Esperado: `/api/v1`, envelope `{data, meta}`, paginação de coleções grandes e erro `{error: {code, message, details, requestId}}`, ou ADR que registre outra escolha
+- Observado: `/api`, nomes de chave por recurso, 12 coleções sem paginação e erro plano; o contrato admite a divergência, mas não há ADR. O próprio contrato promete `{message, code, requestId}`, e o `AppError.toPublic` só inclui `code`, `details` e `requestId` quando `exposeTechnicalDetails` é verdadeiro, com padrão falso (`backend/src/shared/errors/app-error.js:11` e `:24-39`)
+- Reprodução: inventário de rotas (Apêndice A) e leitura do erro
+- Consequência: cliente não tem como correlacionar erro de domínio com o log; coleções crescem sem limite
+- Origem: estrutura inicial (`ceb0abe`, base `/api`) e E3 (`7b0c25b`, `exposeTechnicalDetails`)
+- Proposta: ADR "versão e contrato da API" registrando a escolha; `code` e `requestId` em todo erro; paginação das coleções (S104-F03)
+
+### [MÉDIA] CF-34 — DELETE com status inconsistente
+
+- Onde: 24 rotas DELETE (Apêndice A)
+- Norma: §12.4 do anexo; ARQ-17
+- Esperado: `204` para exclusão sem corpo, de forma consistente
+- Observado: 8 respondem 204 e 16 respondem 200 com corpo
+- Reprodução: inventário das rotas e leitura dos controllers
+- Consequência: o cliente trata cada exclusão de um jeito
+- Origem: vários módulos
+- Proposta: registrar a regra no contrato e alinhar as rotas novas; as antigas mudam só com versão de contrato
+
+### [MÉDIA] CF-35 — Configuração sem timeouts do servidor e com sobras
+
+- Onde: `backend/src/server.js:9`; `backend/src/app.js:68-73`; `backend/src/config/env.js:549-553`; `backend/src/shared/logger/logger.js`
+- Norma: §13.8 do anexo ("definir limites de payload e timeouts"); ARQ-25
+- Esperado: timeouts do servidor HTTP definidos; configuração sem sobras
+- Observado: sem `requestTimeout`, `headersTimeout` e `keepAliveTimeout`; limitador montado em rota inexistente (K13); `DEACTIVATED_ACCOUNT_RETENTION_DAYS` lido e nunca usado; logger sem nível mínimo; frontend sem `.env.example`
+- Reprodução: leitura dos arquivos
+- Consequência: conexão lenta ocupa o servidor; configuração que parece ativa não tem efeito
+- Origem: estrutura inicial (`ceb0abe`, `server.js`), E7 (`b4c682f`, variável sem uso), renovação da autorização do GitHub (`6e912d4`, limitador órfão) e E12 (`5364cfc`, variáveis do frontend)
+- Proposta: timeouts explícitos no `server.js`; remover o limitador órfão e a variável sem uso, ou ligá-la à retenção
+
+### [MÉDIA] CF-36 — Resumo da sincronização sem ignorados nem itens com erro
+
+- Onde: `backend/src/modules/github/services/github-sync-run.service.js` (resumo da execução)
+- Norma: §13.10 do anexo ("operações em lote devem informar itens criados, atualizados, ignorados e com erro"); ARQ-27
+- Esperado: o resumo informa ignorados e itens com erro
+- Observado: `found`, `created` e `updated` por artefato; branch sem SHA ignorada só aparece no log
+- Reprodução: leitura do DTO da execução
+- Consequência: falha parcial aparece como sucesso parcial sem contagem
+- Origem: endurecimento da sincronização (`398f72e`) e PR #24
+- Proposta: acrescentar `skipped` e `failed` ao resumo, com a contagem das branches ignoradas
+
+### [MÉDIA] CF-37 — Sem E2E de navegador e sem decisão de dispensa
+
+- Onde: projeto inteiro; roadmap S1-01 (D-RM-03)
+- Norma: §15.2 do anexo; DoD do roadmap; ARQ-29 (divergência DX)
+- Esperado: E2E dos fluxos críticos ou decisão explícita de dispensa
+- Observado: nenhum Playwright ou Cypress; o checklist do S1-01 tirou o E2E; o backlog dá prioridades diferentes ao tema (E15-F10 MÉDIA, S104-F02 ALTA)
+- Reprodução: busca nos manifestos e na CI
+- Consequência: integração frontend e backend só verificada por jsdom e API
+- Origem: S1-01 e seguintes
+- Proposta: decisão do João sobre o E2E e prioridade única no backlog
+
+### [MÉDIA] CF-38 — RF37 e RF57 fora da matriz técnica
+
+- Onde: `docs/traceability/RF_TECHNICAL_MATRIX.md`
+- Norma: regra 4 da §18 do anexo (não renumerar nem omitir RFs); ARQ-34
+- Esperado: todo RF do §5 com linha na matriz, mesmo não implementado
+- Observado: RF37 e RF57 sem linha, embora a nota da L94 os cite
+- Reprodução: script da seção 5.2
+- Consequência: relatórios e PDF somem da cobertura declarada
+- Origem: matriz técnica
+- Proposta: linhas para RF37 e RF57 com estado `NÃO IMPLEMENTADO` e cartões S2-06 e S2-07
+
+### [MÉDIA] CF-39 — ADRs com número repetido e sem os campos mínimos
+
+- Onde: `docs/architecture/ADR-*.md`
+- Norma: §20 do anexo; ARQ-35
+- Esperado: número único e nove campos por ADR
+- Observado: ADR-009, ADR-010 e ADR-011 duplicados; 15 de 23 sem algum dos campos (os mais antigos sem contexto, alternativas, consequências e impactos)
+- Reprodução: script da seção 5.2
+- Consequência: referência ambígua por número; decisões antigas sem consequências registradas
+- Origem: numeração paralela entre a `main` (conta, GitHub e legado) e a branch do cronograma (RF10 e S1-04); dos 15 incompletos, 13 vêm da `main` (ADR-002 a ADR-008 e ADR-009 a ADR-014 de lá) e 2 do cronograma (ADR-010 e ADR-011 de sprints)
+- Proposta: renumerar os três duplicados (mantendo o nome antigo citado) e completar os campos
+
+### [MÉDIA] CF-40 — Documentação viva contraditória
+
+- Onde: `docs/architecture/SYSTEM_ARCHITECTURE.md`, `docs/traceability/RF_TECHNICAL_MATRIX.md`, `docs/design/UI_SURFACE_INVENTORY.md`, `README.md`, `CONTRIBUTING.md`, `docs/issues/TECHNICAL_BACKLOG.md`, `docs/api/API_CONTRACTS.md`
+- Norma: §3 e regra 15 da §18 do anexo; ARQ-36
+- Esperado: documentos coerentes entre si e com o código
+- Observado: K12, K14, K16, K17, K19, K20 e K24 (seção 5.3)
+- Reprodução: seção 5.3
+- Consequência: quem lê o documento decide com informação errada (por exemplo, que não há agendador)
+- Origem: da `main`, K12, K14, a L214 do K16, a L186 do K17 e o validador de drift do K19; da `joao-dev-v2`, a L94 do K16 (resolvida na junção `0ce1516`), a ausência do S2-01 ao S2-03 no K17, os jobs do K19 e o K24; o K20 vem de entregas paralelas das duas branches
+- Proposta: corrigir os sete pontos num commit de documentação; versionar ou deslinkar os prompts citados
 
 ## Apêndice A — Rotas registradas
 
