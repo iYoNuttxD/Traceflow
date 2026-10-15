@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import {
   connectionContract,
   validateGrants,
+  diagnosticRoles,
+  validateEffectiveGrants,
   managedHost,
   managedCaPath,
   verifyServerIdentity,
@@ -261,4 +263,55 @@ describe('least privileges', () => {
     expect(() =>
       validateGrants(['GRANT SELECT, INSERT ON `tf_test`.* TO `u`@`h`'], 'tf_test')
     ).toThrow());
+});
+
+describe('mandatory role expansion boundary', () => {
+  it('requires complete known role metadata', () => {
+    expect(diagnosticRoles({ mandatoryRoles: '', activeRoles: 'NONE' })).toEqual({
+      mandatoryPublic: false,
+      activePublic: false
+    });
+    for (const value of ['public', "'public'@'%'", '`public`@`%`']) {
+      expect(diagnosticRoles({ mandatoryRoles: value, activeRoles: 'NONE' }).mandatoryPublic).toBe(
+        true
+      );
+      expect(
+        diagnosticRoles({ mandatoryRoles: value, activeRoles: '`public`@`%`' }).activePublic
+      ).toBe(true);
+    }
+    for (const metadata of [
+      {},
+      { mandatoryRoles: 'admin', activeRoles: 'NONE' },
+      { mandatoryRoles: 'public,admin', activeRoles: 'NONE' },
+      { mandatoryRoles: 'public@localhost', activeRoles: 'NONE' },
+      { mandatoryRoles: '', activeRoles: '`public`@`%`' },
+      { mandatoryRoles: 'public', activeRoles: '`admin`@`%`' }
+    ]) {
+      expect(() => diagnosticRoles(metadata)).toThrow();
+    }
+  });
+  it('permits only known assignment and still checks every expanded privilege', () => {
+    const base = ['GRANT USAGE ON *.* TO `u`@`h`', 'GRANT SELECT ON `tf_test`.* TO `u`@`h`'];
+    const roles = diagnosticRoles({ mandatoryRoles: 'public', activeRoles: 'NONE' });
+    const assignment = 'GRANT `public`@`%` TO `u`@`h`';
+    expect(validateEffectiveGrants([...base, assignment], 'tf_test', 'diagnostic', roles)).toEqual([
+      'SELECT'
+    ]);
+    for (const extra of [
+      'GRANT INSERT ON `tf_test`.* TO `u`@`h`',
+      'GRANT SELECT ON *.* TO `u`@`h`',
+      'GRANT SELECT ON `other`.* TO `u`@`h`',
+      assignment + ' WITH ADMIN OPTION',
+      'GRANT `nested`@`%` TO `u`@`h`',
+      'GRANT SELECT ON `tf_test`.* TO `u`@`h` WITH GRANT OPTION'
+    ])
+      expect(() =>
+        validateEffectiveGrants([...base, assignment, extra], 'tf_test', 'diagnostic', roles)
+      ).toThrow();
+    expect(() =>
+      validateEffectiveGrants([...base, assignment], 'tf_test', 'diagnostic', {
+        mandatoryPublic: false
+      })
+    ).toThrow();
+  });
 });

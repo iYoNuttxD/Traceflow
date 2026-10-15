@@ -1,0 +1,97 @@
+{
+  "origin": "operator-provided",
+  "environment": "OCI HeatWave; not accessed by this execution",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "No command executed by Codex; supplied operator report B00-B30",
+  "result": {
+    "lots": {
+      "B00": "PASS_OPERATOR",
+      "B10": "PASS_OPERATOR",
+      "B20": "PASS_OPERATOR",
+      "B21": "PASS_OPERATOR",
+      "B22": "PASS_OPERATOR",
+      "B23": "PASS_OPERATOR",
+      "B30": "PASS_OPERATOR"
+    },
+    "B40": "NOT_EXECUTED",
+    "B41": "NOT_EXECUTED",
+    "vm": "traceflowapp",
+    "sourceAddress": "10.20.1.184",
+    "targetHost": "traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com",
+    "targetAddress": "10.20.2.25",
+    "port": 3306,
+    "version": "26.7.0-cloud",
+    "serverUuid": "6e94bb7f-c601-11f1-9b91-02001704771f",
+    "schema": {
+      "name": "traceflow",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "tables": 0,
+      "views": 0,
+      "routines": 0,
+      "triggers": 0,
+      "events": 0,
+      "migrations": 0
+    },
+    "accounts": {
+      "host": "10.20.1.184",
+      "plugin": "caching_sha2_password",
+      "requireSsl": true,
+      "passwordExpireNever": true,
+      "accountLocked": true,
+      "diagnostic": [
+        "SELECT"
+      ],
+      "api": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "worker": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "migrator": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "CREATE",
+        "ALTER",
+        "DROP",
+        "INDEX",
+        "REFERENCES"
+      ],
+      "backupCreated": false
+    },
+    "server": {
+      "maxConnections": 200,
+      "engine": "InnoDB",
+      "characterSet": "utf8mb4",
+      "collation": "utf8mb4_0900_ai_ci",
+      "lowerCaseTableNames": 0,
+      "timeZone": "UTC",
+      "requireSecureTransport": 0,
+      "partialRevokes": 1,
+      "mandatoryRoles": "public"
+    },
+    "ca": {
+      "path": "/etc/pki/traceflow/mysql-ca.pem",
+      "owner": "root:root",
+      "mode": "0644",
+      "selinuxType": "cert_t",
+      "sha256Der": "2eaee0e206741bf81b651f1ae33f44f0a92949ed6a99137a4aa8b0013486d295"
+    },
+    "tls": {
+      "status": "PASS_OPERATOR",
+      "version": "TLSv1.3",
+      "cipher": "TLS_AES_128_GCM_SHA256",
+      "hostnameVerified": true
+    }
+  },
+  "status": "PASS_OPERATOR",
+  "limitations": "No remote reconfirmation, no secrets requested/read, no valid managed authorization created."
+}

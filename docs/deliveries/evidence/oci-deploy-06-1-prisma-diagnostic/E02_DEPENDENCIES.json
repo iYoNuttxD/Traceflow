@@ -1,0 +1,48 @@
+{
+  "origin": "source-inspection",
+  "environment": "current working tree",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "Inspect canonical diagnostic, safety modules, Prisma singleton, package/lock and generation",
+  "result": {
+    "canonical": "backend/scripts/validate-oci-heatwave-connection.js",
+    "internalSources": [
+      "backend/package.json",
+      "backend/prisma/schema.prisma",
+      "backend/scripts/lib/database-safety.js",
+      "backend/scripts/lib/heatwave-connection.js",
+      "backend/scripts/lib/oci-compatibility-safety.js",
+      "backend/scripts/validate-oci-heatwave-connection.js",
+      "backend/src/database/database-safety.js",
+      "backend/src/database/prismaClient.js",
+      "deploy/scripts/diagnostic-launcher.mjs",
+      "deploy/scripts/diagnostic-runtime.mjs",
+      "diagnostic-tool.py"
+    ],
+    "dependencies": {
+      "@prisma/client": "6.12.0",
+      "dotenv": "16.6.1"
+    },
+    "runtimeDependencyFiles": [
+      "backend/node_modules/.prisma/client/default.js",
+      "backend/node_modules/.prisma/client/index.js",
+      "backend/node_modules/.prisma/client/libquery_engine-linux-arm64-openssl-3.0.x.so.node",
+      "backend/node_modules/.prisma/client/package.json",
+      "backend/node_modules/.prisma/client/schema.prisma",
+      "backend/node_modules/@prisma/client/LICENSE",
+      "backend/node_modules/@prisma/client/default.js",
+      "backend/node_modules/@prisma/client/index.js",
+      "backend/node_modules/@prisma/client/package.json",
+      "backend/node_modules/@prisma/client/runtime/library.js",
+      "backend/node_modules/dotenv/LICENSE",
+      "backend/node_modules/dotenv/lib/main.js",
+      "backend/node_modules/dotenv/package.json"
+    ],
+    "cliIncluded": false,
+    "migrationsIncluded": false,
+    "servicesIncluded": false,
+    "dotenv": "Imported by shared client, config() only in test mode; diagnostic forces production; generated env paths null/absent",
+    "mandatoryRoleChange": "bounded metadata and SHOW GRANTS USING public; unchanged privilege allowlist"
+  },
+  "status": "PASS",
+  "limitations": "Somente laboratório; não comprova homologação gerenciada."
+}

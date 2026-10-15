@@ -1,5 +1,13 @@
 # OCI — contrato de ambiente e runtime
 
+> Atualização OCI06.1 (15/10/2026): **B00–B30 PASS informado pelo operador**; schema
+> traceflow já criado e vazio, quatro contas bloqueadas, CA pública instalada. Não repetir
+> esses lotes. O [pacote diagnóstico](OCI_HEATWAVE_PRISMA_DIAGNOSTIC.md) incorpora o estado
+> atual e prepara D01/D02/B40/B41/D03/D04/relock, todos ainda pendentes de autorização.
+> As afirmações anteriores sobre ausência de schema/contas são registros da preparação
+> anterior, não o estado atual. Nenhuma operação OCI foi executada pelo Codex nesta continuação.
+
+
 > Continuação OCI06.1: consultar o [bootstrap inicial preparado](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md)
 > para o estado atualizado informado pelo operador e os lotes administrativos. Nenhuma execução autorizada.
 
@@ -256,3 +264,28 @@ CA pública no caminho definitivo e leitura por traceflow já foram confirmadas 
 não há reinstalação proposta. Charset/collation serão utf8mb4/utf8mb4_unicode_ci, preservando
 as exceções explícitas da cadeia. Credenciais, paths administrativos e autorização permanecem
 fora do Git; limites de pool/TLS e proibição de herdar URLs de teste/job não mudam.
+
+## Continuação OCI06.1 — após bootstrap informado pelo operador
+
+Em 15/10/2026 o operador informou B00, B10, B20, B21, B22, B23 e B30 PASS.
+Schema traceflow: utf8mb4/utf8mb4_unicode_ci, zero tabelas/views/routines/triggers/events.
+Contas traceflow_diag/API/worker/migrator @10.20.1.184 foram criadas com caching_sha2_password,
+REQUIRE SSL, PASSWORD EXPIRE NEVER e ACCOUNT LOCK; backup continua adiado. Não recriar
+schema, contas ou senhas. O bootstrap permanece separado das 68 migrations.
+
+VERSION()=26.7.0-cloud; UUID=6e94bb7f-c601-11f1-9b91-02001704771f.
+CA pública definitiva /etc/pki/traceflow/mysql-ca.pem, root:root 0644/cert_t;
+fingerprint DER SHA-256 2eaee0e206741bf81b651f1ae33f44f0a92949ed6a99137a4aa8b0013486d295.
+TLS SERVER PASS é evidência do operador. PRISMA MANAGED PENDING, HEATWAVE MANAGED PARTIAL
+e DR PRODUCTION PENDING permanecem. Nenhuma reconfirmação remota nesta entrega.
+
+O novo [runbook do pacote Prisma](OCI_HEATWAVE_PRISMA_DIAGNOSTIC.md) descreve artefato mínimo,
+launcher com credencial externa 0600, ambiente limpo, template de autorização inválido,
+manifesto/checksums, instalação futura, execução somente leitura e relock.
+O diagnóstico agora expande a role obrigatória public de forma limitada e mantém a recusa
+de privilégios excessivos. Sua composição real no HeatWave ainda exige homologação.
+
+Pendências distintas: time_zone UTC versus literal +00:00 exigido no migration job;
+gates de backup/restore no primeiro schema vazio; DR real. O job não foi alterado e
+nenhum backup lógico de dados inexistentes foi exigido. D01/D02/B40/B41/D03/D04 e relock
+não foram executados nem autorizados por esta documentação. OCI-DEPLOY-07 não iniciada.

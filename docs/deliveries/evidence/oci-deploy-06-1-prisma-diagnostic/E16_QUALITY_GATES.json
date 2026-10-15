@@ -1,0 +1,357 @@
+{
+  "origin": "executed-local",
+  "environment": "OL9.8 ARM64 disposable, clean source; source scanner on macOS",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "run-diagnostic-quality.py; targeted backend full-suite rerun; focused operational/security gates",
+  "result": {
+    "status": "PASS",
+    "checks": [
+      {
+        "name": "backend-npm-ci",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 30.05,
+        "summary": "\nadded 303 packages in 30s\nnpm notice\nnpm notice New major version of npm available! 10.9.8 -> 12.2.0\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0\nnpm notice To update run: npm install -g npm@12.2.0\nnpm notice\n"
+      },
+      {
+        "name": "frontend-npm-ci",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 19.83,
+        "summary": "\nadded 281 packages in 20s\n"
+      },
+      {
+        "name": "prisma-validate",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.43,
+        "summary": "Prisma schema loaded from prisma/schema.prisma\nThe schema at prisma/schema.prisma is valid 🚀\n"
+      },
+      {
+        "name": "prisma-generate",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.67,
+        "summary": "Prisma schema loaded from prisma/schema.prisma\n\n✔ Generated Prisma Client (v6.12.0) to ./node_modules/@prisma/client in 162ms\n\nStart by importing your Prisma Client (See: https://pris.ly/d/importing-client)\n\nTip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate\n\n"
+      },
+      {
+        "name": "backend-lint",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 1.85,
+        "summary": "\n> traceflow-backend@0.1.0 lint\n> eslint src test scripts vitest.config.js\n\n"
+      },
+      {
+        "name": "backend-format-check",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 2.52,
+        "summary": "\n> traceflow-backend@0.1.0 format:check\n> prettier --check \"src/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\" \"*.js\" package.json\n\nChecking formatting...\nAll matched files use Prettier code style!\n"
+      },
+      {
+        "name": "frontend-lint",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 2.16,
+        "summary": "\n> traceflow-frontend@0.1.0 lint\n> eslint src test *.js\n\n"
+      },
+      {
+        "name": "frontend-format-check",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 2.01,
+        "summary": "\n> traceflow-frontend@0.1.0 format:check\n> prettier --check \"src/**/*.{js,jsx}\" \"test/**/*.{js,jsx}\" \"*.js\" package.json\n\nChecking formatting...\nAll matched files use Prettier code style!\n"
+      },
+      {
+        "name": "architecture",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.08,
+        "summary": "\n> traceflow-backend@0.1.0 architecture:check\n> node scripts/check-architecture.js\n\nArchitecture check passed: nenhuma violação encontrada.\n"
+      },
+      {
+        "name": "ci-format",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.21,
+        "summary": "Checking formatting...\nAll matched files use Prettier code style!\n"
+      },
+      {
+        "name": "ci-policy",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.54,
+        "summary": "-\n  duration_ms: 5.165794\n  type: 'test'\n  ...\n# Subtest: exige Quality: npm run lint backend\nok 82 - exige Quality: npm run lint backend\n  ---\n  duration_ms: 1.515292\n  type: 'test'\n  ...\n# Subtest: exige Quality: npm run format:check backend\nok 83 - exige Quality: npm run format:check backend\n  ---\n  duration_ms: 1.661043\n  type: 'test'\n  ...\n# Subtest: exige Quality: npm run lint frontend\nok 84 - exige Quality: npm run lint frontend\n  ---\n  duration_ms: 1.460126\n  type: 'test'\n  ...\n# Subtest: exige Quality: npm run format:check frontend\nok 85 - exige Quality: npm run format:check frontend\n  ---\n  duration_ms: 1.677876\n  type: 'test'\n  ...\n# Subtest: exige Quality: node --test scripts/validate-ci.test.mjs root\nok 86 - exige Quality: node --test scripts/validate-ci.test.mjs root\n  ---\n  duration_ms: 1.500167\n  type: 'test'\n  ...\n# Subtest: bloqueia shell no-op em step\nok 87 - bloqueia shell no-op em step\n  ---\n  duration_ms: 1.689376\n  type: 'test'\n  ...\n# Subtest: bloqueia shell no-op em job\nok 88 - bloqueia shell no-op em job\n  ---\n  duration_ms: 1.508667\n  type: 'test'\n  ...\n# Subtest: bloqueia shell no-op em workflow\nok 89 - bloqueia shell no-op em workflow\n  ---\n  duration_ms: 1.791793\n  type: 'test'\n  ...\n# Subtest: migration não pode mudar de job ou diretório\nok 90 - migration não pode mudar de job ou diretório\n  ---\n  duration_ms: 1.599709\n  type: 'test'\n  ...\n1..90\n# tests 90\n# suites 0\n# pass 90\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 518.181273\n"
+      },
+      {
+        "name": "diagnostic-output-tests",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.04,
+        "summary": "TAP version 13\n# Subtest: launcher refuses raw or encoded credentials and complete database URLs\nok 1 - launcher refuses raw or encoded credentials and complete database URLs\n  ---\n  duration_ms: 0.606959\n  type: 'test'\n  ...\n# Subtest: launcher refuses inconsistent exit, unstructured errors and invalid JSON\nok 2 - launcher refuses inconsistent exit, unstructured errors and invalid JSON\n  ---\n  duration_ms: 0.121042\n  type: 'test'\n  ...\n# Subtest: launcher retains sanitized canonical results\nok 3 - launcher retains sanitized canonical results\n  ---\n  duration_ms: 0.23\n  type: 'test'\n  ...\n1..3\n# tests 3\n# suites 0\n# pass 3\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 28.046933\n"
+      },
+      {
+        "name": "backend-audit-policy",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.84,
+        "summary": "Audit aprovado: 0 ocorrência(s) coberta(s) por exceção específica; 0 high, 0 critical.\n"
+      },
+      {
+        "name": "frontend-audit-policy",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 1.1,
+        "summary": "Audit aprovado: 0 ocorrência(s) coberta(s) por exceção específica; 0 high, 0 critical.\n"
+      },
+      {
+        "name": "frontend-coverage",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 72.08,
+        "summary": " | test/features/PersonalizedDashboard.test.jsx > P9 personalized workspace > discards an old project preference response and closes draft on project switch\nThe current testing environment is not configured to support act(...)\n\nstderr | test/features/PersonalizedDashboard.test.jsx > P9 personalized workspace > discards an old project preference response and closes draft on project switch\nThe current testing environment is not configured to support act(...)\n\nstderr | test/pages/RequirementsPage.test.jsx > Requirements facelift > abre o Workspace existente diretamente pelo card\nReceived NaN for the `cx` attribute. If this is expected, cast the value to a string.\nReceived NaN for the `cy` attribute. If this is expected, cast the value to a string.\nReceived NaN for the `r` attribute. If this is expected, cast the value to a string.\nReceived NaN for the `x` attribute. If this is expected, cast the value to a string.\nReceived NaN for the `y` attribute. If this is expected, cast the value to a string.\n\nstderr | test/defects/RetestContext.test.jsx > rejects obsolete project membership after the current project has loaded\nThe current testing environment is not configured to support act(...)\nThe current testing environment is not configured to support act(...)\nThe current testing environment is not configured to support act(...)\n\n"
+      },
+      {
+        "name": "frontend-build",
+        "status": "PASS",
+        "exitCode": 0,
+        "seconds": 0.76,
+        "summary": "B │ gzip:   3.25 kB\ndist/assets/AccountSettingsPage-CkxFEgPo.js                  8.41 kB │ gzip:   2.64 kB\ndist/assets/IntegrationsSettingsPage-D_XBUqQX.js            11.56 kB │ gzip:   3.87 kB\ndist/assets/RequirementCatalog-ByzWxPdH.js                  14.64 kB │ gzip:   4.95 kB\ndist/assets/shared-sNdEfGy0.js                              32.14 kB │ gzip:  10.76 kB\ndist/assets/lib-CYGxyW1x.js                                 40.80 kB │ gzip:  14.62 kB\ndist/assets/http-client-Bgv4GTy8.js                         55.12 kB │ gzip:  20.86 kB\ndist/assets/indicators-DDohthSa.js                          74.11 kB │ gzip:  22.52 kB\ndist/assets/TraceabilityFlow-bgHhRJ5m.js                   205.22 kB │ gzip:  66.43 kB\ndist/assets/testCases-DR_Orkob.js                          282.56 kB │ gzip:  77.84 kB\ndist/assets/index-CONLmjdJ.js                              417.82 kB │ gzip: 120.38 kB\ndist/assets/elk.bundled-CkQWVlL0.js                      1,433.73 kB │ gzip: 441.98 kB\n\n✓ built in 610ms\n[MISSING_NAME_OPTION_FOR_IIFE_EXPORT] If you do not supply \"output.name\", you may not be able to access the exports of an IIFE bundle.\n\n[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\n"
+      }
+    ],
+    "backendFinal": {
+      "origin": "executed-local",
+      "environment": "disposable Oracle Linux 9.8 ARM64",
+      "checkedAt": "2026-10-15T17:00:09.975614+00:00",
+      "checks": [
+        {
+          "name": "backend-coverage",
+          "command": [
+            "npm",
+            "run",
+            "test:coverage"
+          ],
+          "exitCode": 0,
+          "seconds": 160.6,
+          "status": "PASS",
+          "summary": ".l-shutdown.js |   75.43 |       75 |   73.33 |   81.25 | 9,16-24,66,75     \n  lifecycle.js     |     100 |      100 |     100 |     100 |                   \n ...hared/security |   93.18 |    84.44 |   96.96 |    96.2 |                   \n  body.js          |     100 |       95 |     100 |     100 | 21                \n  cors.js          |     100 |      100 |     100 |     100 |                   \n  headers.js       |     100 |      100 |     100 |     100 |                   \n  index.js         |       0 |        0 |       0 |       0 |                   \n  ...nymization.js |      75 |    66.66 |     100 |     100 | 6                 \n  rate-limit.js    |   96.77 |    81.48 |     100 |   96.66 | 42                \n  ssrf.js          |   73.33 |       65 |      75 |   84.61 | 16,45             \n ...red/validation |   96.96 |    93.33 |   95.83 |   96.66 |                   \n  ...on.schemas.js |   95.74 |      100 |   94.44 |   95.34 | 63,91             \n  index.js         |       0 |        0 |       0 |       0 |                   \n  ...middleware.js |     100 |    85.71 |     100 |     100 | 17                \n  ...ror.mapper.js |     100 |    66.66 |     100 |     100 | 2-3               \n-------------------|---------|----------|---------|---------|-------------------\nnpm notice\nnpm notice New major version of npm available! 10.9.8 -> 12.2.0\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0\nnpm notice To update run: npm install -g npm@12.2.0\nnpm notice\n",
+          "testSummary": [
+            "Test Files  162 passed | 2 skipped (164)",
+            "Tests  2067 passed | 5 skipped (2072)",
+            "Duration  160.25s (transform 1.57s, setup 943ms, import 4.86s, tests 143.10s, environment 6ms)",
+            "All files          |   92.57 |    87.44 |   95.47 |   94.85 |"
+          ]
+        }
+      ],
+      "managedExecution": false,
+      "migrationsAuthorization": "user: disposable laboratory only",
+      "backendTestPool": 5,
+      "syntheticMigrations": 68,
+      "backendCoverage": {
+        "lines": {
+          "total": 9659,
+          "covered": 9162,
+          "skipped": 0,
+          "pct": 94.85
+        },
+        "statements": {
+          "total": 10844,
+          "covered": 10039,
+          "skipped": 0,
+          "pct": 92.57
+        },
+        "functions": {
+          "total": 2696,
+          "covered": 2574,
+          "skipped": 0,
+          "pct": 95.47
+        },
+        "branches": {
+          "total": 8420,
+          "covered": 7363,
+          "skipped": 0,
+          "pct": 87.44
+        },
+        "branchesTrue": {
+          "total": 0,
+          "covered": 0,
+          "skipped": 0,
+          "pct": 100
+        }
+      },
+      "status": "PASS",
+      "syntheticResourcesRemoved": true
+    },
+    "frontendCoverage": {
+      "lines": {
+        "total": 10555,
+        "covered": 9346,
+        "skipped": 0,
+        "pct": 88.54
+      },
+      "statements": {
+        "total": 12071,
+        "covered": 10391,
+        "skipped": 0,
+        "pct": 86.08
+      },
+      "functions": {
+        "total": 3513,
+        "covered": 2877,
+        "skipped": 0,
+        "pct": 81.89
+      },
+      "branches": {
+        "total": 11316,
+        "covered": 9163,
+        "skipped": 0,
+        "pct": 80.97
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "backendAudit": {
+      "totals": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "exitCode": 0
+    },
+    "frontendAudit": {
+      "totals": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "exitCode": 0
+    },
+    "focusedUnit": {
+      "origin": "executed-local",
+      "environment": "OL9.8 ARM64 disposable",
+      "date": "2026-10-15T17:02:55.804843+00:00",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "test/unit/heatwave-connection.test.js",
+        "test/unit/heatwave-tls.test.js"
+      ],
+      "exitCode": 0,
+      "status": "PASS",
+      "output": "\n RUN  v4.1.11 /opt/tf061pkg/qa/backend\n\n ✓ test/unit/heatwave-tls.test.js (10 tests) 318ms\n ✓ test/unit/heatwave-connection.test.js (50 tests) 9ms\n\n Test Files  2 passed (2)\n      Tests  60 passed (60)\n   Start at  14:02:55\n   Duration  497ms (transform 25ms, setup 15ms, import 35ms, tests 327ms, environment 0ms)\n\n",
+      "limitations": "Synthetic fixtures/resolver only, no persistent SQL"
+    },
+    "artifactUnit": {
+      "tests": 8,
+      "status": "PASS"
+    },
+    "operational": {
+      "status": "PASS",
+      "tests": 93,
+      "exitCode": 0,
+      "seconds": 1.373,
+      "command": "sudo env -i PATH=<verified Node22>:/usr/bin:/bin HOME=/nonexistent python3 -B -m unittest discover -s <clean QA>/deploy/tests -p test_*.py -v",
+      "origin": "tool execution observed",
+      "scope": "temporary filesystem fixtures only; existing prune inventory requires root"
+    },
+    "sourceScan": {
+      "origin": "executed-local",
+      "environment": "macOS ARM64 source-only",
+      "date": "2026-10-15T17:02:53.373Z",
+      "command": "node backend/scripts/check-secrets.js <explicit public source allowlist>",
+      "result": "Secret scan aprovado (680 arquivos verificados).",
+      "status": "PASS",
+      "findings": "",
+      "files": 680,
+      "limitations": "Pattern scan; no real env read; artifact scan separately in builder and verifier."
+    },
+    "frontendCompleteSuite": {
+      "status": "PASS",
+      "exitCode": 0,
+      "exactTestCount": "not retained in condensed log",
+      "warnings": [
+        "React act environment",
+        "SVG NaN fixture warnings"
+      ]
+    },
+    "frontendBuild": {
+      "status": "PASS",
+      "warnings": [
+        "existing large ELK chunk",
+        "IIFE output.name"
+      ]
+    },
+    "ci": {
+      "localPolicyTests": 90,
+      "status": "PASS_LOCAL",
+      "remoteCi": "NOT_RUN",
+      "workflowChanged": false
+    },
+    "historicalFailuresResolved": [
+      {
+        "gate": "artifact scanner",
+        "cause": "escaped newline pattern did not detect synthetic private key",
+        "action": "fixed pattern; 8 unit tests and two final builds plus full package lab passed"
+      },
+      {
+        "gate": "first backend coverage",
+        "cause": "QA harness reused diagnostic connection_limit=1; existing concurrency tests need simultaneous transactions",
+        "action": "only QA pool changed to 5; fresh instance; complete 2067 tests passed; test code, deadlines and thresholds unchanged"
+      },
+      {
+        "gate": "initial optional operational regression as non-root",
+        "cause": "existing release prune requires /proc inventory and correctly refused PROCESS_INVENTORY_DENIED",
+        "action": "93 tests passed as root in local VM temporary fixtures; diagnostic itself remained non-root"
+      },
+      {
+        "gate": "first package timeout fixture",
+        "cause": "port reuse after stop encountered TIME_WAIT",
+        "action": "fresh owned high loopback port; full 39-check harness passed"
+      }
+    ],
+    "skips": {
+      "added": 0,
+      "existingFiles": [
+        "backend/test/integration/e11-legacy-responsibility.test.js",
+        "backend/test/integration/e6-backfill.test.js"
+      ],
+      "tests": 5,
+      "reason": "pre-LR.2 schemas only; unchanged historical skips"
+    },
+    "testDrivers": {
+      "deploy/tests/run-diagnostic-quality.py": "8701438f4b2cf03d9e4983113dc264a08b794ef06c379119d3ce8abafdb7a3b3",
+      "deploy/tests/run-diagnostic-package-lab.py": "2de8016da7df548ac29b1571145a65a8c883f033ea4916715dd793144ccd87ba",
+      "deploy/tests/test_diagnostic_package.py": "077e64132b5c653daf7136ad0107f0a8c4e4e3bae0e8c72c68b3e976fb50c0df",
+      "deploy/tests/diagnostic-launcher.test.mjs": "2805518c6337f519f572089ba7eb697e846f72c5203670d0c98a214a57acd1ec"
+    },
+    "finalSourceVerification": {
+      "date": "2026-10-15T17:20:58.969Z",
+      "gitDiffCheck": "PASS",
+      "newJsFormat": "PASS",
+      "pythonAst": {
+        "files": 5,
+        "status": "PASS",
+        "limitation": "macOS xcrun emitted sandbox cache warnings; AST parsed; actual Python execution was validated in OL9.8"
+      },
+      "documentStructure": {
+        "reportSections": 36,
+        "runbookSections": 26,
+        "evidenceFiles": 17
+      },
+      "protectedFileHashes": "E01"
+    }
+  },
+  "status": "PASS_LOCAL",
+  "limitations": "No remote CI, HeatWave, DEV, visual QA or production runtime exercised. 68 migrations authorized only in owned synthetic full-suite databases."
+}

@@ -2,7 +2,8 @@ import { parseArgs } from 'node:util';
 import {
   connectionContract,
   protectedFile,
-  validateGrants,
+  diagnosticRoles,
+  validateEffectiveGrants,
   mysqlTlsProbe,
   publicCaContract,
   verifyServerIdentity,
@@ -52,13 +53,25 @@ try {
       tlsSession.Ssl_cipher && ['TLSv1.2', 'TLSv1.3'].includes(tlsSession.Ssl_version),
       'PRISMA_TLS_REQUIRED'
     );
-    const grants = validateGrants(
-      await prisma.$queryRawUnsafe('SHOW GRANTS FOR CURRENT_USER'),
-      contract.target.schema,
-      authorization.role || 'diagnostic'
-    );
     const [parameters] = await prisma.$queryRawUnsafe(
-      'SELECT @@version_comment AS versionComment, @@sql_mode AS sqlMode, @@transaction_isolation AS transactionIsolation, @@time_zone AS timeZone, @@system_time_zone AS systemTimeZone, @@character_set_server AS characterSet, @@collation_server AS collation, @@lower_case_table_names AS lowerCaseTableNames, @@max_connections AS maxConnections, @@wait_timeout AS waitTimeout, @@connect_timeout AS connectTimeout, @@require_secure_transport AS requireSecureTransport, @@default_storage_engine AS engine'
+      'SELECT @@version_comment AS versionComment, @@sql_mode AS sqlMode, @@transaction_isolation AS transactionIsolation, @@time_zone AS timeZone, @@system_time_zone AS systemTimeZone, @@character_set_server AS characterSet, @@collation_server AS collation, @@lower_case_table_names AS lowerCaseTableNames, @@max_connections AS maxConnections, @@wait_timeout AS waitTimeout, @@connect_timeout AS connectTimeout, @@require_secure_transport AS requireSecureTransport, @@default_storage_engine AS engine, @@mandatory_roles AS mandatoryRoles, CURRENT_ROLE() AS activeRoles'
+    );
+    const roles = diagnosticRoles(parameters);
+    const direct = await prisma.$queryRawUnsafe('SHOW GRANTS FOR CURRENT_USER');
+    validateEffectiveGrants(
+      direct,
+      contract.target.schema,
+      authorization.role || 'diagnostic',
+      roles
+    );
+    const effective = roles.mandatoryPublic
+      ? await prisma.$queryRawUnsafe("SHOW GRANTS FOR CURRENT_USER USING 'public'@'%'")
+      : direct;
+    const grants = validateEffectiveGrants(
+      effective,
+      contract.target.schema,
+      authorization.role || 'diagnostic',
+      roles
     );
     await prisma.$queryRawUnsafe('SELECT 1');
     await prisma.$disconnect();
@@ -78,6 +91,7 @@ try {
           tls,
           tlsSession,
           grants,
+          roleVerification: { ...roles, expanded: roles.mandatoryPublic },
           parameters,
           pool: { connectionLimit: 1, connectTimeout: 5, poolTimeout: 5, socketTimeout: 10 },
           writes: false,

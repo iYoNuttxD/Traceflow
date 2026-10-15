@@ -1,0 +1,37 @@
+{
+  "origin": "executed-local",
+  "environment": "OL9.8 ARM64",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "ELF header validation; require native QueryEngine; process.report.sharedObjects; real Prisma SELECT",
+  "result": {
+    "target": "linux-arm64-openssl-3.0.x",
+    "record": {
+      "mode": 420,
+      "sha256": "116c9f3661e626c81587ab89cedc7e7d2ff3ac5ad53b7e3585bafb737546706c",
+      "size": 15335624
+    },
+    "native": {
+      "status": "RUNTIME_VALID",
+      "node": "22.23.2",
+      "prisma": "6.12.0",
+      "platform": "linux",
+      "architecture": "arm64",
+      "engine": "linux-arm64-openssl-3.0.x",
+      "nativeLoaded": true,
+      "connected": false
+    },
+    "x86MutationRefused": {
+      "name": "N21-wrong-engine",
+      "status": "PASS",
+      "result": {
+        "status": "FAIL",
+        "code": "PACKAGE_INTEGRITY_FAILED",
+        "writes": false,
+        "durationSeconds": 0.089
+      }
+    },
+    "macNodeModulesCopied": false
+  },
+  "status": "PASS",
+  "limitations": "Somente laboratório; não comprova homologação gerenciada."
+}

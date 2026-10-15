@@ -200,6 +200,31 @@ export function validateGrants(rows, schema, role = 'diagnostic') {
   return [...privileges].sort();
 }
 
+/** Resolve only the known mandatory public role; never guess effective privileges. */
+export function diagnosticRoles({ mandatoryRoles, activeRoles }) {
+  const publicRole = /^(?:public|['`"]public['`"])(?:@(?:%|['`"]%['`"]))?$/;
+  check(
+    typeof mandatoryRoles === 'string' && typeof activeRoles === 'string',
+    'ROLE_METADATA_REQUIRED'
+  );
+  const mandatoryPublic = publicRole.test(mandatoryRoles);
+  check(mandatoryRoles === '' || mandatoryPublic, 'UNREVIEWED_MANDATORY_ROLE');
+  check(
+    activeRoles === 'NONE' || (mandatoryPublic && publicRole.test(activeRoles)),
+    'UNREVIEWED_ACTIVE_ROLE'
+  );
+  return { mandatoryPublic, activePublic: activeRoles !== 'NONE' };
+}
+
+export function validateEffectiveGrants(rows, schema, role, roles) {
+  const explicit = rows.filter((row) => {
+    const grant = typeof row === 'string' ? row : Object.values(row)[0];
+    // Ignore only the assignment after proving mandatory public and separately expanding it.
+    return !(roles.mandatoryPublic && /^GRANT `public`@`%` TO `[^`]+`@`[^`]+`$/.test(grant));
+  });
+  return validateGrants(explicit, schema, role);
+}
+
 export async function mysqlTlsProbe({ host, port, ca, timeoutMs = 5000 }) {
   // MySQL STARTTLS handshake only, no authentication packet or query.
   return new Promise((accept, reject) => {
