@@ -18,6 +18,40 @@ const deadline = Number(process.env.SHUTDOWN_TIMEOUT_MS);
 if (!Number.isInteger(deadline) || deadline < 1000 || deadline > 30000)
   invalid.push("SHUTDOWN_TIMEOUT_MS");
 if (process.env.TEST_DATABASE_URL) invalid.push("TEST_DATABASE_URL");
+// The systemd runtime must never inherit Prisma v6's permissive TLS default.
+// CA is public and must be outside /etc/traceflow, which the units hide from runtime.
+try {
+  const url = new URL(process.env.DATABASE_URL);
+  const allowed = new Set([
+    "sslaccept",
+    "sslcert",
+    "connection_limit",
+    "connect_timeout",
+    "pool_timeout",
+    "socket_timeout",
+  ]);
+  const pool = Number(url.searchParams.get("connection_limit"));
+  if (
+    url.protocol !== "mysql:" ||
+    !url.username ||
+    !url.password ||
+    url.hash ||
+    url.searchParams.get("sslaccept") !== "strict" ||
+    url.searchParams.get("sslcert") !== "/etc/pki/traceflow/mysql-ca.pem" ||
+    !Number.isInteger(pool) ||
+    pool < 1 ||
+    pool > (role === "api" ? 5 : 3) ||
+    url.searchParams.get("connect_timeout") !== "5" ||
+    url.searchParams.get("pool_timeout") !== "10" ||
+    url.searchParams.get("socket_timeout") !== "30" ||
+    [...url.searchParams.keys()].some(
+      (key) => !allowed.has(key) || url.searchParams.getAll(key).length !== 1,
+    )
+  )
+    invalid.push("DATABASE_URL");
+} catch {
+  invalid.push("DATABASE_URL");
+}
 if (invalid.length) {
   console.error(
     JSON.stringify({ event: "service_contract_invalid", variables: invalid }),

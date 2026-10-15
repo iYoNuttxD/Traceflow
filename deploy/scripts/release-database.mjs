@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
+import { lookup } from "node:dns/promises";
 
 const [releaseArg, adminArg, authorizationArg, mode] = process.argv.slice(2);
 let client, runningChild;
@@ -122,8 +123,20 @@ try {
         !/(?:^|_)(?:dev|development|test)(?:_|$)/i.test(target.schema),
       "PROTECTED_DATABASE_TARGET",
     );
-    if (auth.environment === "production")
-      check(url.hostname === "10.20.2.25", "PRODUCTION_TARGET_NOT_ALLOWLISTED");
+    if (auth.environment === "production") {
+      check(
+        target.expectedAddress === "10.20.2.25",
+        "PRODUCTION_TARGET_NOT_ALLOWLISTED",
+      );
+      const addresses = await lookup(url.hostname, { all: true });
+      check(
+        addresses.length > 0 &&
+          addresses.every(
+            (record) => record.address === target.expectedAddress,
+          ),
+        "PRODUCTION_DNS_IDENTITY",
+      );
+    }
     check(
       auth.gates?.heatwaveTlsHomologated === true &&
         auth.gates?.restoreRehearsed === true &&
@@ -136,14 +149,16 @@ try {
       "TLS_STRICT_REQUIRED",
     );
     check(
-      [...url.searchParams.keys()].every((x) =>
-        [
-          "sslaccept",
-          "sslcert",
-          "connection_limit",
-          "connect_timeout",
-          "pool_timeout",
-        ].includes(x),
+      [...url.searchParams.keys()].every(
+        (x) =>
+          [
+            "sslaccept",
+            "sslcert",
+            "connection_limit",
+            "connect_timeout",
+            "pool_timeout",
+            "socket_timeout",
+          ].includes(x) && url.searchParams.getAll(x).length === 1,
       ),
       "UNREVIEWED_CONNECTION_OPTION",
     );

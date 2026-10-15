@@ -1,0 +1,26 @@
+[
+  {
+    "command": "test:coverage",
+    "code": 0,
+    "seconds": 45.55,
+    "log": "frontend-test-coverage.log"
+  },
+  {
+    "command": "lint",
+    "code": 0,
+    "seconds": 2.28,
+    "log": "frontend-lint.log"
+  },
+  {
+    "command": "format:check",
+    "code": 0,
+    "seconds": 1.9,
+    "log": "frontend-format-check.log"
+  },
+  {
+    "command": "build",
+    "code": 0,
+    "seconds": 0.87,
+    "log": "frontend-build.log"
+  }
+]

@@ -1,0 +1,130 @@
+{
+  "baseline": {
+    "branch": "daniel-dev",
+    "head": "4def31513bfb9d20444a7b9fb8f8b7500164c4ae",
+    "initialWorkingTree": "clean",
+    "trackedFilesCompared": 1426,
+    "modifiedTrackedFiles": [
+      "backend/.env.production.example",
+      "backend/test/api/projects-github-e9.test.js",
+      "deploy/scripts/release-database.mjs",
+      "deploy/scripts/validate-service-environment.mjs",
+      "deploy/tests/test_operations.py"
+    ],
+    "historicalMigrationsUnchanged": 67,
+    "currentMigrations": 68
+  },
+  "backend": {
+    "passed": 2048,
+    "skipped": 5,
+    "testFilesPassed": 162,
+    "testFilesSkipped": 2,
+    "coverage": {
+      "lines": {
+        "total": 9659,
+        "covered": 9162,
+        "skipped": 0,
+        "pct": 94.85
+      },
+      "statements": {
+        "total": 10844,
+        "covered": 10039,
+        "skipped": 0,
+        "pct": 92.57
+      },
+      "functions": {
+        "total": 2696,
+        "covered": 2574,
+        "skipped": 0,
+        "pct": 95.47
+      },
+      "branches": {
+        "total": 8420,
+        "covered": 7363,
+        "skipped": 0,
+        "pct": 87.44
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "lint": "PASS",
+    "format": "PASS",
+    "architecture": "PASS",
+    "note": "5 existing pre-LR2 skips unchanged. Final TLS assertions also passed focused 41/41 after full suite."
+  },
+  "frontend": {
+    "passed": 1520,
+    "testFilesPassed": 122,
+    "coverage": {
+      "lines": {
+        "total": 10554,
+        "covered": 9349,
+        "skipped": 0,
+        "pct": 88.58
+      },
+      "statements": {
+        "total": 12070,
+        "covered": 10394,
+        "skipped": 0,
+        "pct": 86.11
+      },
+      "functions": {
+        "total": 3512,
+        "covered": 2877,
+        "skipped": 0,
+        "pct": 81.91
+      },
+      "branches": {
+        "total": 11316,
+        "covered": 9163,
+        "skipped": 0,
+        "pct": 80.97
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "lint": "PASS",
+    "format": "PASS",
+    "build": "PASS"
+  },
+  "deployUnit": {
+    "passed": 74,
+    "failed": 0
+  },
+  "ciPolicyTests": {
+    "passed": 90,
+    "failed": 0
+  },
+  "tlsFocused": {
+    "passed": 41,
+    "failed": 0
+  },
+  "audit": {
+    "backend": {
+      "high": 0,
+      "critical": 0,
+      "exceptionsUsed": 0
+    },
+    "frontend": {
+      "high": 0,
+      "critical": 0,
+      "exceptionsUsed": 0
+    }
+  },
+  "secretScan": {
+    "repository": "PASS",
+    "changedFilesAllExtensions": "PASS",
+    "note": "The public source copy has no .git, so its default git-based scan refused enumeration. The canonical scan passed in the actual checkout; no rule was disabled."
+  },
+  "remoteCI": "NOT_RUN",
+  "heatwaveManaged": "PENDING_BY_USER_DIRECTION",
+  "productionCertified": false
+}

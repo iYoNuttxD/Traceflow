@@ -117,13 +117,17 @@ class CloudflareTests(unittest.TestCase):
 class ServiceEnvironmentTests(unittest.TestCase):
     def check(self, role="api", **overrides):
         env = {"NODE_ENV":"production", "HTTP_HOST":"127.0.0.1", "PORT":"3001", "TRUST_PROXY":"loopback", "SHUTDOWN_TIMEOUT_MS":"30000", "GITHUB_SCHEDULER_ENABLED":"false" if role == "api" else "true", "TEST_EVIDENCE_STORAGE_DIR":"/var/lib/traceflow/test-evidence"}
+        # Synthetic process-only credential; never a database connection.
+        import secrets
+        from urllib.parse import urlencode
+        env["DATABASE_URL"] = "mysql://synthetic:" + secrets.token_hex(32) + "@db.invalid/unused?" + urlencode({"sslaccept":"strict", "sslcert":"/etc/pki/traceflow/mysql-ca.pem", "connection_limit":"3", "connect_timeout":"5", "pool_timeout":"10", "socket_timeout":"30"})
         env.update(overrides)
         return subprocess.run([shutil.which("node"), str(BASE / "scripts/validate-service-environment.mjs"), role], env=env, text=True, capture_output=True)
     def test_valid_roles(self):
         for role in ("api", "worker"):
             with self.subTest(role=role): self.assertEqual(self.check(role).returncode, 0)
     def test_invalid_override_refused_and_values_not_logged(self):
-        for key in ("NODE_ENV", "HTTP_HOST", "PORT", "TRUST_PROXY", "SHUTDOWN_TIMEOUT_MS", "GITHUB_SCHEDULER_ENABLED", "TEST_EVIDENCE_STORAGE_DIR", "TEST_DATABASE_URL"):
+        for key in ("NODE_ENV", "HTTP_HOST", "PORT", "TRUST_PROXY", "SHUTDOWN_TIMEOUT_MS", "GITHUB_SCHEDULER_ENABLED", "TEST_EVIDENCE_STORAGE_DIR", "TEST_DATABASE_URL", "DATABASE_URL"):
             with self.subTest(key=key):
                 result = self.check(**{key:"sensitive-sentinel"})
                 self.assertEqual(result.returncode, 1)
@@ -135,5 +139,30 @@ class ServiceEnvironmentTests(unittest.TestCase):
         self.assertEqual(self.check(SHUTDOWN_TIMEOUT_MS="45000").returncode, 1)
     def test_invalid_role(self):
         self.assertEqual(self.check("unknown").returncode, 1)
+
+class DatabaseBridgeUrlTests(unittest.TestCase):
+    def test_duplicate_parameters_refused_before_prisma_import_or_connection(self):
+        import datetime as dt
+        import secrets
+        from urllib.parse import urlencode, urlunsplit
+        with tempfile.TemporaryDirectory(prefix="tf06-bridge-") as directory:
+            root=Path(directory).resolve();release=root/"release";release.mkdir()
+            (release/"manifest.json").write_text(json.dumps({"releaseId":"synthetic","sourceState":"committed"}))
+            target={"host":"database.invalid","port":3306,"schema":"tfproduction","runtimeUser":"tf06_reader","migrationUser":"tf06_migrator"}
+            auth=root/"authorization.json"
+            auth.write_text(json.dumps({"formatVersion":1,"releaseId":"synthetic","environment":"staging",
+                "expiresAt":(dt.datetime.now(dt.timezone.utc)+dt.timedelta(minutes=10)).isoformat(),"target":target,
+                "gates":{"heatwaveTlsHomologated":True,"restoreRehearsed":True,"deploymentAuthorized":True}}));auth.chmod(0o600)
+            options={"sslaccept":"strict","sslcert":"/synthetic/public-ca.pem","connection_limit":"1","connect_timeout":"5","pool_timeout":"10","socket_timeout":"30"}
+            password=secrets.token_hex(32)
+            for key in options:
+                with self.subTest(parameter=key):
+                    query=urlencode([*options.items(),(key,"accept_invalid_certs" if key=="sslaccept" else "unreviewed")])
+                    value=urlunsplit(("mysql",target["runtimeUser"]+":"+password+"@database.invalid:3306","/tfproduction",query,""))
+                    env={"PATH":os.environ["PATH"],"HOME":str(root),"RUNTIME_DATABASE_URL":value}
+                    result=subprocess.run([shutil.which("node"),str(BASE/"scripts/release-database.mjs"),str(release),str(root/"admin"),str(auth),"read"],env=env,capture_output=True,text=True,timeout=5)
+                    self.assertEqual(result.returncode,1)
+                    self.assertEqual(json.loads(result.stdout),{"ok":False,"code":"UNREVIEWED_CONNECTION_OPTION"})
+                    self.assertNotIn(password,result.stdout+result.stderr)
 
 if __name__ == "__main__": unittest.main(verbosity=2)

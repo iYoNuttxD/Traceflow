@@ -1,0 +1,32 @@
+[
+  {
+    "command": "test:coverage",
+    "code": 0,
+    "seconds": 169.15,
+    "log": "backend-test-coverage.log"
+  },
+  {
+    "command": "lint",
+    "code": 0,
+    "seconds": 1.79,
+    "log": "backend-lint.log"
+  },
+  {
+    "command": "format:check",
+    "code": 0,
+    "seconds": 1.94,
+    "log": "backend-format-check.log"
+  },
+  {
+    "command": "architecture:check",
+    "code": 0,
+    "seconds": 0.19,
+    "log": "backend-architecture-check.log"
+  },
+  {
+    "command": "security:secrets",
+    "code": 1,
+    "seconds": 0.16,
+    "log": "backend-security-secrets.log"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "mainOwnedMysqlStopped": true,
+  "drHarnessCleanupVerified": true,
+  "connectionHarnessCleanupVerified": true,
+  "protectedTargetsTouched": false,
+  "ownedLinuxVmStoppedAndDeleted": true,
+  "syntheticSecretsDatadirsAndVmKeysRemoved": true
+}

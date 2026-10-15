@@ -1,0 +1,19 @@
+# Prepared template only. No installation/enablement authorized by OCI-DEPLOY-06.
+# OCI05 packaging does not include this tool yet; a reviewed operational bundle is required.
+[Unit]
+Description=TraceFlow persistence checks (no deletion or notification)
+ConditionPathExists=/etc/traceflow/persistence-monitor.json
+
+[Service]
+Type=oneshot
+User=traceflow
+Group=traceflow
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/traceflow/current/deploy/scripts/persistence-monitor.py --config /etc/traceflow/persistence-monitor.json
+TimeoutStartSec=120
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX

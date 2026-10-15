@@ -1,0 +1,87 @@
+[
+  {
+    "name": "ci-contract",
+    "exitCode": 0,
+    "seconds": 0.056
+  },
+  {
+    "name": "ui-inventory",
+    "exitCode": 0,
+    "seconds": 0.05
+  },
+  {
+    "name": "secrets-default",
+    "exitCode": 0,
+    "seconds": 0.104
+  },
+  {
+    "name": "secrets-changed-all-types",
+    "exitCode": 0,
+    "seconds": 0.055
+  },
+  {
+    "name": "diff-check",
+    "exitCode": 0,
+    "seconds": 0.011
+  },
+  {
+    "name": "shell-syntax",
+    "exitCode": 0,
+    "seconds": 0.004
+  },
+  {
+    "name": "syntax-heatwave-connection.js",
+    "exitCode": 0,
+    "seconds": 0.042
+  },
+  {
+    "name": "syntax-validate-oci-heatwave-connection.js",
+    "exitCode": 0,
+    "seconds": 0.041
+  },
+  {
+    "name": "syntax-heatwave-connection.test.js",
+    "exitCode": 0,
+    "seconds": 0.041
+  },
+  {
+    "name": "syntax-heatwave-tls.test.js",
+    "exitCode": 0,
+    "seconds": 0.043
+  },
+  {
+    "name": "syntax-connection-probes.mjs",
+    "exitCode": 0,
+    "seconds": 0.042
+  },
+  {
+    "name": "syntax-persistence-fixture.mjs",
+    "exitCode": 0,
+    "seconds": 0.041
+  },
+  {
+    "name": "syntax-persistence-outage.mjs",
+    "exitCode": 0,
+    "seconds": 0.042
+  },
+  {
+    "name": "syntax-projects-github-e9.test.js",
+    "exitCode": 0,
+    "seconds": 0.041
+  },
+  {
+    "name": "syntax-release-database.mjs",
+    "exitCode": 0,
+    "seconds": 0.044
+  },
+  {
+    "name": "syntax-validate-service-environment.mjs",
+    "exitCode": 0,
+    "seconds": 0.041
+  },
+  {
+    "name": "format-deploy",
+    "exitCode": 0,
+    "seconds": 0.162
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "name": "ci-policy",
+    "exitCode": 0,
+    "seconds": 5.108
+  },
+  {
+    "name": "audit-backend",
+    "exitCode": 0,
+    "seconds": 0.686
+  },
+  {
+    "name": "audit-frontend",
+    "exitCode": 0,
+    "seconds": 0.533
+  },
+  {
+    "name": "secrets",
+    "exitCode": 0,
+    "seconds": 0.197
+  },
+  {
+    "name": "architecture",
+    "exitCode": 0,
+    "seconds": 0.053
+  },
+  {
+    "name": "deploy-unit",
+    "exitCode": 0,
+    "seconds": 1.749
+  }
+]

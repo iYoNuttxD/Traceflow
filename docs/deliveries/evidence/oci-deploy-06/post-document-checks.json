@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "changedFilesScanned": 46,
+  "secretScan": "PASS",
+  "diffCheck": "PASS",
+  "newFilesWhitespace": "PASS",
+  "localDocumentLinksChecked": 7,
+  "protectedDataRead": false,
+  "deploymentPerformed": false,
+  "databaseBridgeDuplicateOptions": "REJECTED_BEFORE_PRISMA_OR_NETWORK",
+  "deployUnitTests": 74,
+  "finalBridgeSyntaxAndFormat": "PASS"
+}
