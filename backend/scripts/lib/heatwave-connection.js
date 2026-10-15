@@ -1,22 +1,83 @@
-import { readFile, lstat, realpath } from 'node:fs/promises';
+import { open, lstat, realpath } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { lookup } from 'node:dns/promises';
 import { connect, isIP } from 'node:net';
 import { connect as tlsConnect, checkServerIdentity } from 'node:tls';
-import { isAbsolute, resolve } from 'node:path';
-import { createHash } from 'node:crypto';
+import { isAbsolute, resolve, dirname } from 'node:path';
+import { createHash, X509Certificate } from 'node:crypto';
 import { requireCondition as check } from './oci-compatibility-safety.js';
 
 // Only explicit inputs. This module never loads .env, discovers credentials or runs SQL.
-export async function protectedFile(path, { privateFile = false } = {}) {
-  check(isAbsolute(path || ''), 'ABSOLUTE_FILE_REQUIRED');
-  const st = await lstat(path);
+export const managedHost = 'traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com';
+export const managedCaPath = '/etc/pki/traceflow/mysql-ca.pem';
+
+export async function protectedFile(path, { privateFile = false, rootOwned = false } = {}) {
+  check(isAbsolute(path || '') && path === resolve(path), 'ABSOLUTE_FILE_REQUIRED');
+  check((await realpath(path)) === path, 'UNSAFE_FILE');
+  for (let parent = dirname(path); ; parent = dirname(parent)) {
+    const st = await lstat(parent);
+    check(st.isDirectory() && [0, process.getuid()].includes(st.uid), 'UNSAFE_FILE_PARENT');
+    // A root-owned sticky temporary ancestor is acceptable for the isolated laboratory.
+    check(!(st.mode & 0o022) || (st.uid === 0 && st.mode & 0o1000), 'UNSAFE_FILE_PARENT');
+    if (parent === dirname(parent)) break;
+  }
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const st = await file.stat();
+    check(st.isFile() && [0, process.getuid()].includes(st.uid), 'UNSAFE_FILE');
+    check(!(st.mode & 0o022) && st.size <= 1024 * 1024, 'UNSAFE_FILE_MODE');
+    if (privateFile)
+      check(!(st.mode & 0o077) && st.uid === process.getuid(), 'PRIVATE_FILE_REQUIRED');
+    if (rootOwned) check(st.uid === 0, 'ROOT_OWNED_CA_REQUIRED');
+    return await file.readFile('utf8');
+  } finally {
+    await file.close();
+  }
+}
+
+export function publicCaContract(pem, expectedSha256) {
   check(
-    st.isFile() && !st.isSymbolicLink() && (await realpath(path)) === resolve(path),
-    'UNSAFE_FILE'
+    /^\s*-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\s*$/.test(pem),
+    'PUBLIC_CA_REQUIRED'
   );
-  check(!(st.mode & 0o022) && st.size <= 1024 * 1024, 'UNSAFE_FILE_MODE');
-  if (privateFile)
-    check(!(st.mode & 0o077) && st.uid === process.getuid(), 'PRIVATE_FILE_REQUIRED');
-  return readFile(path, 'utf8');
+  let certificate;
+  try {
+    certificate = new X509Certificate(pem);
+  } catch {
+    check(false, 'INVALID_CA');
+  }
+  check(certificate.ca && certificate.verify(certificate.publicKey), 'ROOT_CA_REQUIRED');
+  check(
+    Date.parse(certificate.validFrom) <= Date.now() && Date.parse(certificate.validTo) > Date.now(),
+    'CA_EXPIRED_OR_NOT_YET_VALID'
+  );
+  const sha256 = createHash('sha256').update(certificate.raw).digest('hex');
+  if (expectedSha256) check(sha256 === expectedSha256.toLowerCase(), 'CA_FINGERPRINT_MISMATCH');
+  return {
+    sha256,
+    validFrom: new Date(certificate.validFrom).toISOString(),
+    validTo: new Date(certificate.validTo).toISOString()
+  };
+}
+
+export async function verifyManagedDns(target, resolver = lookup) {
+  const addresses = await resolver(target.host, { all: true });
+  check(
+    addresses.length > 0 && addresses.every((entry) => entry.address === target.expectedAddress),
+    'DNS_IDENTITY_MISMATCH'
+  );
+}
+
+export function verifyServerIdentity(identity, target, local) {
+  check(
+    identity.db === target.schema &&
+      identity.uuid === target.serverUuid &&
+      Number(identity.port) === target.port &&
+      identity.version === target.version &&
+      identity.currentUser?.split('@')[0] === target.user &&
+      (!local || identity.datadir.replace(/\/$/, '') === target.datadir.replace(/\/$/, '')),
+    'SERVER_IDENTITY_MISMATCH'
+  );
 }
 
 export function connectionContract(environment, authorization) {
@@ -29,6 +90,17 @@ export function connectionContract(environment, authorization) {
   const expires = Date.parse(authorization.expiresAt);
   check(expires > Date.now() && expires < Date.now() + 86400000, 'AUTHORIZATION_EXPIRED');
   const local = authorization.mode === 'local-isolated';
+  check(
+    !environment[local ? 'HEATWAVE_DIAGNOSTIC_DATABASE_URL' : 'TEST_DATABASE_URL'] &&
+      !environment.TEST_RUNTIME_DATABASE_URL &&
+      !environment.MIGRATION_DATABASE_URL &&
+      !environment.RUNTIME_DATABASE_URL,
+    'AMBIGUOUS_CREDENTIAL_ENVIRONMENT'
+  );
+  check(
+    !environment.NODE_TLS_REJECT_UNAUTHORIZED || environment.NODE_TLS_REJECT_UNAUTHORIZED !== '0',
+    'INSECURE_TLS_ENVIRONMENT'
+  );
   const value = environment[local ? 'TEST_DATABASE_URL' : 'HEATWAVE_DIAGNOSTIC_DATABASE_URL'];
   check(value, local ? 'TEST_DATABASE_URL_REQUIRED' : 'EXPLICIT_CREDENTIAL_REQUIRED');
   let url;
@@ -59,6 +131,7 @@ export function connectionContract(environment, authorization) {
     check(
       target.host === '127.0.0.1' &&
         target.port >= 49152 &&
+        target.port <= 65535 &&
         /^tf_oci_[a-f0-9]{12}_test$/.test(target.schema) &&
         target.datadir,
       'PROTECTED_DATABASE_TARGET'
@@ -68,7 +141,9 @@ export function connectionContract(environment, authorization) {
       authorization.approved === true &&
         target.expectedAddress === '10.20.2.25' &&
         target.port === 3306 &&
-        !['localhost', '127.0.0.1'].includes(target.host),
+        target.host === managedHost &&
+        !/(?:^|_)(?:dev|development|test)(?:_|$)/i.test(target.schema) &&
+        /^[a-fA-F0-9]{64}$/.test(target.caSha256 || ''),
       'REMOTE_APPROVAL_REQUIRED'
     );
   const allowed = [
@@ -97,6 +172,7 @@ export function connectionContract(environment, authorization) {
       url.searchParams.get('socket_timeout') === '10',
     'BOUNDED_DIAGNOSTIC_POOL_REQUIRED'
   );
+  if (!local) check(url.searchParams.get('sslcert') === managedCaPath, 'MANAGED_CA_PATH_REQUIRED');
   return { value, url, target, local, ca: url.searchParams.get('sslcert') };
 }
 

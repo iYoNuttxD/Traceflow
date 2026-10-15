@@ -215,3 +215,28 @@ do [runbook de uploads](OCI_RESUMABLE_UPLOADS.md). Defaults preservam os limites
 Configuração inválida impede o carregamento do serviço; o piso livre de 512 MiB só pode aumentar.
 Não há variável Vite nova. `/api` continua na mesma origem. A API usa o root privado existente,
 com `.uploads` abaixo dele; nenhuma credencial nova é necessária para o protocolo.
+
+## OCI06.1 — banco gerenciado e CA pública
+
+Produção usa `traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com:3306`, com resolução privada
+esperada10.20.2.25 e CA pública `/etc/pki/traceflow/mysql-ca.pem`. Nenhuma URL com credencial foi
+criada/versionada. `api.env` e `github-worker.env` fornecem DATABASE_URL próprias, explicitamente,
+sem herdar ambiente DEV. Nome de schema e contas permanecem por confirmar.
+
+| Processo / variável | TLS e orçamento obrigatório |
+| --- | --- |
+| API / DATABASE_URL | strict, CA definitiva, pool1–5, connect5/pool10/socket30 segundos |
+| Worker / DATABASE_URL | strict, mesma CA, pool1–3, connect5/pool10/socket30 segundos |
+| Diagnóstico / HEATWAVE_DIAGNOSTIC_DATABASE_URL | strict, CA definitiva, pool1, connect5/pool5/socket10; autorização privada<24h com target exato e fingerprintDER |
+| Job / MIGRATION_DATABASE_URL e RUNTIME_DATABASE_URL | credenciais separadas e somente no job aprovado; orçamento até2 proposto, limites explícitos conforme operação; não herdar nas units |
+| TEST_DATABASE_URL / TEST_RUNTIME_DATABASE_URL | somente instâncias descartáveis próprias; nunca credencial HeatWave |
+
+O preflight das units recusa todas as variáveis de banco de teste/diagnóstico/job herdadas e
+NODE_TLS_REJECT_UNAUTHORIZED=0. Não proibir genericamente TEST_*: TEST_EVIDENCE_STORAGE_DIR e
+TEST_UPLOAD_* são configurações funcionais canônicas. API continua bind127.0.0.1/porta3001,
+TRUST_PROXY=loopback, storage `/var/lib/traceflow/test-evidence`; worker independente.
+
+CA pública root-owned0644, diretório0755, sem escrita de traceflow; fora de releases, webroot,
+HOME e `/etc/traceflow` oculto. Nenhuma chave TLS entra no runtime. Fingerprint, instalação futura,
+autorização e OpenSSL fornecido pelo operador estão no [runbook de homologação](OCI_HEATWAVE_HOMOLOGATION.md#oci-deploy-061--atualização-de-15102026).
+TLS do servidor validado manualmente não homologa autenticação/sessão Prisma gerenciada.

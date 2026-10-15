@@ -1,0 +1,55 @@
+{
+  "evidence": "E11",
+  "origin": "LOCAL_EXECUTION_AND_PENDING_MANAGED",
+  "environment": "Community fixture; OCI not inspected",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": {
+    "local": "SHOW GRANTS FOR CURRENT_USER and negative probes",
+    "managed": "same read-only inspection only after approved command bundle"
+  },
+  "status": "PASS_LOCAL_MANAGED_PENDING",
+  "result": {
+    "diagnosticLocalNormalized": [
+      "SELECT"
+    ],
+    "localPrivilegeDeniedCode": "P2010",
+    "invalidCredentialsCode": "P1000",
+    "managedCurrentUser": null,
+    "managedAuthenticationPlugin": null,
+    "managedPrivileges": null,
+    "futureRoles": {
+      "diagnostic": [
+        "SELECT on approved schema",
+        "own grants and variables"
+      ],
+      "apiWorker": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "backup": [
+        "SELECT",
+        "SHOW VIEW if needed"
+      ],
+      "migration": [
+        "schema-scoped DDL/DML for exclusive approved job"
+      ]
+    },
+    "forbidden": [
+      "root/admin",
+      "global grants",
+      "FILE",
+      "SUPER",
+      "GRANT OPTION",
+      "unresolved roles",
+      "other schemas"
+    ]
+  },
+  "limitations": [
+    "Local role grants are synthetic and not proposed account identities.",
+    "No real account/GRANT created or inspected.",
+    "Runtime/job rights must be reviewed separately; diagnostic success does not validate other accounts."
+  ]
+}

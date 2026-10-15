@@ -17,7 +17,16 @@ if (process.versions.node.split(".")[0] !== "22") invalid.push("NODE_MAJOR");
 const deadline = Number(process.env.SHUTDOWN_TIMEOUT_MS);
 if (!Number.isInteger(deadline) || deadline < 1000 || deadline > 30000)
   invalid.push("SHUTDOWN_TIMEOUT_MS");
-if (process.env.TEST_DATABASE_URL) invalid.push("TEST_DATABASE_URL");
+for (const name of [
+  "TEST_DATABASE_URL",
+  "TEST_RUNTIME_DATABASE_URL",
+  "HEATWAVE_DIAGNOSTIC_DATABASE_URL",
+  "MIGRATION_DATABASE_URL",
+  "RUNTIME_DATABASE_URL",
+])
+  if (process.env[name]) invalid.push(name);
+if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0")
+  invalid.push("NODE_TLS_REJECT_UNAUTHORIZED");
 // The systemd runtime must never inherit Prisma v6's permissive TLS default.
 // CA is public and must be outside /etc/traceflow, which the units hide from runtime.
 try {

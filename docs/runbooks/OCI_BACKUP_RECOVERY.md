@@ -152,3 +152,20 @@ O formato local limita arquivos descompactados a 4 GiB/100 mil membros e exige r
 - [ ] Autorização específica para instalar jobs e operar dados reais.
 
 Relatório: [OCI_DEPLOY_06_HEATWAVE_BACKUP_RECOVERY_REPORT.md](../deliveries/OCI_DEPLOY_06_HEATWAVE_BACKUP_RECOVERY_REPORT.md).
+
+## OCI06.1 — continuidade de DR
+
+TLS do servidor HeatWave recebeu PASS **manual**, conforme [homologação](OCI_HEATWAVE_HOMOLOGATION.md#oci-deploy-061--atualização-de-15102026).
+Isso não habilita o CLI local-only de backup, comprova restore gerenciado nem fecha OCI06.
+Não houve novo backup/restore real, timer, bucket, chave real, coleta ou alerta enviado.
+
+Futuras ferramentas MySQL devem usar o FQDN canônico, VERIFY_IDENTITY e CA pública definitiva
+com fingerprint confiável. A CA raiz é pública; sua chave privada e a chave do servidor não
+entram no pacote coordenado. Recuperação de configurações, credenciais, release e CA confiável
+é processo separado, com responsáveis; não recuperar trust somente do servidor a restaurar.
+
+Permanecem: adaptador operacional com writers/lock de release, streaming/capacidade, destino
+externo/custos, custódia de chaves, retenção aprovada, sensores/alertas, empacotamento dos utilitários
+e ensaio representativo com transferência e smoke. RPO≤24h/RTO≤4h são propostas. Os segundos de
+restore sintético da OCI06 não são RTO de produção. Avaliar o backup automático Always Free frente
+ao conjunto DB+evidências e requisitos aprovados; não presumir que ele seja suficiente.

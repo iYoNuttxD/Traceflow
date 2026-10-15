@@ -1,0 +1,139 @@
+{
+  "evidence": "E14",
+  "origin": "LOCAL_INSPECTION",
+  "environment": "checkout and owned disposable labs",
+  "date": "2026-10-15T12:14:19.629922+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": "Preservation/explicit secret scan/diff verification; results finalized below",
+  "status": "PASS_WITH_REVIEWED_EXISTING_TEMPLATE",
+  "result": {
+    "externalAccess": {
+      "DEV": false,
+      "OCI": false,
+      "Cloudflare": false,
+      "IAM": false,
+      "GitHubApp": false
+    },
+    "realSecretAccess": false,
+    "realCaOrPrivateKeyAccess": false,
+    "screenshots": 0,
+    "commits": 0,
+    "pushes": 0,
+    "sourceChanges": [
+      "backend/scripts/lib/heatwave-connection.js",
+      "backend/scripts/validate-oci-heatwave-connection.js",
+      "backend/test/unit/heatwave-connection.test.js",
+      "backend/test/unit/heatwave-tls.test.js",
+      "deploy/scripts/validate-service-environment.mjs",
+      "deploy/tests/connection-probes.mjs",
+      "deploy/tests/persistence_lab.py",
+      "deploy/tests/run-connection-lab.py",
+      "deploy/tests/test_operations.py",
+      "docs/runbooks/OCI_BACKUP_RECOVERY.md",
+      "docs/runbooks/OCI_ENVIRONMENT.md",
+      "docs/runbooks/OCI_HEATWAVE_HOMOLOGATION.md",
+      "docs/runbooks/OCI_HEATWAVE_MAINTENANCE.md",
+      "docs/runbooks/OCI_MYSQL_COMPATIBILITY.md"
+    ],
+    "defaultSecretScan": "PASS; 676 files",
+    "newContentSecretScan": {
+      "newFiles": 21,
+      "addedLines": 715,
+      "findings": []
+    },
+    "wholeFileScan": {
+      "exitCode": 1,
+      "findings": 1,
+      "classification": {
+        "file": "docs/runbooks/OCI_MYSQL_COMPATIBILITY.md",
+        "line": 158,
+        "lineSha256": "ea5a425a385b52ddfca1412d0d00b133dceca9c28a6e7ec6d67666e47fdf654a",
+        "identicalToHead": true,
+        "passwordFieldIsVariableInterpolation": true,
+        "usernameFieldContainsInterpolation": true,
+        "loopbackOnly": true,
+        "result": "REVIEWED_EXISTING_TEMPLATE_NOT_A_LITERAL_SECRET",
+        "scannerChanged": false
+      }
+    },
+    "diffCheck": "PASS",
+    "preservation": {
+      "trackedCompared": 1467,
+      "trackedModified": 14,
+      "trackedPreserved": 1453,
+      "migrationsUnchanged": 68,
+      "sharedClientUnchanged": true,
+      "allBackendFrontendSrcUnchanged": true,
+      "functionalTestsAndThresholdsUnchanged": true,
+      "lockfilesAndWorkflowsUnchanged": true,
+      "systemdNginxReleaseBridgeBackupMonitorUnchanged": true,
+      "academicTccAndHistoricalReportsUnchanged": true
+    },
+    "cleanup": {
+      "date": "2026-10-15T12:14:19.629922+00:00",
+      "scope": "only LIMA_HOME=/private/tmp/tf061-1mrsfkof/lima-home; no OCI",
+      "steps": [
+        {
+          "command": [
+            "limactl",
+            "stop",
+            "tf061"
+          ],
+          "exitCode": 0
+        },
+        {
+          "command": [
+            "limactl",
+            "delete",
+            "--force",
+            "tf061"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "ownedVmDeleted": true,
+      "otherLimaHomesTouched": false,
+      "privateWorkspaceCleanup": "COMPLETE",
+      "removedOwnEntries": [
+        "baseline",
+        "lima-home",
+        "npm-cache",
+        "npm-global.conf",
+        "npm-home",
+        "npm-user.conf",
+        "private",
+        "workspace"
+      ],
+      "remainingOwnEntries": [
+        "public"
+      ],
+      "realInfrastructureTouched": false
+    },
+    "authoredFilesSha256": {
+      "backend/scripts/lib/heatwave-connection.js": "94ffebd4ee12abf3a0306660b205b145c778bf2724829d7bbcee80c9400283e4",
+      "backend/scripts/validate-oci-heatwave-connection.js": "684197047d65ed0fc08d1c76f18213fa4f42b2ef6b5793b2ea6df5a0f870a2c6",
+      "backend/test/unit/heatwave-connection.test.js": "e1f0cdfe36dce27150438ee0d0c5c9e5aa6237db17b11cd5a154c4ca5ca41b74",
+      "backend/test/unit/heatwave-tls.test.js": "3d5da16b1233c5eafa23b1e691e4e045a981646ac64b1a7d3cded57031aea412",
+      "deploy/scripts/validate-service-environment.mjs": "4ab5d7aaf8cd50d2271a7ff4a8a1e3352d806667d2fb36b849cb76dd457a1eb0",
+      "deploy/tests/connection-probes.mjs": "97f8d2228f867861ebf7d2279ca3bbe7cac8097b9528d783735cb56a461e0fd4",
+      "deploy/tests/persistence_lab.py": "3d1cc62ba02bc091c6ea0a74ca4fa36fb00eb5f11f265009e0c28a22f12f89a3",
+      "deploy/tests/run-connection-lab.py": "e15965e06e20673913da3a48fabd7dc277f658b8ce1fbc295cbc2db49bf3d550",
+      "deploy/tests/test_operations.py": "ff4995242d0a94809a126e1d0a65ac40345c7eb9fea8e1b8aff81304dc3c9a10",
+      "docs/runbooks/OCI_BACKUP_RECOVERY.md": "cabe89121d01ba4ba5ef6da75c5fc174967b367f0ca8db613f7f7df6c3d4ca69",
+      "docs/runbooks/OCI_ENVIRONMENT.md": "f211ece423ea55f14f4d85f25e5f03c2e33cfc2b6909f5af12250098901d9a2e",
+      "docs/runbooks/OCI_HEATWAVE_HOMOLOGATION.md": "db02f7ccecb348c8540ea71d53e5f9e223e740b1b0982176e7eff74458146ecc",
+      "docs/runbooks/OCI_HEATWAVE_MAINTENANCE.md": "73892f4a2fa02ad9293ad15c55b331c2f94bd15e1139250db6f8c795f465d966",
+      "docs/runbooks/OCI_MYSQL_COMPATIBILITY.md": "e2e9ea474e430c871964e2cf82ebc7531ce37296bc1e9df0f6881776ff4343f0",
+      "deploy/scripts/prepare-mysql-ca.py": "a6e17820fc456b20a9bd2fcd3227db36e833d775f2c1c59ae50cdbd07fb96559",
+      "deploy/tests/run-mysql-ca-linux.py": "92875070202111f057a6ff1ea7afff8cf7de8c7b9a68937e1b2d76c2105f2aa3",
+      "deploy/tests/test_mysql_ca.py": "14382969c7fd2388021c4f726bb8741028d6a0e837a78290d99a3b8a72342c08",
+      "docs/deliveries/OCI_DEPLOY_06_1_HEATWAVE_MANAGED_HOMOLOGATION_REPORT.md": "2d4e27e3c907b6529b6ed016c88abfab7abaa8375711419a0b003688c91dbd77"
+    },
+    "finalChangedFileCount": 35,
+    "modifiedTrackedFileCount": 14,
+    "newFileCount": 21
+  },
+  "limitations": [
+    "No remote security posture recertified."
+  ]
+}

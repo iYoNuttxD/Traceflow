@@ -1,0 +1,57 @@
+{
+  "evidence": "E10",
+  "origin": "PREPARED_NOT_EXECUTED",
+  "environment": "OCI traceflow-mysql, sa-saopaulo-1; private address",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": "Runbook OCI_HEATWAVE_HOMOLOGATION.md: separate CA / bootstrap / Prisma batches; 14-field authorization card",
+  "status": "PENDING",
+  "result": {
+    "agentSshConnections": 0,
+    "agentSqlConnections": 0,
+    "approvedCommandBundles": 0,
+    "knownTarget": {
+      "host": "traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com",
+      "address": "10.20.2.25",
+      "port": 3306,
+      "caPath": "/etc/pki/traceflow/mysql-ca.pem",
+      "caSha256Der": "2eaee0e206741bf81b651f1ae33f44f0a92949ed6a99137a4aa8b0013486d295"
+    },
+    "missing": [
+      "SSH alias and Unix operator identity",
+      "public reviewed bundle path/digest and protected launcher",
+      "existing schema name or separately authorized future bootstrap",
+      "restricted account and protected credential path",
+      "SQL VERSION(), server UUID, actual privileges and parameters",
+      "resolved exact command batch and explicit operator approval"
+    ],
+    "authorizationContract": {
+      "formatVersion": 1,
+      "operation": "diagnose-read-only",
+      "mode": "oci-read-only",
+      "approved": "must be true only after explicit approval",
+      "expiresAt": "future and less than 24h",
+      "target": "exact known host/IP/port/CA plus separately observed schema/user/UUID/SQL version"
+    },
+    "sql": [
+      "SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version, CURRENT_USER() AS currentUser",
+      "SHOW SESSION STATUS WHERE Variable_name IN ('Ssl_cipher','Ssl_version')",
+      "SHOW GRANTS FOR CURRENT_USER",
+      "SELECT @@version_comment AS versionComment, @@sql_mode AS sqlMode, @@transaction_isolation AS transactionIsolation, @@time_zone AS timeZone, @@system_time_zone AS systemTimeZone, @@character_set_server AS characterSet, @@collation_server AS collation, @@lower_case_table_names AS lowerCaseTableNames, @@max_connections AS maxConnections, @@wait_timeout AS waitTimeout, @@connect_timeout AS connectTimeout, @@require_secure_transport AS requireSecureTransport, @@default_storage_engine AS engine",
+      "SELECT 1"
+    ],
+    "limits": {
+      "pool": 1,
+      "connectSeconds": 5,
+      "poolSeconds": 5,
+      "socketSeconds": 10,
+      "totalSeconds": 30
+    }
+  },
+  "limitations": [
+    "Authorization for local task is not authorization for SSH/OCI/SQL.",
+    "Prepared placeholders must be resolved and presented again before approval.",
+    "Do not create a schema just to satisfy diagnostic.",
+    "No credentials requested in chat or read from development."
+  ]
+}

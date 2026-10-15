@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { connectionContract, validateGrants } from '../../scripts/lib/heatwave-connection.js';
+import {
+  connectionContract,
+  validateGrants,
+  managedHost,
+  managedCaPath,
+  verifyServerIdentity,
+  verifyManagedDns
+} from '../../scripts/lib/heatwave-connection.js';
 
 function fixture() {
   const target = {
@@ -101,14 +108,114 @@ describe('OCI06 explicit read-only boundary', () => {
     const f = fixture(),
       u = new URL(f.environment.TEST_DATABASE_URL);
     f.authorization.mode = 'oci-read-only';
-    f.authorization.target.host = 'database.internal';
-    u.hostname = 'database.internal';
+    f.authorization.target.host = managedHost;
+    f.authorization.target.schema = 'tfproduction';
+    f.authorization.target.caSha256 = 'a'.repeat(64);
+    u.hostname = managedHost;
+    u.pathname = 'tfproduction';
+    u.searchParams.set('sslcert', managedCaPath);
     u.port = '3306';
     Object.assign(f.authorization.target, { port: 3306, expectedAddress: '10.20.2.25' });
     const e = { HEATWAVE_DIAGNOSTIC_DATABASE_URL: u.toString() };
     expect(() => connectionContract(e, f.authorization)).toThrow();
     f.authorization.approved = true;
     expect(connectionContract(e, f.authorization).local).toBe(false);
+  });
+});
+describe('OCI061 identity and environment boundaries', () => {
+  it('refuses DNS errors, empty or mixed answers without alternate lookup', async () => {
+    const target = { host: managedHost, expectedAddress: '10.20.2.25' };
+    let calls = 0;
+    await expect(
+      verifyManagedDns(target, async () => {
+        calls++;
+        throw Object.assign(new Error(), { code: 'ENOTFOUND' });
+      })
+    ).rejects.toMatchObject({ code: 'ENOTFOUND' });
+    expect(calls).toBe(1);
+    for (const addresses of [
+      [],
+      [{ address: '127.0.0.1' }],
+      [{ address: '10.20.2.25' }, { address: '10.20.2.26' }]
+    ])
+      await expect(verifyManagedDns(target, async () => addresses)).rejects.toMatchObject({
+        code: 'DNS_IDENTITY_MISMATCH'
+      });
+    await expect(
+      verifyManagedDns(target, async () => [{ address: '10.20.2.25' }])
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    'HEATWAVE_DIAGNOSTIC_DATABASE_URL',
+    'TEST_RUNTIME_DATABASE_URL',
+    'MIGRATION_DATABASE_URL',
+    'RUNTIME_DATABASE_URL'
+  ])('rejects mixed %s in local mode', (name) => {
+    const f = fixture();
+    f.environment[name] = f.environment.TEST_DATABASE_URL;
+    expect(() => connectionContract(f.environment, f.authorization)).toThrow(
+      expect.objectContaining({ code: 'AMBIGUOUS_CREDENTIAL_ENVIRONMENT' })
+    );
+  });
+  it.each([
+    'test-variable',
+    'wrong-fqdn',
+    'ip-host',
+    'dev-schema',
+    'ca-path',
+    'missing-pin',
+    'tls-environment',
+    'malformed-url',
+    'long-approval'
+  ])('rejects managed %s without network', (kind) => {
+    const f = fixture();
+    const u = new URL(f.environment.TEST_DATABASE_URL);
+    Object.assign(f.authorization, { mode: 'oci-read-only', approved: true });
+    Object.assign(f.authorization.target, {
+      host: managedHost,
+      port: 3306,
+      schema: 'tfproduction',
+      expectedAddress: '10.20.2.25',
+      caSha256: 'a'.repeat(64)
+    });
+    u.hostname = managedHost;
+    u.port = '3306';
+    u.pathname = 'tfproduction';
+    u.searchParams.set('sslcert', managedCaPath);
+    const e = { HEATWAVE_DIAGNOSTIC_DATABASE_URL: u.toString() };
+    if (kind === 'test-variable') e.TEST_DATABASE_URL = f.environment.TEST_DATABASE_URL;
+    if (kind === 'wrong-fqdn' || kind === 'ip-host') {
+      u.hostname = kind === 'ip-host' ? '10.20.2.25' : 'other.invalid';
+      f.authorization.target.host = u.hostname;
+    }
+    if (kind === 'dev-schema') {
+      u.pathname = 'traceflow_dev';
+      f.authorization.target.schema = 'traceflow_dev';
+    }
+    if (kind === 'ca-path') u.searchParams.set('sslcert', '/home/opc/traceflow-ca.crt');
+    if (kind === 'missing-pin') delete f.authorization.target.caSha256;
+    if (kind === 'tls-environment') e.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    if (kind === 'long-approval')
+      f.authorization.expiresAt = new Date(Date.now() + 86400000 * 2).toISOString();
+    e.HEATWAVE_DIAGNOSTIC_DATABASE_URL = kind === 'malformed-url' ? 'invalid' : u.toString();
+    expect(() => connectionContract(e, f.authorization)).toThrow();
+  });
+  it('requires actual authenticated account, version, UUID, schema, port and owned datadir', () => {
+    const { target } = fixture().authorization;
+    const identity = {
+      db: target.schema,
+      uuid: target.serverUuid,
+      version: target.version,
+      port: target.port,
+      datadir: target.datadir + '/',
+      currentUser: target.user + '@127.0.0.1'
+    };
+    expect(() => verifyServerIdentity(identity, target, true)).not.toThrow();
+    for (const name of ['db', 'uuid', 'version', 'port', 'datadir', 'currentUser'])
+      expect(() =>
+        verifyServerIdentity({ ...identity, [name]: 'unexpected' }, target, true)
+      ).toThrow(expect.objectContaining({ code: 'SERVER_IDENTITY_MISMATCH' }));
   });
 });
 describe('least privileges', () => {

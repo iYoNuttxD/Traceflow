@@ -133,6 +133,11 @@ class ServiceEnvironmentTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1)
                 self.assertNotIn("sensitive-sentinel", result.stderr)
                 self.assertIn(key, json.loads(result.stderr)["variables"])
+    def test_foreign_credential_variables_and_tls_bypass_rejected(self):
+        for name in ("TEST_RUNTIME_DATABASE_URL", "HEATWAVE_DIAGNOSTIC_DATABASE_URL", "MIGRATION_DATABASE_URL", "RUNTIME_DATABASE_URL", "NODE_TLS_REJECT_UNAUTHORIZED"):
+            result = self.check(**{name: "0" if name == "NODE_TLS_REJECT_UNAUTHORIZED" else "synthetic"})
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(name, json.loads(result.stderr)["variables"])
     def test_worker_disabled_rejected(self):
         self.assertEqual(self.check("worker", GITHUB_SCHEDULER_ENABLED="false").returncode, 1)
     def test_longer_shutdown_requires_unit_review(self):

@@ -23,7 +23,9 @@ class Lab:
         return p.stdout
     def start(self):
         openssl=shutil.which('openssl')
-        self.command([openssl,'req','-x509','-newkey','rsa:2048','-nodes','-keyout',self.root/'private/ca.key','-out',self.root/'ca.pem','-days','2','-subj','/CN=TraceFlow synthetic OCI06 CA'])
+        ca_config=self.root/'private/root-ca.cnf'
+        ca_config.write_text('[req]\ndistinguished_name=dn\nx509_extensions=root_ca\n[dn]\n[root_ca]\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\n')
+        self.command([openssl,'req','-config',ca_config,'-x509','-newkey','rsa:2048','-nodes','-keyout',self.root/'private/ca.key','-out',self.root/'ca.pem','-days','2','-subj','/CN=TraceFlow synthetic OCI06 CA'])
         self.command([openssl,'req','-newkey','rsa:2048','-nodes','-keyout',self.root/'private/server.key','-out',self.root/'private/server.csr','-subj','/CN=localhost'])
         (self.root/'private/extensions').write_text('subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n')
         self.command([openssl,'x509','-req','-in',self.root/'private/server.csr','-CA',self.root/'ca.pem','-CAkey',self.root/'private/ca.key','-CAcreateserial','-out',self.root/'server.pem','-days','2','-extfile',self.root/'private/extensions'])

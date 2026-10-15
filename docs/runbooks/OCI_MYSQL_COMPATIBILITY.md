@@ -310,3 +310,22 @@ SQL, fingerprints, skips e libs carregadas. Preservar tentativas anteriores e ex
 correções do próprio validador. Não repetir um teste falho até obter verde sem investigar
 a causa. Mudança de certificado, configuração HeatWave, Node/OpenSSL, Prisma, Argon2 ou
 imagem de sistema exige rever o alcance da evidência anterior.
+
+## OCI06.1 — evidência gerenciada parcial
+
+Em15/10/2026 o operador forneceu validação OpenSSL TLS1.3/hostname aprovada para
+`traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com:3306` (10.20.2.25), com CA TraceFlow Internal
+Root CA e certificado BYOC User defined. Essa evidência é manual, não execução do Codex.
+Prisma Client/CLI6.12.0, schema e68 migrations permanecem iguais à baseline dee40d83.
+
+Os testes novos exercitam a versão exata do parser/driver Prisma e reforçam guards de CA,
+identidade/contas/variáveis; os resultados locais e a prova systemd/SELinux ARM64 estão no
+[relatório OCI06.1](../deliveries/OCI_DEPLOY_06_1_HEATWAVE_MANAGED_HOMOLOGATION_REPORT.md).
+Não se repetiu a matriz extensa8.4/26.7/ARM64 nem DR histórico; a suíte completa atual usa apenas
+MySQL Community26.7 descartável e dados sintéticos. Nenhum banco DEV ou OCI foi consultado.
+
+FQDN/CA/SAN conhecidos por relato não eliminam pendências: VERSION() e UUID reais, schema,
+autenticação/grants, max_connections/pool agregado, parâmetros, TLS da própria sessão Prisma,
+migrations gerenciadas em autorização futura e DR. Não há declaração explícita de suporte
+irrestrito a HeatWave26.7 pelo Prisma6.12 baseada nesses testes. Preservar o gate de execução
+read-only com autorização e nunca rodar validators que criam schemas no HeatWave reservado.

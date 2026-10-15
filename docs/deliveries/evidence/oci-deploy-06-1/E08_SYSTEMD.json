@@ -1,0 +1,88 @@
+{
+  "evidence": "E08",
+  "origin": "LOCAL_EXECUTION",
+  "environment": "Oracle Linux 9.8 aarch64; disposable Lima tf061; SELinux Enforcing",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": {
+    "harness": "deploy/tests/run-mysql-ca-linux.py",
+    "checks": [
+      "systemd-analyze verify traceflow-api.service traceflow-github-worker.service",
+      "systemctl start on each own derived oneshot unit",
+      "systemctl show sandbox/identity/result",
+      "journalctl restricted to own probes",
+      "restorecon/matchpathcon on synthetic CA"
+    ]
+  },
+  "status": "PASS_LOCAL",
+  "result": {
+    "environment": "Oracle Linux 9.8 aarch64; local disposable VM",
+    "productionCertified": false,
+    "checks": [
+      {
+        "name": "public-ca-plan-install-idempotent",
+        "status": "PASS",
+        "mode": "0o644",
+        "uid": 0,
+        "context": "/etc/pki/traceflow/mysql-ca.pem verified.",
+        "fingerprint": "7eefe18014428ef85f0f755c77edc5ebb60d61f6b57f4114d3d2b4a25ea62ff1"
+      },
+      {
+        "name": "traceflow-api.service",
+        "status": "PASS",
+        "state": [
+          "Result=success",
+          "ExecMainStatus=0",
+          "UMask=0077",
+          "User=traceflow",
+          "Group=traceflow",
+          "ProtectHome=yes",
+          "ProtectSystem=strict",
+          "NoNewPrivileges=yes"
+        ],
+        "probe": {
+          "probe": "OCI061_CA_SANDBOX",
+          "role": "api",
+          "readable": true,
+          "writable": false,
+          "protectHome": true,
+          "nonRoot": true,
+          "noNewPrivileges": true
+        }
+      },
+      {
+        "name": "traceflow-github-worker.service",
+        "status": "PASS",
+        "state": [
+          "Result=success",
+          "ExecMainStatus=0",
+          "UMask=0077",
+          "User=traceflow",
+          "Group=traceflow",
+          "ProtectHome=yes",
+          "ProtectSystem=strict",
+          "NoNewPrivileges=yes"
+        ],
+        "probe": {
+          "probe": "OCI061_CA_SANDBOX",
+          "role": "worker",
+          "readable": true,
+          "writable": false,
+          "protectHome": true,
+          "nonRoot": true,
+          "noNewPrivileges": true
+        }
+      }
+    ],
+    "status": "PASS",
+    "selinux": "Enforcing",
+    "caContext": "unconfined_u:object_r:cert_t:s0 /etc/pki/traceflow/mysql-ca.pem",
+    "syntheticPrivateFilesRemoved": true
+  },
+  "limitations": [
+    "Production units preserved byte-for-byte.",
+    "Derived units replace environment/entrypoint/lifecycle with filesystem probes; additional localhost-only network restriction.",
+    "Does not prove functional API/worker startup against managed MySQL.",
+    "VM is local and disposable, not OCI."
+  ]
+}

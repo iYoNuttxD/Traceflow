@@ -1,0 +1,22 @@
+{
+  "evidence": "E06",
+  "origin": "OPERATOR_SUPPLIED",
+  "environment": "VM traceflowapp -> managed private MySQL",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": "openssl s_client -starttls mysql -connect traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com:3306 -servername traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com -CAfile /home/opc/traceflow-ca.crt -verify_hostname traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com -verify_return_error -brief < /dev/null",
+  "status": "PASS_OPERATOR",
+  "result": {
+    "handshake": "TLSv1.3",
+    "cipher": "TLS_AES_128_GCM_SHA256",
+    "verification": "OK",
+    "verifiedPeername": "traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com",
+    "peerSignature": "RSA-PSS / SHA256",
+    "temporaryKey": "X25519, 253 bits",
+    "connectedAddress": "10.20.2.25"
+  },
+  "limitations": [
+    "Manual server TLS only; does not prove SQL authentication, grants, schema, UUID, pool, migrations or Prisma session TLS.",
+    "No rerun by agent; exact timestamp unavailable."
+  ]
+}

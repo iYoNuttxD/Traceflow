@@ -1,10 +1,12 @@
 import { parseArgs } from 'node:util';
-import { lookup } from 'node:dns/promises';
 import {
   connectionContract,
   protectedFile,
   validateGrants,
-  mysqlTlsProbe
+  mysqlTlsProbe,
+  publicCaContract,
+  verifyServerIdentity,
+  verifyManagedDns
 } from './lib/heatwave-connection.js';
 import { requireCondition as check } from './lib/oci-compatibility-safety.js';
 
@@ -21,21 +23,14 @@ try {
     await protectedFile(values.authorization, { privateFile: true })
   );
   const contract = connectionContract(process.env, authorization);
-  const ca = await protectedFile(contract.ca);
-  check(!ca.includes('PRIVATE KEY') && ca.includes('BEGIN CERTIFICATE'), 'PUBLIC_CA_REQUIRED');
+  const ca = await protectedFile(contract.ca, { rootOwned: !contract.local });
+  const caIdentity = publicCaContract(ca, contract.target.caSha256);
   if (values['validate-only']) {
     console.log(
       JSON.stringify({ status: 'CONFIG_VALID', connected: false, mode: authorization.mode })
     );
   } else {
-    if (!contract.local) {
-      const addresses = await lookup(contract.target.host, { all: true });
-      check(
-        addresses.length > 0 &&
-          addresses.every((x) => x.address === contract.target.expectedAddress),
-        'DNS_IDENTITY_MISMATCH'
-      );
-    }
+    if (!contract.local) await verifyManagedDns(contract.target);
     const tls = await mysqlTlsProbe({ host: contract.target.host, port: contract.target.port, ca });
     // Reuse the canonical shared Prisma Client without importing application startup or dotenv.
     process.env.NODE_ENV = 'production';
@@ -46,17 +41,9 @@ try {
     );
     ({ prisma } = await import('../src/database/prismaClient.js'));
     const [identity] = await prisma.$queryRawUnsafe(
-      'SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version'
+      'SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version, CURRENT_USER() AS currentUser'
     );
-    check(
-      identity.db === contract.target.schema &&
-        identity.uuid === contract.target.serverUuid &&
-        Number(identity.port) === contract.target.port &&
-        identity.version === contract.target.version &&
-        (!contract.local ||
-          identity.datadir.replace(/\/$/, '') === contract.target.datadir.replace(/\/$/, '')),
-      'SERVER_IDENTITY_MISMATCH'
-    );
+    verifyServerIdentity(identity, contract.target, contract.local);
     const session = await prisma.$queryRawUnsafe(
       "SHOW SESSION STATUS WHERE Variable_name IN ('Ssl_cipher','Ssl_version')"
     );
@@ -74,6 +61,8 @@ try {
       'SELECT @@version_comment AS versionComment, @@sql_mode AS sqlMode, @@transaction_isolation AS transactionIsolation, @@time_zone AS timeZone, @@system_time_zone AS systemTimeZone, @@character_set_server AS characterSet, @@collation_server AS collation, @@lower_case_table_names AS lowerCaseTableNames, @@max_connections AS maxConnections, @@wait_timeout AS waitTimeout, @@connect_timeout AS connectTimeout, @@require_secure_transport AS requireSecureTransport, @@default_storage_engine AS engine'
     );
     await prisma.$queryRawUnsafe('SELECT 1');
+    await prisma.$disconnect();
+    prisma = undefined;
     console.log(
       JSON.stringify(
         {
@@ -83,12 +72,16 @@ try {
           checkedAt: new Date().toISOString(),
           version: identity.version,
           prisma: '6.12.0',
+          ca: caIdentity,
+          serverIdentityVerified: true,
+          effectiveUserVerified: true,
           tls,
           tlsSession,
           grants,
           parameters,
           pool: { connectionLimit: 1, connectTimeout: 5, poolTimeout: 5, socketTimeout: 10 },
-          writes: false
+          writes: false,
+          disconnected: true
         },
         (_k, v) => (typeof v === 'bigint' ? String(v) : v)
       )

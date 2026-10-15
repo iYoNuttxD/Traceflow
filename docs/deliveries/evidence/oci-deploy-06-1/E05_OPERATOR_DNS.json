@@ -1,0 +1,20 @@
+{
+  "evidence": "E05",
+  "origin": "OPERATOR_SUPPLIED",
+  "environment": "OCI VM traceflow-app (observed hostname traceflowapp)",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": "openssl s_client -starttls mysql -connect traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com:3306 -servername traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com -CAfile /home/opc/traceflow-ca.crt -verify_hostname traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com -verify_return_error -brief < /dev/null",
+  "status": "REPORTED",
+  "result": {
+    "host": "traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com",
+    "connectedAddress": "10.20.2.25",
+    "port": 3306,
+    "directAgentDnsQuery": false
+  },
+  "limitations": [
+    "Reported OpenSSL connection proves name resolved to reported IP at that execution, not complete DNS answer set/current resolution.",
+    "No DNS/SSH probe by agent.",
+    "Exact manual execution timestamp not supplied."
+  ]
+}

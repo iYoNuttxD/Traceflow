@@ -1,0 +1,279 @@
+{
+  "evidence": "E03",
+  "origin": "LOCAL_EXECUTION",
+  "environment": "macOS ARM64; MySQL Community 26.7.0; Node 22.23.3; synthetic CA/users/schema",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": {
+    "argv": [
+      "python3",
+      "deploy/tests/run-connection-lab.py",
+      "--mysql-base",
+      "/private/tmp/traceflow-oci-deploy02.UhnVyN/mysql-26.7.0-macos15-arm64",
+      "--version",
+      "26.7.0",
+      "--node",
+      "/opt/homebrew/opt/node@22/bin/node",
+      "--report",
+      "/private/tmp/tf061-1mrsfkof/public/connection-lab-final.json"
+    ],
+    "workingDirectory": "/private/tmp/tf061-1mrsfkof/workspace",
+    "environment": "sanitized, own HOME; TEST_DATABASE_URL generated only for owned datadir; no DEV .env"
+  },
+  "status": "PASS_LOCAL",
+  "result": {
+    "mode": "LOCAL_ISOLATED",
+    "version": "26.7.0",
+    "checks": [
+      {
+        "name": "strict-read-only-diagnostic",
+        "result": {
+          "formatVersion": 1,
+          "status": "PASS",
+          "mode": "local-isolated",
+          "checkedAt": "2026-10-15T11:42:17.770Z",
+          "version": "26.7.0",
+          "prisma": "6.12.0",
+          "ca": {
+            "sha256": "608e459a6edeb5e19693e44fb0a73c8eb39331a5c9e1796d7efd6da0516039d0",
+            "validFrom": "2026-10-15T11:42:15.000Z",
+            "validTo": "2026-10-17T11:42:15.000Z"
+          },
+          "serverIdentityVerified": true,
+          "effectiveUserVerified": true,
+          "tls": {
+            "verified": true,
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_128_GCM_SHA256",
+            "certificateSha256": "ad4448b6a6b99ca5aed749a9715f04a67dc0b8a8a8a7b7864d66ff731cafe3d0",
+            "validFrom": "2026-10-15T11:42:15.000Z",
+            "validTo": "2026-10-17T11:42:15.000Z",
+            "identityVerified": true
+          },
+          "tlsSession": {
+            "Ssl_cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+            "Ssl_version": "TLSv1.2"
+          },
+          "grants": [
+            "SELECT"
+          ],
+          "parameters": {
+            "versionComment": "MySQL Community Server - GPL",
+            "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+            "transactionIsolation": "REPEATABLE-READ",
+            "timeZone": "+00:00",
+            "systemTimeZone": "UTC",
+            "characterSet": "utf8mb4",
+            "collation": "utf8mb4_0900_ai_ci",
+            "lowerCaseTableNames": "2",
+            "maxConnections": "32",
+            "waitTimeout": "28800",
+            "connectTimeout": "10",
+            "requireSecureTransport": "1",
+            "engine": "InnoDB"
+          },
+          "pool": {
+            "connectionLimit": 1,
+            "connectTimeout": 5,
+            "poolTimeout": 5,
+            "socketTimeout": 10
+          },
+          "writes": false,
+          "disconnected": true
+        }
+      },
+      {
+        "name": "authentication-pool-timeouts",
+        "result": {
+          "status": "PASS",
+          "checks": [
+            {
+              "name": "invalid-authentication",
+              "rejected": true,
+              "code": "P1000",
+              "seconds": 0.007
+            },
+            {
+              "name": "privileged-metadata-denied",
+              "rejected": true,
+              "code": "P2010",
+              "seconds": 0.001
+            },
+            {
+              "name": "prisma-dns-san-and-session-tls",
+              "tls": {
+                "Ssl_cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+                "Ssl_version": "TLSv1.2"
+              },
+              "status": "PASS"
+            },
+            {
+              "name": "pool-exhaustion-bounded",
+              "rejected": true,
+              "code": "P2024",
+              "seconds": 1.011,
+              "connectionLimit": 2
+            },
+            {
+              "name": "query-timeout-bounded",
+              "rejected": true,
+              "code": "P2010",
+              "seconds": 1.023
+            },
+            {
+              "name": "server-connection-limit",
+              "established": 31,
+              "maximum": 32,
+              "rejected": true,
+              "code": "P2037"
+            },
+            {
+              "name": "connection-budget-released",
+              "recovered": true
+            }
+          ]
+        }
+      },
+      {
+        "name": "unknown-ca",
+        "diagnostic": {
+          "status": "FAIL",
+          "code": "ROOT_CA_REQUIRED",
+          "writes": false
+        },
+        "prisma": {
+          "rejected": true,
+          "code": "P1011",
+          "seconds": 0.014
+        }
+      },
+      {
+        "name": "wrong-identity",
+        "diagnostic": {
+          "status": "FAIL",
+          "code": "ERR_TLS_CERT_ALTNAME_INVALID",
+          "writes": false
+        },
+        "prisma": {
+          "rejected": true,
+          "code": "P1011",
+          "seconds": 0.012
+        }
+      },
+      {
+        "name": "expired",
+        "diagnostic": {
+          "status": "FAIL",
+          "code": "CERT_HAS_EXPIRED",
+          "writes": false
+        },
+        "prisma": {
+          "rejected": true,
+          "code": "P1011",
+          "seconds": 0.011
+        }
+      },
+      {
+        "name": "recovery-after-certificate-replacement",
+        "result": {
+          "formatVersion": 1,
+          "status": "PASS",
+          "mode": "local-isolated",
+          "checkedAt": "2026-10-15T11:42:25.609Z",
+          "version": "26.7.0",
+          "prisma": "6.12.0",
+          "ca": {
+            "sha256": "608e459a6edeb5e19693e44fb0a73c8eb39331a5c9e1796d7efd6da0516039d0",
+            "validFrom": "2026-10-15T11:42:15.000Z",
+            "validTo": "2026-10-17T11:42:15.000Z"
+          },
+          "serverIdentityVerified": true,
+          "effectiveUserVerified": true,
+          "tls": {
+            "verified": true,
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_128_GCM_SHA256",
+            "certificateSha256": "ad4448b6a6b99ca5aed749a9715f04a67dc0b8a8a8a7b7864d66ff731cafe3d0",
+            "validFrom": "2026-10-15T11:42:15.000Z",
+            "validTo": "2026-10-17T11:42:15.000Z",
+            "identityVerified": true
+          },
+          "tlsSession": {
+            "Ssl_cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+            "Ssl_version": "TLSv1.2"
+          },
+          "grants": [
+            "SELECT"
+          ],
+          "parameters": {
+            "versionComment": "MySQL Community Server - GPL",
+            "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+            "transactionIsolation": "REPEATABLE-READ",
+            "timeZone": "+00:00",
+            "systemTimeZone": "UTC",
+            "characterSet": "utf8mb4",
+            "collation": "utf8mb4_0900_ai_ci",
+            "lowerCaseTableNames": "2",
+            "maxConnections": "32",
+            "waitTimeout": "28800",
+            "connectTimeout": "10",
+            "requireSecureTransport": "1",
+            "engine": "InnoDB"
+          },
+          "pool": {
+            "connectionLimit": 1,
+            "connectTimeout": 5,
+            "poolTimeout": 5,
+            "socketTimeout": 10
+          },
+          "writes": false,
+          "disconnected": true
+        }
+      },
+      {
+        "name": "no-tls-server-greeting",
+        "result": {
+          "status": "FAIL",
+          "code": "TLS_REQUIRED",
+          "writes": false
+        }
+      },
+      {
+        "name": "prisma-no-plaintext-fallback",
+        "result": {
+          "rejected": true,
+          "reason": "SERVER_HAS_NO_TLS_CAPABILITY",
+          "prismaCode": "PRISMA_REJECTED",
+          "seconds": 0.007
+        }
+      },
+      {
+        "name": "inaccessible-port",
+        "result": {
+          "rejected": true,
+          "code": "P1001",
+          "seconds": 0.006
+        }
+      }
+    ],
+    "noTlsDiagnostic": {
+      "status": "FAIL",
+      "code": "TLS_REQUIRED",
+      "writes": false
+    },
+    "plaintextProbe": {
+      "rejected": true,
+      "reason": "SERVER_HAS_NO_TLS_CAPABILITY",
+      "prismaCode": "PRISMA_REJECTED",
+      "seconds": 0.007
+    },
+    "status": "PASS",
+    "productionCertified": false,
+    "cleanedUp": true
+  },
+  "limitations": [
+    "Community is not managed HeatWave.",
+    "Unknown alternate CA is additionally rejected as ROOT_CA_REQUIRED by the diagnostic on this LibreSSL fixture; real Prisma independently rejects it as P1011.",
+    "No-tls setup is restricted to the owned disposable server; production policy remains strict."
+  ]
+}

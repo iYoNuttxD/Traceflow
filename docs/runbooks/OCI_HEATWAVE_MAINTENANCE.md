@@ -89,3 +89,34 @@ Esses resultados não medem a duração de uma manutenção Oracle nem validam a
 Os valores devem ser aprovados e calibrados. Monitor local gera códigos/exit status; coletor e canal externo permanecem pendentes. Templates de timer estão preparados, sem instalação. Falta de sensores gera alerta, não saúde fictícia.
 
 Incidente grave: preservar origem e última cópia validada, conter escritores pelo procedimento aprovado, identificar responsável/custodiante e restaurar somente em novo destino autorizado. Não usar rollback de symlink para reverter schema incompatível. Consultar [OCI_BACKUP_RECOVERY.md](OCI_BACKUP_RECOVERY.md), que distingue integridade de restauração, smoke e autorização de cutover.
+
+## OCI06.1 — identidade TLS e sensores pendentes
+
+O operador informou certificado ativo `traceflow-mysql-tls-test-2026`/User defined/Imported X.509,
+FQDN `traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com`, IP10.20.2.25 e CA TraceFlow Internal
+Root CA. Handshake OpenSSL estrito: PASS manual; Prisma gerenciado: PENDING. Não há reconfirmação
+da janela histórica de manutenção. Ver [identidade/fingerprint e incidente BYOC](OCI_HEATWAVE_HOMOLOGATION.md#oci-deploy-061--atualização-de-15102026).
+
+A validade15/10/2026–14/10/2031 pertence à CA; não usar2031 como vencimento do certificado servidor.
+Após rotação/manutenção, obter leaf notAfter por leitura autorizada, comparar FQDN/SAN/CA/UUID/versão,
+validar autenticação/grants e TLS da sessão Prisma, readiness e heartbeat. Revalidar trust por canal
+independente; nunca recuperar/aceitar CA automaticamente do endpoint. Instalação da CA exige lote
+separado autorizado; rotação diferente é recusada pelo preparador conservador. Incidente HTTP500 com
+PKCS#8 cifrada foi correlação informada, não diagnóstico confirmado da causa interna Oracle.
+
+| Sinal necessário | Estado do avaliador OCI06 | Trabalho operacional restante |
+| --- | --- | --- |
+| Certificado perto do vencimento | certificateRemainingDays avaliado | coletar leaf/CA separadamente, indicar qual venceu; não existe coletor |
+| TLS falhou / CA mudou | sem campos específicos; readiness agrega falhas | adicionar sensores tlsVerified/caFingerprintChanged e identidade aprovada, sem bypass |
+| Autenticação falhou | sem discriminação própria | classificar código sem log de credencial |
+| Banco indisponível | readiness agregado | coletor com deadline que distingue DB/storage/config |
+| Pool saturado | poolBudgetExceeded avaliado | coletar P2024/P2037, consumidores e limite aprovado |
+| Readiness degradada | readiness/liveness avaliados | coletor protegido e canal de alerta |
+| MySQL mudou de versão | maintenanceReviewRequired genérico | comparação explícita VERSION()/UUID e baseline aprovada |
+| Falha backup/restore | catálogo/checksum/idade/receipt | bundle operacional, coleta e restore representativo |
+| Worker sem heartbeat | workerHeartbeatFresh avaliado | coleta somente leitura, responsável e entrega de alerta |
+
+Nenhum desses alertas está operacional por existir uma função avaliadora ou timer. Inputs ausentes
+já alertam, mas coleta e delivery seguem pendentes; falha do coletor/canal precisa de observador
+independente. Não instalar timer, mudar IAM ou criar Object Storage nesta etapa. RPO≤24h/RTO≤4h
+continuam propostas não aprovadas. Não repetir restore local como substituto de DR gerenciado.

@@ -74,6 +74,26 @@ def main():
         lab.stop();(lab.root/'server.pem').write_bytes(original);lab.restart()
         report['checks'].append({'name':'recovery-after-certificate-replacement','result':diagnostic()})
         lab.stop()
+        plain=[x for x in lab.args if not x.startswith(('--ssl-', '--require-secure-transport='))]+['--tls-version=','--require-secure-transport=OFF']
+        lab.process=subprocess.Popen(plain,env=lab.env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        until=time.monotonic()+30
+        while True:
+            if lab.process.poll() is not None: raise RuntimeError('OWNED_PLAINTEXT_SERVER_EXITED')
+            try:
+                with socket.create_connection(('127.0.0.1',lab.port),timeout=.2): break
+            except OSError:
+                if time.monotonic()>until: raise RuntimeError('OWNED_PLAINTEXT_SERVER_TIMEOUT')
+                time.sleep(.1)
+        no_tls=child(['scripts/validate-oci-heatwave-connection.js','--authorization',str(authorization)],1)
+        report['noTlsDiagnostic']=no_tls
+        assert no_tls['code']=='TLS_REQUIRED'
+        assert lab.process.poll() is None
+        refusal=child(['connection-probes.mjs','no-tls-failure'])
+        report['plaintextProbe']=refusal
+        assert refusal['reason']=='SERVER_HAS_NO_TLS_CAPABILITY'
+        report['checks'].append({'name':'no-tls-server-greeting','result':no_tls})
+        report['checks'].append({'name':'prisma-no-plaintext-fallback','result':refusal})
+        lab.stop()
         report['checks'].append({'name':'inaccessible-port','result':child(['connection-probes.mjs','connect-failure'])})
         report['status']='PASS';report['productionCertified']=False
     except Exception as e:

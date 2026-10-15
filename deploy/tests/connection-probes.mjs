@@ -40,7 +40,35 @@ async function connectFailure(url, allowed) {
     await db.$disconnect();
   }
 }
-if (process.argv[2] === "connect-failure") {
+if (process.argv[2] === "no-tls-failure") {
+  const db = client();
+  const start = performance.now();
+  try {
+    let rejected = false;
+    try {
+      await db.$connect();
+    } catch (error) {
+      assert.ok(
+        error.message.includes(
+          "Client asked for SSL but server does not have this capability",
+        ),
+        "UNEXPECTED_TLS_FAILURE",
+      );
+      rejected = true;
+      console.log(
+        JSON.stringify({
+          rejected: true,
+          reason: "SERVER_HAS_NO_TLS_CAPABILITY",
+          prismaCode: code(error),
+          seconds: +((performance.now() - start) / 1000).toFixed(3),
+        }),
+      );
+    }
+    assert.ok(rejected, "UNEXPECTED_PLAINTEXT_CONNECTION");
+  } finally {
+    await db.$disconnect();
+  }
+} else if (process.argv[2] === "connect-failure") {
   console.log(
     JSON.stringify(await connectFailure(source, ["P1011", "P1001", "P1000"])),
   );
@@ -69,6 +97,29 @@ if (process.argv[2] === "connect-failure") {
     });
   } finally {
     await db.$disconnect();
+  }
+  const dnsUrl = new URL(source);
+  dnsUrl.hostname = "localhost"; // DNS SAN in the synthetic certificate, loopback only.
+  const dnsClient = client(dnsUrl);
+  try {
+    const [id] = await dnsClient.$queryRaw`SELECT @@server_uuid AS uuid`;
+    assert.equal(id.uuid, expected.serverUuid);
+    const status = await dnsClient.$queryRawUnsafe(
+      "SHOW SESSION STATUS WHERE Variable_name IN ('Ssl_cipher','Ssl_version')",
+    );
+    const tls = Object.fromEntries(
+      status.map((x) => [x.Variable_name, x.Value]),
+    );
+    assert.ok(
+      tls.Ssl_cipher && ["TLSv1.2", "TLSv1.3"].includes(tls.Ssl_version),
+    );
+    checks.push({
+      name: "prisma-dns-san-and-session-tls",
+      tls,
+      status: "PASS",
+    });
+  } finally {
+    await dnsClient.$disconnect();
   }
   const poolUrl = new URL(source);
   poolUrl.searchParams.set("connection_limit", "2");

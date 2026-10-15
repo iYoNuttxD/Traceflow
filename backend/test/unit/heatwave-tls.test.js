@@ -1,19 +1,39 @@
-import { beforeAll, afterAll, describe, it, expect } from 'vitest';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
+import {
+  mkdtemp,
+  readFile,
+  writeFile,
+  rm,
+  realpath,
+  chmod,
+  symlink,
+  mkdir
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { TLSSocket, createSecureContext } from 'node:tls';
 import { once } from 'node:events';
-import { mysqlTlsProbe } from '../../scripts/lib/heatwave-connection.js';
+import { createHash, X509Certificate } from 'node:crypto';
+import {
+  mysqlTlsProbe,
+  publicCaContract,
+  protectedFile
+} from '../../scripts/lib/heatwave-connection.js';
 let root, ca, key;
 const certs = {};
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'traceflow-tls-'));
   const command = (args) => execFileSync('openssl', args, { cwd: root, stdio: 'ignore' });
+  await writeFile(
+    join(root, 'root.cnf'),
+    '[req]\ndistinguished_name=dn\nx509_extensions=root_ca\n[dn]\n[root_ca]\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\n'
+  );
   command([
     'req',
+    '-config',
+    'root.cnf',
     '-x509',
     '-newkey',
     'rsa:2048',
@@ -208,5 +228,70 @@ describe('real MySQL STARTTLS boundary with synthetic certificates', () => {
     await expect(mysqlTlsProbe({ host: '127.0.0.1', port: server.port, ca })).rejects.toMatchObject(
       { code: 'ECONNREFUSED' }
     );
+  });
+});
+
+describe('OCI061 pinned public CA and protected paths', () => {
+  it('checks root CA and DER fingerprint, rejecting wrong pins, leaf, garbage and private key', async () => {
+    const pem = ca.toString();
+    const digest = createHash('sha256').update(new X509Certificate(pem).raw).digest('hex');
+    expect(publicCaContract(pem, digest).sha256).toBe(digest);
+    for (const timestamp of [0, Date.parse('2100-01-01')]) {
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(timestamp);
+      try {
+        expect(() => publicCaContract(pem, digest)).toThrow(
+          expect.objectContaining({ code: 'CA_EXPIRED_OR_NOT_YET_VALID' })
+        );
+      } finally {
+        clock.mockRestore();
+      }
+    }
+    expect(() => publicCaContract(pem, '0'.repeat(64))).toThrow(
+      expect.objectContaining({ code: 'CA_FINGERPRINT_MISMATCH' })
+    );
+    expect(() => publicCaContract(certs.valid.toString())).toThrow(
+      expect.objectContaining({ code: 'ROOT_CA_REQUIRED' })
+    );
+    expect(() => publicCaContract('invalid')).toThrow(
+      expect.objectContaining({ code: 'PUBLIC_CA_REQUIRED' })
+    );
+    expect(() => publicCaContract(pem + pem)).toThrow(
+      expect.objectContaining({ code: 'PUBLIC_CA_REQUIRED' })
+    );
+    expect(() => publicCaContract(key.toString())).toThrow(
+      expect.objectContaining({ code: 'PUBLIC_CA_REQUIRED' })
+    );
+    expect(() =>
+      publicCaContract('-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----')
+    ).toThrow(expect.objectContaining({ code: 'INVALID_CA' }));
+  });
+  it('accepts only protected regular files, rejecting absent, linked, open-mode and writable-parent paths', async () => {
+    const base = await realpath(root);
+    const path = join(base, 'authorization.json');
+    await writeFile(path, '{}', { mode: 0o600 });
+    expect(await protectedFile(path, { privateFile: true })).toBe('{}');
+    await chmod(path, 0o644);
+    await expect(protectedFile(path, { privateFile: true })).rejects.toMatchObject({
+      code: 'PRIVATE_FILE_REQUIRED'
+    });
+    await chmod(path, 0o666);
+    await expect(protectedFile(path)).rejects.toMatchObject({ code: 'UNSAFE_FILE_MODE' });
+    await chmod(path, 0o600);
+    await symlink(path, join(base, 'linked'));
+    await expect(protectedFile(join(base, 'linked'))).rejects.toMatchObject({
+      code: 'UNSAFE_FILE'
+    });
+    await expect(protectedFile(join(base, 'absent'))).rejects.toMatchObject({ code: 'ENOENT' });
+    const unsafe = join(base, 'unsafe');
+    await mkdir(unsafe);
+    await chmod(unsafe, 0o777);
+    await writeFile(join(unsafe, 'file'), '{}', { mode: 0o600 });
+    await expect(protectedFile(join(unsafe, 'file'))).rejects.toMatchObject({
+      code: 'UNSAFE_FILE_PARENT'
+    });
+    await chmod(unsafe, 0o700);
+    await chmod(path, 0o000);
+    await expect(protectedFile(path)).rejects.toMatchObject({ code: 'EACCES' });
+    await chmod(path, 0o600);
   });
 });
