@@ -11,7 +11,8 @@ de referência muda.
 | Item | Valor |
 |---|---|
 | Commit verificado | `7952b01fad68da0d91dd3e2f79c759f5745bb1db` (`joao-dev-v2`, 69 commits à frente de `origin/joao-dev-v2`, sem CI) |
-| Última fase concluída | 4 |
+| Última fase concluída | 5, com o percurso manual de UI pendente (seção 8.6) |
+| Commits da campanha | `7569479` (Fase 0), `28d99d1` (Fase 1), `301998e` (Fase 2), `5805e79` (Fase 3), `b3a9b1b` (Fase 4) e o deste relatório (Fase 5), locais e sem push |
 | Pontos ⚑1–⚑8 | aprovados com as recomendações do enunciado (14/10/2026) |
 | Ponto ⚑9 | aprovado só `node scripts/check-npm-audit.mjs`; recusados `gh api`, os validadores `db:test:validate-*` e o worker e o job em processo separado |
 | Efeito do ⚑9 | ARQ-04 (drift) e ARQ-31 (proteção da branch) ficam `NÃO VERIFICÁVEL LOCALMENTE` até a CI da PR; H05 e H22 rodam em processo único |
@@ -1240,6 +1241,146 @@ Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
   100.
 - **H34:** a exclusão definitiva também apaga os eventos de auditoria do projeto. Se isso é intencional,
   o ADR-014 deve dizer.
+
+## 8. Consolidação
+
+### 8.1 Números por referência
+
+| Referência | Universo | Positivo | Parcial | Negativo | Não verificável | Não aplicável ou não iniciado | Conformidade sobre os aplicáveis verificáveis |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ASVS 5.0.0, L1 | 70 | 37 | 5 | 9 | 4 | 15 | 37 de 51 (72,5%) |
+| ASVS 5.0.0, L1+L2 | 253 | 98 | 36 | 25 | 18 | 76 | 98 de 159 (61,6%) |
+| Anexo de arquitetura (ARQ-01 a ARQ-36) | 36 | 11 | — | 22 | 3 | — | 11 de 33 (33,3%) |
+| Roadmap, critérios de aceite | 141 | 54 | 25 | 1 | — | 61 | 54 de 80 (67,5%) |
+| Roadmap, DoD (14 cartões × 10 itens) | 140 | 39 | 76 | 25 | — | — | 39 de 140 (27,9%) |
+| Parte D, hipóteses de defeito | 41 | 16 refutadas | — | 25 confirmadas | — | — | — |
+| Parte D, mutantes | 12 | 10 mortos | — | 2 vivos | — | — | 10 de 12 (83,3%) |
+
+- **Roadmap:** "positivo" é `EVIDENCIADO`; "negativo" soma `AUSENTE` e, no DoD, os 22 itens `SÓ DOCUMENTADO`.
+  Os 61 critérios não iniciados são do S2-06 ao S3-05.
+- **Parte D:** a coluna "positivo" conta o que se sustentou. Hipótese refutada é defeito que não existe;
+  mutante morto é regra coberta por teste.
+
+**Achados por parte e severidade:**
+
+| Parte | ALTA | MÉDIA | BAIXA | Total |
+|---|---:|---:|---:|---:|
+| A — ASVS (CF-01 a CF-24) | 5 | 15 | 4 | 24 |
+| B — arquitetura (CF-25 a CF-40) | 0 | 15 | 1 | 16 |
+| C — roadmap (CF-41 a CF-50) | 1 | 8 | 1 | 10 |
+| D — erros e inconsistências (CF-51 a CF-69) | 2 | 13 | 4 | 19 |
+| gates da Fase 5 (CF-70) | 0 | 0 | 1 | 1 |
+| **Total** | **8** | **51** | **11** | **70** |
+
+Cada achado tem um item de mesmo número em `docs/issues/TECHNICAL_BACKLOG.md` (`CONF-F01` a `CONF-F70`).
+
+### 8.2 Veredito
+
+No commit verificado, o TraceFlow:
+- **não atende ao ASVS 5.0.0 L1:** 9 requisitos não atendidos e 5 parciais;
+- **não atinge a meta L2 da §13.1 do anexo:** 25 requisitos não atendidos e 36 parciais;
+- **viola 22 das 33 regras verificáveis do anexo de arquitetura;**
+- **não tem Sprint 1 nem Sprint 2 concluída pelo roadmap:** faltam E2E, homologação externa, os RFs
+  parciais e coerência documental.
+
+**Prioridade imediata:**
+- **CF-51:** qualquer conta autenticada lê e altera projetos alheios com o ID codificado no caminho. Bloqueia
+  qualquer implantação.
+- **CF-52:** com o GitHub mudo, a sincronização fica presa até reiniciar o processo.
+
+Os outros seis achados ALTA são requisitos L1 do ASVS (CF-01, CF-02, CF-03, CF-06 e CF-07) e um critério de
+cartão marcado como concluído e não atendido (CF-41).
+
+**O que se sustentou sob ataque:**
+- com ID plano, a autorização se sustenta em toda rota de projeto gerada do roteador: anônimo, não membro e cada papel só alcançam o que a matriz permite;
+- vínculos não aceitam ID de outro projeto no corpo;
+- notificações, sessões, preferências e convites não vazam entre contas;
+- a anonimização limpa todas as 165 colunas de texto, e a exclusão definitiva não deixa órfão em 28 tabelas;
+- a sincronização para quando o projeto é excluído no meio;
+- o painel concorda com os endpoints em 52 valores;
+- escrita sob trava longa responde 409 com `Retry-After`;
+- as telas da Sprint 2 tratam todos os estados de erro;
+- o horário de verão não quebra as bordas de período.
+
+### 8.3 Gates da Fase 5
+
+Rodados em 14/10/2026, em sequência, no commit `b3a9b1b`, com o `backend/.env.test`.
+
+| Gate | 1ª rodada | 2ª rodada |
+|---|---|---|
+| backend `lint`, `format:check` e `architecture:check` | verdes | verdes |
+| backend `security:secrets` | verde (684 arquivos) | verde (684 arquivos) |
+| backend `npm test` | 2853 passaram, 2 falharam e 5 foram pulados, em 213 arquivos (635 s) | igual (640 s) |
+| backend, conformidade dentro do `npm test` | 9 arquivos e 50 testes verdes | igual |
+| backend com cobertura (uma vez) | instruções 93,37%, ramos 88,27%, funções 95,96%, linhas 95,49%, acima dos limites de 85, 70, 85 e 87; as mesmas 2 falhas | — |
+| frontend `lint`, `format:check` e `build` | verdes | — |
+| frontend, conformidade isolada | 22 de 22 | 22 de 22 |
+| frontend, suíte completa com cobertura (uma vez) | 1644 passaram e 23 falharam em 6 arquivos; instruções 86,24%, ramos 81,09%, funções 81,79%, linhas 88,64%, acima dos limites de 50, 45, 40 e 53 | — |
+| raiz: `validate-ci`, `check-ui-inventory` e `check-npm-audit` (testes) | 90 de 90 | — |
+| raiz: `check-ui-inventory.mjs` | inventário conferido | — |
+
+Todas as falhas são de ambiente (seção 8.4). Fora delas, os gates estão verdes. O `npm test` sai com
+código 1 por causa delas.
+
+**Avisos do `vite build`:**
+- os dois pacotes acima de 500 kB são o ELK (`elk.bundled`, 1434 kB, e `elk-worker`, 1427 kB), carregados
+  sob demanda pelo grafo de rastreabilidade;
+- `INEFFECTIVE_DYNAMIC_IMPORT` na página de preferências de notificação, que virou a CF-70;
+- `MISSING_NAME_OPTION_FOR_IIFE_EXPORT`, do pacote do worker, sem efeito.
+
+### [BAIXA] CF-70 — Rota de preferências de notificação declarada sob demanda, mas no pacote principal
+
+- Onde: `frontend/src/app/routes/AppRoutes.jsx:80-83` (import dinâmico) e `frontend/src/features/notifications/index.js:6` (exportação estática)
+- Norma: §3 do anexo de arquitetura (código sem sobra)
+- Esperado: a página carregada com `lazyNamed` fica fora do pacote principal, como as outras rotas
+- Observado:
+  - o `vite build` avisa `INEFFECTIVE_DYNAMIC_IMPORT`;
+  - o índice da feature exporta a página;
+  - o `AppShell` e o `AuthenticatedLayout`, que entram no pacote principal, importam esse índice;
+  - por isso a página vai para o pacote principal (434 kB), e o import dinâmico não divide nada.
+- Reprodução: `cd frontend && npm run build`
+- Consequência: o carregamento sob demanda declarado não acontece; o pacote inicial leva uma tela que só abre nas configurações
+- Origem: S2-02 (`cf4bf7d`, `joao-dev-v2`)
+- Proposta: tirar a página do índice da feature, ou importá-la estaticamente nas rotas
+
+### 8.4 Falhas de ambiente (registro à parte)
+
+Seguem o Anexo A do enunciado. Nenhuma aponta defeito no código verificado.
+
+| Falha | Onde | Causa | Confirmação |
+|---|---|---|---|
+| `EPERM` ao criar symlink | `backend/test/unit/test-cases/storage.test.js` ("rejects symlink roots, symlink content, traversal and mismatched persisted size") | o Windows exige privilégio para criar symlink | igual nas três rodadas do backend |
+| "expected 438 to be 448" | `backend/test/unit/e11-mapping-writer.test.js` | o NTFS não guarda as permissões `0o700` e `0o600` | igual nas três rodadas do backend |
+| "Missing fixture … `barrel\index.js`" | `frontend/test/styles/final-targeted-corrections.test.js` ("mantém as dependências do grafo atrás de imports dinâmicos") | o caminho chega com `\` | falha também com o arquivo sozinho |
+| 22 falhas, em sua maioria "Test timed out in 5000ms", e as que um teste estourado deixa no seguinte (elemento repetido, `console.error`) | `TraceabilityWorkspace`, `PersonalizedDashboard`, `KanbanPage`, `RequirementsPage` e `TestCases`, só na suíte completa com cobertura | carga da suíte completa no Windows (S201-F06) | cada arquivo passa sozinho: 33 de 33, 35 de 35, 49 de 49, 17 de 17 e 37 de 37 |
+
+### 8.5 O que não pôde ser validado
+
+| Ponto | Motivo | Onde fecha |
+|---|---|---|
+| TLS de entrada, secret manager, firewall e backups | nuvem não provisionada | S2-08 a S2-10 |
+| GitHub App, webhooks e repositório reais | dublês nos testes | homologação com repositório de teste |
+| SMTP real | provider `capture` fora de produção | homologação (CF-44) |
+| agendador real dos jobs e worker supervisionado | sem nuvem; worker e job em processo separado recusados no ⚑9, por isso a H05 e a H22 rodaram num processo só | S2-09 |
+| CI remota | sem push nesta campanha | push pedido pelo João |
+| drift do schema, proteção da branch e conteúdo das PRs (ARQ-04, ARQ-31 e ARQ-32) | comandos recusados no ⚑9 | CI da PR e leitura pelo João |
+| E2E de navegador | sem infraestrutura (E15-F10, S104-F02) | decisão do João (CF-37) |
+| várias instâncias (limitador e SSE em memória) | uma instância local | S2-10 |
+| proteção e envio de logs (V16.4.2 e V16.4.3) | dependem do ambiente | S2-10 |
+| validação com participantes | fora do escopo de código | S3-01 |
+| percurso manual das telas da Sprint 2, alvo de 44 px e foco (H38 e H40) | depende do `migrate deploy` no banco de desenvolvimento do João | seção 8.6 |
+
+### 8.6 Percurso manual com o João (pendente)
+
+O roteiro cobre as telas de alertas, de tarefas sem vínculo técnico e de notificações, com dados mínimos e
+em escala. Em cada tela, confere:
+- os estados de carregando, vazio, erro, acesso negado, 409, 429 e 503;
+- um único "Limpar filtros" com filtro ativo;
+- alvo de pelo menos 44 px nos controles;
+- o foco depois de dispensar, marcar como lida e limpar filtros.
+
+O percurso depende do `npx prisma migrate deploy` no banco de desenvolvimento do João (o banco ainda não
+tem as migrations da `main`). O resultado entra num commit posterior.
 
 ## Apêndice A — Rotas registradas
 
