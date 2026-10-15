@@ -1,5 +1,8 @@
 # OCI-DEPLOY-06 — Homologação MySQL / HeatWave
 
+> Continuação OCI06.1: consultar o [bootstrap inicial preparado](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md)
+> para o estado atualizado informado pelo operador e os lotes administrativos. Nenhuma execução autorizada.
+
 ## Estado e limites
 
 Em 14/10/2026 (São Paulo), o usuário determinou: **continuar apenas no laboratório local; manter HeatWave pendente**. Os relatórios UTC podem indicar 15/10. Nenhum comando deste runbook foi executado na OCI. MySQL Community 26.7.0 isolado não representa homologação do serviço HeatWave.
@@ -355,3 +358,14 @@ Nenhum upgrade de Prisma, edição de migration ou novo schema foi necessário n
 
 Relatório/evidências atuais:
 [OCI_DEPLOY_06_1_HEATWAVE_MANAGED_HOMOLOGATION_REPORT.md](../deliveries/OCI_DEPLOY_06_1_HEATWAVE_MANAGED_HOMOLOGATION_REPORT.md).
+
+## OCI06.1 — continuação: bootstrap inicial preparado
+
+Atualização por relato do operador: schema ainda não criado, somente admin MySQL, nenhuma
+migration/aplicação; CA pública já instalada no caminho definitivo, TLS 1.3/hostname aprovados
+e validação pelo usuário Linux traceflow. Origem da VM: **10.20.1.184**.
+O [procedimento específico de bootstrap](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md) substitui os
+modelos administrativos genéricos acima para a futura primeira criação: schema traceflow,
+contas por serviço bloqueadas, Host exato, TLS obrigatório e backup adiado.
+UUID/SQL version/grants reais permanecem pendentes. Não reinstalar a CA nem considerar o
+bootstrap autorizado pelo diagnóstico read-only. Nenhuma conexão/operação remota executada.

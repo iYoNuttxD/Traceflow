@@ -1,5 +1,8 @@
 # OCI — contrato de ambiente e runtime
 
+> Continuação OCI06.1: consultar o [bootstrap inicial preparado](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md)
+> para o estado atualizado informado pelo operador e os lotes administrativos. Nenhuma execução autorizada.
+
 Escopo OCI-DEPLOY-03: preparação local; não autoriza deploy, migrations no HeatWave,
 configuração de ingress/systemd nem acesso a segredos reais. O resultado isolado de
 [OCI-DEPLOY-02](../deliveries/OCI_DEPLOY_02_MYSQL_ARM64_COMPATIBILITY_REPORT.md)
@@ -240,3 +243,16 @@ CA pública root-owned0644, diretório0755, sem escrita de traceflow; fora de re
 HOME e `/etc/traceflow` oculto. Nenhuma chave TLS entra no runtime. Fingerprint, instalação futura,
 autorização e OpenSSL fornecido pelo operador estão no [runbook de homologação](OCI_HEATWAVE_HOMOLOGATION.md#oci-deploy-061--atualização-de-15102026).
 TLS do servidor validado manualmente não homologa autenticação/sessão Prisma gerenciada.
+
+## OCI06.1 — contas propostas para o primeiro bootstrap
+
+O [runbook de bootstrap](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md) fixa a proposta de schema
+traceflow, contas traceflow_api/traceflow_worker/traceflow_diag/traceflow_migrator e origem
+10.20.1.184 confirmada pelo operador. São propostas; nenhuma conta foi criada nesta preparação.
+DATABASE_URL própria em api.env/github-worker.env permanece o contrato das units.
+Não inserir admin, migrator, backup ou diagnóstico em runtime.env ou nas units.
+
+CA pública no caminho definitivo e leitura por traceflow já foram confirmadas pelo operador;
+não há reinstalação proposta. Charset/collation serão utf8mb4/utf8mb4_unicode_ci, preservando
+as exceções explícitas da cadeia. Credenciais, paths administrativos e autorização permanecem
+fora do Git; limites de pool/TLS e proibição de herdar URLs de teste/job não mudam.

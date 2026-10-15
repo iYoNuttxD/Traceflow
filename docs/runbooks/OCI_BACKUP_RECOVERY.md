@@ -1,5 +1,8 @@
 # OCI-DEPLOY-06 — Backup coordenado e recuperação
 
+> Continuação OCI06.1: consultar o [bootstrap inicial preparado](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md)
+> para o estado atualizado informado pelo operador e os lotes administrativos. Nenhuma execução autorizada.
+
 ## Escopo e estado
 
 Implementação e ensaios **locais com dados sintéticos**. O CLI `deploy/scripts/backup.sh` aceita somente `local-isolated`; não existe flag que habilite produção. Nenhum backup de dados reais, envio externo, timer instalado ou restore gerenciado foi feito. A autorização atual do usuário limita a execução ao laboratório.
@@ -169,3 +172,17 @@ externo/custos, custódia de chaves, retenção aprovada, sensores/alertas, empa
 e ensaio representativo com transferência e smoke. RPO≤24h/RTO≤4h são propostas. Os segundos de
 restore sintético da OCI06 não são RTO de produção. Avaliar o backup automático Always Free frente
 ao conjunto DB+evidências e requisitos aprovados; não presumir que ele seja suficiente.
+
+## OCI06.1 — bootstrap sem dados de aplicação
+
+Segundo o operador, schema da aplicação ainda não foi criado, nenhuma migration foi aplicada
+e não há aplicação publicada. O [bootstrap preparado](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md)
+não exige backup lógico de dados inexistentes. Recibo de schema ausente/vazio é evidência de
+estado inicial, não backup; nunca preencher backupVerified/backupReference fictícios.
+
+A conta traceflow_backup fica adiada até necessidade operacional e job gerenciado aprovado.
+SELECT no schema é a proposta mínima para a cadeia atual, sem views; SHOW VIEW somente se
+justificado pelo contrato futuro. O CLI existente continua local-isolated e não é habilitado
+por esta documentação. DR, retenção, recuperação de segredos e restore real permanecem gates
+antes de aceitar dados reais; a primeira migration precisa resolver separadamente o gate de
+backup obrigatório do job atual. Nenhum backup/restore real foi executado nesta preparação.

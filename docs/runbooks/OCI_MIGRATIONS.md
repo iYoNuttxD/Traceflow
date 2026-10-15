@@ -1,5 +1,8 @@
 # OCI — Migrations controladas
 
+> Continuação OCI06.1: consultar o [bootstrap inicial preparado](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md)
+> para o estado atualizado informado pelo operador e os lotes administrativos. Nenhuma execução autorizada.
+
 Status: preparado e testado somente em banco descartável na OCI-DEPLOY-05.
 Não executar na OCI nem no DEV com base neste documento. Consulte
 [releases](OCI_RELEASE_DEPLOYMENT.md), [compatibilidade](OCI_MYSQL_COMPATIBILITY.md)
@@ -198,3 +201,17 @@ usam outro mysqld descartável próprio; nenhum usa DEV.
 
 Referências: [Prisma 6.12.0](https://github.com/prisma/orm/releases/tag/6.12.0) e
 [MySQL 8.4 GET_LOCK/RELEASE_LOCK](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html).
+
+## OCI06.1 — primeiro schema vazio e limite do job atual
+
+O operador confirmou que traceflow ainda não existe e não há dados de aplicação. O
+[bootstrap inicial preparado](OCI_HEATWAVE_INITIAL_BOOTSTRAP.md) cria futuramente apenas
+schema/contas, mediante autorização própria, sem migrations e sem exigir dump de dados inexistentes.
+A cadeia atual continua em 68 migrations; Prisma Client/CLI 6.12.0.
+
+O job atual exige backupVerified/backupReference/restoreRehearsed também para tableCount zero;
+release.py acrescenta seus gates de produção. Não falsificar evidência nem chamar a CLI para
+contornar esses gates. A seção 12 do novo runbook propõe uma entrega posterior para o caso
+inicial vazio, com prova/revalidação de ausência de objetos, identidade, locks e autorização.
+Isso não é flag implementada e não libera a primeira migration agora. global time_zone literal
++00:00 continua obrigatório no bridge; nenhuma configuração global é alterada pelo bootstrap.
