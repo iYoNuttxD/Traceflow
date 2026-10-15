@@ -909,3 +909,7 @@
 .tc-stack > .task-detail-section {
   margin-top: 0;
 }
+
+.tc-upload-progress { overflow-wrap: anywhere; }
+.tc-upload-progress progress { width: 100%; accent-color: var(--color-primary, #5578e7); }
+.tc-upload-progress ul { padding-inline-start: 1.5rem; max-height: 10rem; overflow-y: auto; }

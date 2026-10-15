@@ -9,6 +9,14 @@ export function requireJsonContentType(req, res, next) {
     req.is('multipart/form-data')
   )
     return next();
+  if (
+    req.method === 'PUT' &&
+    /^\/api\/test-cases\/[1-9]\d*\/execution-uploads\/[0-9a-f-]{36}\/files\/[0-9a-f-]{36}\/parts\/\d+$/.test(
+      req.path
+    ) &&
+    req.is('application/octet-stream')
+  )
+    return next();
   if (!methodsWithBody.has(req.method)) return next();
   const contentLength = Number(req.get('Content-Length') || 0);
   const hasBody = contentLength > 0 || Boolean(req.get('Transfer-Encoding'));

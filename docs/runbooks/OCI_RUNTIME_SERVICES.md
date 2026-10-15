@@ -244,42 +244,29 @@ reformata ou reserializa JSON; não há retry de POST. HMAC é verificado pela i
 Duplicidade é autoridade do banco/aplicação; o teste de transporte usa ledger sintético e a
 suíte backend testa a persistência isolada. GitHub App real não foi acessada/configurada.
 
-## 16. Uploads e bloqueador Cloudflare
+## 16. Uploads e compatibilidade Cloudflare
 
-| Limite atual | Valor |
-|---|---:|
-| arquivo comum | 10 MiB = 10.485.760 bytes |
-| vídeo | 50 MiB = 52.428.800 bytes |
-| arquivos por etapa / gerais / totais | 3 / 5 / 20 |
-| soma dos arquivos | 100 MiB = 104.857.600 bytes |
-| único campo JSON multipart | 6 MiB = 6.291.456 bytes |
-| Nginx, rota de registrar execução | 108 MiB = 113.246.208 bytes |
-| Cloudflare, confirmado | **100 MB por requisição** |
+A zona mantém o limite de **100 MB por requisição**. OCI-04.1 implementa transporte
+retomável, preservando 50 MiB/vídeo, 10 MiB/outro arquivo, 100 MiB agregado, 20 arquivos,
+5 gerais, 3 por passo e JSON de 6 MiB. A UI envia partes de até 8 MiB e confirma tudo
+em uma única operação JSON. A validação real da borda continua pendente.
 
-A maior requisição válida inclui até 106 MiB de conteúdo mais boundaries/headers multipart
-limitados pelo parser (até 21 partes úteis, headers limitados por Busboy). O teto Nginx de 108 MiB
-acomoda o contrato; não é uma elevação dos limites funcionais. O tamanho exato depende dos
-headers/nome/boundary; não declarar que 100 MiB é o maior arquivo, nem omitir os 6 MiB de JSON.
-Mesmo se o fornecedor interpretar MB em base binária, o overhead ainda excede o cap confirmado.
-O laboratório transporta 106 MiB e recusa Content-Length >108 MiB; esse caso grande não simula
-validação de conteúdo de negócio. Suíte backend mantém os limites de evidência reais.
+| Rota                                                     | Limite Nginx | Transporte           |
+| -------------------------------------------------------- | -----------: | -------------------- |
+| `execution-uploads/:uploadId/files/:fileId/parts/:index` |           8m | Binário em streaming |
+| `execution-uploads/:uploadId/complete`                   |           6m | JSON da execução     |
+| `test-cases/:id/executions`                              |         108m | Multipart legado     |
 
-**Bloqueador operacional aberto:** requisições grandes válidas podem ser recusadas pela
-Cloudflare antes de chegar ao Nginx. Recomendação que preserva a funcionalidade atual: aprovar
-capacidade Cloudflare superior ao envelope completo (por exemplo, plano/configuração com 200 MB,
-confirmado para a zona), mantendo Full(strict), domínio e mesmos endpoints. Não contratar/alterar
-plano automaticamente. Alternativa futura: transporte em partes com recomposição autorizada,
-integridade/quotas/idempotência, mediante entrega específica; não existe hoje e não foi criado.
-Redução coerente frontend/backend requer aprovação de produto; não foi aplicada. Remover proxy
-ou expor Node não é solução recomendada.
+Os endpoints completos, timeouts, quotas, cleanup e recuperação estão no
+[runbook de uploads](OCI_RESUMABLE_UPLOADS.md). Partes usam request buffering off;
+os demais pedidos preservam buffering on. A confirmação tem proxy_read_timeout 90s.
+Não aumentar o timeout global nem enfraquecer CORS/CSRF para este fluxo.
 
-413 da aplicação/Nginx tem mensagem JSON sanitizada. 413 HTML do edge é convertido pelo cliente
-atual em mensagem genérica de falha, sem renderizar HTML; não há retry automático nem mensagem
-específica de Cloudflare. Frontend mantém validação de arquivo/contagem/100 MiB e timeout HTTP
-15s. Upload lento pode ultrapassar esse timeout apesar de body_timeout Nginx permitir inatividade
-60s: medir fluxo real antes do deploy e decidir ajuste específico de upload em entrega autorizada.
-Não aumentar o timeout global indiscriminadamente nem prometer que a requisição abortada não
-chegou ao backend.
+O multipart legado preserva compatibilidade de aplicação, mas requests acima de 100 MB
+continuam incompatíveis com a Cloudflare. O teto de 108 MiB desse endpoint acomoda 100 MiB
+de arquivos + 6 MiB JSON + overhead limitado; não constitui elevação dos limites de produto.
+Clientes antigos devem adotar o protocolo novo para usar todo o envelope pela borda atual.
+Não é necessário reduzir limites, contratar plano nem remover o proxy para a UI atual.
 
 ## 17. Downloads privados
 
@@ -455,7 +442,7 @@ procedimento normal de manutenção.
 
 ## 31. Instalação futura controlada (NÃO EXECUTADA)
 
-1. Revisar diff desta entrega, decidir uploads e demais gates; confirmar VM/ambiente. Verificar
+1. Revisar diff desta entrega, revisar uploads OCI-04.1 e demais gates; confirmar VM/ambiente. Verificar
    conta traceflow, binários/módulos/RPMs, interfaces/portas, Enforcing e firewall. Não acessar
    segredos por comandos de diagnóstico. Não levar arquivos de `deploy/tests` ao runtime final.
 2. Criar backup protegido **só de configurações operacionais** atuais (nginx.conf, traceflow.conf,
@@ -560,7 +547,7 @@ O harness não é instalador de produção. Ao concluir, parar e remover somente
 
 ## 34. Dependências e bloqueadores de deploy
 
-- Solução aprovada para limite Cloudflare de 100 MB e ensaio de uploads/timeout 15s.
+- Homologar o protocolo OCI-04.1 pela Cloudflare real: partes de 8 MiB, timeout cliente 60s por parte e 90s na confirmação.
 - OCI-05: pacote imutável ARM64, preflight, contrato dist/assets retidos, ativação e rollback.
 - Homologação HeatWave gerenciado: TLS/CA/hostname, auth, privilégios mínimos e recuperação.
 - Schema inicializado por migration job separado; nenhum DDL no startup.
@@ -573,7 +560,7 @@ O harness não é instalador de produção. Ao concluir, parar e remover somente
 
 Antes da ativação autorizada: revisão dos arquivos e gates; snapshot CF atualizado; hosts/SNI
 negados; frontend/dist e assets retidos; `/api` sem rewrite; cookies/CSRF/CORS; SSE/heartbeat;
-HMAC e idempotência; decisão de upload; storage privado; duas units com env válido; readonly do
+HMAC e idempotência; retomada de upload; storage privado; duas units com env válido; readonly do
 código; Enforcing e regras restritas; portas internas fechadas; live/ready e heartbeat; logs
 sem query/segredo; backup/rollback; smoke pelo edge e janela de observação. Não aprovar produção
 com base apenas em nginx -t ou systemctl active.
@@ -589,3 +576,15 @@ Fontes primárias consultadas em 14/10/2026:
 [Oracle Linux SELinux](https://docs.oracle.com/en/operating-systems/oracle-linux/9/selinux/).
 Comportamento efetivo também verificado nos binários/política instalados na VM descartável,
 sem inferir resultados do host OCI real.
+
+## OCI-04.1 — Evolução do transporte de evidências
+
+O bloqueador descrito na seção 16 é resolvido para a UI com o protocolo documentado em
+[OCI_RESUMABLE_UPLOADS.md](OCI_RESUMABLE_UPLOADS.md): partes de 8 MiB, Complete JSON de 6 MiB,
+mesma confirmação atômica. O multipart legado continua sujeito ao limite Cloudflare.
+O template versionado já tem localizações específicas; validar nginx -t antes de instalar.
+API/worker, usuário, sandbox systemd, política SELinux e portas privadas são preservados.
+Temporários ficam em `/var/lib/traceflow/test-evidence/.uploads`, 0700/0600; o worker não ganha escrita.
+Integrar a CLI de cleanup ao agendador de manutenção a cada 15 min, com log/alerta e controle dos
+writers durante migrations. Nenhum timer foi instalado nesta entrega. Monitorar disco, RSS, CPU,
+leases, quotas, integridade e falhas de cleanup. Testes locais não comprovam a borda real.

@@ -26,7 +26,7 @@ Nginx e SELinux Enforcing. Instalar previamente os contratos OCI-03/04 em uma ex
 autorizada: usuário traceflow, storage privado, labels, firewall, dois serviços e ambiente
 protegido. O operador é root; traceflow não pode escrever releases, catálogo ou symlinks.
 
-Produção continua bloqueada por HeatWave/TLS/permissões, backup/restore, uploads Cloudflare,
+Produção continua bloqueada por HeatWave/TLS/permissões, backup/restore, homologação real dos uploads pela Cloudflare,
 SMTP, GitHub App e autorização de implantação. Não preencher gates como aprovados sem evidência.
 Não usar o marcador de laboratório em servidor existente.
 
@@ -353,3 +353,18 @@ por este script; não reaproveitar um servidor MySQL existente.
 Referências: [npm ci v10](https://docs.npmjs.com/cli/v10/commands/npm-ci/),
 [Prisma 6.12.0](https://github.com/prisma/orm/releases/tag/6.12.0),
 [locks de sessão MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html).
+
+## OCI-04.1 — Sessões de upload entre releases
+
+A cadeia oficial agora inclui a migration aditiva `20261014090000_resumable_evidence_uploads`
+(68 migrations); o procedimento de migration job e as autorizações OCI-05 permanecem obrigatórios.
+O artefato inclui as novas fontes e dependências pelos manifests/lockfiles existentes. Prisma
+Client/CLI permanecem 6.12.0; nunca transportar node_modules macOS para Linux ARM64.
+Ledger MySQL e `.uploads` pertencem ao ambiente persistente, fora de releases e webroot.
+O operador deve suspender/drenar toda chamada de manutenção de uploads antes do migration job,
+como qualquer writer manual/externo já abrangido por writersControlled. Não iniciar cleanup
+independente durante a promoção. Não se introduziu um terceiro serviço permanente.
+Rollback de aplicação exige compatibilidade com protocolo v1 ou bloqueio explícito de retomadas
+até restaurar uma release compatível. Manter recibos/partes/arquivos confirmados; não fazer down
+migration automática. Backup/restore abrange DB e arquivos consistentes. Reter assets antigos
+continua necessário. Ver [recuperação de uploads](OCI_RESUMABLE_UPLOADS.md).

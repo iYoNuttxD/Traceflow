@@ -74,7 +74,16 @@ export function createApp({
     githubWebhookController.handle
   );
   app.use(requireJsonContentType);
-  app.use(express.json({ limit: securityConfig.bodyLimit, strict: true }));
+  const jsonBody = express.json({ limit: securityConfig.bodyLimit, strict: true });
+  app.use((req, res, next) => {
+    // The 6 MiB execution parser runs in its authenticated domain router, after CSRF.
+    if (
+      req.method === 'POST' &&
+      /^\/api\/test-cases\/[1-9]\d*\/execution-uploads\/[0-9a-f-]{36}\/complete\/?$/.test(req.path)
+    )
+      return next();
+    return jsonBody(req, res, next);
+  });
 
   app.get('/health', health.health);
   app.get('/health/live', health.live);

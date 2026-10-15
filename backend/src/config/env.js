@@ -158,7 +158,13 @@ function parseCorsMethods(value) {
 }
 
 function parseCorsHeaders(value) {
-  const headers = parseCsv(value, ['Content-Type', 'X-Request-Id', 'X-CSRF-Token']);
+  const headers = parseCsv(value, [
+    'Content-Type',
+    'X-Request-Id',
+    'X-CSRF-Token',
+    'X-Chunk-SHA256',
+    'X-Chunk-Offset'
+  ]);
   if (headers.length === 0 || headers.some((header) => !/^[A-Za-z0-9-]+$/.test(header))) {
     throw new ConfigurationError(
       'Configuração inválida: CORS_ALLOWED_HEADERS contém header inválido.'

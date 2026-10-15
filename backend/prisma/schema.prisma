@@ -1534,3 +1534,35 @@ enum ResponsibilitySnapshotState {
   ASSIGNED
   UNASSIGNED
 }
+
+model EvidenceUpload {
+  id              String    @id @db.Char(36)
+  userId          Int
+  projectId       Int
+  testCaseId      Int
+  testCaseVersion Int
+  idempotencyKey  String    @db.Char(36)
+  manifestHash    String    @db.Char(64)
+  payloadHash     String?   @db.Char(64)
+  filesJson       Json
+  totalBytes      Int
+  reservedBytes   Int
+  status          String    @default("OPEN") @db.VarChar(16)
+  leaseToken      String?   @db.Char(36)
+  leaseUntil      DateTime? @db.DateTime(3)
+  executionId     Int?      @unique
+  expiresAt       DateTime  @db.DateTime(3)
+  cleanedAt       DateTime? @db.DateTime(3)
+  createdAt       DateTime  @default(now()) @db.DateTime(3)
+  updatedAt       DateTime  @updatedAt @db.DateTime(3)
+
+  @@unique([userId, idempotencyKey])
+  @@index([testCaseId, userId, createdAt])
+  @@index([cleanedAt, expiresAt])
+  @@index([leaseUntil])
+}
+
+// Admission lock shared by all API processes; holds no private data.
+model EvidenceUploadBudget {
+  id Int @id
+}

@@ -20,6 +20,7 @@ import sys
 import time
 sys.dont_write_bytecode=True
 ROOT=Path(__file__).resolve().parents[2]
+OFFICIAL_MIGRATION_COUNT=68  # 67 reviewed migrations plus the additive upload ledger.
 sys.path.insert(0,str(ROOT/"deploy/lib"))
 import release_contract as c
 spec=importlib.util.spec_from_file_location("release_ops",ROOT/"deploy/scripts/release.py")
@@ -163,7 +164,7 @@ def setup(build):
     migrate_auth=auth(data,rid,checksum,"migrate",beforeFingerprint=snap)
     first=json_last(cli("migrate",rid,checksum,migrate_auth,env))
     data["schemaFingerprint"]=first["fingerprint"];c.atomic_json(LAB/"context.json",data)
-    case("67-official-migrations-via-separated-job",len(first["applied"])==67)
+    case("official-migrations-via-separated-job",len(first["applied"])==OFFICIAL_MIGRATION_COUNT)
     second=json_last(cli("migrate",rid,checksum,auth(data,rid,checksum,"migrate",beforeFingerprint=data["schemaFingerprint"]),env))
     case("migration-idempotence",second["applied"]==[])
     initial_activation(data,env)
@@ -265,7 +266,7 @@ def migration_cases(data,env):
         except c.Refused as failure:case("R15-database-session-mutex",str(failure)=="DATABASE_OPERATION_LOCKED")
     with mock_env(e):ops.migrate(layout,args)
     with mock_env(e),ops.Database(release,admin,inspect,"read") as db:after=db.ask("snapshot")
-    case("full-job-67-official-migrations-from-empty",len(after["applied"])==67)
+    case("full-job-official-migrations-from-empty",len(after["applied"])==OFFICIAL_MIGRATION_COUNT)
     ap=auth(d,rid,checksum,"migrate",beforeFingerprint=after["fingerprint"])
     with mock_env(e):ops.migrate(layout,SimpleNamespace(release_id=rid,digest=checksum,authorization=str(ap)))
     case("full-job-idempotent-second-run")

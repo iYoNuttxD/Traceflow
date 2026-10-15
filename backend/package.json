@@ -60,7 +60,9 @@
     "prisma:migrate": "prisma migrate dev",
     "s104:dates:dry-run": "node scripts/s104-legacy-schedule-dates.js",
     "s104:dates": "node scripts/s104-legacy-schedule-dates.js --apply",
-    "adr011:audit": "node scripts/adr011-milestone-sprint-audit.js"
+    "adr011:audit": "node scripts/adr011-milestone-sprint-audit.js",
+    "uploads:cleanup:dry-run": "node scripts/cleanup-evidence-uploads.js",
+    "uploads:cleanup": "node scripts/cleanup-evidence-uploads.js --apply"
   },
   "dependencies": {
     "@octokit/rest": "^21.0.0",
@@ -74,6 +76,7 @@
     "helmet": "^8.3.0",
     "multer": "2.4.0",
     "nodemailer": "10.0.9",
+    "stream-json": "3.7.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

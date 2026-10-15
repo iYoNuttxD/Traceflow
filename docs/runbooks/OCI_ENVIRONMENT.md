@@ -207,3 +207,11 @@ Prisma gerado pode conter caminhos de `.env` do ambiente de geração. Por isso,
 `node_modules` de desenvolvimento para release ou para um teste que alegue isolamento: usar
 `npm ci` e `prisma generate` em workspace sem `.env`. O guard de `env.js` em produção não
 controla o carregamento implícito realizado pelo código gerado de uma dependência.
+
+## OCI-04.1 — Contrato adicional de uploads
+
+Nove configurações `TEST_UPLOAD_*` sem segredos estão em `backend/.env.example` e na seção 27
+do [runbook de uploads](OCI_RESUMABLE_UPLOADS.md). Defaults preservam os limites funcionais.
+Configuração inválida impede o carregamento do serviço; o piso livre de 512 MiB só pode aumentar.
+Não há variável Vite nova. `/api` continua na mesma origem. A API usa o root privado existente,
+com `.uploads` abaixo dele; nenhuma credencial nova é necessária para o protocolo.
