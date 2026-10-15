@@ -14,20 +14,22 @@ substitui o `docs/security/ASVS_BASELINE.md`: ela o decompõe requisito a requis
 
 | Veredito | L1 | L1+L2 |
 |---|---:|---:|
-| ATENDIDO | 40 | 103 |
-| PARCIAL | 5 | 37 |
-| NÃO ATENDIDO | 6 | 19 |
+| ATENDIDO | 37 | 98 |
+| PARCIAL | 5 | 36 |
+| NÃO ATENDIDO | 9 | 25 |
 | NÃO VERIFICÁVEL LOCALMENTE | 4 | 18 |
 | NÃO APLICÁVEL | 15 | 76 |
 | **Total** | **70** | **253** |
 
-Aplicáveis: 177. Aplicáveis e verificáveis localmente: 159. Atendidos entre esses: 103 (64.8%).
+Aplicáveis: 177. Aplicáveis e verificáveis localmente: 159. Atendidos entre esses: 98 (61.6%).
+
+A Fase 4 (Parte D) revisou seis linhas: V1.1.1, V8.2.1, V8.2.2, V8.3.1 e V8.4.1 passaram de atendido a não atendido pela H09, e V16.5.2 passou de parcial a não atendido pela H01.
 
 ## V1 — Encoding and Sanitization
 
 | ID | Nível | Resumo | Aplicabilidade | Veredito | Classe | Evidência | Limite / dono | Backlog |
 |---|---|---|---|---|---|---|---|---|
-| V1.1.1 | 2 | entrada decodificada para forma canônica uma vez, antes da validação | aplica | ATENDIDO | INSPEÇÃO | `backend/src/shared/validation/validate-request.middleware.js` valida o que o Express já decodificou; nenhum decodificador adicional depois da validação | — | — |
+| V1.1.1 | 2 | entrada decodificada para forma canônica uma vez, antes da validação | aplica | NÃO ATENDIDO | SONDA | `backend/src/middlewares/auth/project-authorization.middleware.js` decide sobre o caminho ainda codificado, e o roteador entrega o parâmetro já decodificado | a sonda H09 da Parte D (ID do caminho codificado, como `%39%38`) passa pelo middleware de projeto, que testa `req.path` bruto: um não membro lê 53 rotas e escreve em 17, e um VIEWER faz 18 escritas, inclusive as de OWNER | CONF-F51 |
 | V1.1.2 | 2 | codificação de saída feita no último passo, pelo intérprete de destino | aplica | ATENDIDO | INSPEÇÃO | React escapa na renderização; `res.json`; `backend/src/shared/email/email.layout.js` escapa na montagem do HTML | — | — |
 | V1.2.1 | 1 | codificação de saída adequada ao contexto HTML, atributo, CSS ou cabeçalho | aplica | ATENDIDO | INSPEÇÃO | `backend/src/shared/email/email.layout.js` (`escapeHtml`, `safeUrl`); nenhum `dangerouslySetInnerHTML` em `frontend/src` | — | — |
 | V1.2.2 | 1 | URL montada com dado externo codificado e só com protocolos seguros | aplica | PARCIAL | INSPEÇÃO | `backend/src/modules/github/github.mapper.js` valida `githubUrl` com prefixo `https://github.com/`; a URL do repositório (`html_url`) é gravada sem validação e exibida como link | URL do repositório (K21) | CONF-F18 |
@@ -193,11 +195,11 @@ Aplicáveis: 177. Aplicáveis e verificáveis localmente: 159. Atendidos entre e
 |---|---|---|---|---|---|---|---|---|
 | V8.1.1 | 1 | documentação de acesso por função e por dado | aplica | ATENDIDO | INSPEÇÃO | `docs/security/AUTHORIZATION_MATRIX.md` | — | — |
 | V8.1.2 | 2 | documentação de acesso por campo | aplica | PARCIAL | INSPEÇÃO | `docs/security/AUTHORIZATION_MATRIX.md` é por rota; a minimização por campo está nos mappers | regras por campo não documentadas | CONF-F15 |
-| V8.2.1 | 1 | acesso a funções restrito a quem tem permissão | aplica | ATENDIDO | AUTO-EXISTENTE | `backend/test/api/auth-authorization.test.js` (matriz efetiva por papel); `backend/test/api/lr1-authorization-hardening.test.js` | — | — |
-| V8.2.2 | 1 | acesso a dados restrito por item (IDOR/BOLA) | aplica | ATENDIDO | AUTO-EXISTENTE | `backend/test/api/auth-authorization.test.js` (BOLA e IDs opacos de outro projeto); `backend/test/api/lr1-authorization-hardening.test.js` | a varredura completa de rotas é a H09 da Parte D | — |
+| V8.2.1 | 1 | acesso a funções restrito a quem tem permissão | aplica | NÃO ATENDIDO | SONDA | com ID plano, a matriz vale em toda rota (`backend/test/conformance/autorizacao-varredura.test.js`) | a sonda H09 da Parte D (ID do caminho codificado, como `%39%38`) passa pelo middleware de projeto, que testa `req.path` bruto: um não membro lê 53 rotas e escreve em 17, e um VIEWER faz 18 escritas, inclusive as de OWNER | CONF-F51 |
+| V8.2.2 | 1 | acesso a dados restrito por item (IDOR/BOLA) | aplica | NÃO ATENDIDO | SONDA | com ID plano, 404 opaco em toda rota de projeto (`backend/test/conformance/autorizacao-varredura.test.js`) | a sonda H09 da Parte D (ID do caminho codificado, como `%39%38`) passa pelo middleware de projeto, que testa `req.path` bruto: um não membro lê 53 rotas e escreve em 17, e um VIEWER faz 18 escritas, inclusive as de OWNER | CONF-F51 |
 | V8.2.3 | 2 | acesso a campos restrito (BOPLA) | aplica | ATENDIDO | AUTO-EXISTENTE | schemas estritos e DTOs; `backend/test/api/auth-authorization.test.js` (e-mail minimizado na lista de membros) | — | — |
-| V8.3.1 | 1 | autorização na camada de serviço confiável | aplica | ATENDIDO | INSPEÇÃO | middleware e serviços no backend (`backend/src/modules/authorization/authorization.service.js`) | — | — |
-| V8.4.1 | 2 | controles entre tenants | aplica | ATENDIDO | AUTO-EXISTENTE | `backend/test/api/lr1-authorization-hardening.test.js` (cadeia de tomada entre projetos bloqueada) | — | — |
+| V8.3.1 | 1 | autorização na camada de serviço confiável | aplica | NÃO ATENDIDO | SONDA | a decisão de escopo depende da forma do caminho que o cliente envia (`backend/src/modules/authorization/authorization.service.js:56-65`) | a sonda H09 da Parte D (ID do caminho codificado, como `%39%38`) passa pelo middleware de projeto, que testa `req.path` bruto: um não membro lê 53 rotas e escreve em 17, e um VIEWER faz 18 escritas, inclusive as de OWNER; os módulos que reconferem no serviço (casos de teste, defeitos, membros) resistiram | CONF-F51 |
+| V8.4.1 | 2 | controles entre tenants | aplica | NÃO ATENDIDO | SONDA | vínculos pelo corpo entre projetos recusados (`backend/test/conformance/vinculos-e-recursos-pessoais.test.js`) | a sonda H09 da Parte D (ID do caminho codificado, como `%39%38`) passa pelo middleware de projeto, que testa `req.path` bruto: um não membro lê 53 rotas e escreve em 17, e um VIEWER faz 18 escritas, inclusive as de OWNER | CONF-F51 |
 
 ## V9 — Self-contained Tokens
 
@@ -346,7 +348,7 @@ Aplicáveis: 177. Aplicáveis e verificáveis localmente: 159. Atendidos entre e
 | V16.4.2 | 2 | logs protegidos contra acesso e alteração | aplica | NÃO VERIFICÁVEL LOCALMENTE | EXTERNO | — | S2-10 (operação) | — |
 | V16.4.3 | 2 | logs enviados a sistema separado | aplica | NÃO VERIFICÁVEL LOCALMENTE | EXTERNO | — | S2-10 (operação) | — |
 | V16.5.1 | 2 | mensagem genérica em erro inesperado | aplica | ATENDIDO | AUTO-EXISTENTE | `backend/test/unit/shared-infrastructure.test.js` (erro inesperado sanitizado com correlação, sem stack) | — | — |
-| V16.5.2 | 2 | operação segura quando recurso externo falha | aplica | PARCIAL | INSPEÇÃO | erros do GitHub normalizados e com retentativa limitada (`backend/src/modules/github/github-request.js`) | sem timeout efetivo nas chamadas ao GitHub (K11) | CONF-F08 |
+| V16.5.2 | 2 | operação segura quando recurso externo falha | aplica | NÃO ATENDIDO | SONDA | erros do GitHub normalizados e com retentativa limitada (`backend/src/modules/github/github-request.js`) | a sonda H01 mostra que um GitHub que aceita a conexão e não responde prende a execução para sempre: o timeout é ignorado (K11) e o heartbeat renova o lease | CONF-F08, CONF-F52 |
 | V16.5.3 | 2 | falha segura, sem fail-open | aplica | ATENDIDO | AUTO-EXISTENTE | transação vencida nunca confirma (`backend/src/database/transaction-guard.js`); validação antes do processamento (`backend/src/shared/validation/validate-request.middleware.js`) | — | — |
 
 ## V17 — WebRTC

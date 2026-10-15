@@ -11,7 +11,7 @@ de referência muda.
 | Item | Valor |
 |---|---|
 | Commit verificado | `7952b01fad68da0d91dd3e2f79c759f5745bb1db` (`joao-dev-v2`, 69 commits à frente de `origin/joao-dev-v2`, sem CI) |
-| Última fase concluída | 3 |
+| Última fase concluída | 4 |
 | Pontos ⚑1–⚑8 | aprovados com as recomendações do enunciado (14/10/2026) |
 | Ponto ⚑9 | aprovado só `node scripts/check-npm-audit.mjs`; recusados `gh api`, os validadores `db:test:validate-*` e o worker e o job em processo separado |
 | Efeito do ⚑9 | ARQ-04 (drift) e ARQ-31 (proteção da branch) ficam `NÃO VERIFICÁVEL LOCALMENTE` até a CI da PR; H05 e H22 rodam em processo único |
@@ -161,17 +161,23 @@ Matriz completa em `docs/security/ASVS_5_0_L1_L2_MATRIX.md`, com o catálogo con
 
 | Veredito | L1 | L1+L2 |
 |---|---:|---:|
-| ATENDIDO | 40 | 103 |
-| PARCIAL | 5 | 37 |
-| NÃO ATENDIDO | 6 | 19 |
+| ATENDIDO | 37 | 98 |
+| PARCIAL | 5 | 36 |
+| NÃO ATENDIDO | 9 | 25 |
 | NÃO VERIFICÁVEL LOCALMENTE | 4 | 18 |
 | NÃO APLICÁVEL | 15 | 76 |
 | **Total** | **70** | **253** |
 
+Números revisados na Fase 4:
+- a H09 derrubou V1.1.1, V8.2.1, V8.2.2, V8.3.1 e V8.4.1, que estavam atendidos;
+- a H01 levou V16.5.2 de parcial a não atendido.
+
+Na Fase 1, os números eram 40 e 103 atendidos, 5 e 37 parciais e 6 e 19 não atendidos (L1 e L1+L2).
+
 - **Aplicáveis:** 177.
-- **Aplicáveis e verificáveis localmente:** 159, dos quais 103 atendidos (64,8%).
-- **L1 não atendidos (6):** V3.3.1, V3.5.3, V6.2.4, V7.2.4, V14.2.1 e V14.3.1.
-- **A meta L2 da §13.1 do anexo não é atingida hoje.** São 19 requisitos não atendidos e 37 parciais; os
+- **Aplicáveis e verificáveis localmente:** 159, dos quais 98 atendidos (61,6%).
+- **L1 não atendidos (9):** V3.3.1, V3.5.3, V6.2.4, V7.2.4, V8.2.1, V8.2.2, V8.3.1, V14.2.1 e V14.3.1.
+- **A meta L2 da §13.1 do anexo não é atingida hoje.** São 25 requisitos não atendidos e 36 parciais; os
   18 não verificáveis dependem de S2-08 a S2-10.
 
 ### 4.2 Verificações automatizadas novas (⚑1)
@@ -484,12 +490,13 @@ Matriz completa em `docs/issues/CONFORMIDADE_MATRIZ_ARQUITETURA.md`.
 
 | Veredito | Regras |
 |---|---:|
-| CONFORME | 12 |
-| NÃO CONFORME | 21 |
+| CONFORME | 11 |
+| NÃO CONFORME | 22 |
 | NÃO VERIFICÁVEL LOCALMENTE | 3 (ARQ-04, ARQ-31 e ARQ-32, por causa do ⚑9) |
 | **Total** | **36** |
 
-Conformidade sobre as regras verificáveis: 12 de 33 (36,4%).
+Conformidade sobre as regras verificáveis: 11 de 33 (33,3%). Número revisado na Fase 4: a H09 derrubou a
+ARQ-22 (autorização negada por padrão), que a Fase 2 dava como conforme com 12 de 33.
 
 ### 5.2 Verificações estáticas
 
@@ -885,6 +892,354 @@ Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
 - Consequência: quem consulta o documento espera um código, um erro ou uma pendência que o produto não tem
 - Origem: S1-04 da `joao-dev-v2`; os demais, de entregas da `main`
 - Proposta: corrigir os oito pontos num commit de documentação
+
+## 7. Parte D — erros e inconsistências
+
+Cada hipótese fechou com uma sonda que tentou derrubá-la. A sonda é um teste existente quando ele já
+exercita o cenário. As sondas vermelhas rodaram em arquivos temporários de `backend/test/conformance/` e
+`frontend/test/conformance/`, apagados antes do commit; as verdes e relevantes entraram na suíte de
+conformidade (seção 7.4).
+
+### 7.1 Números
+
+| Veredito | Hipóteses |
+|---|---:|
+| CONFIRMADA | 25 |
+| REFUTADA | 16 |
+| INCONCLUSIVA | 0 |
+| **Total** | **41** |
+
+**Mutantes:** dos 12 aplicados, 10 foram mortos por testes existentes. M08 e M12 sobreviveram (CF-65).
+
+**Limites desta fase:**
+- **Processos separados (⚑9):** a H05 e a H22 rodaram num processo só, e o `KILL QUERY` dentro do
+  worker não foi verificado.
+- **Dados nos dois extremos:** as sondas rodaram com dados mínimos. Em escala, só a H05 (300 eventos),
+  a H21 (10 rodadas), a H09 (143 rotas por papel) e as varreduras do banco da H32 e da H34.
+- **Medição de tempo:** a H14 usou a mediana de 20 rodadas.
+- **Ficam para o percurso manual da Fase 5:** a H40 (alvo de 44 px e foco depois das ações) e a
+  parte visual da H38.
+
+### 7.2 Hipóteses
+
+| ID | Hipótese (resumo) | Veredito | Sonda e evidência | Achado |
+|---|---|---|---|---|
+| H01 | GitHub mudo prende a execução além do timeout | CONFIRMADA | timeout de 1 s ignorado (pendente aos 6 s); execução `RUNNING` aos 25 s com o heartbeat avançando; novo pedido: "Já existe uma sincronização GitHub em andamento." | CF-52 |
+| H02 | falha gravada pelo cliente de recuperação não reagenda | CONFIRMADA | caminho normal: 1 falha e `nextSyncAt` adiado; recuperação: 0 falhas, `nextSyncAt` nulo e projeto vencido para o agendador | CF-54 |
+| H03 | execução vencida nunca expira sob escrita contínua | REFUTADA | expirou em 3,8 s com o projeto travado 97,5% do tempo e em 185 ms no ritmo realista | — |
+| H04 | lease perdido pula os ganchos | CONFIRMADA | evento `PENDING` sem notificação depois da execução; o job despachou depois (nada perdido); atraso não declarado | CF-66 |
+| H05 | despacho dentro da execução atrasa os slots | REFUTADA | o gancho despacha no máximo 100 eventos (0,8 s para 100); os 200 restantes esperam o job ou a próxima sincronização | — |
+| H06 | códigos de ocupação divergentes e 503 sem `code` | CONFIRMADA | 503 depois de 52,7 s, só com `message`; auditoria de pedido presa 50,3 s e perdida; demais escritas: 409 `RESOURCE_BUSY` com `Retry-After` | CF-53 |
+| H07 | repositório vazio derruba a sincronização | CONFIRMADA | sem branches: `FAILED` (`VALIDATION_ERROR`); branch padrão sem SHA: `FAILED` (`EXTERNAL_SERVICE_ERROR`); 0 PRs e 0 issues | CF-55 |
+| H08 | PR reaberta conta no RF18 e não notifica, sem documentação dos dois lados | CONFIRMADA | `api/indicators-p3.test.js:126` e `integration/s203-github-event-dispatch.test.js:921`; nenhum documento cruza os dois lados | CF-67 |
+| H09 | alguma rota escapa do escopo de projeto | CONFIRMADA | ID plano: negativa em toda rota (teste novo); ID codificado: não membro lê 53 rotas e escreve em 17; VIEWER faz 18 escritas | CF-51 |
+| H10 | vínculo aceita ID de outro projeto no corpo | REFUTADA | 21 tentativas recusadas (teste novo) | — |
+| H11 | recurso pessoal vaza entre contas | REFUTADA | notificação, sessão, preferência do painel e convite (teste novo) | — |
+| H12 | sem expiração por inatividade | CONFIRMADA | reprodução da Fase 1 (sessão ociosa por 7 dias aceita) | CF-04 |
+| H13 | novo login não encerra a sessão apresentada | CONFIRMADA | reprodução da Fase 1 | CF-02 |
+| H14 | conta revelada pelo tempo | CONFIRMADA | login 35,9 ms (conta existente) × 4,4 ms (inexistente); recuperação 7,9 × 4,4 ms | CF-61 |
+| H15 | senhas comuns aceitas | CONFIRMADA | reprodução da Fase 1 (quatro senhas comuns aceitas) | CF-03 |
+| H16 | as duas trocas de senha divergem | CONFIRMADA | as duas recusam 8 caracteres; `auth/change-password` derruba a sessão atual, `settings/security/password` a preserva | CF-62 |
+| H17 | token em URL e confirmação por GET | CONFIRMADA | link de troca de e-mail com `?token=`; o GET de confirmação troca o e-mail; links com `localhost` como padrão | CF-06, CF-63 |
+| H18 | logout deixa dados no navegador | CONFIRMADA | jsdom: `traceflow.projects.pinned:42` e `recent:42` ficam no `localStorage`; sem `Clear-Site-Data` | CF-07 |
+| H19 | cookie sem prefixo | CONFIRMADA | reprodução da Fase 1 | CF-01 |
+| H20 | escrita sob trava longa responde 500 ou errado | REFUTADA | 17 rotas: 409 `RESOURCE_BUSY` com `Retry-After: 2` em 2 a 5 s; outro projeto responde 200 | — |
+| H21 | envio duplo duplica o efeito | CONFIRMADA | vínculo de commit e de issue: 201 + 500 em 10 de 10 rodadas, sem vínculo duplicado; convite, dispensa, leitura e preferência idempotentes; comentário duplica (sem chave de idempotência) | CF-56 |
+| H22 | gancho e job juntos duplicam notificação | REFUTADA | `integration/s203-bateria.test.js:1406` (EV-K-02: 50 eventos, 50 notificações), no mesmo processo | — |
+| H23 | worker grava em projeto excluído | REFUTADA | exclusão no meio da página: `FAILED` com `PROJECT_DELETED`, página seguinte não gravada (teste novo) | — |
+| H24 | os três relógios divergem | CONFIRMADA | conclusão às 22h30 de 14/10 em São Paulo: dia 14 no indicador e no vencimento, dia 15 no burndown | CF-57 |
+| H25 | horário de verão quebra bordas | REFUTADA | `integration/s202-bateria.test.js:377` (7 fusos, 10 trocas) e `unit/indicators.test.js:25` | — |
+| H26 | vazio ou indisponível aparece como zero | REFUTADA | `api/indicators-p2.test.js:368` (sem `main`: indisponível), `api/indicators-p7.test.js:90`, `features/DashboardPanel.test.jsx:1063` | — |
+| H27 | painel diferente do endpoint | REFUTADA | 52 valores comparados, nenhuma diferença (teste novo) | — |
+| H28 | período não vale igual para todas as fichas | CONFIRMADA | todo indicador disponível recebeu o período; mas o aviso `PERIOD_FILTER_NOT_APPLIED_TO_VIEW` some quando o painel pede a saúde do projeto | CF-58 |
+| H29 | produtividade por pessoa chega a quem não devia | REFUTADA | o VIEWER vê nome e ID na produtividade, como a matriz de autorização permite; a minimização para o VIEWER é decisão de privacidade | — |
+| H30 | preferência do painel aceita corpo inválido | REFUTADA | 13 itens, duplicado, não aprovado, vazio, versão errada e campo extra: 400; `__proto__` descartado em silêncio (S202-F06, já no backlog) | — |
+| H31 | exportação do titular incompleta | CONFIRMADA | 22 de 43 relações do `User` fora; na exportação real faltaram movimentação, histórico e revisão feitos pelo titular | CF-59 |
+| H32 | anonimização não alcança tabelas novas | REFUTADA | nome, e-mail e username somem das 165 colunas de texto (teste novo) | — |
+| H33 | lacunas de retenção | CONFIRMADA | depois das limpezas: token de reativação, pedido de troca de e-mail, execução e conta desativada de 2024 continuam | CF-60 |
+| H34 | exclusão definitiva falha ou deixa órfão | REFUTADA | 28 tabelas com dado (26 pelo `projectId` e 2 pelo `taskId`), nenhuma linha depois (teste novo) | — |
+| H35 | contrato, rotas e frontend divergem | CONFIRMADA | 4 rotas sem contrato; 2 rotas que sempre respondem 409, com função morta no frontend; limitador em rota inexistente | CF-68 |
+| H36 | código emitido fora do catálogo, do contrato ou do frontend | CONFIRMADA | 12 fora do catálogo (9 também fora do contrato); 41 do catálogo sem contrato; `SESSION_*` tratados e nunca emitidos | CF-64 |
+| H37 | documentos se contradizem | CONFIRMADA | K7, K14 e K16 (Fases 2 e 3) | CF-40, CF-47 |
+| H38 | telas da Sprint 2 falham em algum estado | REFUTADA | 3 telas × carregando, vazio, 500, 403, 404, 409, 429 e 503 sem quebra, com alerta e nova tentativa; "Limpar filtros" único com filtro ativo (teste novo) | — |
+| H39 | classes CSS sem definição | CONFIRMADA | 31 classes usadas no JSX sem regra em nenhuma folha de estilo | CF-69 |
+| H40 | nomes acessíveis repetidos e alvos pequenos | REFUTADA | listas de alertas e notificações com 3 itens, sem nome repetido; alvo e foco ficam para o percurso manual | — |
+| H41 | regra crítica sem teste | CONFIRMADA | M08 e M12 sobreviveram (seção 7.3) | CF-65 |
+
+### 7.3 Mutantes
+
+Cada mutante foi aplicado sozinho, com a suíte do módulo e, para os sobreviventes, com todos os
+arquivos de teste que tocam o ponto mutado. O `backend/src` foi conferido limpo depois de cada um.
+
+| Mutante | Onde | Alteração | Resultado | Teste que derrubou |
+|---|---|---|---|---|
+| M01 | `authorization.service.js` | retirar `/tasks/:id` do escopo de projeto | morto (6 falhas) | "aplica VIEWER+ às perspectivas e MEMBER+ ao vínculo atômico da E10" |
+| M02 | `csrf.middleware.js` | aceitar `PATCH` sem token | morto na 2ª rodada (3 falhas em 27 arquivos) | "EV-Z-04 PATCH e read-all sem CSRF respondem 403 e não mudam o aviso do GitHub" |
+| M03 | `auth.service.js` | não conferir `sessionVersion` | morto (1 falha) | "does not mint a valid post-reset session from a login verified before reset" |
+| M04 | `redaction.js` | retirar a chave `email` | morto (1 falha) | "produz JSON estruturado e sanitiza erro externo" |
+| M05 | chave de deduplicação da mudança de status | valor aleatório | morto (6 falhas) | "NT-S-04 A→B→C→A gera três notificações com origem, destino e chave exatos" |
+| M06 | corte do vencimento | um dia antes | morto (6 falhas) | "M2 RF59: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo" |
+| M07 | período dos indicadores | fim sem o último dia | morto (6 falhas) | "entrega GENERAL padrão sem período, com estado e filtros honestos" |
+| M08 | corte da execução vencida | `>=` trocado por `>` | **sobreviveu** (69 testes em 4 arquivos) | — |
+| M09 | `lockActiveProject` | ignorar `deletedAt` | morto (5 falhas) | "não regenera access code depois do delete, mesmo com leitura ativa anterior" |
+| M10 | exportação do titular | omitir as notificações | morto na 2ª rodada (9 falhas em 10 arquivos) | "EV-D-01 exportação: campos do GitHub só nos tipos novos e ocultas com visible false" |
+| M11 | `isProjectWriteBusy` | não reconhecer `P2010`/3572 | morto (8 falhas) | "heartbeat returns promptly while another authenticated project remains operational" |
+| M12 | webhook | aceitar entrega sem o cabeçalho de assinatura | **sobreviveu** (37 testes em 3 arquivos) | — |
+
+### 7.4 Verificações automatizadas novas (⚑1)
+
+| Arquivo | O que trava |
+|---|---|
+| `backend/test/conformance/autorizacao-varredura.test.js` | H09 com ID plano, gerada do roteador: anônimo 401 em toda rota autenticada, não membro 404 opaco em toda rota de projeto, VIEWER 403 nas escritas (salvo as três da matriz), MEMBER e MANAGER 403 nas rotas de papel maior, autoria de comentário e de sessão de tempo, restaurar e excluir em definitivo só pelo OWNER |
+| `backend/test/conformance/vinculos-e-recursos-pessoais.test.js` | H10 e H11 |
+| `backend/test/conformance/privacidade-ciclo-de-vida.test.js` | H32 (varredura do banco depois da anonimização) e H34 (exclusão definitiva sem órfão) |
+| `backend/test/conformance/sincronizacao-exclusao.test.js` | H23 |
+| `backend/test/conformance/indicadores-painel.test.js` | H27 |
+| `frontend/test/conformance/estados-sprint2.test.jsx` | H38 |
+
+A variante codificada da H09 e as demais confirmações ficam como reprodução: entram na suíte quando o
+defeito for corrigido.
+
+### 7.5 Achados da Parte D
+
+Cada achado tem um item `CONF-Fnn` de mesmo número no backlog (Fase 5).
+
+### [ALTA] CF-51 — Autorização entre projetos furada por ID codificado no caminho
+
+- Onde: `backend/src/middlewares/auth/project-authorization.middleware.js:8,16-18`; `backend/src/modules/authorization/authorization.service.js:14-65`
+- Norma: ASVS V8.2.1, V8.2.2 e V8.3.1 (L1), V8.4.1 e V1.1.1 (L2); §13.5 do anexo de arquitetura (ARQ-22); critérios de bloqueio no backend do S1-01 e do S1-03
+- Esperado: rota de projeto negada a quem não é membro, e escrita restrita ao papel exigido, qualquer que seja a forma do caminho
+- Observado:
+  - o middleware testa `req.path`, ainda codificado, contra `^/projects/\d+`;
+  - com `%39%38…` no lugar de `98…`, a rota não é reconhecida como de projeto e passa sem checar membership nem papel, enquanto o Express decodifica o parâmetro para o controller;
+  - na varredura das 143 rotas de projeto com o ID codificado, um não membro obteve 200 em 53 leituras (projeto, código de acesso, convites com e-mail, tarefas, comentários, requisitos, sprints, marcos, commits, PRs, issues, indicadores, rastreabilidade, Kanban e alertas);
+  - o mesmo não membro obteve 2xx em 17 escritas: renomear o projeto, regenerar o código de acesso, remover e reativar membro, revogar convite, editar requisito e tarefa, excluir tarefa, sprint e marco, desfazer vínculos e confirmar sugestão;
+  - um VIEWER fez as mesmas 18 escritas, inclusive as exclusivas de OWNER;
+  - o desvio ainda leva a dois 500: o canal SSE do projeto e a exclusão de requisito;
+  - resistiram os módulos que reconferem a autorização no serviço: casos de teste, execuções, evidências, defeitos, a lista de membros e a auditoria do projeto.
+- Reprodução: com a sessão de um não membro, `GET /api/projects/<id codificado>` responde 200 com o projeto; `PUT /api/projects/<id codificado>` com `{name}` responde 200 e o nome muda no banco
+- Consequência: qualquer conta autenticada lê e altera projetos alheios conhecendo o ID; com o código de acesso lido, entra no projeto como MEMBER
+- Origem: `bf53d1c` (`main`, 20/08/2026), mantido nas entregas seguintes
+- Proposta: decidir o escopo sobre o parâmetro já decodificado (autorização por rota, depois do roteamento) ou normalizar o caminho antes da regex; recusar ID não canônico; reconferir membership nos serviços que confiam só no middleware; incluir a variante codificada em `autorizacao-varredura.test.js`
+
+### [ALTA] CF-52 — Sincronização presa para sempre com o GitHub mudo
+
+- Onde: `backend/src/modules/github/github.client.js:34-38`; `backend/src/modules/github/services/github-sync-run.service.js:146-169`
+- Norma: ASVS V16.5.2; ARQ-07; ADR-017 (lease e heartbeat)
+- Esperado: a chamada ao GitHub falha no `GITHUB_REQUEST_TIMEOUT_MS`, e a execução termina ou expira
+- Observado:
+  - com o timeout em 1 s, a requisição a um servidor que aceita a conexão e não responde seguia pendente aos 6 s;
+  - numa sincronização real, a execução continuava `RUNNING` aos 25 s, e o heartbeat avançou 20 s sozinho;
+  - um novo pedido respondeu 202 "Já existe uma sincronização GitHub em andamento.".
+- Reprodução: cliente real com o Octokit apontado para um servidor local mudo; lease de 60 s
+- Consequência: a sincronização do projeto fica presa até reiniciar o processo; no worker, o slot fica ocupado
+- Origem: K11 (`@octokit/request` 9.2.4, sem timeout efetivo; CF-08) somado ao heartbeat independente do progresso (PR #24, `main`)
+- Proposta: `AbortSignal.timeout` por requisição (o `@octokit/request` 9 repassa `signal`); prazo total por execução; heartbeat condicionado a progresso
+
+### [MÉDIA] CF-53 — Pedido de sincronização preso cerca de 50 s, sem código, e auditoria perdida com o projeto ocupado
+
+- Onde: `backend/src/modules/github/github.controller.js:12-19,36-45`; `backend/src/modules/github/github-sync-run.repository.js:38-45`; `backend/src/database/transaction-guard.js:102`; `docs/architecture/ADR-019-ESPERA-DE-TRAVA.md:99-100`
+- Norma: ADR-019 (espera de trava limitada); §12.3 do anexo de arquitetura; ASVS V16.3.3
+- Esperado: resposta rápida com `code` e `Retry-After`, como nas demais escritas, e auditoria registrada
+- Observado:
+  - com o `Project` travado por outra transação, `POST /github/sync` respondeu 503 depois de 52,7 s, com corpo só `{message}`, sem `code`, `requestId` nem `Retry-After`;
+  - a auditoria `GITHUB_SYNC_REQUESTED`, gravada antes do serviço e fora da transação guardada, esperou 50,3 s (o padrão do MySQL) e falhou;
+  - a auditoria `GITHUB_SYNC_FAILED` esperou 2,0 s e também falhou;
+  - as demais escritas do projeto travado responderam 409 `RESOURCE_BUSY` com `Retry-After: 2` em 2 a 5 s;
+  - o ADR-019 diz que instruções fora de transação herdam "no máximo 5 s", mas uma conexão do pool que nunca passou por transação guardada espera 50 s.
+- Reprodução: trava no `Project` por outra transação e `POST /api/projects/:projectId/github/sync`
+- Consequência: o pedido trava quase um minuto, o cliente recebe erro sem código e os dois registros de auditoria somem
+- Origem: auditoria no controller (`main`); limite por sessão do ADR-019 (`joao-dev-v2`)
+- Proposta: gravar a auditoria depois do serviço, ou em transação com limite; fixar `innodb_lock_wait_timeout` na abertura de toda conexão do pool; expor `code` e `Retry-After` no 503; corrigir a consequência descrita no ADR-019
+
+### [MÉDIA] CF-54 — Falha gravada pelo cliente de recuperação não reagenda
+
+- Onde: `backend/src/modules/github/github-sync-run.repository.js:276-278`, contra o reagendamento em `:87-117`
+- Norma: ADR-017 (agenda com espera crescente depois de falha)
+- Esperado: toda falha conta em `consecutiveSyncFailures` e adia o `nextSyncAt`
+- Observado: pelo caminho normal, a falha deixa `consecutiveSyncFailures` em 1 e o `nextSyncAt` cerca de uma hora depois; pelo cliente de recuperação, a contagem fica em 0, o `nextSyncAt` fica nulo e o projeto sai como vencido para o agendador
+- Reprodução: falha do `fail` principal forçada com `P1001`, numa sincronização que falha no GitHub
+- Consequência: com o banco oscilando, o agendador repete o projeto a cada ciclo, sem espera
+- Origem: correção S203-A01 (`b41727a`, `joao-dev-v2`)
+- Proposta: `failOnRecoveryConnection` também reagenda, com a mesma regra do caminho normal
+
+### [MÉDIA] CF-55 — Repositório vazio ou branch padrão sem SHA derruba a sincronização inteira
+
+- Onde: `backend/src/modules/github/services/sync-project-branches.service.js:25-30`; `backend/src/modules/github/services/sync-project-commits.service.js:135-136`; ordem das etapas em `backend/src/modules/github/services/sync-project-github.service.js:124-177`
+- Norma: RF03 a RF05; UC04
+- Esperado: PRs e issues sincronizadas mesmo sem commits
+- Observado: repositório sem branches termina `FAILED` com `VALIDATION_ERROR` ("O GitHub não retornou branches acessíveis para o repositório."); branch padrão sem SHA termina `FAILED` com o genérico `EXTERNAL_SERVICE_ERROR`; nos dois casos, nenhuma PR e nenhuma issue foi gravada
+- Reprodução: dublê do GitHub com lista de branches vazia, e com a branch `main` sem SHA
+- Consequência: um repositório recém-criado, com issues abertas antes do primeiro push, não sincroniza nada
+- Origem: `902fe42` (`main`)
+- Proposta: tratar a ausência de branches como etapa de commits vazia e seguir com PRs e issues; mensagem própria para a branch sem SHA
+
+### [MÉDIA] CF-56 — Vínculo enviado duas vezes ao mesmo tempo responde 500
+
+- Onde: `POST /api/tasks/:id/commits` e `POST /api/tasks/:id/issues` (`backend/src/modules/tasks/task.controller.js`)
+- Norma: roadmap S1-01 (submissão duplicada); §13.10 do anexo de arquitetura (erro controlado)
+- Esperado: a segunda requisição recebe 409 ou o mesmo 201, nunca 500
+- Observado: em 10 de 10 rodadas, para commit e para issue, uma resposta foi 201 e a outra 500 ("Erro interno ao vincular commit à tarefa."); o banco não duplicou o vínculo, porque a chave única segurou
+- Reprodução: duas requisições idênticas e simultâneas
+- Consequência: o clique duplo mostra erro interno, embora o vínculo tenha sido criado
+- Origem: `23d34a8` (`main`)
+- Proposta: tratar a violação da chave única (`P2002`) como vínculo já existente
+
+### [MÉDIA] CF-57 — Burndown da sprint em dias UTC, contra o dia civil dos indicadores e do vencimento
+
+- Onde: `backend/src/modules/sprints/sprint.burndown.calculator.js:7-12,22-31`
+- Norma: roadmap S1-04 ("fusos testados"); decisão D14 do catálogo de indicadores; `docs/data/TASK_NOTIFICATIONS.md` (corte no fuso do produto)
+- Esperado: o mesmo dia civil nas três contas de tempo do produto
+- Observado: uma conclusão às 22h30 de 14/10 em São Paulo (01h30 UTC de 15/10) conta no dia 14 para o período do indicador e para o vencimento, e no dia 15 para o burndown; a sprint que termina à meia-noite local ganha um dia "19/10" no fim do gráfico
+- Reprodução: as três funções puras com a mesma conclusão
+- Consequência: burndown e indicadores do mesmo dia discordam para quem conclui à noite
+- Origem: S1-04 (`f3fc475`, `joao-dev-v2`)
+- Proposta: agrupar os dias do burndown no fuso do produto (`APP_TIMEZONE`)
+
+### [MÉDIA] CF-58 — Aviso de período não aplicado some no painel
+
+- Onde: `backend/src/modules/indicators/dashboard.service.js:310-315`; `frontend/src/features/indicators/DashboardPanel.jsx:69`
+- Norma: roadmap S2-05, critério do filtro de período; RF56
+- Esperado: o painel avisa quando a visão ignora o período escolhido
+- Observado: sem `includeProjectHealth`, as visões PLANNING, TASK e TRACEABILITY devolvem `PERIOD_FILTER_NOT_APPLIED_TO_VIEW`; com `includeProjectHealth=true`, que o painel sempre envia, o aviso some nas três
+- Reprodução: a mesma consulta com e sem `includeProjectHealth`
+- Consequência: quem escolhe um período nessas visões lê números atuais achando que estão filtrados
+- Origem: indicadores P7 e P8 (`main`)
+- Proposta: calcular o aviso só sobre os indicadores da visão, sem a saúde do projeto
+
+### [MÉDIA] CF-59 — Exportação do titular sem as ações em que ele é ator
+
+- Onde: `backend/src/modules/settings/settings.repository.js:429` (seleção da exportação); `docs/privacy/PERSONAL_DATA_INVENTORY.md`
+- Norma: LGPD, art. 18 (acesso aos dados); §14 do anexo de arquitetura
+- Esperado: a exportação cobre todo dado pessoal do titular, ou o inventário declara cada exclusão e o motivo
+- Observado:
+  - 22 das 43 relações do `User` ficam fora da exportação;
+  - parte é deliberada: tokens e segredos, e a dispensa de alerta, declarada no inventário;
+  - as ações do titular como ator ficam fora sem declaração;
+  - numa exportação real faltaram a movimentação de tarefa feita por ele, a entrada de histórico em que ele é ator e a sugestão de commit que ele revisou.
+- Reprodução: o titular move tarefa, revisa sugestão e lança tempo; a exportação é procurada pelos IDs desses registros
+- Consequência: o titular não recebe o rastro das próprias ações
+- Origem: L2 e entregas seguintes (`main`)
+- Proposta: incluir movimentações, históricos, versões e revisões feitas pelo titular, ou declarar no inventário cada exclusão
+
+### [MÉDIA] CF-60 — Retenção não alcança tokens de reativação, pedidos de troca de e-mail, execuções e contas desativadas
+
+- Onde: `backend/src/shared/maintenance/auth-cleanup.js`; `backend/src/shared/maintenance/privacy-retention.js`; `backend/src/config/env.js:549-553`
+- Norma: §14 do anexo de arquitetura; `docs/privacy/DATA_RETENTION_POLICY.md`
+- Esperado: todo dado pessoal com prazo é descartado pelos jobs
+- Observado: depois das duas limpezas em modo de aplicação, continuaram o token de reativação vencido em 2024, o pedido de troca de e-mail vencido em 2024 (com os dois e-mails), a execução de sincronização de 2024 e a conta desativada desde 2024; `DEACTIVATED_ACCOUNT_RETENTION_DAYS` não tem efeito
+- Reprodução: registros de 2024 e as funções `cleanupAuthRecords` e `runPrivacyRetention` com `apply: true`
+- Consequência: dado pessoal guardado além do prazo, e conta desativada que nunca é tratada
+- Origem: E6 e E7 (`main`); execuções da PR #24
+- Proposta: incluir os dois tipos de token na limpeza de autenticação; ligar a retenção de conta desativada; decidir o prazo do SyncRun (CF-46)
+
+### [MÉDIA] CF-61 — Conta revelada pelo tempo do login e da recuperação
+
+- Onde: `backend/src/modules/auth/auth.service.js:134` (login sem Argon2 para conta inexistente) e `:182-191` (recuperação)
+- Norma: §13.3 do anexo de arquitetura (sem enumeração); roadmap S1-02
+- Esperado: o mesmo tempo para conta existente e inexistente
+- Observado: mediana de 20 rodadas: login com conta existente e senha errada em 35,9 ms, com conta inexistente em 4,4 ms; recuperação em 7,9 ms contra 4,4 ms
+- Reprodução: 20 tentativas de cada caso, com os limitadores altos
+- Consequência: dá para descobrir se um e-mail ou username tem conta medindo a resposta
+- Origem: E6 e L1 (`main`)
+- Proposta: verificar uma senha fictícia de mesmo custo quando a conta não existe; tirar o envio da recuperação do caminho da resposta
+
+### [MÉDIA] CF-62 — As duas trocas de senha divergem, contra o ADR-002
+
+- Onde: `backend/src/modules/auth/auth.repository.js:20-38` e `backend/src/modules/auth/auth.controller.js:112`, contra `backend/src/modules/settings/settings.repository.js:179-202`; `docs/architecture/ADR-002-AUTHENTICATION-SESSION.md:22`; `docs/api/API_CONTRACTS.md:132`
+- Norma: ADR-002 ("Troca de senha preserva a sessão atual e revoga as demais")
+- Esperado: as duas rotas seguem a política do ADR
+- Observado: `POST /api/auth/change-password` derruba também a sessão atual (401 logo depois da troca); `POST /api/settings/security/password` preserva a atual; o contrato descreve a primeira, e o ADR, a segunda; a tela usa só a segunda, e `authApi.changePassword` não tem chamador
+- Reprodução: a mesma troca pelas duas rotas, com uma segunda sessão aberta
+- Consequência: duas políticas para a mesma operação, com documentos que se contradizem
+- Origem: E6 (`auth`) e L2 (`settings`), `main`
+- Proposta: aposentar `POST /api/auth/change-password` ou alinhar as duas à política do ADR
+
+### [MÉDIA] CF-63 — Links dos e-mails com `localhost` como padrão, inclusive em produção
+
+- Onde: `backend/src/config/env.js:210-230` (cinco URLs) e `:19-28` (`parseUrl` sem exigir `https`)
+- Norma: §13.8 do anexo de arquitetura (configuração validada na inicialização)
+- Esperado: links derivados do endereço do frontend e, em produção, só `https`
+- Observado: redefinição de senha, convite, verificação de e-mail, troca de e-mail e reativação têm `http://localhost:5173/...` como padrão também com `NODE_ENV=production`; no ambiente de teste, o link de troca de e-mail saiu com `localhost:5173`, enquanto o de redefinição usou o endereço configurado
+- Reprodução: troca de e-mail e recuperação com o `.env.test`, que define só duas das cinco URLs
+- Consequência: uma variável esquecida em produção manda e-mail com link para `localhost`, e o fluxo quebra
+- Origem: E6, L1 e L2 (`main`)
+- Proposta: derivar os links do `FRONTEND_URL` e, em produção, exigir `https` e recusar `localhost`
+
+### [MÉDIA] CF-64 — Catálogo de códigos de erro incompleto
+
+- Onde: `backend/src/shared/errors/error-codes.js`; `docs/api/API_CONTRACTS.md`; `frontend/src/api/http-client.js:7-8`
+- Norma: §12.3 do anexo de arquitetura; ARQ-16
+- Esperado: todo código emitido no catálogo, no contrato e, quando o usuário o vê, no frontend
+- Observado: 12 códigos emitidos fora de `ERROR_CODES`, 9 deles também fora do contrato; 41 códigos do catálogo sem menção no contrato; o frontend trata `SESSION_EXPIRED` e `SESSION_INVALID`, que o backend nunca emite; os 503 de ocupação nem chegam com código ao cliente (CF-53)
+- Reprodução: varredura dos padrões `code: 'X'` e `Error(…, status, 'X')` no backend, cruzada com o catálogo, o contrato e o frontend; outras formas de emissão ficam fora da varredura
+- Consequência: o cliente não tem como reagir de forma específica a parte dos erros
+- Origem: várias entregas
+- Proposta: catálogo único, com teste que cruze backend, contrato e frontend
+
+### [MÉDIA] CF-65 — Regras críticas sem teste: corte da execução vencida e webhook sem assinatura
+
+- Onde: `backend/src/modules/github/github-sync-run.repository.js:290`; `backend/src/modules/github/github-app.service.js:534`
+- Norma: §15.4 do anexo de arquitetura
+- Esperado: todo mutante de regra crítica derruba algum teste
+- Observado: M08 (`>=` trocado por `>` no corte da execução vencida) passou nos 69 testes dos 4 arquivos que tocam o corte; M12 (webhook aceito sem o cabeçalho de assinatura) passou nos 37 testes dos 3 arquivos que tocam o webhook
+- Reprodução: aplicar cada mutante e rodar os arquivos citados (seção 7.3)
+- Consequência: uma regressão na verificação de assinatura do webhook passaria pela CI
+- Origem: PR #24 e L1 (`main`)
+- Proposta: teste do webhook sem cabeçalho de assinatura (esperando 401) e teste da fronteira exata do corte
+
+### [BAIXA] CF-66 — Perda do lease pula os ganchos, e o atraso não está declarado
+
+- Onde: `backend/src/modules/github/services/github-sync-run.service.js:196` e `:225`
+- Norma: ADR-018 e critério C5 do S2-03 (sem perda)
+- Esperado: atraso declarado, ou ganchos rodados também na execução perdida
+- Observado: com o lease perdido no meio da página, o evento `PULL_REQUEST_MERGED` ficou `PENDING` e nenhuma notificação saiu; o job, rodado depois, despachou (nada se perdeu); a documentação não diz que a perda do lease adia alertas e notificações até o job, que não tem agendador, ou até a próxima sincronização
+- Reprodução: lease expirado durante a página de PRs, com o evento já gravado
+- Consequência: avisos e alertas atrasam sem prazo enquanto o job não tiver agendador
+- Origem: PR #24 (`main`) e S2-03 (`joao-dev-v2`)
+- Proposta: declarar o atraso em `docs/data/GITHUB_EVENT_NOTIFICATIONS.md` e em `docs/data/TRACEABILITY_ALERTS.md`, ou rodar os ganchos também quando o lease se perde
+
+### [BAIXA] CF-67 — Reabertura de PR conta como retrabalho e não notifica, sem documentação cruzada
+
+- Onde: `docs/indicators/S2_INDICATOR_CATALOG.md` (D10); `docs/architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md` (D18)
+- Norma: RF18 e RF61
+- Esperado: os dois documentos registram a diferença
+- Observado: os dois comportamentos têm teste, mas nenhum dos dois documentos cita o outro
+- Reprodução: busca de RF18 nos documentos do S2-03 e de RF61 no catálogo de indicadores
+- Consequência: quem vê o retrabalho subir não sabe por que não recebeu aviso
+- Origem: indicadores (`main`) e S2-03 (`joao-dev-v2`)
+- Proposta: uma frase em cada documento
+
+### [BAIXA] CF-68 — Rotas sem contrato e rotas que sempre respondem 409
+
+- Onde: `docs/api/API_CONTRACTS.md`; `frontend/src/features/requirements/api/requirements.api.js:20-41`
+- Norma: §12 do anexo de arquitetura
+- Esperado: toda rota no contrato, e nenhuma função do frontend para rota que sempre recusa
+- Observado: `GET` e `DELETE /api/settings/integrations/github-identity`, `POST /api/settings/integrations/github-identity/link/start` e `POST /api/settings/security/password/initialize` não aparecem no contrato; `PATCH /api/requirements/:id/status` e `/confirm-completion` respondem sempre 409 `REQUIREMENT_STATUS_DERIVED` e ainda têm funções no frontend, sem uso; o limitador em rota inexistente segue na CF-35
+- Reprodução: rotas do roteador cruzadas com o contrato e com as chamadas do frontend
+- Consequência: superfície da API sem documentação e código morto
+- Origem: L1, L2 e S1-09 (`main`)
+- Proposta: documentar as quatro rotas; aposentar as duas rotas de status do requisito e as funções do frontend
+
+### [BAIXA] CF-69 — Classes CSS usadas sem definição
+
+- Onde: 31 classes em `frontend/src`, por exemplo `tc-step-result--fail` (`frontend/src/features/defects/components/DefectDetails.jsx`), `indicator-card__value--scope` (`IndicatorCard.jsx`), `schedule-layout--matched-heights` (`ScheduleCalendar.jsx`) e `notification-card__title` (`NotificationCard.jsx`)
+- Norma: §3 do anexo de arquitetura (código sem sobra)
+- Esperado: toda classe usada com regra, ou removida
+- Observado: 33 classes literais do JSX sem regra em nenhuma folha de estilo; duas (`nodrag` e `nopan`) são classes de comportamento do React Flow, e as outras 31 não têm efeito, entre elas `page`, `spinner` e `kanban-task__effort--running`
+- Reprodução: classes literais de `className`, inclusive as de template string, cruzadas com os seletores de todas as folhas de estilo de `frontend/src`; classes montadas por interpolação ficam fora da varredura
+- Consequência: estilos esperados que não se aplicam, como o destaque do passo com falha
+- Origem: várias entregas
+- Proposta: definir ou remover cada classe
+
+### 7.6 Observações sem achado
+
+- **H29:** o VIEWER vê a produtividade por pessoa (nome e ID), como a matriz de autorização permite. Se
+  ele deve ver isso é decisão de minimização de dados.
+- **H05:** sem agendador para o job, uma rajada acima de 100 eventos por sincronização escoa em lotes de
+  100.
+- **H34:** a exclusão definitiva também apaga os eventos de auditoria do projeto. Se isso é intencional,
+  o ADR-014 deve dizer.
 
 ## Apêndice A — Rotas registradas
 
