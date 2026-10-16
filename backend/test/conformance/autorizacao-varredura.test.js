@@ -9,6 +9,7 @@ import {
 import {
   buildAuthorizationFixture,
   concreteRoute,
+  encodedVariants,
   projectScopedRoute
 } from './helpers/authorization-fixture.js';
 import { guardedBy, inventoryRoutes } from './helpers/route-inventory.js';
@@ -71,6 +72,35 @@ async function deviationsOf(account, routes, expected) {
     }
   }
   return deviations;
+}
+
+const withNumericId = (route) => /\/\d+(?:\/|$)/.test(concreteRoute(route.path, fixture.ids));
+
+async function encodedDeviationsOf(account, routes) {
+  const deviations = [];
+  for (const route of byRisk(routes)) {
+    for (const variant of encodedVariants(concreteRoute(route.path, fixture.ids))) {
+      const response = await account.send(route.method, variant);
+      if (response.status !== 404 || response.body?.code !== 'RESOURCE_NOT_FOUND') {
+        deviations.push(`${route.method} ${variant} -> ${response.status}`);
+      }
+    }
+  }
+  return deviations;
+}
+
+async function snapshotOfProject() {
+  const projectId = fixture.project.id;
+  return {
+    project: await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { name: true, deletedAt: true, accessCode: true }
+    }),
+    tasks: await prisma.task.count({ where: { projectId } }),
+    memberships: await prisma.projectMembership.count({ where: { projectId, isActive: true } }),
+    invitations: await prisma.projectInvitation.count({ where: { projectId } }),
+    comments: await prisma.taskComment.count({ where: { task: { projectId } } })
+  };
 }
 
 beforeAll(async () => {
@@ -188,6 +218,25 @@ describe('H09 — varredura de autorização gerada do roteador', () => {
       name: 'Projeto C excluído'
     });
   });
+
+  it('A1-01 não membro recebe 404 com ID codificado em qualquer posição', async () => {
+    const routes = inventory.routes.filter(withNumericId);
+    expect(routes.filter((route) => projectScopedRoute(route.path)).length).toBeGreaterThan(100);
+    expect(await encodedDeviationsOf(fixture.accounts.outsider, routes)).toEqual([]);
+  }, 120_000);
+
+  it('A1-02 nenhum papel passa com caminho não canônico, e o banco não muda', async () => {
+    const routes = inventory.routes.filter(withNumericId);
+    const before = await snapshotOfProject();
+    const deviations = [];
+    for (const tag of ['viewer', 'member', 'manager', 'owner']) {
+      for (const deviation of await encodedDeviationsOf(fixture.accounts[tag], routes)) {
+        deviations.push(`${tag}: ${deviation}`);
+      }
+    }
+    expect(deviations).toEqual([]);
+    expect(await snapshotOfProject()).toEqual(before);
+  }, 300_000);
 
   it('as negativas não alteram o projeto nem os seus recursos', async () => {
     const project = await prisma.project.findUnique({ where: { id: fixture.project.id } });

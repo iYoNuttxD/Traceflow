@@ -1,5 +1,6 @@
 import express from 'express';
 import { env } from './config/env.js';
+import { createCanonicalPathMiddleware } from './middlewares/canonical-path.middleware.js';
 import { createErrorHandler } from './middlewares/error-handler.middleware.js';
 import { notFoundMiddleware } from './middlewares/not-found.middleware.js';
 import { createRequestContextMiddleware } from './middlewares/request-context.middleware.js';
@@ -39,6 +40,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use(createCorsMiddleware(securityConfig));
   app.use('/api', noStoreApiResponses);
   app.use('/api', rateLimiters.globalAbuse);
+  app.use('/api', createCanonicalPathMiddleware({ logger }));
   app.use('/api/github-app/callback', githubAppCallbackRoutes);
   app.use('/api/settings/account/email-change/confirm', rateLimiters.authentication);
   app.use('/api/account/reactivation/confirm', rateLimiters.authentication);

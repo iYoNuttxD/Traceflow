@@ -152,7 +152,6 @@ nos cartões.
 | CONF-F48 | Saúde do projeto sem fórmula, fonte e horário na interface | roadmap S2-05; RF55; a nota de 0 a 100 não é auditável por quem a lê | MÉDIA | prompt de correção |
 | CONF-F49 | Aprovação em revisões sem fonte de dados | roadmap S2-05 (taxa de aprovação em revisões); um critério do cartão sem caminho de entrega | MÉDIA | decisão entre coletar as revisões de PR e registrar a divergência |
 | CONF-F50 | Documentos de cartão em desacordo com o código | §3 do anexo de arquitetura; oito pontos do S1-01, S1-04, S1-05, S1-07, S1-08 e da configuração | BAIXA | commit de documentação |
-| CONF-F51 | Autorização entre projetos furada por ID codificado no caminho | ASVS V8.2.1, V8.2.2 e V8.3.1 (L1); ARQ-22; um não membro lê 53 rotas e escreve em 17, e um VIEWER faz 18 escritas | ALTA | prompt de correção, antes de qualquer implantação; a variante codificada entra em `autorizacao-varredura.test.js` |
 | CONF-F52 | Sincronização presa para sempre com o GitHub mudo | ASVS V16.5.2; ADR-017; a execução fica `RUNNING` até reiniciar o processo | ALTA | prompt de correção, junto com o CONF-F08 |
 | CONF-F53 | Pedido de sincronização preso cerca de 50 s, sem código, e auditoria perdida | ADR-019; §12.3 do anexo de arquitetura; ASVS V16.3.3 | MÉDIA | prompt de correção, que também corrige o ADR-019 |
 | CONF-F54 | Falha gravada pelo cliente de recuperação não reagenda | ADR-017; com o banco oscilando, o agendador repete o projeto a cada ciclo | MÉDIA | prompt de correção |
@@ -172,6 +171,15 @@ nos cartões.
 | CONF-F68 | Rotas sem contrato e rotas que sempre respondem 409 | §12 do anexo de arquitetura; 4 rotas sem contrato; 2 rotas mortas com funções no frontend | BAIXA | prompt de correção |
 | CONF-F69 | Classes CSS usadas sem definição | §3 do anexo de arquitetura; 31 classes sem regra, entre elas o destaque do passo com falha | BAIXA | próxima mudança em cada tela |
 | CONF-F70 | Rota de preferências de notificação declarada sob demanda, mas no pacote principal | §3 do anexo de arquitetura; o índice da feature exporta a página, e o import dinâmico das rotas não divide o pacote (`INEFFECTIVE_DYNAMIC_IMPORT` no build) | BAIXA | próxima mudança nas notificações |
+
+## Fechadas pelas correções da revisão independente da PR #26 (15/10/2026)
+
+Origem: a revisão independente publicada na PR #26 (TF-REV-001 a TF-REV-008) e o prompt
+`docs/issues/PR26_PROMPT_CORRECOES_REVISAO.md` (não versionado).
+
+| ID | Pendência | Correção |
+|---|---|---|
+| CONF-F51 | autorização entre projetos furada por ID codificado no caminho: um não membro lia 53 rotas e escrevia em 17, e um VIEWER fazia 18 escritas; a revisão (TF-REV-001) reproduziu o desvio nas quatro leituras de alertas do S2-01 | `970471b`: as leituras de alertas conferem a membership no serviço; o commit seguinte: middleware de caminho canônico (`%` no caminho da `/api` recebe o 404 opaco) e varredura com ID codificado em cada posição ([ADR-003](../architecture/ADR-003-AUTHORIZATION-MODEL.md), emenda de 15/10/2026) |
 
 ## Fechada pela correção do S203-F22 (13/10/2026)
 

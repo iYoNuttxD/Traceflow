@@ -233,3 +233,20 @@ export const percentEncodeIds = (path) =>
     /\/(\d+)(?=\/|$)/g,
     (_, digits) => `/${[...digits].map((digit) => `%${digit.charCodeAt(0).toString(16)}`).join('')}`
   );
+
+const encodeDigits = (digits) =>
+  [...digits].map((digit) => `%${digit.charCodeAt(0).toString(16)}`).join('');
+
+export function encodedVariants(path) {
+  const segments = path.split('/');
+  const numeric = segments.flatMap((segment, index) => (/^\d+$/.test(segment) ? [index] : []));
+  const variants = new Set([percentEncodeIds(path)]);
+  for (const index of numeric) {
+    variants.add(
+      segments
+        .map((segment, position) => (position === index ? encodeDigits(segment) : segment))
+        .join('/')
+    );
+  }
+  return [...variants];
+}
