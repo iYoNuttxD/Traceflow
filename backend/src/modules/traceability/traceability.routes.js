@@ -10,6 +10,7 @@ import {
   commitSuggestionQuerySchema,
   emptyCommitSuggestionBodySchema,
   traceabilityAlertDismissBodySchema,
+  traceabilityAlertIndexQuerySchema,
   traceabilityAlertParamsSchema,
   traceabilityAlertQuerySchema,
   traceabilityArtifactParamsSchema,
@@ -30,6 +31,14 @@ router.get(
   '/projects/:projectId/traceability/alerts/summary',
   validateRequest({ params: traceabilityProjectParamsSchema }),
   traceabilityAlertController.summary
+);
+router.get(
+  '/projects/:projectId/traceability/alerts/index',
+  validateRequest({
+    params: traceabilityProjectParamsSchema,
+    query: traceabilityAlertIndexQuerySchema
+  }),
+  traceabilityAlertController.index
 );
 router.post(
   '/projects/:projectId/traceability/alerts/reconcile',

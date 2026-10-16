@@ -518,10 +518,19 @@ worker no ambiente de implantação. Não há evidência de deploy ou homologaç
 | GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                               |
 | GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                          |
 | GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                |
-| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos                      |
+| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `branch?`, `startDate?`, `endDate?`, `inconsistency?` | `200`, projeto, filtros, resumo e artefatos                      |
 
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação ocorre somente na leitura externa
 do GitHub; os contratos públicos de listagem permanecem inalterados.
+
+**Inconsistência nos artefatos (PR #26, TF-REV-008).** Cada PR e issue traz `inconsistency`, com o
+alerta atual do RF39 ou do RF40: `{alertId,status,detectedAt,resolvedAt,dismissedAt}`, ou `null`
+quando nunca houve alerta. "Atual" é o alerta aberto, se houver; senão, o detectado por último.
+Commit vem sempre com `inconsistency: null`. O filtro `inconsistency` aceita `OPEN`, `DISMISSED` ou
+`RESOLVED` (outro valor responde 400), é aplicado no servidor e volta em `filters.inconsistency`.
+`summary.inconsistencies{open,dismissed,resolved}` conta os artefatos listados antes desse filtro,
+e os demais campos do `summary` contam o conjunto filtrado. A tela do Repositório usa os dois, com
+os links `?inconsistencia=OPEN`, `?tipo=` e `?alerta=<id>`.
 
 **Resumo da execução** (`run.summary`). Em `pullRequests` e `issues`, `found` é o total lido do
 GitHub, `created` o de itens novos e `updated` o de itens que já existiam e mudaram. Desde
@@ -1992,12 +2001,21 @@ crie ou resolva alerta manualmente: detecção e resolução são do servidor.
 
 | Método | Sufixo                              | Entrada                                                                                     | Resposta                                                                                         |
 | ------ | ----------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| GET    | `/alerts`                           | `status?` = OPEN (padrão)/DISMISSED/RESOLVED; `type?`; `page?`, `limit?` (máx. 100)         | `200`, `{projectId,status,type,alerts,pagination,permissions}`                                   |
+| GET    | `/alerts`                           | `status?` = OPEN (padrão)/DISMISSED/RESOLVED/ALL; `type?`; no máximo um de `taskId?`, `pullRequestId?`, `issueId?`; `page?`, `limit?` (máx. 100) | `200`, `{projectId,status,type,alerts,pagination,permissions}`                                   |
+| GET    | `/alerts/index`                     | `status?` = OPEN (padrão)/DISMISSED/RESOLVED                                                | `200`, `{projectId,status,tasks,pullRequests,issues}`, cada lista com `[{subjectId,alertId}]`    |
 | GET    | `/alerts/summary`                   | —                                                                                           | `200`, `{projectId,open{total,byType},dismissed{total},rules{taskWithoutCommitActive},reconciliation,permissions}` |
 | GET    | `/alerts/:alertId`                  | IDs positivos                                                                               | `200`, `{alert,permissions}`; `alert.context` conforme o tipo                                    |
 | POST   | `/alerts/:alertId/dismiss`          | `{reason}`, de 10 a 500 caracteres Unicode (code points) depois do `trim`                   | `200`, `{alert,changed}`                                                                         |
 | POST   | `/alerts/reconcile`                 | body vazio                                                                                  | `200`, `{projectId,result{created,resolved,kept}}`                                               |
 | GET    | `/tasks-without-technical-links`    | `status?` = A_FAZER/EM_ANDAMENTO/CONCLUIDO; `page?`, `limit?` (máx. 100)                    | `200`, `{projectId,status,tasks,pagination}`                                                     |
+
+**Índice e histórico por sujeito (PR #26, TF-REV-008).** O `/alerts/index` é a leitura compacta
+que o Kanban e a lista de tarefas usam para o marcador e o filtro do RF13: devolve, por tipo de
+sujeito, o `subjectId` e o `alertId` dos alertas na situação pedida, sem paginação e sem DTO. A rota
+é registrada antes de `/alerts/:alertId`. Em `/alerts`, `status=ALL` não filtra a situação, e
+`taskId`, `pullRequestId` ou `issueId` restringem a um sujeito; os detalhes da tarefa e o diálogo do
+Repositório usam `status=ALL` com o sujeito para o "Histórico". Dois sujeitos na mesma consulta
+respondem 400 (`Filtre por um sujeito de cada vez.`).
 
 **Autorização.** Leituras exigem VIEWER+. Dispensa e reprocessamento exigem MANAGER+, CSRF e
 revalidação do papel no serviço. Sem sessão, a resposta é 401. Quem não é membro, e quem acessa

@@ -19,6 +19,12 @@ export const traceabilityAlertController = {
     { fallbackMessage: 'Erro interno ao resumir alertas de rastreabilidade.' }
   ),
 
+  index: asyncHandler(
+    async (req, res) =>
+      res.json(await traceabilityAlertService.index(req.params.projectId, req.query, context(req))),
+    { fallbackMessage: 'Erro interno ao listar o índice de alertas de rastreabilidade.' }
+  ),
+
   get: asyncHandler(
     async (req, res) =>
       res.json(

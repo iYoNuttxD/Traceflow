@@ -164,7 +164,13 @@ describe('S2-01 serviço de alertas: dispensa e permissões', () => {
 
     expect(findMembershipRole).toHaveBeenCalledWith(9, 5);
 
-    expect(list).toHaveBeenCalledWith(9, { status: 'OPEN', type: null, skip: 40, take: 20 });
+    expect(list).toHaveBeenCalledWith(9, {
+      status: 'OPEN',
+      type: null,
+      subject: {},
+      skip: 40,
+      take: 20
+    });
     expect(result.pagination).toEqual({ page: 3, limit: 20, total: 41, totalPages: 3 });
     expect(result.permissions).toEqual({ canLink: false, canManage: false });
     expect(result.alerts[0].subject).toEqual({

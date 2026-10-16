@@ -84,13 +84,31 @@ export const traceabilityAlertParamsSchema = strictObject({
   alertId: positiveInteger('ID do alerta inválido.')
 });
 
+const subjectId = (message) =>
+  positiveInteger(message)
+    .refine((value) => value <= 2147483647, message)
+    .optional();
+
 export const traceabilityAlertQuerySchema = strictObject({
   status: z
-    .enum(TRACEABILITY_ALERT_STATUSES, { error: 'Situação de alerta inválida.' })
+    .enum([...TRACEABILITY_ALERT_STATUSES, 'ALL'], { error: 'Situação de alerta inválida.' })
     .optional()
     .default('OPEN'),
   type: z.enum(TRACEABILITY_ALERT_TYPES, { error: 'Tipo de alerta inválido.' }).optional(),
+  taskId: subjectId('ID da tarefa inválido.'),
+  pullRequestId: subjectId('ID do pull request inválido.'),
+  issueId: subjectId('ID da issue inválido.'),
   ...paginationSchema
+}).refine(
+  (query) => [query.taskId, query.pullRequestId, query.issueId].filter(Boolean).length <= 1,
+  { message: 'Filtre por um sujeito de cada vez.', path: ['taskId'] }
+);
+
+export const traceabilityAlertIndexQuerySchema = strictObject({
+  status: z
+    .enum(TRACEABILITY_ALERT_STATUSES, { error: 'Situação de alerta inválida.' })
+    .optional()
+    .default('OPEN')
 });
 
 const dismissalReasonMessage = 'A justificativa deve ter entre 10 e 500 caracteres.';

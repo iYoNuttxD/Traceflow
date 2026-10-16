@@ -291,8 +291,13 @@ const alertDetailInclude = {
 const alertOrder = [{ detectedAt: 'desc' }, { id: 'desc' }];
 
 export const traceabilityAlertRepository = {
-  async list(projectId, { status, type, skip, take }) {
-    const where = { projectId, status, ...(type ? { type } : {}) };
+  async list(projectId, { status, type, subject = {}, skip, take }) {
+    const where = {
+      projectId,
+      ...(status === 'ALL' ? {} : { status }),
+      ...(type ? { type } : {}),
+      ...subject
+    };
     const [total, alerts] = await prisma.$transaction([
       prisma.traceabilityAlert.count({ where }),
       prisma.traceabilityAlert.findMany({
@@ -304,6 +309,23 @@ export const traceabilityAlertRepository = {
       })
     ]);
     return { total, alerts };
+  },
+
+  async index(projectId, status) {
+    const rows = await prisma.traceabilityAlert.findMany({
+      where: { projectId, status },
+      select: { id: true, taskId: true, pullRequestId: true, issueId: true },
+      orderBy: { id: 'asc' }
+    });
+    const entries = (key) =>
+      rows
+        .filter((row) => row[key] !== null)
+        .map((row) => ({ subjectId: row[key], alertId: row.id }));
+    return {
+      tasks: entries('taskId'),
+      pullRequests: entries('pullRequestId'),
+      issues: entries('issueId')
+    };
   },
 
   async summary(projectId) {

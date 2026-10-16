@@ -194,9 +194,15 @@ export function createTraceabilityAlertService(
       const page = pageOf(query);
       const status = query.status || 'OPEN';
       const type = query.type || null;
+      const subject = {
+        ...(query.taskId ? { taskId: query.taskId } : {}),
+        ...(query.pullRequestId ? { pullRequestId: query.pullRequestId } : {}),
+        ...(query.issueId ? { issueId: query.issueId } : {})
+      };
       const { total, alerts } = await repository.list(id, {
         status,
         type,
+        subject,
         skip: page.skip,
         take: page.limit
       });
@@ -208,6 +214,13 @@ export function createTraceabilityAlertService(
         pagination: pagination(page, total),
         permissions: alertPermissions(role)
       };
+    },
+
+    async index(projectId, query = {}, context = {}) {
+      const id = Number(projectId);
+      await requireMember(id, context.actorUserId);
+      const status = query.status || 'OPEN';
+      return { projectId: id, status, ...(await repository.index(id, status)) };
     },
 
     async summary(projectId, context = {}) {
