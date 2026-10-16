@@ -1,6 +1,7 @@
 # ADR-016 — Notificações de tarefa: mudança de status e vencimento de prazo
 
-- **Estado:** aceita para o cartão S2-02 (RF30, RF59); revista em 10/10/2026, em 11/10/2026 e em 12/10/2026 (nota do S2-03)
+- **Estado:** aceita para o cartão S2-02 (RF30, RF59); revista em 10/10/2026, em 11/10/2026, em
+  12/10/2026 (nota do S2-03) e em 15/10/2026 (revisão independente da PR #26)
 - **Data:** 09/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 
@@ -36,12 +37,14 @@ Restrições do terreno:
 2. **Dois tipos (D2):** `TASK_STATUS_CHANGED` (RF30) e `TASK_OVERDUE` (RF59). O enum fica aberto
    para o S2-03.
 3. **Destinatário (D3).**
-   - **RF30:** o responsável da tarefa no instante da mudança, com membership ativa. **Quem fez a
-     mudança não recebe aviso da própria ação.** Isso restringe o texto do RF30, com aval do João.
+   - **RF30:** o responsável da tarefa no instante da mudança, com membership ativa, **inclusive
+     quando a mudança foi feita por ele mesmo** (Quadro 3-56). O cartão diz "Você moveu TASK-12
+     para Concluído". A preferência continua desligando o tipo.
    - **RF59:** o responsável no momento da varredura, com membership ativa. A fonte é a descrição
      do cartão no roadmap ("notificar responsáveis por mudança de status e atraso"). O responsável
      está entre as "partes envolvidas" da §3.2.8.
-   - Tarefa sem responsável não gera notificação.
+   - Tarefa sem responsável não gera notificação. Na métrica, o evento conta como "sem
+     destinatário" (D11).
    - Responsável com a conta fora de `ACTIVE` (desativada, com exclusão pendente ou anonimizada)
      não recebe (`INACTIVE_ACCOUNT`). Como a membership, a conta vale no instante da mudança no
      RF30 e no instante da varredura no RF59.
@@ -54,7 +57,8 @@ Restrições do terreno:
      `America/Sao_Paulo`).
    - Tarefa `CONCLUIDO` não vence.
    - A chave é `TASK_OVERDUE:<taskId>:<data do prazo>`: uma notificação por prazo e por pessoa.
-   - Só entram cortes dos últimos `NOTIFICATIONS_DUE_LOOKBACK_DAYS` dias (padrão 7).
+   - Não há janela: todo vencimento de tarefa aberta é notificado uma vez, por mais antigo que seja
+     o corte (Quadro 3-55). O limite de lotes por execução é vazão, não exclusão.
    - Quando o dia seguinte ao prazo não existe no fuso (Samoa e Tokelau em 30/12/2011, Kwajalein
      em 21/08/1993, Kiritimati em 31/12/1994), o corte é o instante em que o dia do prazo termina:
      o início do primeiro dia local que existe depois dele.
@@ -67,8 +71,8 @@ Restrições do terreno:
    `Pacific/Kiritimati`, +14, em relação a `America/Sao_Paulo`). O fuso por usuário é o S202-F07.
 6. **Job externo (D6).** `npm run notifications:due` (script `notify-overdue-tasks.js`):
    - dry-run por padrão, `--apply` e `--confirm-production`;
-   - deve ser chamado a cada 15 minutos por um agendador externo: timer do `systemd` ou `cron` na
-     OCI, com equivalência documentada para a Azure;
+   - deve ser chamado a cada 15 minutos. A forma de agendamento está no ADR-024 (proposto em
+     15/10/2026: tarefa periódica do worker do GitHub, com exclusão no banco);
    - grava com `INSERT IGNORE` sobre o índice único, então execuções simultâneas não duplicam;
    - informa avaliados, elegíveis, criados, já notificados, excluídos por motivo e falhos;
    - termina com código diferente de zero quando algum projeto falha.
@@ -90,23 +94,27 @@ Restrições do terreno:
 9. **Visibilidade (D9).** Só o destinatário vê, e só enquanto tiver membership ativa num projeto
    não excluído. Perder o acesso oculta sem apagar. Id alheio ou oculto responde 404 opaco.
 10. **Interface (D12).**
-    - Item **Notificações** no menu lateral, com o contador de não lidas.
-    - Página `/notifications`.
+    - Item **Notificações** no menu lateral, com o contador de não lidas. O item abre o painel
+      lateral compacto (ADR-022); a rota `/notifications` redireciona e abre o painel.
     - Seção nas Configurações.
+    - O contador é um só, o do menu. O painel lê esse contador, e a lista só o informa
+      (TF-REV-004 e TF-REV-007).
     - O contador é consultado ao navegar e a cada 60 s com a aba visível.
     - No celular, o botão que abre a navegação mostra um ponto quando há não lidas, e o rótulo
       acessível diz quantas. O ponto continua visível em alto contraste (`forced-colors`).
-11. **Métrica oficial (D16).** O indicador é calculado sobre os eventos elegíveis. As exclusões
-    aparecem ao lado, contadas por motivo:
-    - por regra: sem responsável, conta restrita, membership inativa, ator igual ao responsável,
-      fora da janela;
-    - por escolha: preferência desligada.
+11. **Métrica oficial (D16).** A cobertura total é a do TCC: `enviadas corretamente / total de
+    eventos ocorridos × 100`.
+    - Ao lado, por motivo: não enviadas por motivo autorizado (preferência desligada, conta
+      restrita, membership inativa), sem destinatário e não observadas.
+    - A cobertura elegível desconta as não enviadas por motivo autorizado e as sem destinatário. Ela
+      é auxiliar e sempre aparece rotulada como tal.
+    - Com evento não observado no período, ou com período sem evento, a cobertura é "indisponível",
+      nunca 0 nem 100.
+    - Cada decisão do RF30 e do RF59 é gravada em `NotificationDecision`, e o script
+      `notifications:metrics` (só leitura) calcula as duas coberturas. O S2-02 não cria tela para o
+      indicador.
 
-    A medição reproduzível são os testes M1 e M2 e a saída do job. O S2-02 não cria tela para o
-    indicador.
-
-    A definição completa, com os oito itens da §10.5 do contexto de arquitetura, está em
-    `TASK_NOTIFICATIONS.md`. As contagens do job são retratos de cada execução e não se somam.
+    A definição completa está em `NOTIFICATION_METRICS.md`.
 12. **Contrato HTTP (D17).** Segue o `API_CONTRACTS.md` do repositório. A divergência com o §12 do
     contexto de arquitetura (`/api/v1`, envelope `{data, meta}`, `pageSize`, erro aninhado) fica
     declarada como DR. O ADR de versão e contrato da API é da campanha de conformidade.
@@ -114,22 +122,24 @@ Restrições do terreno:
 
 ## Alternativas consideradas
 
-- **Notificar também quem fez a mudança.** Rejeitada: aviso de algo que a pessoa acabou de fazer é
-  ruído.
+- **Não notificar quem fez a mudança (versão de 09/10/2026).** Rejeitada na revisão de 15/10/2026:
+  o Quadro 3-56 não abre exceção. Quem não quer o aviso desliga a preferência.
 - **Criar a notificação do RF30 depois do commit, fora da transação.** Rejeitada: uma falha entre o
   commit e a inserção perderia o aviso em silêncio, e a métrica deixaria de ser verificável.
 - **Corte em UTC (ADR-010 D15).** Rejeitada: divergiria da tela em 3 horas no Brasil.
 - **Fuso por usuário.** Rejeitada nesta entrega: não há preferência de fuso no perfil, e a ADR-010
   D15 já aceita um fuso único como limitação.
-- **Sem janela de recuperação.** Rejeitada: a primeira execução, ou uma depois de parada longa,
-  avisaria de uma vez sobre todo prazo antigo.
+- **Janela de recuperação de 7 dias (versão de 09/10/2026).** Rejeitada na revisão de 15/10/2026: o
+  Quadro 3-55 não limita a idade do vencimento. O volume da primeira execução é tratado no runbook,
+  com o dry-run antes do `--apply`.
 - **Scheduler dentro da API (`setInterval`).** Rejeitado: duplica com mais de uma instância e para
   quando a API reinicia.
 - **E-mail.** Fora: o SMTP real ainda não foi homologado (S1-02).
 - **SSE por usuário.** Fora: a consulta de 60 s atende ao cartão, e o SSE por projeto (ADR-013) não
   serve a um destinatário.
-- **Denominador com todos os eventos ocorridos.** Rejeitada: a escolha do usuário ou a falta de
-  destinatário derrubaria o indicador sem defeito do sistema.
+- **Denominador só com os eventos elegíveis (versão de 09/10/2026).** Rejeitada na revisão de
+  15/10/2026: tirava do denominador eventos que o TCC conta. O efeito da escolha do usuário fica
+  visível na cobertura elegível, rotulada, e nas contagens por motivo.
 - **Envelope `{data, meta}` só nas rotas novas.** Rejeitada: duas convenções na mesma API (§6.4 do
   contexto).
 
@@ -147,7 +157,9 @@ Restrições do terreno:
 ## Consequências negativas
 
 - O aviso de vencimento chega com até 15 minutos de atraso, conforme a frequência do agendador.
-- Tarefa vencida há mais de 7 dias quando o job roda pela primeira vez não gera notificação.
+- A primeira execução depois da implantação notifica de uma vez todas as tarefas vencidas e
+  abertas.
+- O responsável recebe aviso das próprias mudanças de status, a menos que desligue a preferência.
 - Tarefa sem responsável não avisa ninguém.
 - O fuso é único para todo o produto.
 - `transitionStatus` faz duas leituras a mais por mudança: a membership e a preferência do
@@ -155,9 +167,9 @@ Restrições do terreno:
 - Até haver agendador instalado (S2-09), o RF59 só roda à mão.
 - No RF30, notificação excluída (conta restrita, membership inativa ou preferência desligada) não
   volta depois.
-- No RF59, a conta e a membership valem a cada varredura: reativar a conta ou voltar ao projeto
-  enquanto o corte está na janela faz a varredura seguinte notificar. A preferência é a exceção:
-  religá-la não recupera o vencimento anterior (`enabledAt`).
+- No RF59, a conta e a membership valem a cada varredura: reativar a conta ou voltar ao projeto faz
+  a varredura seguinte notificar. A preferência é a exceção: religá-la não recupera o vencimento
+  anterior (`enabledAt`).
 
 ## Impactos de segurança e privacidade
 
@@ -224,3 +236,19 @@ A consequência positiva sobre o S2-03 dizia "sem migration nova". No MySQL, os 
 `NotificationType` e as colunas do contexto do artefato exigem migration. O texto acima foi corrigido;
 a decisão dos eventos de issue e PR está no
 [ADR-018](ADR-018-GITHUB-EVENT-NOTIFICATIONS.md).
+
+## Revisão de 15/10/2026 — revisão independente da PR #26
+
+A revisão independente publicada na PR #26 pediu aderência literal ao TCC. O João aprovou as
+recomendações em 15/10/2026
+([PR26_PROMPT_CORRECOES_REVISAO.md](../issues/PR26_PROMPT_CORRECOES_REVISAO.md), não versionado),
+e as decisões estão incorporadas no texto acima:
+
+| Achado | Decisão |
+| --- | --- |
+| TF-REV-002 | RF30 inclui a mudança feita pelo próprio responsável (D3); RF59 sem janela (D5) |
+| TF-REV-002 | métrica com o total de eventos ocorridos, cobertura elegível rotulada e "indisponível" quando falta observação (D11) |
+| TF-REV-004, TF-REV-007 | contador único, o do menu (D10) |
+| TF-REV-006 | agendamento do job no ADR-024, proposto (D6) |
+| TF-REV-008 | painel lateral no lugar da página (D10) |
+

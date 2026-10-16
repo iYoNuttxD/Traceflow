@@ -4,6 +4,12 @@ Decisão em [ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md). Es
 regra executável: o código e os testes seguem exatamente estas tabelas. A central, as preferências
 e a visibilidade são as do S2-02 ([Task Notifications](TASK_NOTIFICATIONS.md)).
 
+Revisto em 15/10/2026 (revisão independente da PR #26):
+- não há janela;
+- a métrica oficial está em [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md);
+- a fonte durável dos eventos está proposta no
+  [ADR-023](../architecture/ADR-023-FONTE-DURAVEL-EVENTOS-GITHUB.md).
+
 ## Tipos e eventos
 
 | Tipo da notificação | RF | Eventos | Quando nasce |
@@ -12,8 +18,9 @@ e a visibilidade são as do S2-02 ([Task Notifications](TASK_NOTIFICATIONS.md)).
 | `PULL_REQUEST_EVENT` | RF61 | `PULL_REQUEST_MERGED`, `PULL_REQUEST_CLOSED` | no despacho de um evento de PR vinculada |
 
 `ISSUE_REOPENED` é a "abertura" do RF60: a issue só é vinculada depois de importada (RF12), então a
-única abertura observável de uma issue vinculada é a reabertura. A abertura e a reabertura de PR não
-fazem parte do RF61 e não geram evento.
+única abertura observável de uma issue vinculada é a reabertura. O RF60 conta os eventos que
+acontecem enquanto a issue está vinculada. A revisão de 15/10/2026 manteve essa leitura (ADR-018 D3).
+A abertura e a reabertura de PR não fazem parte do RF61 e não geram evento.
 
 ## Estados
 
@@ -51,10 +58,10 @@ transação que grava a página.
 - **Linha de base.** A detecção compara com o estado gravado na sincronização anterior.
   - Conectar um repositório não gera evento, porque todo artefato é uma primeira observação.
   - A primeira sincronização depois da implantação do S2-03 gera evento para as transições
-    ocorridas desde a sincronização anterior, dentro da janela.
+    ocorridas desde a sincronização anterior.
   - Exemplo: a issue vinculada que estava `open` na última sincronização antes da implantação, e
     foi fechada há 2 dias, gera `ISSUE_CLOSED`.
-- **Data ausente.** Sem `occurredAt`, a chave e a janela usam o instante da detecção.
+- **Data ausente.** Sem `occurredAt`, a chave usa o instante da detecção.
 - **Data anterior ausente.** `CLOSED → CLOSED` com a data anterior nula não gera evento: falta de
   data não prova um fechamento novo.
 - **Mudança de título, corpo, rótulo, autor ou branch** não gera evento.
@@ -63,8 +70,7 @@ transação que grava a página.
   duas sincronizações não deixa rastro, porque o GitHub devolve `closed_at` nulo na reabertura.
   Reabrir e fechar de novo aparece como fechamento novo (data diferente).
 - **Data da reabertura.** A listagem do GitHub não traz o instante da reabertura.
-  - O `occurredAt` de `ISSUE_REOPENED` é a última atualização observada (`updatedAtGithub`), e a
-    janela usa essa data.
+  - O `occurredAt` de `ISSUE_REOPENED` é a última atualização observada (`updatedAtGithub`).
   - Exemplo: a issue reaberta em 09/10, comentada em 19/10 e sincronizada em 20/10 grava 19/10.
   - O cartão diz "reaberta no GitHub; última atualização em 19/10/2026 às 10:00".
 
@@ -133,14 +139,13 @@ duas tarefas da mesma pessoa gera duas notificações, uma por tarefa.
 
 **Exclusões**, na ordem; a primeira que vale é o motivo registrado:
 
-| Ordem | Motivo | Quando | Unidade | Classe |
+| Ordem | Motivo | Quando | Unidade | Grupo na métrica |
 | --- | --- | --- | --- | --- |
-| 1 | `NO_TASK` | tarefa do retrato excluída antes ou durante o despacho | tarefa | regra |
-| 2 | `NO_PARTICIPANT` | tarefa sem participante | tarefa | regra |
-| 3 | `OUTSIDE_WINDOW` | ocorrência fora da janela (seção "Janela") | par | regra |
-| 4 | `INACTIVE_ACCOUNT` | conta fora de `ACTIVE` | par | regra |
-| 5 | `INACTIVE_MEMBER` | sem membership ativa no projeto do evento | par | regra |
-| 6 | `PREFERENCE_OFF` | preferência do tipo desligada, ou religada depois da detecção | par | escolha |
+| 1 | `NO_TASK` | tarefa do retrato excluída antes ou durante o despacho | tarefa | sem destinatário |
+| 2 | `NO_PARTICIPANT` | tarefa sem participante | tarefa | sem destinatário |
+| 3 | `INACTIVE_ACCOUNT` | conta fora de `ACTIVE` | par | motivo autorizado |
+| 4 | `INACTIVE_MEMBER` | sem membership ativa no projeto do evento | par | motivo autorizado |
+| 5 | `PREFERENCE_OFF` | preferência do tipo desligada, ou religada depois da detecção | par | motivo autorizado |
 
 - Conta, membership e preferência valem no instante do despacho.
 - A preferência é a do tipo (`ISSUE_EVENT` ou `PULL_REQUEST_EVENT`), sem linha = ligada. Vale quando
@@ -153,19 +158,12 @@ duas tarefas da mesma pessoa gera duas notificações, uma por tarefa.
 - eventos despachados até 12/10/2026 podem trazer `PROJECT_DELETED` no `outcome`, motivo que deixou
   de existir.
 
-## Janela
+## Sem janela
 
-Uma transição é notificável quando `occurredAt >= detectedAt − GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS`
-(padrão 7 dias, de 1 a 90). A janela compara a ocorrência com a detecção, não com o despacho:
-retentativas não empurram o evento para fora.
-
-Com detecção em `2026-10-20T12:00:00.000Z` e janela de 7 dias:
-
-| `occurredAt` | Resultado |
-| --- | --- |
-| `2026-10-13T12:00:00.000Z` | dentro (exatamente 7 dias) |
-| `2026-10-13T11:59:59.999Z` | fora (`OUTSIDE_WINDOW`) |
-| nulo | dentro (usa a detecção) |
+Desde 15/10/2026, toda transição de artefato vinculado é notificada, qualquer que seja a idade da
+ocorrência (Quadros 3-57 e 3-58). A variável `GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS` e o motivo
+`OUTSIDE_WINDOW` saíram. Eventos despachados até 15/10/2026 podem trazer `OUTSIDE_WINDOW` no
+`outcome`. A leitura do `outcome` soma as chaves presentes.
 
 ## Chave da notificação
 
@@ -251,28 +249,30 @@ projeto) a `PENDING`, com `attempts = 0`, e grava o evento de auditoria
 
 ## Métrica oficial (RF60 e RF61)
 
-Critério dos Quadros 3-57 e 3-58: `(notificações enviadas corretamente / total de eventos
-ocorridos) × 100`.
+A métrica segue [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md), na unidade do par (tarefa do
+retrato, participante):
 
-| Termo | RF60 | RF61 |
-| --- | --- | --- |
-| Evento ocorrido | cada transição registrada de issue vinculada (`ISSUE_CLOSED`, `ISSUE_REOPENED`) | cada transição registrada de PR vinculada (`PULL_REQUEST_MERGED`, `PULL_REQUEST_CLOSED`) |
-| Notificação esperada | cada par (tarefa do retrato, participante) de um evento ocorrido | idem |
-| Exclusão por regra | `NO_TASK`, `NO_PARTICIPANT` (por tarefa); `OUTSIDE_WINDOW`, `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER` (por par) | idem |
-| Exclusão por escolha | `PREFERENCE_OFF` (por par) | idem |
-| Elegível | par sem exclusão | idem |
-| Enviada corretamente | par elegível com notificação criada uma vez, para o participante certo, com tarefa, artefato, evento, data e links certos, e visível só a ele. No `outcome`, é `created` (criada neste fechamento) ou `alreadyNotified` (criada por uma tentativa anterior do mesmo evento, antes de uma retomada; não é duplicata) | idem |
+| Termo | RF60 e RF61 |
+| --- | --- |
+| Eventos ocorridos (T) | cada transição de artefato vinculado, multiplicada pelos participantes do retrato |
+| Enviadas corretamente (E) | pares com `created` ou `alreadyNotified` no `outcome`. `alreadyNotified` é a notificação criada por uma tentativa anterior do mesmo evento, antes de uma retomada; não é duplicata |
+| Motivo autorizado (A) | `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER` e `PREFERENCE_OFF` (por par) |
+| Sem destinatário (N) | `NO_TASK` e `NO_PARTICIPANT` (por tarefa) |
+| Não observados (U) | eventos `PENDING`, `PROCESSING` ou `FAILED` |
 
-**Cálculo.** `cobertura = enviadas corretamente / elegíveis × 100`, ou seja,
-`(created + alreadyNotified) / eligible × 100`, somados no `outcome` dos eventos.
-- A cobertura é publicada sempre ao lado do número de eventos ocorridos e das exclusões por motivo.
-- Usar só `created` subestima a cobertura depois de uma retomada: o EV-M-03 da campanha dá 0%.
+**Cobertura total indisponível.** A fonte é a comparação de estado, e as transições intermediárias
+não são observadas. Por isso o total de eventos ocorridos é desconhecido, e a cobertura total sai
+"indisponível" com o motivo `FONTE_POR_COMPARACAO_DE_ESTADO`. Isso muda com a fonte durável do
+ADR-023, proposto. As contagens observadas continuam publicadas.
+
+Usar só `created` subestima o enviado depois de uma retomada: o EV-M-03 da campanha dá 0%.
 
 **`outcome` de cada evento** (forma fixa):
 `{tasks, participants, eligible, created, alreadyNotified, excluded: {NO_TASK, NO_PARTICIPANT,
-OUTSIDE_WINDOW, INACTIVE_ACCOUNT, INACTIVE_MEMBER, PREFERENCE_OFF}}`, em que
-`created + alreadyNotified = eligible` quando o evento fecha como `DISPATCHED`.
-- Eventos despachados até 12/10/2026 podem trazer também `PROJECT_DELETED`.
+INACTIVE_ACCOUNT, INACTIVE_MEMBER, PREFERENCE_OFF}}`, em que `created + alreadyNotified = eligible`
+quando o evento fecha como `DISPATCHED`.
+- Eventos despachados até 12/10/2026 podem trazer também `PROJECT_DELETED`, e até 15/10/2026,
+  `OUTSIDE_WINDOW`.
 - A leitura soma as chaves presentes, sem supor um conjunto fixo.
 
 **Definição (§10.5 do contexto de arquitetura).**
@@ -280,15 +280,17 @@ OUTSIDE_WINDOW, INACTIVE_ACCOUNT, INACTIVE_MEMBER, PREFERENCE_OFF}}`, em que
 | Item | Definição |
 | --- | --- |
 | Objetivo | medir se o sistema avisa os usuários envolvidos de toda transição elegível de issue e PR vinculadas (Quadros 3-57 e 3-58) |
-| Fórmula | a do cálculo acima, por RF, com as exclusões por motivo ao lado |
+| Fórmula | a de [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md), por RF, com as contagens por motivo ao lado |
 | Dados de origem | `GitHubArtifactEvent` (com `outcome`) e as notificações `ISSUE_EVENT` e `PULL_REQUEST_EVENT` (chave por evento, tarefa e pessoa) |
 | Período | intervalo de `detectedAt`, dentro da retenção de 180 dias. Na validação do Capítulo 4 (S3-01), é o período da aplicação |
 | Filtros | projeto e tipo. Não há filtro por pessoa na publicação |
-| Interpretação | 100% significa que cada participante elegível recebeu exatamente uma notificação correta de cada evento. Abaixo disso, cada par sem notificação é defeito a investigar. As exclusões não são falhas |
-| Limitações | (1) só transições observadas: mudanças entre duas sincronizações se fundem; (2) o autor da ação não é excluído; (3) eventos `PENDING` ou `FAILED` ainda não têm `outcome`; (4) a criação de uma issue nunca é evento; (5) a data da reabertura é a última atualização observada, não o instante da reabertura |
+| Interpretação | a cobertura elegível de 100% significa que cada participante elegível recebeu exatamente uma notificação correta de cada evento observado. A cobertura total fica "indisponível" enquanto a fonte não observar todas as transições |
+| Limitações | (1) só transições observadas: mudanças entre duas sincronizações se fundem (proposta de correção no ADR-023); (2) o autor da ação não é excluído; (3) eventos `PENDING` ou `FAILED` ainda não têm `outcome`; (4) a criação de uma issue nunca é evento (RF12); (5) a data da reabertura é a última atualização observada, não o instante da reabertura |
 | Forma de atualização | a cada despacho, no `outcome` do evento. No repositório, os testes M3 e M4 medem um cenário reproduzível |
 
-**Resultado em 12/10/2026 (banco de teste, `s203-github-event-dispatch.test.js`):**
+**Resultado em 12/10/2026 (banco de teste, `s203-github-event-dispatch.test.js`), só como
+histórico.** Foi medido sobre os pares elegíveis, com `OUTSIDE_WINDOW` entre as exclusões, regra que
+vigorou até 15/10/2026:
 
 | RF | Eventos ocorridos | Notificações esperadas (pares) | Elegíveis | Enviadas corretamente | Cobertura | Exclusões |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -299,7 +301,8 @@ Nos dois cenários, a issue sem vínculo fechada, a reabertura de PR e a sincron
 mudança não são eventos ocorridos. Cada notificação existe uma vez, para o participante certo, e a
 soma dos `outcome` coincide com a saída do job. O resultado com dados reais fica para o S3-01.
 
-**Carga sintética no banco de desenvolvimento (12/10/2026):**
+**Carga sintética no banco de desenvolvimento (12/10/2026), só como histórico, com a janela da
+época:**
 - **Dados.** O projeto `[S2-01] Escala` recebeu 152 issues, 151 delas vinculadas, e 150 pull requests vinculadas, num total de 301 tarefas. O dono do projeto é responsável por todas. Um segundo membro comentou em 30 delas e registrou esforço em 12, somando 36 tarefas distintas.
 - **Transições aplicadas** pelo `upsertMany`:
   - 140 issues fechadas e 10 reabertas;
@@ -326,7 +329,7 @@ soma dos `outcome` coincide com a saída do job. O resultado com dados reais fic
 | Escopo | todos os projetos, ou `--project-id=<id>` |
 | Reprocessamento | `--retry-failed`, junto com `--apply`, devolve os `FAILED` à fila; em dry-run, só conta |
 | Frequência | a cada 15 minutos, por agendador externo ([runbook](../runbooks/GITHUB_EVENT_NOTIFICATIONS.md)) |
-| Saída | JSON só no `stdout`, com `dryRun`, `lookbackDays`, `projects`, `scanned`, `claimed`, `busy`, `claimLost`, `dispatched`, `created`, `alreadyNotified`, `excluded` por motivo, `retryScheduled`, `failed`, `failedStock`, `pendingAfter`, `dueAfter`, `oldestDueAgeSeconds`, `durationMs` e `database`; `wouldCreate` em dry-run; `requeued` ou `wouldRequeue` com `--retry-failed` |
+| Saída | JSON só no `stdout`, com `dryRun`, `projects`, `scanned`, `claimed`, `busy`, `claimLost`, `dispatched`, `created`, `alreadyNotified`, `excluded` por motivo, `retryScheduled`, `failed`, `failedStock`, `pendingAfter`, `dueAfter`, `oldestDueAgeSeconds`, `durationMs` e `database`; `wouldCreate` em dry-run; `requeued` ou `wouldRequeue` com `--retry-failed` |
 | Estoque | `failedStock` conta os eventos `FAILED` no escopo da execução, em toda execução, até o reprocessamento ou a retenção |
 | Pendência vencida | `dueAfter` conta os eventos `PENDING` com `nextAttemptAt` vencido e os `PROCESSING` com reserva vencida. `oldestDueAgeSeconds` é há quanto tempo o mais antigo deles venceu, ou `null`. Evento na espera normal de retentativa não conta |
 | Código de saída | 0 sem falha; 1 quando alguma tentativa falhou ou a execução não começou; 2 com `--project-id` de projeto inexistente ou excluído |

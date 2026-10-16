@@ -2003,10 +2003,16 @@ revalidação do papel no serviço. Sem sessão, a resposta é 401. Quem não é
 um alerta de outro projeto, recebe 404 opaco. O reprocessamento tem limitador próprio
 (`traceability-alerts-reconcile`), com a mesma janela e o mesmo teto do sync manual. Parâmetro
 desconhecido responde 400.
+- **Desde 15/10/2026 (TF-REV-001)**, as quatro leituras conferem a membership ativa também no
+  serviço, com o mesmo corpo do 404 opaco do middleware. As `permissions` saem do papel lido pelo
+  serviço.
+- Caminho com `%` responde 404 antes de qualquer consulta (ADR-003, emenda de 15/10/2026).
 
 **Listagem.** Ordem `detectedAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
 `totalPages`. O resumo conta o projeto inteiro, nunca a página.
-`rules.taskWithoutCommitActive` é `true` quando o projeto tem `ProjectGitHubIntegration`.
+`rules.taskWithoutCommitActive` é sempre `true` desde 15/10/2026, porque o RF13 não depende mais
+de integração. `rules.integrationConnected` diz se o projeto tem `ProjectGitHubIntegration`. A tela
+usa esse campo para explicar o alerta e mostrar o atalho de conexão ao OWNER.
 `reconciliation` é `null` sem registro, ou
 `{lastSucceededAt,lastFailedAt,lastTrigger,stale}`, com o resultado da última reconciliação do
 projeto inteiro (sync, conexão do repositório, reprocessamento manual ou script). `stale` é
@@ -2023,14 +2029,16 @@ conexão se a reconciliação falhar.
 - `subject{type,id,code,title,available,githubUrl}`.
 
 O sujeito excluído vem com `available=false` e `id=null`, e `code`/`title` saem do snapshot
-gravado na detecção. `limitations` traz `COMPLETION_TIME_UNAVAILABLE` quando a tarefa foi concluída
-antes do histórico de status. O DTO nunca expõe e-mail, `dedupeKey`, `activeKey` nem campos crus do
+gravado na detecção. `limitations` pode trazer:
+- `COMPLETION_TIME_UNAVAILABLE`, quando a tarefa foi concluída antes do histórico de status;
+- `CLOSE_TIME_UNAVAILABLE`, quando a issue fechada não tem `closedAtGithub` (desde 15/10/2026). O DTO nunca expõe e-mail, `dedupeKey`, `activeKey` nem campos crus do
 GitHub.
 
 **`context` do detalhe.** Depende do tipo:
 
 - **Tarefa:** `status`, `requirement{id,code}`, `responsible{id,name}`,
-  `pullRequest{id,number,title,githubUrl}`, `issueCount` e `pendingCommitSuggestions`.
+  `pullRequest{id,number,title,githubUrl}`, `issueCount`, `pendingCommitSuggestions` e
+  `integrationConnected` (desde 15/10/2026).
 - **PR:** `number`, `title`, `sourceBranch`, `targetBranch`, `mergedAt` e `githubUrl`.
 - **Issue:** `number`, `title`, `state`, `closedAt` e `githubUrl`.
 
@@ -2068,12 +2076,12 @@ vencimento, no job `notifications:due`.
 
 | Método | Rota                                 | Entrada                                                                                           | Resposta                                                 |
 | ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `group?` = ALL (padrão)/TASKS/GITHUB; `cursor?` ou `page?` (exclusivos), `limit?` (máx. 100) | `200`, `{notifications,pagination,unreadCount,nextCursor}` |
+| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `group?` = ALL (padrão)/TASKS/GITHUB/INCONSISTENCIES; `cursor?` ou `page?` (exclusivos), `limit?` (máx. 100) | `200`, `{notifications,pagination,unreadCount,nextCursor}` |
 | GET    | `/api/notifications/unread-count`    | —                                                                                                 | `200`, `{unreadCount}`                                   |
 | PATCH  | `/api/notifications/:notificationId` | `{read: boolean}` estrito                                                                         | `200`, `{notification}`                                  |
 | POST   | `/api/notifications/read-all`        | body vazio                                                                                        | `200`, `{updated}`                                       |
-| GET    | `/api/settings/notifications`        | —                                                                                                 | `200`, `{preferences{TASK_STATUS_CHANGED,TASK_OVERDUE,ISSUE_EVENT,PULL_REQUEST_EVENT}}` |
-| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED, TASK_OVERDUE, ISSUE_EVENT, PULL_REQUEST_EVENT}}`, booleanos, as quatro chaves obrigatórias desde 12/10/2026 (antes, duas) | `200`, `{preferences}`                                   |
+| GET    | `/api/settings/notifications`        | —                                                                                                 | `200`, `{preferences{TASK_STATUS_CHANGED,TASK_OVERDUE,ISSUE_EVENT,PULL_REQUEST_EVENT,TRACEABILITY_INCONSISTENCY}}` |
+| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED, TASK_OVERDUE, ISSUE_EVENT, PULL_REQUEST_EVENT, TRACEABILITY_INCONSISTENCY}}`, booleanos, as cinco chaves obrigatórias desde 15/10/2026 (antes, quatro; até 12/10/2026, duas) | `200`, `{preferences}`                                   |
 
 **Autorização.** Toda rota exige sessão; sem ela, 401. O destinatário vem da sessão: nenhum
 `userId` é aceito em query ou corpo (parâmetro desconhecido responde 400). A notificação só é
@@ -2089,6 +2097,7 @@ nada como lido.
 **Origem** (desde 13/10/2026). `group` filtra a lista por origem:
 - `TASKS`: `TASK_STATUS_CHANGED` e `TASK_OVERDUE`;
 - `GITHUB`: `ISSUE_EVENT` e `PULL_REQUEST_EVENT`;
+- `INCONSISTENCIES`: `TRACEABILITY_INCONSISTENCY` (desde 15/10/2026);
 - `ALL`: o padrão, sem filtro.
 
 O `group` vale com `status`, `cursor` e `page`, e `total` e `totalPages` contam só a origem pedida.
@@ -2114,12 +2123,22 @@ prazo é a data UTC do instante gravado: `2026-10-10T22:30:00-03:00` é gravado 
 
 - `id`, `type`, `createdAt`, `readAt`;
 - `project{id,name}`;
-- `task{id,code,title,available}`: o título é o copiado na criação; tarefa excluída vem com
-  `id=null`, `code=null` e `available=false`;
-- `context`: `{fromStatus,toStatus,actor{id,name}|null}` em `TASK_STATUS_CHANGED`, `{dueDate}`
-  (`YYYY-MM-DD`) em `TASK_OVERDUE`, e `{event,occurredAt,artifact{kind,number,title,url}}` em
-  `ISSUE_EVENT` e `PULL_REQUEST_EVENT` (seção S2-03);
-- `link`: `/projects/:projectId/kanban?task=:taskId`, ou `null` sem tarefa.
+- `task{id,code,title,available}|null`: o título é o copiado na criação; tarefa excluída vem com
+  `id=null`, `code=null` e `available=false`; o aviso de inconsistência vem com `task=null`;
+- `context` depende do tipo:
+  - `TASK_STATUS_CHANGED`: `{fromStatus,toStatus,actor{id,name}|null,selfAction}`. `selfAction` é
+    `true` quando o destinatário fez a mudança (desde 15/10/2026);
+  - `TASK_OVERDUE`: `{dueDate}` (`YYYY-MM-DD`);
+  - `ISSUE_EVENT` e `PULL_REQUEST_EVENT`: `{event,occurredAt,artifact{kind,number,title,url}}`
+    (seção S2-03);
+  - `TRACEABILITY_INCONSISTENCY`: `{occurredAt,artifact{kind,number,title,url}|null,
+    alert{id,type,status,resolvedAt,dismissedAt}|null,batch{total,pullRequests,issues}|null}`.
+    `batch` vem só no aviso-resumo, que não tem `artifact` nem `alert`. `alert` traz o estado
+    atual do alerta, e não o da detecção;
+- `link` depende do tipo:
+  - tipos de tarefa e do GitHub: `/projects/:projectId/kanban?task=:taskId`, ou `null` sem tarefa;
+  - aviso de inconsistência: `/projects/:projectId/repository?alerta=:alertId`;
+  - aviso-resumo: `/projects/:projectId/repository?inconsistencia=OPEN`.
 
 O DTO nunca expõe e-mail, `dedupeKey` nem o destinatário. O nome do ator é lido na exibição.
 
@@ -2127,9 +2146,9 @@ O DTO nunca expõe e-mail, `dedupeKey` nem o destinatário. O nome do ator é li
 false}` volta a nulo. `read-all` é um único `UPDATE` sobre as não lidas visíveis do usuário, tudo
 ou nada: `updated` é a contagem, e não há item que falhe ou seja ignorado isoladamente.
 
-**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as quatro chaves, só
-booleanos (desde 12/10/2026; antes, duas); chave fora do enum, `__proto__` ou `constructor`
-respondem 400.
+**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as cinco chaves, só
+booleanos (desde 15/10/2026; antes, quatro; até 12/10/2026, duas); chave fora do enum, `__proto__`
+ou `constructor` respondem 400.
 - Chave ausente responde 400 com "As opções de notificação mudaram. Recarregue a página e salve de
   novo.", na mensagem e no detalhe de cada chave ausente.
 - Valor não booleano responde "Cada preferência deve ser verdadeira ou falsa.".
@@ -2162,7 +2181,7 @@ campanha de conformidade, não do S2-02.
 ## S2-03 — Notificações de eventos de issues e pull requests (RF60, RF61)
 
 Decisão em [ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md); regra executável
-(transições, retrato dos vínculos, participantes, janela, fila, métrica) em
+(transições, retrato dos vínculos, participantes, fila, métrica) em
 [GitHub Event Notifications](../data/GITHUB_EVENT_NOTIFICATIONS.md).
 
 **Sem rota nova.** As notificações dos tipos `ISSUE_EVENT` (RF60) e `PULL_REQUEST_EVENT` (RF61)

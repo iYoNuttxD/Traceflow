@@ -3,6 +3,11 @@
 Decisão em [ADR-016](../architecture/ADR-016-TASK-NOTIFICATIONS.md). Este documento é a regra
 executável: o código e os testes seguem exatamente estas tabelas.
 
+Revisto em 15/10/2026 (revisão independente da PR #26):
+- o RF30 avisa também quando o próprio responsável muda o status;
+- o RF59 não tem janela;
+- a métrica oficial está em [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md).
+
 ## Tipos
 
 | Tipo | RF | Quando nasce | Contexto gravado | Chave de deduplicação |
@@ -21,20 +26,25 @@ avaliadas nesta ordem; a primeira que vale é o motivo registrado.
 
 | Ordem | RF30 (mudança de status) | RF59 (vencimento) |
 | --- | --- | --- |
-| 1 | `NO_RESPONSIBLE`: tarefa sem responsável | `OUTSIDE_WINDOW`: corte antes da janela de recuperação |
-| 2 | `SELF_CHANGE`: o ator é o próprio responsável | `NO_RESPONSIBLE`: tarefa sem responsável |
-| 3 | `INACTIVE_ACCOUNT`: conta do responsável desativada, com exclusão pendente ou anonimizada | `INACTIVE_ACCOUNT`: conta do responsável desativada, com exclusão pendente ou anonimizada |
-| 4 | `INACTIVE_MEMBER`: responsável sem membership ativa no projeto | `INACTIVE_MEMBER`: responsável sem membership ativa no projeto |
-| 5 | `PREFERENCE_OFF`: o responsável desligou o tipo | `PREFERENCE_OFF`: o responsável desligou o tipo, ou o religou depois do corte |
+| 1 | `NO_RESPONSIBLE`: tarefa sem responsável | `NO_RESPONSIBLE`: tarefa sem responsável |
+| 2 | `INACTIVE_ACCOUNT`: conta do responsável desativada, com exclusão pendente ou anonimizada | `INACTIVE_ACCOUNT`: conta do responsável desativada, com exclusão pendente ou anonimizada |
+| 3 | `INACTIVE_MEMBER`: responsável sem membership ativa no projeto | `INACTIVE_MEMBER`: responsável sem membership ativa no projeto |
+| 4 | `PREFERENCE_OFF`: o responsável desligou o tipo | `PREFERENCE_OFF`: o responsável desligou o tipo, ou o religou depois do corte |
 
-`OUTSIDE_WINDOW`, `NO_RESPONSIBLE`, `SELF_CHANGE`, `INACTIVE_ACCOUNT` e `INACTIVE_MEMBER` são
-**exclusões por regra**. `PREFERENCE_OFF` é **exclusão por escolha** do usuário.
+Na métrica ([NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md)), os motivos se dividem em dois
+grupos:
+- `NO_RESPONSIBLE` é **sem destinatário**;
+- `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER` e `PREFERENCE_OFF` são **não enviadas por motivo autorizado**.
 
-- **RF30:** as exclusões valem no instante da mudança de status. O que foi excluído não volta.
+Cada evento avaliado grava a decisão em `NotificationDecision`: o motivo, ou `SENT`.
+
+- **RF30:**
+  - O responsável recebe também quando é ele quem muda o status. A notificação diz "Você moveu
+    TASK-12 para Concluído". `SELF_CHANGE` deixou de existir em 15/10/2026.
+  - As exclusões valem no instante da mudança de status. O que foi excluído não volta.
 - **RF59:** o job avalia a conta e a membership a cada varredura. Se a conta for reativada, ou a
-  pessoa voltar ao projeto, enquanto o corte ainda está na janela, a varredura seguinte notifica. A
-  preferência é a exceção: religá-la não recupera o vencimento cujo corte foi antes de religar
-  (`enabledAt`, seção "Preferências").
+  pessoa voltar ao projeto, a varredura seguinte notifica. A preferência é a exceção: religá-la não
+  recupera o vencimento cujo corte foi antes de religar (`enabledAt`, seção "Preferências").
 
 ## Corte do vencimento
 
@@ -80,20 +90,23 @@ os dois discordam por algumas horas. Com prazo `2026-10-10` e `APP_TIMEZONE=Amer
   antes do corte;
 - em `Pacific/Pago_Pago` (−11), em `2026-10-11T11:00:00.000Z`, 8 h depois.
 
-## Janela de recuperação
+## Sem janela
 
-O job só notifica tarefas cujo corte caiu nos últimos `NOTIFICATIONS_DUE_LOOKBACK_DAYS` dias (padrão
-7, de 1 a 90): `corte >= agora - janela`.
+Desde 15/10/2026 não há janela de recuperação (Quadro 3-55). Toda tarefa aberta cujo corte já passou
+é notificada uma vez por par (tarefa, data do prazo), por mais antigo que seja o corte. A variável
+`NOTIFICATIONS_DUE_LOOKBACK_DAYS` e o motivo `OUTSIDE_WINDOW` saíram.
 
-Exemplo com `America/Sao_Paulo` e `agora = 2026-10-20T12:00:00.000Z` (início da janela em
-`2026-10-13T12:00:00.000Z`):
+Exemplo com `America/Sao_Paulo` e `agora = 2026-10-20T12:00:00.000Z`:
 
 | Prazo | Corte | Resultado |
 | --- | --- | --- |
-| `2026-10-12` | `2026-10-13T03:00:00.000Z` | fora da janela (`OUTSIDE_WINDOW`) |
-| `2026-10-13` | `2026-10-14T03:00:00.000Z` | dentro da janela |
-| `2026-10-19` | `2026-10-20T03:00:00.000Z` | dentro da janela |
+| `2025-03-01` | `2025-03-02T03:00:00.000Z` | notificada, se ainda não foi |
+| `2026-10-12` | `2026-10-13T03:00:00.000Z` | notificada, se ainda não foi |
+| `2026-10-19` | `2026-10-20T03:00:00.000Z` | notificada, se ainda não foi |
 | `2026-10-20` | `2026-10-21T03:00:00.000Z` | ainda não venceu (não é avaliada) |
+
+A primeira execução depois da implantação notifica todo o estoque de tarefas vencidas e abertas. O
+runbook manda rodar o dry-run antes do `--apply`.
 
 ## Repetição
 
@@ -149,60 +162,19 @@ Exemplo com `America/Sao_Paulo` e `agora = 2026-10-20T12:00:00.000Z` (início da
 
 ## Métrica oficial (RF30 e RF59)
 
-Critério dos Quadros 3-55 e 3-56: `(notificações enviadas corretamente / total de eventos
-ocorridos) × 100`.
+A métrica segue [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md):
+- cobertura total sobre o total de eventos ocorridos;
+- cobertura elegível como auxiliar rotulada;
+- "indisponível" quando falta observação.
 
-| Termo | RF30 | RF59 |
-| --- | --- | --- |
-| Evento ocorrido | cada `TaskMovement` | cada par (tarefa, data do prazo) cujo corte passou com a tarefa fora de `CONCLUIDO` |
-| Exclusão por regra | `NO_RESPONSIBLE`, `SELF_CHANGE`, `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER` | `OUTSIDE_WINDOW`, `NO_RESPONSIBLE`, `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER` |
-| Exclusão por escolha | `PREFERENCE_OFF` | `PREFERENCE_OFF` |
-| Evento elegível | evento ocorrido sem exclusão | evento ocorrido sem exclusão |
-| Enviada corretamente | criada uma vez, para o responsável, com origem, destino e ator corretos, link válido e visível só a ele | criada uma vez, para o responsável, com a data do prazo correta, link válido e visível só a ele |
+O instrumento é o script `notifications:metrics`, que lê `TaskMovement`, o histórico das tarefas e
+as decisões gravadas em `NotificationDecision`.
 
-**Cálculo.** `cobertura = enviadas corretamente / eventos elegíveis × 100`, publicada sempre ao lado
-das exclusões por motivo. O valor nunca aparece sem as exclusões.
-
-**Definição (§10.5 do contexto de arquitetura).**
-
-| Item | Definição |
-| --- | --- |
-| Objetivo | medir se o sistema avisa o responsável de todo evento elegível do RF30 e do RF59 (Quadros 3-55 e 3-56) |
-| Fórmula | a do cálculo acima, por RF, com as exclusões por motivo ao lado |
-| Dados de origem | RF30: `TaskMovement` e as notificações `TASK_STATUS_CHANGED` (chave por movimento). RF59: os pares (tarefa, data do prazo) cujo corte passou com a tarefa fora de `CONCLUIDO`, e as notificações `TASK_OVERDUE` (chave por par e destinatário) |
-| Período | intervalo fechado de datas, no fuso `APP_TIMEZONE`. O RF30 conta pelo instante do movimento; o RF59, pelo instante do corte. Na validação do Capítulo 4 (S3-01), é o período da aplicação |
-| Filtros | projeto (um ou todos os não excluídos) e tipo. Não há filtro por pessoa na publicação, para não expor dado pessoal |
-| Interpretação | 100% significa que todo evento elegível gerou uma notificação correta. Abaixo disso, cada evento sem notificação é defeito a investigar. As exclusões não são falhas: mostram o que a regra ou a escolha do usuário retirou |
-| Limitações | (1) as contagens do job são retratos de cada execução e **não se somam**: a mesma tarefa aparece como elegível em várias execuções, e `excluded` conta, a cada execução, pares já notificados: `OUTSIDE_WINDOW` conta toda tarefa aberta com corte antes da janela, e os outros motivos contam o par cuja situação mudou depois do aviso (preferência religada depois do corte, conta restrita, membership inativa); (2) o RF59 depende do agendador (até 15 min de atraso; sem agendador, só roda à mão); (3) o fuso é único; (4) tarefa vencida há mais que a janela na primeira execução não vira evento elegível; (5) a medição lê o estado atual: prazo ou conclusão mudados depois alteram os pares |
-| Forma de atualização | sob demanda. No repositório, os testes M1 e M2 (cenário reproduzível). Com dados reais, a medição por pares distintos é entregue ao S3-01 (S202-F05); somar as saídas do job não é medição |
-
-**Medição.**
-- RF30: a notificação nasce na transação do movimento, então uma mudança elegível sem notificação
-  não persiste. O teste M1 mede a cobertura num cenário com eventos elegíveis e um evento de cada
-  um dos cinco motivos de exclusão do RF30.
-- RF59: a saída do job traz `eligible`, `created`, `alreadyNotified`, `excluded` e `failed`. O teste
-  M2 mede a cobertura num cenário com eventos elegíveis e um evento de cada um dos cinco motivos de
-  exclusão do RF59.
-- O cenário reproduzível é o instrumento entregue ao S3-01 (Capítulo 4). O S2-02 não cria tela para
-  o indicador.
-
-**Resultado em 11/10/2026 (banco de teste), com os cinco motivos (`4219b19`):**
-
-| RF | Eventos ocorridos | Elegíveis | Enviadas corretamente | Cobertura | Exclusões |
-| --- | --- | --- | --- | --- | --- |
-| RF30 (M1) | 10 | 5 | 5 | 100% | `NO_RESPONSIBLE` 1, `SELF_CHANGE` 1, `INACTIVE_ACCOUNT` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 |
-| RF59 (M2) | 8 | 3 | 3 | 100% | `OUTSIDE_WINDOW` 1, `NO_RESPONSIBLE` 1, `INACTIVE_ACCOUNT` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 |
-
-**Resultado em 09/10/2026 (banco de teste), histórico:** anterior ao motivo `INACTIVE_ACCOUNT`
-(`2111706`).
-
-| RF | Eventos ocorridos | Elegíveis | Enviadas corretamente | Cobertura | Exclusões |
-| --- | --- | --- | --- | --- | --- |
-| RF30 (M1) | 9 | 5 | 5 | 100% | `NO_RESPONSIBLE` 1, `SELF_CHANGE` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 |
-| RF59 (M2) | 7 | 3 | 3 | 100% | `OUTSIDE_WINDOW` 1, `NO_RESPONSIBLE` 1, `INACTIVE_MEMBER` 1, `PREFERENCE_OFF` 1 |
-
-No M2, a tarefa concluída e a tarefa que ainda não venceu não são eventos ocorridos. O resultado
-com dados reais fica para o S3-01.
+**Resultados anteriores (09 e 11/10/2026), só como histórico.** Os testes M1 e M2 mediam a
+cobertura sobre os eventos elegíveis, com `SELF_CHANGE` e `OUTSIDE_WINDOW` entre as exclusões. Com
+a regra de 15/10/2026, eles foram reescritos:
+- os eventos do próprio responsável e os vencimentos antigos passam a ser notificados;
+- a cobertura total usa o total de eventos ocorridos.
 
 ## Job de vencimento
 
@@ -211,10 +183,10 @@ com dados reais fica para o S3-01.
 | Comando | `npm run notifications:due:dry-run` (padrão) e `npm run notifications:due` (`--apply`) |
 | Produção | exige `--confirm-production` |
 | Escopo | todos os projetos não excluídos, ou `--project-id=<id>` |
-| Frequência | a cada 15 minutos, por agendador externo ([runbook](../runbooks/TASK_NOTIFICATIONS.md)) |
-| Escrita | por projeto, com `createMany` e `skipDuplicates` |
+| Frequência | a cada 15 minutos; o agendamento proposto é uma tarefa periódica do worker do GitHub (ADR-024). Enquanto o ADR-024 não vigorar, um agendador externo chama o comando ([runbook](../runbooks/TASK_NOTIFICATIONS.md)) |
+| Escrita | por projeto, com `createMany` e `skipDuplicates`, para as notificações e para as decisões (`NotificationDecision`) |
 | Falha | a falha de um projeto conta em `failed` e não impede os outros; com `failed > 0`, o processo sai com código 1. Com `--project-id` de projeto inexistente ou excluído, avisa em `stderr` e sai com código 2 |
-| Saída | JSON com `dryRun`, `timeZone`, `lookbackDays`, `projects`, `scanned`, `eligible`, `created`, `alreadyNotified`, `excluded` por motivo, `failed`, `durationMs` e, em dry-run, `wouldCreate`. O job não atualiza linhas, e a saída diz isso com `updated: "NOT_APPLICABLE"`. `excluded` tem os cinco motivos do RF59. As contagens valem para a execução e não se somam entre execuções |
+| Saída | JSON com `dryRun`, `timeZone`, `projects`, `scanned`, `eligible`, `created`, `alreadyNotified`, `excluded` por motivo, `failed`, `durationMs` e, em dry-run, `wouldCreate`. O job não atualiza linhas, e a saída diz isso com `updated: "NOT_APPLICABLE"`. `excluded` tem os quatro motivos do RF59. As contagens valem para a execução e não se somam entre execuções; a métrica é o script `notifications:metrics` |
 | Log | `notifications_due_started` (com o fuso), `notifications_due_project_failed` (projeto e código do erro) e `notifications_due_completed` (contagens); nunca título, nome ou e-mail |
 
 ## Retenção e privacidade
@@ -222,6 +194,7 @@ com dados reais fica para o S3-01.
 | Dado | Regra |
 | --- | --- |
 | Notificação | apagada pelo `privacy:retention` quando `createdAt` passa de `NOTIFICATION_RETENTION_DAYS` (padrão 180) |
+| Decisão (`NotificationDecision`) | apagada pelo `privacy:retention` quando `decidedAt` passa do mesmo prazo; a anonimização apaga as do titular |
 | Projeto purgado | as notificações do projeto saem por cascata |
 | Tarefa excluída | `taskId` vira nulo; o título copiado permanece |
 | Ator removido | `actorUserId` vira nulo; o contexto mostra ator ausente |

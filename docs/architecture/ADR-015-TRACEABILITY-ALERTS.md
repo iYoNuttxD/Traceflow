@@ -1,7 +1,8 @@
 # ADR-015 — Alertas de inconsistência de rastreabilidade
 
 - **Estado:** aceita para o cartão S2-01 (RF13, RF39, RF40, RF58)
-- **Data:** 07/10/2026; revisão em 09/10/2026 (correções da campanha de testes, ver "Revisão de 09/10/2026")
+- **Data:** 07/10/2026; revisões em 09/10/2026 (correções da campanha de testes) e em 15/10/2026
+  (revisão independente da PR #26), ver as seções de revisão no fim
 - **Responsáveis:** João Vitor S. Hernandes
 
 ## Contexto
@@ -33,15 +34,25 @@ Restrições do terreno que moldam a decisão:
 ## Decisão
 
 1. **Alerta é do projeto, não do usuário.** Um alerta registra uma inconsistência observável no
-   estado persistido. Todo membro (VIEWER+) o vê. Não tem destinatário nem estado de leitura.
-   Notificações pertencem aos cartões S2-02 e S2-03.
+   estado persistido. Todo membro (VIEWER+) o vê. O alerta não tem destinatário nem estado de
+   leitura.
+   - Os alertas de PR e de issue geram também um aviso por pessoa (UX-D03, ADR-022): todo membro
+     ativo recebe, e a leitura é individual.
+   - Ler o aviso não resolve nem dispensa o alerta. Os dois estados ficam separados.
 2. **Três tipos, uma regra cada:**
-   - **`TASK_CONCLUDED_WITHOUT_COMMIT`**: tarefa `CONCLUIDO`, sem `TaskCommit`, em projeto com
+   - **`TASK_CONCLUDED_WITHOUT_COMMIT`**: tarefa `CONCLUIDO`, sem `TaskCommit`, com ou sem
      `ProjectGitHubIntegration`.
-   - **`PULL_REQUEST_MERGED_WITHOUT_TASK`**: `mergedAtGithub` não nulo, nenhuma tarefa com aquele
-     `pullRequestId` e `mergedAtGithub >= Project.createdAt`.
-   - **`ISSUE_CLOSED_WITHOUT_TASK`**: `state = 'closed'`, sem `TaskIssue` e
-     `closedAtGithub >= Project.createdAt`.
+     - Em projeto sem integração, o alerta informa "Projeto sem repositório conectado: nenhum commit
+       pode ser vinculado". O OWNER vê o atalho para conectar.
+     - Desconectar o repositório não resolve o alerta.
+   - **`PULL_REQUEST_MERGED_WITHOUT_TASK`**: `mergedAtGithub` não nulo e nenhuma tarefa com aquele
+     `pullRequestId`, qualquer que seja a data do merge.
+   - **`ISSUE_CLOSED_WITHOUT_TASK`**: `state = 'closed'` e sem `TaskIssue`, qualquer que seja a data
+     do fechamento. Sem `closedAtGithub`, a ocorrência fica indisponível
+     (`CLOSE_TIME_UNAVAILABLE`).
+
+   Não há corte temporal. PRs e issues encerradas antes da criação do projeto também geram alerta,
+   com `occurredAt` igual à data do GitHub.
 
    Uma PR vinculada não silencia o RF13. O RF58 é uma consulta derivada, sem persistência: tarefa
    sem commit, sem pull request e sem issue.
@@ -62,6 +73,9 @@ Restrições do terreno que moldam a decisão:
    - no reprocessamento manual (MANAGER+);
    - num script operacional com dry-run.
 
+   Os alertas de PR e de issue criados por qualquer gatilho entram na fila de avisos (ADR-022). O
+   despacho roda depois da transação, nunca dentro dela.
+
    As reconciliações do projeto inteiro (sync, conexão, manual e script) registram o resultado da
    última execução, de sucesso ou de falha. A tela avisa quando os alertas podem estar
    desatualizados. A reconciliação de mutação não registra: se ela falha, a mutação inteira é
@@ -69,23 +83,30 @@ Restrições do terreno que moldam a decisão:
 6. **Dispensa.** MANAGER+ pode dispensar um alerta aberto, com justificativa de 10 a 500
    caracteres Unicode (code points, contados depois do `trim`). O alerta dispensado continua
    segurando a chave enquanto a condição persistir.
-7. **Interface.** Os alertas ficam dentro de Rastreabilidade, numa sub-navegação. As 11 abas do
-   projeto permanecem.
+7. **Interface.** Consulta contextual (UX-D01 e UX-D02, ADR-022):
+   - indicação na tarefa e no artefato;
+   - filtro nas listas que já existem (Kanban, lista de tarefas e Repositório);
+   - resumo no topo de Rastreabilidade.
+
+   As páginas próprias de alertas e de tarefas sem vínculo técnico saem. Detalhes, histórico e
+   dispensa continuam acessíveis no contexto da tarefa ou do artefato. As 11 abas do projeto
+   permanecem.
 8. **Módulo.** O código vive em `backend/src/modules/traceability/` (`traceability-alert.*`), como
    parte do domínio de rastreabilidade, e não num módulo `alerts/` próprio. As notificações
    (S2-02/S2-03) decidem o próprio módulo.
 
 ## Alternativas consideradas
 
-- **RF13 em qualquer projeto.** Rejeitada: sem repositório integrado, não existe commit
-  vinculável, e todo alerta seria impossível de corrigir. A tela informa quando a regra está
-  inativa.
+- **RF13 só em projeto com integração (versão de 07/10/2026).** Rejeitada na revisão de 15/10/2026:
+  o Quadro 3-51 não condiciona o alerta à integração. O texto do alerta explica que falta o
+  repositório.
 - **PR vinculada contando como commit para o RF13.** Rejeitada: o RF exige commit, e o modelo não
   liga commits a PRs. A dispensa cobre os casos legítimos.
 - **Corte do RF39/RF40 em `ProjectGitHubIntegration.integratedAt`.** Rejeitada: deixaria sem
   alerta as PRs e issues encerradas entre a criação do projeto e a conexão do repositório.
-- **Sem corte temporal.** Rejeitada: conectar um repositório antigo geraria centenas de alertas
-  sobre trabalho anterior ao TraceFlow.
+- **Corte do RF39/RF40 em `Project.createdAt` (versão de 07/10/2026).** Rejeitada na revisão de
+  15/10/2026: os Quadros 3-52 e 3-53 não limitam a data. O volume do histórico é tratado no aviso,
+  que sai em resumo acima de 10 alertas novos (ADR-022), e não no alerta.
 - **Uma linha por sujeito, reaberta a cada recorrência.** Rejeitada: apagaria o histórico das
   ocorrências anteriores e exigiria uma tabela de eventos à parte.
 - **Deduplicação no código.** Rejeitada: duas reconciliações concorrentes poderiam criar dois
@@ -94,6 +115,9 @@ Restrições do terreno que moldam a decisão:
   tarefa ficaria atrasado em relação à mutação que o causou.
 - **Uma 12ª aba "Alertas".** Rejeitada: a navegação do projeto é uma decisão de produto pinada por
   teste.
+- **Sub-navegação com páginas próprias de alertas e de tarefas sem vínculo (versão de 07/10/2026).**
+  Rejeitada na revisão de 15/10/2026 (UX-D01): a navegação fragmentada tira a pessoa do contexto
+  de trabalho.
 
 ## Consequências positivas
 
@@ -110,10 +134,18 @@ Restrições do terreno que moldam a decisão:
 - Issue fechada como "not planned" também gera alerta, porque o `state_reason` não é persistido. A
   dispensa é a saída.
 - `traceabilityMutation` ganha custo proporcional às tarefas do escopo.
+- Conectar um repositório antigo gera um alerta para cada PR mesclada e cada issue fechada sem
+  tarefa do histórico. A dispensa e o vínculo continuam sendo a saída. O aviso aos membros sai em
+  resumo.
+- Projeto sem integração tem um alerta RF13 para cada tarefa concluída. Só o vínculo de commit,
+  depois de conectar o repositório, ou a dispensa resolvem.
 
 ## Impactos de segurança e privacidade
 
 - A leitura exige membership ativa: não membro recebe 404. Todo membro ativo lê.
+  - O middleware confere a membership, e o serviço confere de novo nas quatro leituras (lista,
+    resumo, detalhe e tarefas sem vínculo).
+  - O 404 do serviço tem o mesmo corpo do 404 opaco do middleware (TF-REV-001, emenda do ADR-003).
 - Dispensar e reprocessar exigem MANAGER+, CSRF e revalidação de papel no serviço. O
   reprocessamento tem limitador próprio (`traceability-alerts-reconcile`), com a mesma janela e o
   mesmo teto do sync manual.
@@ -138,3 +170,18 @@ pelo João em 09/10/2026:
   `utf8mb4` (D6).
 - **Localização do módulo (S201-A09).** Registrada em D8.
 - **Textos corrigidos (S201-A04):** limitador próprio do reprocessamento e leitura sem 403.
+
+## Revisão de 15/10/2026 — revisão independente da PR #26
+
+A revisão independente publicada na PR #26 pediu aderência literal ao TCC e a consulta contextual.
+O João aprovou as recomendações em 15/10/2026
+([PR26_PROMPT_CORRECOES_REVISAO.md](../issues/PR26_PROMPT_CORRECOES_REVISAO.md), não versionado),
+e as decisões estão incorporadas no texto acima:
+
+| Achado | Decisão |
+| --- | --- |
+| TF-REV-001 | as quatro leituras conferem a membership no serviço, além do middleware |
+| TF-REV-002 | RF13 sem integração obrigatória e RF39/RF40 sem corte temporal (D2); issue sem data de fechamento com `CLOSE_TIME_UNAVAILABLE` |
+| TF-REV-008, UX-D01 | consulta contextual no lugar das páginas próprias (D7) |
+| TF-REV-008, UX-D03 | aviso por pessoa para os alertas de PR e de issue, com leitura individual (D1 e ADR-022) |
+

@@ -1,7 +1,12 @@
 # Alertas de rastreabilidade — S2-01 (RF13, RF39, RF40, RF58)
 
-Decisão em [ADR-015](../architecture/ADR-015-TRACEABILITY-ALERTS.md). Este documento é a regra
-executável: o código e os testes seguem exatamente estas tabelas.
+Decisão em [ADR-015](../architecture/ADR-015-TRACEABILITY-ALERTS.md), com a consulta contextual e
+os avisos aos membros no [ADR-022](../architecture/ADR-022-CONSULTA-CONTEXTUAL-E-AVISOS-DE-INCONSISTENCIA.md).
+Este documento é a regra executável: o código e os testes seguem exatamente estas tabelas.
+
+Revisto em 15/10/2026 (revisão independente da PR #26). O RF13 deixou de exigir integração, o RF39 e
+o RF40 deixaram de ter corte temporal, e os alertas de PR e de issue passaram a gerar aviso por
+pessoa.
 
 ## Tipos e condições
 
@@ -9,15 +14,22 @@ Um alerta está **ativo** (`OPEN` ou `DISMISSED`) enquanto a condição do seu t
 
 | Tipo | RF | Sujeito | Condição | `occurredAt` |
 | --- | --- | --- | --- | --- |
-| `TASK_CONCLUDED_WITHOUT_COMMIT` | RF13 | `Task` | `status = 'CONCLUIDO'`, zero `TaskCommit` e o projeto tem `ProjectGitHubIntegration` | `occurredAt` da última `TaskHistoryEntry` `STATUS → CONCLUIDO`; sem entrada, `null` com `COMPLETION_TIME_UNAVAILABLE` |
-| `PULL_REQUEST_MERGED_WITHOUT_TASK` | RF39 | `PullRequest` | `mergedAtGithub` não nulo, nenhuma `Task` com `pullRequestId` da PR e `mergedAtGithub >= Project.createdAt` | `mergedAtGithub` |
-| `ISSUE_CLOSED_WITHOUT_TASK` | RF40 | `Issue` | `state = 'closed'`, zero `TaskIssue` e `closedAtGithub >= Project.createdAt` | `closedAtGithub` |
+| `TASK_CONCLUDED_WITHOUT_COMMIT` | RF13 | `Task` | `status = 'CONCLUIDO'` e zero `TaskCommit`, com ou sem `ProjectGitHubIntegration` | `occurredAt` da última `TaskHistoryEntry` `STATUS → CONCLUIDO`; sem entrada, `null` com `COMPLETION_TIME_UNAVAILABLE` |
+| `PULL_REQUEST_MERGED_WITHOUT_TASK` | RF39 | `PullRequest` | `mergedAtGithub` não nulo e nenhuma `Task` com `pullRequestId` da PR, qualquer que seja a data | `mergedAtGithub` |
+| `ISSUE_CLOSED_WITHOUT_TASK` | RF40 | `Issue` | `state = 'closed'` e zero `TaskIssue`, qualquer que seja a data | `closedAtGithub`; sem data, `null` com `CLOSE_TIME_UNAVAILABLE` |
 
 Regras de borda:
 
-- O corte inclui o próprio instante de `Project.createdAt` (`>=`), em UTC.
+- Não há corte temporal. A PR mesclada e a issue fechada antes da criação do projeto também geram
+  alerta.
 - PR com `state = 'closed'` e `mergedAtGithub` nulo foi fechada sem merge: nunca gera alerta.
-- Issue `closed` com `closedAtGithub` nulo não satisfaz o corte e não gera alerta.
+- Issue `closed` com `closedAtGithub` nulo gera alerta com `occurredAt` nulo e a limitação
+  `CLOSE_TIME_UNAVAILABLE`.
+- **Projeto sem integração GitHub.**
+  - O alerta RF13 nasce do mesmo jeito.
+  - O detalhe diz "Projeto sem repositório conectado: nenhum commit pode ser vinculado".
+  - O resumo expõe `integrationExists` para a tela mostrar o atalho de conexão ao OWNER.
+  - Desconectar o repositório não resolve alerta.
 - `state` é o valor cru do GitHub, minúsculo, e não é normalizado.
 - PR vinculada a uma tarefa não silencia o RF13.
 - Issue fechada como "not planned" gera alerta, porque `state_reason` não é persistido.
@@ -58,14 +70,15 @@ Os motivos são avaliados na ordem da tabela, e o primeiro verdadeiro vence:
 
 | Tipo | Ordem |
 | --- | --- |
-| Tarefa | `TASK_DELETED` → `COMMIT_LINKED` → `TASK_REOPENED` → `RULE_NO_LONGER_APPLIES` |
+| Tarefa | `TASK_DELETED` → `COMMIT_LINKED` → `TASK_REOPENED` |
 | Pull request | `PULL_REQUEST_LINKED` → `RULE_NO_LONGER_APPLIES` |
 | Issue | `ISSUE_LINKED` → `ISSUE_REOPENED` → `RULE_NO_LONGER_APPLIES` |
 
-`RULE_NO_LONGER_APPLIES` cobre o que sobra:
+`RULE_NO_LONGER_APPLIES` cobre o que sobra no RF39 e no RF40: o artefato deixou de existir, ou um
+dado do GitHub corrigido tirou a condição (por exemplo, `mergedAtGithub` voltou nulo).
 
-- a integração GitHub foi removida (RF13);
-- um dado do GitHub corrigido tirou o artefato do corte (RF39/RF40).
+- Na tarefa, ele não é mais gerado desde 15/10/2026, porque a integração deixou de ser condição.
+- Alertas antigos resolvidos com esse motivo continuam como estão.
 
 ## Deduplicação
 
@@ -118,6 +131,20 @@ Regras:
   - sem registro, `reconciliation` é `null`.
 - A purga do projeto remove o registro por cascata.
 
+## Avisos aos membros (UX-D03)
+
+A regra completa está no ADR-022 (D5 a D9). Em resumo:
+
+| Item | Regra |
+| --- | --- |
+| Quem gera | só os alertas `PULL_REQUEST_MERGED_WITHOUT_TASK` e `ISSUE_CLOSED_WITHOUT_TASK` |
+| Estado da fila no alerta (`noticeState`) | `PENDING` na criação dos dois tipos; `NOT_APPLICABLE` no RF13 e nos alertas criados antes de 15/10/2026; `DISPATCHED` depois do despacho, com `noticedAt` |
+| Destinatários | toda membership ativa (qualquer papel), com conta `ACTIVE`, `joinedAt` até o `detectedAt` e preferência `TRACEABILITY_INCONSISTENCY` ligada antes da detecção |
+| Lote | alertas pendentes do mesmo projeto com o mesmo `detectedAt`; até 10, um aviso por alerta; acima disso, um resumo por pessoa |
+| Chaves | `TRACEABILITY_INCONSISTENCY:alert:<alertId>` e `TRACEABILITY_INCONSISTENCY:batch:<projectId>:<detectedAt>`, únicas por destinatário |
+| Quando despacha | depois da reconciliação da sincronização, do reprocessamento manual, do script e das mutações por `traceabilityTransaction`; o job periódico recupera o que ficou pendente |
+| Leitura | individual; ler não resolve nem dispensa o alerta; resolver ou dispensar não apaga nem marca o aviso |
+
 ## Dispensa
 
 - Somente MANAGER+ dispensa, e só alerta `OPEN`.
@@ -134,6 +161,12 @@ Regras:
   A data fica indisponível e nunca é substituída por `updatedAt`.
 - **Atraso dos alertas de GitHub:** o alerta de PR ou issue nasce no fim do sync seguinte ao
   merge ou fechamento, porque não há webhook desses eventos.
+- **Histórico importado:** conectar um repositório antigo gera um alerta para cada PR mesclada e
+  cada issue fechada sem tarefa. O aviso aos membros sai em resumo acima de 10.
+- **Projeto sem integração:** todo alerta RF13 fica aberto até que o repositório seja conectado e o
+  commit vinculado, ou até a dispensa.
+- **`CLOSE_TIME_UNAVAILABLE`:** a issue fechada sem `closedAtGithub` fica com a data da ocorrência
+  indisponível, nunca substituída por `updatedAtGithub`.
 - **`state_reason` da issue** não é persistido.
 - **Snapshot do sujeito:** `subjectCode` e `subjectTitle` (até 256 caracteres) são gravados na
   detecção e só aparecem quando o sujeito deixou de existir.
