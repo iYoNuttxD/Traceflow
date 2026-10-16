@@ -99,7 +99,6 @@ afterAll(async () => {
 const service = (now = NOW, overrides = {}) =>
   createGithubEventNotificationService({
     clock: () => now,
-    configuration: { githubEventNotificationsLookbackDays: 7 },
     ...overrides
   });
 const runJob = (now = NOW, options = {}, overrides = {}) =>

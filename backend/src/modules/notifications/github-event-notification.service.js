@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { env } from '../../config/env.js';
 import { logger } from '../../shared/logger/index.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import { buildAuditEvent } from '../audit/audit.service.js';
@@ -10,9 +9,7 @@ import {
   GITHUB_EVENT_EXCLUSIONS,
   JOB_MAX_BATCHES,
   emptyOutcome,
-  eventExclusion,
   githubEventDedupeKey,
-  isWithinWindow,
   notificationTypeOf,
   participantExclusion,
   preferenceAllowsEvent
@@ -36,10 +33,9 @@ function notPersisted() {
   });
 }
 
-function emptyReport(dryRun, lookbackDays) {
+function emptyReport(dryRun) {
   return {
     dryRun,
-    lookbackDays,
     projects: 0,
     scanned: 0,
     claimed: 0,
@@ -67,10 +63,9 @@ export function createGithubEventNotificationService({
   audit = auditRepository,
   log = logger,
   clock = () => new Date(),
-  configuration = env,
   newToken = randomUUID
 } = {}) {
-  async function evaluate(event, lookbackDays) {
+  async function evaluate(event) {
     const type = notificationTypeOf(event.type);
     const participation = await repository.participationOf(
       event.projectId,
@@ -80,9 +75,8 @@ export function createGithubEventNotificationService({
     for (const [taskId, task] of participation)
       for (const userId of task.participants) pairs.push({ taskId, title: task.title, userId });
 
-    const eventReason = eventExclusion({ withinWindow: isWithinWindow(event, lookbackDays) });
     const userIds = unique(pairs.map((pair) => pair.userId));
-    const checked = !eventReason && userIds.length;
+    const checked = userIds.length;
     const [accounts, members, preferences] = checked
       ? await Promise.all([
           notifications.activeAccountIds(userIds),
@@ -94,13 +88,11 @@ export function createGithubEventNotificationService({
     const classified = pairs.map((pair) => ({
       ...pair,
       key: githubEventDedupeKey(type, event.id, pair.taskId),
-      reason:
-        eventReason ??
-        participantExclusion({
-          accountActive: accounts.has(pair.userId),
-          membershipActive: members.has(pair.userId),
-          preferenceAllowed: preferenceAllowsEvent(preferences.get(pair.userId), event.detectedAt)
-        })
+      reason: participantExclusion({
+        accountActive: accounts.has(pair.userId),
+        membershipActive: members.has(pair.userId),
+        preferenceAllowed: preferenceAllowsEvent(preferences.get(pair.userId), event.detectedAt)
+      })
     }));
     const rows = classified
       .filter((pair) => !pair.reason)
@@ -143,10 +135,10 @@ export function createGithubEventNotificationService({
     return outcome;
   }
 
-  async function dispatchClaimed(eventId, token, now, lookbackDays) {
+  async function dispatchClaimed(eventId, token, now) {
     const event = await repository.findClaimed(eventId, token);
     if (!event) return null;
-    const evaluation = await evaluate(event, lookbackDays);
+    const evaluation = await evaluate(event);
     const before = await repository.persistedKeys(evaluation.rows);
     await repository.insertNotifications(evaluation.rows.filter((row) => !before.has(keyOf(row))));
     const after = await repository.persistedKeys(evaluation.rows);
@@ -206,7 +198,7 @@ export function createGithubEventNotificationService({
     });
   }
 
-  async function dispatchOne(eventId, projectId, lookbackDays, report) {
+  async function dispatchOne(eventId, projectId, report) {
     const now = clock();
     const token = newToken();
     const claimed = await repository.claim(eventId, {
@@ -220,7 +212,7 @@ export function createGithubEventNotificationService({
     }
     report.claimed += 1;
     try {
-      const outcome = await dispatchClaimed(eventId, token, now, lookbackDays);
+      const outcome = await dispatchClaimed(eventId, token, now);
       if (!outcome) {
         recordClaimLost(eventId, projectId, report);
         return;
@@ -232,10 +224,10 @@ export function createGithubEventNotificationService({
     }
   }
 
-  async function preview(eventId, lookbackDays, report) {
+  async function preview(eventId, report) {
     const event = await repository.findForPreview(eventId);
     if (!event) return;
-    const evaluation = await evaluate(event, lookbackDays);
+    const evaluation = await evaluate(event);
     const before = await repository.persistedKeys(evaluation.rows);
     const outcome = outcomeOf(
       event,
@@ -267,8 +259,7 @@ export function createGithubEventNotificationService({
 
   async function run({ projectId = null, dryRun, retryFailed = false, maxBatches }) {
     const startedAt = Date.now();
-    const lookbackDays = configuration.githubEventNotificationsLookbackDays;
-    const report = emptyReport(dryRun, lookbackDays);
+    const report = emptyReport(dryRun);
     if (dryRun) report.wouldCreate = 0;
     if (retryFailed) await requeue(projectId, dryRun, report);
     if (!dryRun) report.failed += await repository.failInterrupted({ projectId, now: clock() });
@@ -288,8 +279,8 @@ export function createGithubEventNotificationService({
         seen.push(id);
         projects.add(eventProjectId);
         report.scanned += 1;
-        if (dryRun) await preview(id, lookbackDays, report);
-        else await dispatchOne(id, eventProjectId, lookbackDays, report);
+        if (dryRun) await preview(id, report);
+        else await dispatchOne(id, eventProjectId, report);
       }
     }
 

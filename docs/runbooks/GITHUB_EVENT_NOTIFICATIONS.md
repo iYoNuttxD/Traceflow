@@ -11,10 +11,10 @@ O responsável pela implantação agenda um job externo recorrente que roda o sc
 `backend/scripts/dispatch-github-event-notifications.js`. Não executar no startup da API nem por
 `setInterval` dentro dela: duplicaria com mais de uma instância e pararia junto com a API.
 
-- Usar as mesmas variáveis protegidas da API (`DATABASE_URL`,
-  `GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS`).
-- `GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS` (padrão 7, de 1 a 90) é a janela entre a ocorrência no
-  GitHub e a detecção: transição mais antiga é despachada sem notificação (`OUTSIDE_WINDOW`).
+- Usar as mesmas variáveis protegidas da API (`DATABASE_URL`).
+- Não há janela desde 15/10/2026: a transição de artefato vinculado notifica qualquer que seja a
+  idade da ocorrência. A variável `GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS` saiu e é ignorada se
+  ainda estiver no ambiente.
 - O job não chama o GitHub nem usa o token da GitHub App.
 - Até o agendamento real e o monitoramento existirem no ambiente (S2-09 e S2-10), o despacho de
   recuperação só roda à mão. O despacho depois da sincronização funciona sem o job.
@@ -172,11 +172,9 @@ O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha
    `node scripts/dispatch-github-event-notifications.js --apply --retry-failed`), primeiro em
    dry-run para ver `wouldRequeue`. Repetir é seguro: o que já foi notificado conta em
    `alreadyNotified`. O alerta de estoque acaba quando `failedStock` volta a 0.
-4. **Projeto parado por muito tempo.** Transição cuja ocorrência é mais antiga que a janela em
-   relação à detecção é despachada sem notificação (`excluded.OUTSIDE_WINDOW`), e o evento fecha.
-   A janela vale no despacho: aumentá-la (`GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS`, até 90) antes
-   de sincronizar um projeto parado faz essas transições notificarem. Evento já fechado não é
-   reaberto.
+4. **Projeto parado por muito tempo.** Não há janela: as transições detectadas na retomada
+   notificam normalmente. Eventos fechados antes de 15/10/2026 com `OUTSIDE_WINDOW` no `outcome`
+   não são reabertos.
 5. **Projeto excluído.** O evento é despachado normalmente, e as notificações ficam ocultas até a
    restauração. A purga apaga evento e notificações. Não há o que fazer.
 

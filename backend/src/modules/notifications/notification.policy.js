@@ -12,9 +12,7 @@ export const NOTIFICATION_GROUPS = Object.freeze({
 });
 
 export const NOTIFICATION_EXCLUSIONS = Object.freeze([
-  'OUTSIDE_WINDOW',
   'NO_RESPONSIBLE',
-  'SELF_CHANGE',
   'INACTIVE_ACCOUNT',
   'INACTIVE_MEMBER',
   'PREFERENCE_OFF'
@@ -107,8 +105,17 @@ export function dueDateOf(deadline) {
   return new Date(deadline).toISOString().slice(0, 10);
 }
 
+const cutoffCache = new Map();
+const CUTOFF_CACHE_LIMIT = 10_000;
+
 export function overdueCutoff(dueDate, timeZone) {
-  return startOfLocalDay(addDays(dueDate, 1), timeZone);
+  const key = `${timeZone}|${dueDate}`;
+  const cached = cutoffCache.get(key);
+  if (cached !== undefined) return new Date(cached);
+  const cutoff = startOfLocalDay(addDays(dueDate, 1), timeZone);
+  if (cutoffCache.size >= CUTOFF_CACHE_LIMIT) cutoffCache.clear();
+  cutoffCache.set(key, cutoff.getTime());
+  return cutoff;
 }
 
 export function isOverdue({ status, dueDate }, now, timeZone) {
@@ -116,24 +123,12 @@ export function isOverdue({ status, dueDate }, now, timeZone) {
   return now.getTime() >= overdueCutoff(dueDate, timeZone).getTime();
 }
 
-export function lookbackStart(now, lookbackDays) {
-  return new Date(now.getTime() - lookbackDays * DAY_MS);
-}
-
-export function isWithinLookback(cutoff, now, lookbackDays) {
-  return cutoff.getTime() >= lookbackStart(now, lookbackDays).getTime();
-}
-
-export function dueDateRange(now, timeZone, lookbackDays) {
-  let maxDueDate = localDateOf(now, timeZone);
-  while (overdueCutoff(maxDueDate, timeZone).getTime() > now.getTime()) {
-    maxDueDate = addDays(maxDueDate, -1);
+export function latestOverdueDueDate(now, timeZone) {
+  let dueDate = localDateOf(now, timeZone);
+  while (overdueCutoff(dueDate, timeZone).getTime() > now.getTime()) {
+    dueDate = addDays(dueDate, -1);
   }
-  let minDueDate = addDays(localDateOf(lookbackStart(now, lookbackDays), timeZone), -2);
-  while (!isWithinLookback(overdueCutoff(minDueDate, timeZone), now, lookbackDays)) {
-    minDueDate = addDays(minDueDate, 1);
-  }
-  return { minDueDate, maxDueDate };
+  return dueDate;
 }
 
 export function statusChangeDedupeKey(movementId) {
@@ -164,12 +159,10 @@ function recipientExclusion({
 
 export function statusChangeExclusion(candidate) {
   if (!candidate.responsibleUserId) return 'NO_RESPONSIBLE';
-  if (candidate.responsibleUserId === candidate.actorUserId) return 'SELF_CHANGE';
   return recipientExclusion(candidate);
 }
 
 export function overdueExclusion(candidate) {
-  if (!candidate.withinWindow) return 'OUTSIDE_WINDOW';
   if (!candidate.responsibleUserId) return 'NO_RESPONSIBLE';
   return recipientExclusion(candidate);
 }

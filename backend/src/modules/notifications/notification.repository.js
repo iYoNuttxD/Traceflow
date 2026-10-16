@@ -86,17 +86,11 @@ export const notificationRepository = {
     return rows.map((row) => row.id);
   },
 
-  findOverdueCandidates(projectId, { from, to }) {
+  findOverdueCandidates(projectId, { to }) {
     return prisma.task.findMany({
-      where: { projectId, status: { not: 'CONCLUIDO' }, deadline: { gte: from, lt: to } },
+      where: { projectId, status: { not: 'CONCLUIDO' }, deadline: { lt: to } },
       select: { id: true, title: true, status: true, deadline: true, responsibleUserId: true },
       orderBy: { id: 'asc' }
-    });
-  },
-
-  countOutsideWindow(projectId, before) {
-    return prisma.task.count({
-      where: { projectId, status: { not: 'CONCLUIDO' }, deadline: { lt: before } }
     });
   },
 

@@ -107,7 +107,6 @@ function observe(name, value) {
 const service = (now = NOW, overrides = {}) =>
   createGithubEventNotificationService({
     clock: () => now,
-    configuration: { githubEventNotificationsLookbackDays: 7 },
     ...overrides
   });
 const runJob = (now = NOW, options = {}, overrides = {}) =>
@@ -244,7 +243,6 @@ function excludedWith(overrides = {}) {
   return {
     NO_TASK: 0,
     NO_PARTICIPANT: 0,
-    OUTSIDE_WINDOW: 0,
     INACTIVE_ACCOUNT: 0,
     INACTIVE_MEMBER: 0,
     PREFERENCE_OFF: 0,
@@ -523,7 +521,7 @@ describe('S2-03 bateria — bloco T pelo upsertMany (D2)', () => {
     expect(notification.githubOccurredAt).toEqual(commentedAt);
   });
 
-  it('EV-T-09 sem data recebida, a chave usa a detecção e a janela nunca exclui', async () => {
+  it('EV-T-09 sem data recebida, a chave usa a detecção, e não há janela (TF-REV-002)', async () => {
     const { project, issue, responsible } = await linkedIssueScenario();
 
     await closeIssue(issue, { when: null, detectedAt: NOW });
@@ -532,7 +530,7 @@ describe('S2-03 bateria — bloco T pelo upsertMany (D2)', () => {
     const [event] = await eventsOf(project.id);
     expect(event.occurredAt).toBeNull();
     expect(event.occurrenceKey).toBe(`ISSUE_CLOSED:${issue.id}:${NOW.toISOString()}`);
-    expect(report.excluded.OUTSIDE_WINDOW).toBe(0);
+    expect(report.excluded).not.toHaveProperty('OUTSIDE_WINDOW');
     expect(await recipientsOf()).toEqual([responsible.id]);
   });
 
@@ -699,15 +697,15 @@ describe('S2-03 bateria — bloco E: destinatários e exclusões (D6)', () => {
   it('EV-E-02 com duas condições verdadeiras, vale a primeira da ordem documentada', async () => {
     const cases = [
       {
-        label: 'projeto excluído não muda a exclusão: OUTSIDE_WINDOW (S203-A02)',
-        expected: 'OUTSIDE_WINDOW',
+        label: 'projeto excluído e evento antigo não excluem (S203-A02, TF-REV-002)',
+        expected: null,
         arrange: async ({ project }) =>
           prisma.project.update({ where: { id: project.id }, data: { deletedAt: NOW } }),
         when: new Date(NOW.getTime() - 10 * DAY)
       },
       {
-        label: 'OUTSIDE_WINDOW antes de INACTIVE_ACCOUNT',
-        expected: 'OUTSIDE_WINDOW',
+        label: 'evento antigo com conta restrita: vale INACTIVE_ACCOUNT (TF-REV-002)',
+        expected: 'INACTIVE_ACCOUNT',
         arrange: ({ responsible }) =>
           prisma.user.update({
             where: { id: responsible.id },
@@ -748,7 +746,7 @@ describe('S2-03 bateria — bloco E: destinatários e exclusões (D6)', () => {
       await runJob();
       const [event] = await eventsOf(context.project.id);
       expect(event.outcome.excluded, scenario.label).toEqual(
-        excludedWith({ [scenario.expected]: 1 })
+        excludedWith(scenario.expected ? { [scenario.expected]: 1 } : {})
       );
     }
 
@@ -849,34 +847,17 @@ describe('S2-03 bateria — bloco E: destinatários e exclusões (D6)', () => {
     expect(await recipientsOf({ projectId: project.id })).toEqual([responsible.id]);
   });
 
-  it('EV-E-07 janela: limites exatos, configuração de 1 e 90 dias e retentativa 3 h depois', async () => {
-    const inside = await linkedIssueScenario();
-    await closeIssue(inside.issue, { when: new Date(NOW.getTime() - 7 * DAY) });
-    const outside = await linkedIssueScenario();
-    await closeIssue(outside.issue, { when: new Date(NOW.getTime() - 7 * DAY - 1) });
-    await runJob(at(MINUTE));
-    expect(await recipientsOf({ projectId: inside.project.id })).toEqual([inside.responsible.id]);
-    expect((await eventsOf(outside.project.id))[0].outcome.excluded).toEqual(
-      excludedWith({ OUTSIDE_WINDOW: 1 })
-    );
-
-    for (const days of [1, 90]) {
-      const edge = await linkedIssueScenario();
-      await closeIssue(edge.issue, { when: new Date(NOW.getTime() - days * DAY) });
-      const beyond = await linkedIssueScenario();
-      await closeIssue(beyond.issue, { when: new Date(NOW.getTime() - days * DAY - 1) });
-      await runJob(
-        at(MINUTE),
-        {},
-        { configuration: { githubEventNotificationsLookbackDays: days } }
-      );
-      expect(await recipientsOf({ projectId: edge.project.id }), `${days} dias`).toEqual([
-        edge.responsible.id
+  it('EV-E-07 sem janela: eventos de 7 dias, 7 dias e 1 ms e 400 dias notificam; retentativa 3 h depois (TF-REV-002)', async () => {
+    for (const age of [7 * DAY, 7 * DAY + 1, 400 * DAY]) {
+      const context = await linkedIssueScenario();
+      await closeIssue(context.issue, { when: new Date(NOW.getTime() - age) });
+      await runJob(at(MINUTE), { projectId: context.project.id });
+      expect(await recipientsOf({ projectId: context.project.id }), String(age)).toEqual([
+        context.responsible.id
       ]);
-      expect(
-        (await eventsOf(beyond.project.id))[0].outcome.excluded.OUTSIDE_WINDOW,
-        `${days} dias`
-      ).toBe(1);
+      expect((await eventsOf(context.project.id))[0].outcome.excluded, String(age)).toEqual(
+        excludedWith()
+      );
     }
 
     const retried = await linkedIssueScenario();
@@ -1066,7 +1047,6 @@ describe('S2-03 bateria — bloco J: despacho, retentativas e job (D9, D15)', ()
       'excluded',
       'failed',
       'failedStock',
-      'lookbackDays',
       'oldestDueAgeSeconds',
       'pendingAfter',
       'projects',
@@ -1711,7 +1691,7 @@ describe('S2-03 bateria — bloco M: métrica oficial (C7, D14)', () => {
       await item.transition();
     await withOutside.transition(new Date(NOW.getTime() - 10 * DAY));
     await prisma.task.delete({ where: { id: withDeleted.task.id } });
-    return { project, people: { r1, c1 } };
+    return { project, people: { r1, c1, outside } };
   }
 
   function totals(events) {
@@ -1745,17 +1725,16 @@ describe('S2-03 bateria — bloco M: métrica oficial (C7, D14)', () => {
         excludedWith({
           NO_TASK: 1,
           NO_PARTICIPANT: 1,
-          OUTSIDE_WINDOW: 1,
           INACTIVE_ACCOUNT: 1,
           INACTIVE_MEMBER: 1,
           PREFERENCE_OFF: 1
         })
       );
-      expect(sum.eligible, kind).toBe(2);
+      expect(sum.eligible, kind).toBe(3);
       expect(
         delivered.map((row) => row.recipientUserId).sort((a, b) => a - b),
         kind
-      ).toEqual([people.r1.id, people.c1.id].sort((a, b) => a - b));
+      ).toEqual([people.r1.id, people.c1.id, people.outside.id].sort((a, b) => a - b));
       expect((delivered.length / sum.eligible) * 100, kind).toBe(100);
       for (const event of events) {
         const pairs = Object.entries(event.outcome.excluded)

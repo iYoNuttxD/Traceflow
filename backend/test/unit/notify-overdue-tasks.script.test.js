@@ -44,7 +44,7 @@ const job = (repository, log) =>
     repository,
     log,
     clock: () => NOW,
-    configuration: { appTimeZone: 'America/Sao_Paulo', notificationsDueLookbackDays: 7 }
+    configuration: { appTimeZone: 'America/Sao_Paulo' }
   });
 
 describe('S2-02 job de vencimento: falhas e contagens (N15, §13.10)', () => {
@@ -61,9 +61,9 @@ describe('S2-02 job de vencimento: falhas e contagens (N15, §13.10)', () => {
       created: 1,
       alreadyNotified: 0,
       updated: 'NOT_APPLICABLE',
-      timeZone: 'America/Sao_Paulo',
-      lookbackDays: 7
+      timeZone: 'America/Sao_Paulo'
     });
+    expect(report).not.toHaveProperty('lookbackDays');
     expect(repository.insertOverdue).toHaveBeenCalledTimes(1);
     expect(log.error).toHaveBeenCalledWith(
       expect.any(String),
@@ -83,7 +83,6 @@ describe('S2-02 job de vencimento: falhas e contagens (N15, §13.10)', () => {
     const report = await job(repository, log).notifyOverdueTasks({ dryRun: false });
 
     expect(report.excluded).toEqual({
-      OUTSIDE_WINDOW: 0,
       NO_RESPONSIBLE: 0,
       INACTIVE_ACCOUNT: 0,
       INACTIVE_MEMBER: 2,

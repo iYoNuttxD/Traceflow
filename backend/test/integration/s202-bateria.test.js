@@ -80,7 +80,6 @@ const move = async (task, toStatus, user) => {
 const job = (overrides = {}) =>
   service.notifyOverdueTasks({
     timeZone: 'America/Sao_Paulo',
-    lookbackDays: 7,
     dryRun: false,
     ...overrides
   });
@@ -117,7 +116,7 @@ describe('S2-02 bateria de integração — RF30 (bloco S)', () => {
         expected.push([
           `${kind}/${preference}`,
           rows,
-          kind === 'other' && preference !== false ? 1 : 0
+          (kind === 'other' || kind === 'self') && preference !== false ? 1 : 0
         ]);
       }
 
@@ -400,8 +399,7 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
       const tasks = Array.from({ length: 40 }, (_, i) => ({ id: i + 1, title: 't' + i, status: 'A_FAZER', responsibleUserId: 7, deadline: new Date(Date.UTC(2026, 9, 1 + i, i % 24, 30)) }));
       const repository = {
         listActiveProjectIds: async () => [1],
-        findOverdueCandidates: async (_p, { from, to }) => tasks.filter((t) => t.deadline >= from && t.deadline < to),
-        countOutsideWindow: async (_p, before) => tasks.filter((t) => t.deadline < before).length,
+        findOverdueCandidates: async (_p, { to }) => tasks.filter((t) => t.deadline < to),
         activeAccountIds: async (userIds) => new Set(userIds),
         activeMemberIds: async () => new Set([7]),
         overduePreferences: async () => new Map(),
@@ -412,7 +410,7 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
       const job = createNotificationService({ repository, log: silent, configuration: {} });
       const out = [];
       for (const now of ['2026-10-12T02:59:59.999Z', '2026-10-12T03:00:00.000Z', '2026-10-20T12:00:00.000Z', '2026-11-05T00:00:00.000Z']) {
-        const { durationMs, ...report } = await job.notifyOverdueTasks({ now: new Date(now), timeZone: 'America/Sao_Paulo', lookbackDays: 7, dryRun: false });
+        const { durationMs, ...report } = await job.notifyOverdueTasks({ now: new Date(now), timeZone: 'America/Sao_Paulo', dryRun: false });
         out.push(report);
       }
       process.stdout.write(JSON.stringify({ out, inserted }));
@@ -431,16 +429,14 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
     expect(JSON.parse(results[0]).inserted.length).toBeGreaterThan(0);
   });
 
-  it('NT-P-04 janela: corte exatamente em now − 7 d entra; 1 ms depois sai como OUTSIDE_WINDOW', async () => {
-    const inside = await overdueScenario('2026-10-10');
-    const outside = await overdueScenario('2026-10-10');
+  it('NT-P-04 sem janela: corte há 7 dias, há 7 dias e 1 ms e há 400 dias notificam (TF-REV-002)', async () => {
     const cutoff = Date.parse('2026-10-11T03:00:00.000Z');
-
-    const edge = await job({ projectId: inside.project.id, now: new Date(cutoff + 7 * DAY) });
-    const late = await job({ projectId: outside.project.id, now: new Date(cutoff + 7 * DAY + 1) });
-
-    expect(edge).toMatchObject({ created: 1, excluded: { OUTSIDE_WINDOW: 0 } });
-    expect(late).toMatchObject({ created: 0, excluded: { OUTSIDE_WINDOW: 1 } });
+    for (const age of [7 * DAY, 7 * DAY + 1, 400 * DAY]) {
+      const { project } = await overdueScenario('2026-10-10');
+      const report = await job({ projectId: project.id, now: new Date(cutoff + age) });
+      expect(report, String(age)).toMatchObject({ created: 1 });
+      expect(report.excluded).not.toHaveProperty('OUTSIDE_WINDOW');
+    }
   });
 
   it('NT-P-05/H6 prazo enviado com hora e fuso vira a data UTC, como a regra publicada diz', async () => {
@@ -530,8 +526,7 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
     const report = await job({ projectId: project.id, now });
 
     expect(report.excluded).toEqual({
-      OUTSIDE_WINDOW: 1,
-      NO_RESPONSIBLE: 1,
+      NO_RESPONSIBLE: 2,
       INACTIVE_ACCOUNT: 0,
       INACTIVE_MEMBER: 1,
       PREFERENCE_OFF: 0
@@ -607,7 +602,6 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
       'eligible',
       'excluded',
       'failed',
-      'lookbackDays',
       'projects',
       'scanned',
       'timeZone',
@@ -623,7 +617,6 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
       'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
       'NO_RESPONSIBLE',
-      'OUTSIDE_WINDOW',
       'PREFERENCE_OFF'
     ]);
     expect(apply.updated).toBe('NOT_APPLICABLE');
@@ -647,7 +640,6 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
     await createNotificationService({ log }).notifyOverdueTasks({
       now: at('2026-10-20T12:00:00.000Z'),
       timeZone: 'America/Sao_Paulo',
-      lookbackDays: 7,
       dryRun: false
     });
 
@@ -707,7 +699,6 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
     const report = await createNotificationService({ log }).notifyOverdueTasks({
       now: at('2026-10-20T12:00:00.000Z'),
       timeZone: 'America/Sao_Paulo',
-      lookbackDays: 7,
       dryRun: false
     });
 
@@ -964,7 +955,6 @@ describe('S2-02 bateria de integração — métrica oficial (bloco M)', () => {
     const eligible = movements.filter(
       (movement) =>
         movement.task.responsibleUserId &&
-        movement.task.responsibleUserId !== movement.movedByUserId &&
         members.has(movement.task.responsibleUserId) &&
         !off.has(movement.task.responsibleUserId)
     );
@@ -979,9 +969,9 @@ describe('S2-02 bateria de integração — métrica oficial (bloco M)', () => {
     );
 
     expect(movements).toHaveLength(7);
-    expect(eligible).toHaveLength(3);
-    expect(delivered).toHaveLength(3);
-    expect(rows).toHaveLength(3);
+    expect(eligible).toHaveLength(4);
+    expect(delivered).toHaveLength(4);
+    expect(rows).toHaveLength(4);
   });
 
   it('NT-M-02 a saída do job do RF59 bate com as linhas gravadas', async () => {
@@ -1011,11 +1001,9 @@ describe('S2-02 bateria de integração — métrica oficial (bloco M)', () => {
       runs.push(await job({ projectId: project.id, now: new Date(cutoff + hour * 3600_000) }));
 
     const sum = (field) => runs.reduce((total, run) => total + run[field], 0);
-    const outside = runs.reduce((total, run) => total + run.excluded.OUTSIDE_WINDOW, 0);
-
     expect(sum('created')).toBe(1);
-    expect(sum('eligible')).toBe(29);
-    expect(outside).toBe(12);
+    expect(sum('eligible')).toBe(runs.length);
+    expect(runs.every((run) => !('OUTSIDE_WINDOW' in run.excluded))).toBe(true);
   });
 });
 

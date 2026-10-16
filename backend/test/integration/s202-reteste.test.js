@@ -90,7 +90,6 @@ const job = (now, overrides = {}) =>
   service.notifyOverdueTasks({
     now: at(now),
     timeZone: ZONE,
-    lookbackDays: 7,
     dryRun: false,
     ...overrides
   });
@@ -592,7 +591,7 @@ describe('S2-02 reteste — contas restritas (N-A) e métrica (M)', () => {
     expect(report.excluded).toMatchObject(expectedCounts);
   }, 120000);
 
-  it('RT-N-A-02 conta reativada dentro da janela notifica na varredura seguinte; fora da janela vira OUTSIDE_WINDOW', async () => {
+  it('RT-N-A-02 conta reativada notifica na varredura seguinte, qualquer que seja a idade do corte (TF-REV-002)', async () => {
     const project = await createProject(prisma);
     const inside = await person(project.id, { accountStatus: 'DEACTIVATED' });
     const outside = await person(project.id, { accountStatus: 'DEACTIVATED' });
@@ -607,8 +606,8 @@ describe('S2-02 reteste — contas restritas (N-A) e métrica (M)', () => {
     const after = await job('2026-10-17T12:00:00.000Z', { projectId: project.id });
 
     expect(await overdueTo(inside)).toBe(1);
-    expect(await overdueTo(outside)).toBe(0);
-    expect(after.excluded.OUTSIDE_WINDOW).toBe(1);
+    expect(await overdueTo(outside)).toBe(1);
+    expect(after.excluded).not.toHaveProperty('OUTSIDE_WINDOW');
   });
 
   it('RT-N-A-03 mudança de estado da conta concorrente ao movimento: sem erro e no máximo uma notificação', async () => {
@@ -687,7 +686,6 @@ describe('S2-02 reteste — contas restritas (N-A) e métrica (M)', () => {
     const eligibleMovements = movements.filter(
       (movement) =>
         movement.task.responsibleUserId &&
-        movement.task.responsibleUserId !== movement.movedByUserId &&
         users.get(movement.task.responsibleUserId) === 'ACTIVE' &&
         members.has(movement.task.responsibleUserId) &&
         !off.has(movement.task.responsibleUserId)
@@ -697,14 +695,15 @@ describe('S2-02 reteste — contas restritas (N-A) e métrica (M)', () => {
     });
 
     expect(movements).toHaveLength(6);
-    expect(eligibleMovements).toHaveLength(1);
-    expect(statusRows).toHaveLength(1);
-    expect(statusRows[0].dedupeKey).toBe(`TASK_STATUS_CHANGED:movement:${eligibleMovements[0].id}`);
+    expect(eligibleMovements).toHaveLength(2);
+    expect(statusRows).toHaveLength(2);
+    expect(statusRows.map((row) => row.dedupeKey).sort()).toEqual(
+      eligibleMovements.map((movement) => `TASK_STATUS_CHANGED:movement:${movement.id}`).sort()
+    );
     expect(report).toMatchObject({
-      eligible: 1,
-      created: 1,
+      eligible: 2,
+      created: 2,
       excluded: {
-        OUTSIDE_WINDOW: 1,
         NO_RESPONSIBLE: 1,
         INACTIVE_ACCOUNT: 1,
         INACTIVE_MEMBER: 1,
@@ -736,14 +735,13 @@ describe('S2-02 reteste — job (N-J)', () => {
     expect(dry[0]).toBe(2);
   });
 
-  it('RT-N-J-02 a saída tem as cinco chaves de excluded em dry-run e em apply', async () => {
+  it('RT-N-J-02 a saída tem as quatro chaves de excluded em dry-run e em apply (TF-REV-002)', async () => {
     const project = await createProject(prisma);
     const dry = await job('2026-10-16T12:00:00.000Z', { projectId: project.id, dryRun: true });
     const apply = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
 
     for (const report of [dry, apply])
       expect(Object.keys(report.excluded)).toEqual([
-        'OUTSIDE_WINDOW',
         'NO_RESPONSIBLE',
         'INACTIVE_ACCOUNT',
         'INACTIVE_MEMBER',
@@ -751,7 +749,7 @@ describe('S2-02 reteste — job (N-J)', () => {
       ]);
   });
 
-  it('RT-N-J-04 OUTSIDE_WINDOW conta toda tarefa aberta com corte antes da janela, notificada ou não', async () => {
+  it('RT-N-J-04 sem janela, toda tarefa aberta vencida é notificada uma vez, por mais antigo que seja o corte (TF-REV-002)', async () => {
     const project = await createProject(prisma);
     const responsible = await person(project.id);
     await dueTask(project.id, responsible.id, '2026-09-01');
@@ -766,8 +764,10 @@ describe('S2-02 reteste — job (N-J)', () => {
 
     const later = await job('2026-10-20T12:00:00.000Z', { projectId: project.id });
 
-    expect(await overdueTo(responsible)).toBe(1);
-    expect(later.excluded.OUTSIDE_WINDOW).toBe(3);
+    expect(await overdueTo(responsible)).toBe(2);
+    expect(later.excluded).not.toHaveProperty('OUTSIDE_WINDOW');
+    expect(later).toMatchObject({ created: 0, alreadyNotified: 2 });
+    expect(later.excluded.NO_RESPONSIBLE).toBe(1);
     expect(notified.id).toBeGreaterThan(0);
   });
 });

@@ -3,9 +3,8 @@ import {
   NOTIFICATION_EXCLUSIONS,
   NOTIFICATION_TYPES,
   dueDateOf,
-  dueDateRange,
   isOverdue,
-  isWithinLookback,
+  latestOverdueDueDate,
   localDateOf,
   notificationCoverage,
   notificationLink,
@@ -76,37 +75,19 @@ describe('S2-02 política: corte do vencimento (C5)', () => {
   });
 });
 
-describe('S2-02 política: janela de recuperação', () => {
+describe('S2-02 política: sem janela de recuperação (TF-REV-002)', () => {
   const now = at('2026-10-20T12:00:00.000Z');
 
-  it('aceita o corte exatamente no início da janela e recusa um milissegundo antes', () => {
-    const start = at('2026-10-13T12:00:00.000Z');
-    expect(isWithinLookback(start, now, 7)).toBe(true);
-    expect(isWithinLookback(at('2026-10-13T11:59:59.999Z'), now, 7)).toBe(false);
-    expect(isWithinLookback(now, now, 7)).toBe(true);
+  it('a data de prazo mais recente já vencida é o limite, sem limite inferior', () => {
+    expect(latestOverdueDueDate(now, SAO_PAULO)).toBe('2026-10-19');
+    expect(latestOverdueDueDate(at('2026-10-11T03:00:00.000Z'), SAO_PAULO)).toBe('2026-10-10');
+    expect(latestOverdueDueDate(at('2026-10-11T02:59:59.999Z'), SAO_PAULO)).toBe('2026-10-09');
   });
 
-  it('segue a tabela do documento de regra', () => {
-    const cutoff = (dueDate) => overdueCutoff(dueDate, SAO_PAULO);
-    expect(isWithinLookback(cutoff('2026-10-12'), now, 7)).toBe(false);
-    expect(isWithinLookback(cutoff('2026-10-13'), now, 7)).toBe(true);
-    expect(isWithinLookback(cutoff('2026-10-19'), now, 7)).toBe(true);
+  it('tarefa vencida há meses continua vencida', () => {
+    expect(isOverdue({ status: 'A_FAZER', dueDate: '2025-03-01' }, now, SAO_PAULO)).toBe(true);
+    expect(isOverdue({ status: 'A_FAZER', dueDate: '2026-10-12' }, now, SAO_PAULO)).toBe(true);
     expect(isOverdue({ status: 'A_FAZER', dueDate: '2026-10-20' }, now, SAO_PAULO)).toBe(false);
-  });
-
-  it('dá a faixa exata de datas de prazo vencidas dentro da janela', () => {
-    expect(dueDateRange(now, SAO_PAULO, 7)).toEqual({
-      minDueDate: '2026-10-13',
-      maxDueDate: '2026-10-19'
-    });
-    expect(dueDateRange(at('2026-10-11T03:00:00.000Z'), SAO_PAULO, 1)).toEqual({
-      minDueDate: '2026-10-09',
-      maxDueDate: '2026-10-10'
-    });
-    expect(dueDateRange(at('2026-10-11T02:59:59.999Z'), SAO_PAULO, 1)).toEqual({
-      minDueDate: '2026-10-09',
-      maxDueDate: '2026-10-09'
-    });
   });
 });
 
@@ -129,10 +110,10 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
     preferenceEnabled: true
   };
 
-  it('mudança de status: aplica as exclusões na ordem documentada', () => {
+  it('mudança de status: aplica as exclusões na ordem documentada, sem excluir o próprio ator (TF-REV-002)', () => {
     expect(statusChangeExclusion(eligible)).toBeNull();
     expect(statusChangeExclusion({ ...eligible, responsibleUserId: null })).toBe('NO_RESPONSIBLE');
-    expect(statusChangeExclusion({ ...eligible, actorUserId: 5 })).toBe('SELF_CHANGE');
+    expect(statusChangeExclusion({ ...eligible, actorUserId: 5 })).toBeNull();
     expect(statusChangeExclusion({ ...eligible, accountActive: false })).toBe('INACTIVE_ACCOUNT');
     expect(statusChangeExclusion({ ...eligible, membershipActive: false })).toBe('INACTIVE_MEMBER');
     expect(statusChangeExclusion({ ...eligible, preferenceEnabled: false })).toBe('PREFERENCE_OFF');
@@ -144,15 +125,12 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
         membershipActive: false,
         preferenceEnabled: false
       })
-    ).toBe('SELF_CHANGE');
+    ).toBe('INACTIVE_ACCOUNT');
   });
 
-  it('vencimento: a janela vem antes do destinatário', () => {
-    const base = { ...eligible, withinWindow: true };
+  it('vencimento: o destinatário vem primeiro, sem janela (TF-REV-002)', () => {
+    const base = { ...eligible };
     expect(overdueExclusion(base)).toBeNull();
-    expect(overdueExclusion({ ...base, withinWindow: false, responsibleUserId: null })).toBe(
-      'OUTSIDE_WINDOW'
-    );
     expect(overdueExclusion({ ...base, responsibleUserId: null })).toBe('NO_RESPONSIBLE');
     expect(overdueExclusion({ ...base, accountActive: false })).toBe('INACTIVE_ACCOUNT');
     expect(overdueExclusion({ ...base, membershipActive: false })).toBe('INACTIVE_MEMBER');
@@ -168,9 +146,7 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
       'PULL_REQUEST_EVENT'
     ]);
     expect(NOTIFICATION_EXCLUSIONS).toEqual([
-      'OUTSIDE_WINDOW',
       'NO_RESPONSIBLE',
-      'SELF_CHANGE',
       'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
       'PREFERENCE_OFF'

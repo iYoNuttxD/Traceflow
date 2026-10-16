@@ -2,9 +2,8 @@ import { appendFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ARTIFACT_URL_MAX_LENGTH,
-  eventExclusion,
+  GITHUB_EVENT_EXCLUSIONS,
   githubEventDedupeKey,
-  isWithinWindow,
   issueTransition,
   nextAttemptAfterFailure,
   normalizeIssueState,
@@ -198,21 +197,8 @@ describe('S2-03 bateria — política: chaves, janela, participantes e exclusõe
     ).toBe(`ISSUE_CLOSED:7:${D1.toISOString()}`);
   });
 
-  it('EV-E-07 janela: limite exato e 1 ms a mais para cada janela de 1 a 90 dias', () => {
-    for (let days = 1; days <= 90; days += 1) {
-      const edge = new Date(NOW.getTime() - days * DAY);
-      expect(isWithinWindow({ occurredAt: edge, detectedAt: NOW }, days), `${days} dentro`).toBe(
-        true
-      );
-      expect(
-        isWithinWindow({ occurredAt: new Date(edge.getTime() - 1), detectedAt: NOW }, days),
-        `${days} fora`
-      ).toBe(false);
-    }
-    expect(isWithinWindow({ occurredAt: null, detectedAt: NOW }, 7)).toBe(true);
-    expect(isWithinWindow({ occurredAt: new Date(NOW.getTime() + DAY), detectedAt: NOW }, 7)).toBe(
-      true
-    );
+  it('EV-E-07 sem janela: nenhuma exclusão depende da idade do evento (TF-REV-002)', () => {
+    expect(GITHUB_EVENT_EXCLUSIONS).not.toContain('OUTSIDE_WINDOW');
   });
 
   it('participantes: união sem repetição, ordenada, ignorando o que não é id inteiro', () => {
@@ -226,16 +212,15 @@ describe('S2-03 bateria — política: chaves, janela, participantes e exclusõe
     expect(taskParticipants({ responsibleUserId: null })).toEqual([]);
   });
 
-  it('EV-E-02 exclusões por par: as 32 combinações seguem a ordem documentada; projeto excluído não muda nada (S203-A02)', () => {
+  it('EV-E-02 exclusões por par: as 16 combinações seguem a ordem documentada; nem janela nem projeto excluído (S203-A02, TF-REV-002)', () => {
     const order = [
-      ['withinWindow', false, 'OUTSIDE_WINDOW'],
       ['accountActive', false, 'INACTIVE_ACCOUNT'],
       ['membershipActive', false, 'INACTIVE_MEMBER'],
       ['preferenceAllowed', false, 'PREFERENCE_OFF'],
       ['projectDeleted', true, null]
     ];
     let combinations = 0;
-    for (let mask = 0; mask < 32; mask += 1) {
+    for (let mask = 0; mask < 16; mask += 1) {
       combinations += 1;
       const condition = Object.fromEntries(
         order.map(([field, failing, _reason], index) => [
@@ -246,19 +231,14 @@ describe('S2-03 bateria — política: chaves, janela, participantes e exclusõe
       const expected =
         order.find(([field, failing, reason]) => reason && condition[field] === failing)?.[2] ??
         null;
-      const reason =
-        eventExclusion({
-          projectDeleted: condition.projectDeleted,
-          withinWindow: condition.withinWindow
-        }) ??
-        participantExclusion({
-          accountActive: condition.accountActive,
-          membershipActive: condition.membershipActive,
-          preferenceAllowed: condition.preferenceAllowed
-        });
+      const reason = participantExclusion({
+        accountActive: condition.accountActive,
+        membershipActive: condition.membershipActive,
+        preferenceAllowed: condition.preferenceAllowed
+      });
       expect(reason, JSON.stringify(condition)).toBe(expected);
     }
-    expect(combinations).toBe(32);
+    expect(combinations).toBe(16);
   });
 
   it('EV-E-05 preferência: sem linha liga; desligada não; enabledAt nulo, anterior e igual liga; posterior não', () => {
@@ -393,29 +373,19 @@ describe('S2-03 bateria — script e configuração (D15)', () => {
     expect(await run(['--apply'], failing)).toBe(1);
   });
 
-  it('EV-E-07 configuração da janela: 1 a 90, padrão 7; registra vazio e espaços', () => {
+  it('EV-E-07 configuração: a variável da janela saiu e é ignorada (TF-REV-002)', () => {
     const base = {
       NODE_ENV: 'development',
       PORT: '3001',
       DATABASE_URL: 'mysql://user:password@localhost:3306/traceflow',
       FRONTEND_URL: 'http://localhost:5173'
     };
-    const days = (value) =>
-      createEnvironment(
-        value === undefined ? base : { ...base, GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS: value }
-      ).githubEventNotificationsLookbackDays;
-    expect(days(undefined)).toBe(7);
-    expect(days('1')).toBe(1);
-    expect(days('90')).toBe(90);
-    for (const value of ['0', '91', '7d', '-7', '7.5', 'sete'])
-      expect(() => days(value), value).toThrowError(/GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS/);
-    const lenient = {};
-    for (const value of ['', ' 7 ', '07', '+7'])
-      try {
-        lenient[JSON.stringify(value)] = days(value);
-      } catch (error) {
-        lenient[JSON.stringify(value)] = `erro: ${String(error.message).slice(0, 80)}`;
-      }
-    observe('EV-E-07 configuração tolerante', lenient);
+    for (const value of [undefined, '', '0', '91', 'sete'])
+      expect(
+        createEnvironment(
+          value === undefined ? base : { ...base, GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS: value }
+        ),
+        String(value)
+      ).not.toHaveProperty('githubEventNotificationsLookbackDays');
   });
 });

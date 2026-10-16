@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createEnvironment } from '../../src/config/env.js';
 import {
-  dueDateRange,
+  latestOverdueDueDate,
   overdueCutoff
 } from '../../src/modules/notifications/notification.policy.js';
 
@@ -72,17 +72,17 @@ function datesBetween(first, last) {
 
 describe('S2-02 reteste — corte e faixa de prazos perto de dias saltados (N-P)', () => {
   it.each(SKIPPED)(
-    'RT-N-P-01 %s: a cada 15 minutos nos 10 dias em torno de %s, a faixa contém exatamente os prazos vencidos dentro da janela',
+    'RT-N-P-01 %s: a cada 15 minutos nos 10 dias em torno de %s, o limite separa exatamente os prazos vencidos, sem janela (TF-REV-002)',
     (zone, skipped) => {
       const start = Date.parse(`${skipped}T00:00:00.000Z`) - 5 * DAY;
       const divergent = [];
       for (let now = start; now <= start + 10 * DAY; now += 15 * 60_000) {
         const instant = new Date(now);
-        const { minDueDate, maxDueDate } = dueDateRange(instant, zone, 7);
+        const latest = latestOverdueDueDate(instant, zone);
         for (const dueDate of datesBetween(plusDays(skipped, -16), plusDays(skipped, 6))) {
           const cutoff = oracleCutoff(dueDate, zone);
-          const expected = cutoff <= now && cutoff >= now - 7 * DAY;
-          const inRange = dueDate >= minDueDate && dueDate <= maxDueDate;
+          const expected = cutoff <= now;
+          const inRange = dueDate <= latest;
           if (expected !== inRange)
             divergent.push([instant.toISOString(), dueDate, expected, inRange]);
         }

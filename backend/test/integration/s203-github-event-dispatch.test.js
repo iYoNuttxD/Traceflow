@@ -28,7 +28,7 @@ vi.mock('../../src/modules/github/github.client.js', () => ({
 
 const NOW = new Date('2026-10-20T12:00:00.000Z');
 const OCCURRED = new Date('2026-10-20T10:00:00.000Z');
-const OUTSIDE_WINDOW = new Date('2026-10-12T10:00:00.000Z');
+const LONG_AGO = new Date('2026-10-12T10:00:00.000Z');
 const LATER = (ms) => new Date(NOW.getTime() + ms);
 const MINUTE = 60_000;
 const SECRET_TITLE = 'Título sigiloso\r\n{"level":"error","forjado":true}';
@@ -77,7 +77,6 @@ afterAll(async () => {
 const service = (now = NOW, overrides = {}) =>
   createGithubEventNotificationService({
     clock: () => now,
-    configuration: { githubEventNotificationsLookbackDays: 7 },
     ...overrides
   });
 const runJob = (now = NOW, options = {}, overrides = {}) =>
@@ -210,7 +209,6 @@ function excludedWith(overrides = {}) {
   return {
     NO_TASK: 0,
     NO_PARTICIPANT: 0,
-    OUTSIDE_WINDOW: 0,
     INACTIVE_ACCOUNT: 0,
     INACTIVE_MEMBER: 0,
     PREFERENCE_OFF: 0,
@@ -326,7 +324,7 @@ describe('S2-03 despacho: destinatários e conteúdo (D6, D10, C3)', () => {
     const old = await openIssue(project, 2);
     const oldTask = await createTask(prisma, project.id, { responsibleUserId: preferenceOff.id });
     await linkIssue(oldTask, old);
-    await closeIssue(old, { at: OUTSIDE_WINDOW });
+    await closeIssue(old, { at: LONG_AGO });
 
     const vanished = await openIssue(project, 3);
     const vanishedTask = await createTask(prisma, project.id, {
@@ -358,16 +356,15 @@ describe('S2-03 despacho: destinatários e conteúdo (D6, D10, C3)', () => {
         PREFERENCE_OFF: 2
       })
     });
-    expect(outcomes[2].excluded).toEqual(excludedWith({ OUTSIDE_WINDOW: 1 }));
+    expect(outcomes[2].excluded).toEqual(excludedWith({ PREFERENCE_OFF: 1 }));
     expect(outcomes[3]).toMatchObject({ tasks: 0, excluded: excludedWith({ NO_TASK: 1 }) });
     expect(report.excluded).toEqual(
       excludedWith({
         NO_TASK: 1,
         NO_PARTICIPANT: 1,
-        OUTSIDE_WINDOW: 1,
         INACTIVE_ACCOUNT: 1,
         INACTIVE_MEMBER: 1,
-        PREFERENCE_OFF: 2
+        PREFERENCE_OFF: 3
       })
     );
     expect(report).toMatchObject({ dispatched: 3, created: 0, failed: 0 });
@@ -821,9 +818,9 @@ describe('S2-03 despacho: logs e saída sem dado sensível (D15, V16.2.5, V16.4.
       dispatched: 0,
       created: 0,
       wouldCreate: 1,
-      pendingAfter: 1,
-      lookbackDays: 7
+      pendingAfter: 1
     });
+    expect(report).not.toHaveProperty('lookbackDays');
     expect(await prisma.notification.count()).toBe(0);
     expect((await eventsOf(project.id))[0]).toMatchObject({ status: 'PENDING', attempts: 0 });
   });
@@ -885,7 +882,7 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
 
     await closeIssue(closed);
     await reopenIssue(reopened);
-    await closeIssue(outside, { at: OUTSIDE_WINDOW });
+    await closeIssue(outside, { at: LONG_AGO });
     await closeIssue(excluded);
     await closeIssue(unlinked);
     await closeIssue(closed);
@@ -899,23 +896,22 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
       [3, 'ISSUE_CLOSED'],
       [4, 'ISSUE_CLOSED']
     ]);
-    expect(result).toMatchObject({ eligible: 4, delivered: 4, coverage: 100 });
+    expect(result).toMatchObject({ eligible: 5, delivered: 5, coverage: 100 });
     expect(result.excluded).toEqual(
       excludedWith({
         NO_PARTICIPANT: 1,
-        OUTSIDE_WINDOW: 1,
         INACTIVE_ACCOUNT: 1,
         INACTIVE_MEMBER: 1,
         PREFERENCE_OFF: 1
       })
     );
     const rows = await notificationsOf({ type: 'ISSUE_EVENT' });
-    expect(rows).toHaveLength(4);
-    expect(new Set(rows.map((row) => `${row.recipientUserId}|${row.dedupeKey}`)).size).toBe(4);
+    expect(rows).toHaveLength(5);
+    expect(new Set(rows.map((row) => `${row.recipientUserId}|${row.dedupeKey}`)).size).toBe(5);
     expect(rows.map((row) => row.recipientUserId).sort((a, b) => a - b)).toEqual(
-      [first.id, commenter.id, second.id, third.id].sort((a, b) => a - b)
+      [first.id, commenter.id, second.id, third.id, old.id].sort((a, b) => a - b)
     );
-    expect(report).toMatchObject({ dispatched: 4, created: 4, alreadyNotified: 0 });
+    expect(report).toMatchObject({ dispatched: 4, created: 5, alreadyNotified: 0 });
   });
 
   it('M4 RF61: 100% sobre os elegíveis; reabertura de PR não é evento', async () => {
@@ -947,7 +943,7 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
     await mergePullRequest(merged);
     await closePullRequest(closed);
     await reopenPullRequest(reopened);
-    await mergePullRequest(outside, { at: OUTSIDE_WINDOW });
+    await mergePullRequest(outside, { at: LONG_AGO });
     await closePullRequest(excluded);
     await mergePullRequest(merged);
     const report = await runJob();
@@ -960,11 +956,10 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
       [13, 'PULL_REQUEST_MERGED'],
       [14, 'PULL_REQUEST_CLOSED']
     ]);
-    expect(result).toMatchObject({ eligible: 3, delivered: 3, coverage: 100 });
+    expect(result).toMatchObject({ eligible: 4, delivered: 4, coverage: 100 });
     expect(result.excluded).toEqual(
       excludedWith({
         NO_PARTICIPANT: 1,
-        OUTSIDE_WINDOW: 1,
         INACTIVE_ACCOUNT: 1,
         INACTIVE_MEMBER: 1,
         PREFERENCE_OFF: 1
@@ -972,6 +967,6 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
     );
     expect(
       (await notificationsOf({ type: 'PULL_REQUEST_EVENT' })).map((row) => row.recipientUserId)
-    ).toEqual([first.id, worker.id, second.id].sort((a, b) => a - b));
+    ).toEqual([first.id, worker.id, second.id, old.id].sort((a, b) => a - b));
   });
 });

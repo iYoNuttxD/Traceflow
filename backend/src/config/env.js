@@ -567,20 +567,10 @@ export function createEnvironment(source = {}) {
       { defaultValue: 30, min: 30, max: 90 }
     ),
     appTimeZone: parseTimeZone(source.APP_TIMEZONE),
-    notificationsDueLookbackDays: parseInteger(
-      source.NOTIFICATIONS_DUE_LOOKBACK_DAYS,
-      'NOTIFICATIONS_DUE_LOOKBACK_DAYS',
-      { defaultValue: 7, min: 1, max: 90 }
-    ),
     notificationRetentionDays: parseInteger(
       source.NOTIFICATION_RETENTION_DAYS,
       'NOTIFICATION_RETENTION_DAYS',
       { defaultValue: 180, min: 30, max: 3650 }
-    ),
-    githubEventNotificationsLookbackDays: parseInteger(
-      source.GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS,
-      'GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS',
-      { defaultValue: 7, min: 1, max: 90 }
     ),
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
     githubOAuthCookieName: source.GITHUB_OAUTH_COOKIE_NAME || 'traceflow_github_oauth',

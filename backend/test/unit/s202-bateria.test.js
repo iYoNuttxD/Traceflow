@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEnvironment } from '../../src/config/env.js';
 import {
-  dueDateRange,
+  latestOverdueDueDate,
   notificationCoverage,
   overdueCutoff,
   overdueDedupeKey,
@@ -103,22 +103,19 @@ describe('S2-02 bateria de unidade — corte contra um oráculo independente (NT
   });
 });
 
-describe('S2-02 bateria de unidade — faixa de prazos da varredura (NT-P-04)', () => {
-  it('500 instantes, 9 fusos e janelas de 1 a 90 dias: a faixa contém exatamente os prazos vencidos dentro da janela', () => {
+describe('S2-02 bateria de unidade — limite de prazos da varredura, sem janela (NT-P-04, TF-REV-002)', () => {
+  it('500 instantes e 9 fusos: o limite separa exatamente os prazos vencidos dos que ainda não venceram', () => {
     const random = seeded(2026);
     const failures = [];
     for (let index = 0; index < 500; index += 1) {
       const zone = ZONES[Math.floor(random() * ZONES.length)];
-      const lookback = 1 + Math.floor(random() * 90);
       const now = new Date(Date.UTC(2026, 0, 1) + Math.floor(random() * 365 * DAY));
-      const { minDueDate, maxDueDate } = dueDateRange(now, zone, lookback);
-      for (let offset = -3; ; offset += 1) {
-        const dueDate = plusDays(minDueDate, offset);
-        if (dueDate > plusDays(maxDueDate, 3)) break;
-        const cutoff = oracleCutoff(dueDate, zone);
-        const expected = cutoff <= now.getTime() && cutoff >= now.getTime() - lookback * DAY;
-        const actual = dueDate >= minDueDate && dueDate <= maxDueDate;
-        if (expected !== actual) failures.push({ zone, lookback, now: now.toISOString(), dueDate });
+      const latest = latestOverdueDueDate(now, zone);
+      for (let offset = -400; offset <= 3; offset += 1) {
+        const dueDate = plusDays(latest, offset);
+        const expected = oracleCutoff(dueDate, zone) <= now.getTime();
+        const actual = dueDate <= latest;
+        if (expected !== actual) failures.push({ zone, now: now.toISOString(), dueDate });
       }
     }
     expect(failures).toEqual([]);
@@ -128,7 +125,7 @@ describe('S2-02 bateria de unidade — faixa de prazos da varredura (NT-P-04)', 
 describe('S2-02 bateria de unidade — tabelas de exclusão (NT-S-01, NT-P-09)', () => {
   const booleans = [true, false];
 
-  it('RF30: as 32 combinações seguem a ordem documentada', () => {
+  it('RF30: as 32 combinações seguem a ordem documentada; o próprio ator não é excluído (TF-REV-002)', () => {
     const rows = [];
     for (const responsible of [5, null])
       for (const self of booleans)
@@ -144,7 +141,6 @@ describe('S2-02 bateria de unidade — tabelas de exclusão (NT-S-01, NT-P-09)',
               };
               let expected = null;
               if (!responsible) expected = 'NO_RESPONSIBLE';
-              else if (self) expected = 'SELF_CHANGE';
               else if (!accountActive) expected = 'INACTIVE_ACCOUNT';
               else if (!membershipActive) expected = 'INACTIVE_MEMBER';
               else if (!preferenceEnabled) expected = 'PREFERENCE_OFF';
@@ -155,29 +151,26 @@ describe('S2-02 bateria de unidade — tabelas de exclusão (NT-S-01, NT-P-09)',
     );
   });
 
-  it('RF59: as 32 combinações seguem a ordem documentada, e o ator não importa', () => {
+  it('RF59: as 16 combinações seguem a ordem documentada, sem janela, e o ator não importa (TF-REV-002)', () => {
     const rows = [];
-    for (const withinWindow of booleans)
-      for (const responsible of [5, null])
-        for (const accountActive of booleans)
-          for (const membershipActive of booleans)
-            for (const preferenceEnabled of booleans) {
-              const candidate = {
-                withinWindow,
-                responsibleUserId: responsible,
-                actorUserId: 5,
-                accountActive,
-                membershipActive,
-                preferenceEnabled
-              };
-              let expected = null;
-              if (!withinWindow) expected = 'OUTSIDE_WINDOW';
-              else if (!responsible) expected = 'NO_RESPONSIBLE';
-              else if (!accountActive) expected = 'INACTIVE_ACCOUNT';
-              else if (!membershipActive) expected = 'INACTIVE_MEMBER';
-              else if (!preferenceEnabled) expected = 'PREFERENCE_OFF';
-              rows.push([JSON.stringify(candidate), overdueExclusion(candidate), expected]);
-            }
+    for (const responsible of [5, null])
+      for (const accountActive of booleans)
+        for (const membershipActive of booleans)
+          for (const preferenceEnabled of booleans) {
+            const candidate = {
+              responsibleUserId: responsible,
+              actorUserId: 5,
+              accountActive,
+              membershipActive,
+              preferenceEnabled
+            };
+            let expected = null;
+            if (!responsible) expected = 'NO_RESPONSIBLE';
+            else if (!accountActive) expected = 'INACTIVE_ACCOUNT';
+            else if (!membershipActive) expected = 'INACTIVE_MEMBER';
+            else if (!preferenceEnabled) expected = 'PREFERENCE_OFF';
+            rows.push([JSON.stringify(candidate), overdueExclusion(candidate), expected]);
+          }
     expect(rows.map(([label, actual]) => [label, actual])).toEqual(
       rows.map(([label, , expected]) => [label, expected])
     );

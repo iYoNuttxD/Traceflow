@@ -10,8 +10,12 @@ O responsável pela implantação agenda um job externo recorrente que roda o sc
 `backend/scripts/notify-overdue-tasks.js`. Não executar no startup da API nem por `setInterval`
 dentro dela: duplicaria com mais de uma instância e pararia junto com a API.
 
-- Usar as mesmas variáveis protegidas da API (`DATABASE_URL`, `APP_TIMEZONE`,
-  `NOTIFICATIONS_DUE_LOOKBACK_DAYS`).
+- Usar as mesmas variáveis protegidas da API (`DATABASE_URL`, `APP_TIMEZONE`). A variável
+  `NOTIFICATIONS_DUE_LOOKBACK_DAYS` saiu em 15/10/2026, junto com a janela de recuperação, e é
+  ignorada se ainda estiver no ambiente.
+- **Primeira execução depois de 15/10/2026.** Sem janela, o job notifica de uma vez todas as
+  tarefas vencidas e abertas, por mais antigas que sejam. Rode o dry-run antes do apply e guarde o
+  `wouldCreate`.
 - `APP_TIMEZONE` é o fuso IANA do corte do prazo; o padrão é `America/Sao_Paulo`. Mudá-lo move o
   instante em que as tarefas vencem.
 - Até o agendamento real e o monitoramento existirem no ambiente (S2-09 e S2-10), o RF59 só roda à
@@ -103,19 +107,20 @@ O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha
 | Campo | Significado |
 | --- | --- |
 | `projects` | projetos não excluídos varridos |
-| `scanned` | tarefas vencidas dentro da janela |
+| `scanned` | tarefas vencidas e abertas, sem limite de idade |
 | `eligible` | ocorrências que devem gerar notificação |
 | `created` | notificações criadas nesta execução |
 | `alreadyNotified` | elegíveis que já tinham notificação (deduplicação) |
-| `excluded` | exclusões por motivo: `OUTSIDE_WINDOW`, `NO_RESPONSIBLE`, `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER`, `PREFERENCE_OFF` |
+| `excluded` | exclusões por motivo: `NO_RESPONSIBLE`, `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER`, `PREFERENCE_OFF` |
 | `updated` | sempre `NOT_APPLICABLE`: o job não atualiza linhas |
 | `failed` | projetos cujo lote falhou |
 | `wouldCreate` | só em dry-run |
 | `database` | host, porta e nome do banco, sem credencial |
 
 - **Contagens:** valem para a execução e não se somam entre execuções. A mesma tarefa aparece em
-  várias execuções, e `excluded.OUTSIDE_WINDOW` conta, a cada uma, toda tarefa aberta com corte
-  antes da janela. A métrica oficial não se calcula somando saídas (`TASK_NOTIFICATIONS.md`).
+  várias execuções, como `eligible` e `alreadyNotified`, enquanto estiver vencida e aberta. A
+  métrica oficial não se calcula somando saídas: ela sai do script `notifications:metrics`
+  (`NOTIFICATION_METRICS.md`).
 - **Código de saída:**
   - 0 quando `failed = 0`;
   - 1 quando algum projeto falha ou a execução não começa;
@@ -140,11 +145,8 @@ O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha
    migration pendente — conferir `npx prisma migrate status` em `backend`).
 2. Rodar o dry-run e depois o apply. Repetir é seguro: o que já foi notificado conta em
    `alreadyNotified`.
-3. **Parada longa.** Se o job ficou parado mais que a janela (7 dias), as tarefas vencidas antes
-   dela aparecem em `excluded.OUTSIDE_WINDOW` e não são notificadas. Para recuperar, rodar uma vez
-   com uma janela maior (`NOTIFICATIONS_DUE_LOOKBACK_DAYS=<dias>`, até 90):
-   - primeiro em dry-run, para medir o volume, que pode ser grande;
-   - depois voltar ao valor padrão.
+3. **Parada longa.** Não há janela: a execução seguinte notifica tudo o que venceu durante a
+   parada. Rode primeiro em dry-run, para medir o volume, que pode ser grande.
 
 ## Validação
 

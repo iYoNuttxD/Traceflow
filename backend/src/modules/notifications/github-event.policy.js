@@ -13,7 +13,6 @@ export const GITHUB_EVENT_TYPES = Object.freeze([
 export const GITHUB_EVENT_EXCLUSIONS = Object.freeze([
   'NO_TASK',
   'NO_PARTICIPANT',
-  'OUTSIDE_WINDOW',
   'INACTIVE_ACCOUNT',
   'INACTIVE_MEMBER',
   'PREFERENCE_OFF'
@@ -27,7 +26,6 @@ export const CLAIM_LEASE_MS = 120_000;
 export const DISPATCH_BATCH_SIZE = 100;
 export const JOB_MAX_BATCHES = 10;
 
-const DAY_MS = 86_400_000;
 const MINUTE_MS = 60_000;
 const GITHUB_URL_PREFIX = 'https://github.com/';
 const NOTIFICATION_TYPE_BY_EVENT = new Map([
@@ -113,11 +111,6 @@ export function githubEventDedupeKey(notificationType, eventId, taskId) {
   return `${notificationType}:event:${eventId}:task:${taskId}`;
 }
 
-export function isWithinWindow({ occurredAt, detectedAt }, lookbackDays) {
-  if (!occurredAt) return true;
-  return occurredAt.getTime() >= detectedAt.getTime() - lookbackDays * DAY_MS;
-}
-
 export function taskParticipants({ responsibleUserId, commentAuthorIds = [], effortUserIds = [] }) {
   const ids = new Set();
   for (const id of [responsibleUserId, ...commentAuthorIds, ...effortUserIds])
@@ -130,10 +123,6 @@ export function participantExclusion({ accountActive, membershipActive, preferen
   if (!membershipActive) return 'INACTIVE_MEMBER';
   if (!preferenceAllowed) return 'PREFERENCE_OFF';
   return null;
-}
-
-export function eventExclusion({ withinWindow }) {
-  return withinWindow ? null : 'OUTSIDE_WINDOW';
 }
 
 export function preferenceAllowsEvent(preference, detectedAt) {

@@ -38,6 +38,21 @@ describe('S2-02 modelo de exibição das notificações', () => {
     ).toBe('Pessoa removida moveu de A fazer para Em andamento');
   });
 
+  it('diz "Você" quando o responsável fez a própria mudança (TF-REV-002)', () => {
+    expect(
+      notificationContextText(
+        statusChange({
+          context: {
+            fromStatus: 'A_FAZER',
+            toStatus: 'CONCLUIDO',
+            actor: { id: 5, name: 'Bruna' },
+            selfAction: true
+          }
+        })
+      )
+    ).toBe('Você moveu de A fazer para Concluído');
+  });
+
   it('descreve o vencimento com a data do prazo sem deslocar o dia pelo fuso', () => {
     expect(
       notificationContextText({ type: 'TASK_OVERDUE', context: { dueDate: '2026-10-10' } })

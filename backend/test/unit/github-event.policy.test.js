@@ -11,9 +11,7 @@ import {
   PULL_REQUEST_EVENT,
   RETRY_DELAYS_MINUTES,
   artifactKindOf,
-  eventExclusion,
   githubEventDedupeKey,
-  isWithinWindow,
   issueTransition,
   nextAttemptAfterFailure,
   normalizeIssueState,
@@ -217,27 +215,9 @@ describe('S2-03 P4: chave da ocorrência (D5)', () => {
   });
 });
 
-describe('S2-03 P5: janela entre a ocorrência e a detecção (D8)', () => {
-  const detectedAt = at('2026-10-20T12:00:00.000Z');
-
-  it('exatamente 7 dias fica dentro; 1 ms a mais fica fora', () => {
-    expect(isWithinWindow({ occurredAt: at('2026-10-13T12:00:00.000Z'), detectedAt }, 7)).toBe(
-      true
-    );
-    expect(isWithinWindow({ occurredAt: at('2026-10-13T11:59:59.999Z'), detectedAt }, 7)).toBe(
-      false
-    );
-    expect(isWithinWindow({ occurredAt: null, detectedAt }, 7)).toBe(true);
-    expect(isWithinWindow({ occurredAt: at('2026-10-21T00:00:00.000Z'), detectedAt }, 7)).toBe(
-      true
-    );
-  });
-
-  it('o limite é configurável', () => {
-    const occurredAt = at('2026-10-10T12:00:00.000Z');
-    expect(isWithinWindow({ occurredAt, detectedAt }, 7)).toBe(false);
-    expect(isWithinWindow({ occurredAt, detectedAt }, 10)).toBe(true);
-    expect(isWithinWindow({ occurredAt, detectedAt }, 1)).toBe(false);
+describe('S2-03 P5: sem janela entre a ocorrência e a detecção (D8, TF-REV-002)', () => {
+  it('nenhuma exclusão depende da idade do evento', () => {
+    expect(GITHUB_EVENT_EXCLUSIONS).not.toContain('OUTSIDE_WINDOW');
   });
 });
 
@@ -281,13 +261,6 @@ describe('S2-03 P7: exclusões na ordem (D6, D8)', () => {
     expect(participantExclusion({ ...all, preferenceAllowed: false })).toBe('PREFERENCE_OFF');
   });
 
-  it('a janela é a única exclusão do evento: projeto excluído não exclui (S203-A02)', () => {
-    expect(eventExclusion({ withinWindow: true })).toBeNull();
-    expect(eventExclusion({ withinWindow: false })).toBe('OUTSIDE_WINDOW');
-    expect(eventExclusion({ projectDeleted: true, withinWindow: true })).toBeNull();
-    expect(eventExclusion({ projectDeleted: true, withinWindow: false })).toBe('OUTSIDE_WINDOW');
-  });
-
   it('preferência: sem linha liga; desligada não; religada depois da detecção não', () => {
     const detectedAt = at('2026-10-20T12:00:00.000Z');
     expect(preferenceAllowsEvent(undefined, detectedAt)).toBe(true);
@@ -302,11 +275,10 @@ describe('S2-03 P7: exclusões na ordem (D6, D8)', () => {
     ).toBe(false);
   });
 
-  it('os seis motivos ficam fixos e na ordem da regra', () => {
+  it('os cinco motivos ficam fixos e na ordem da regra; o evento não tem exclusão própria (S203-A02, TF-REV-002)', () => {
     expect(GITHUB_EVENT_EXCLUSIONS).toEqual([
       'NO_TASK',
       'NO_PARTICIPANT',
-      'OUTSIDE_WINDOW',
       'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
       'PREFERENCE_OFF'

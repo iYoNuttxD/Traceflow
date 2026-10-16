@@ -131,7 +131,7 @@ export function notificationContextText(notification) {
   const context = notification.context || {};
   if (GITHUB_TYPES.has(notification.type)) return githubEventText(context);
   if (notification.type === 'TASK_STATUS_CHANGED') {
-    const actor = context.actor?.name || 'Pessoa removida';
+    const actor = context.selfAction ? 'Você' : context.actor?.name || 'Pessoa removida';
     return `${actor} moveu de ${taskStatusLabel(context.fromStatus)} para ${taskStatusLabel(context.toStatus)}`;
   }
   if (notification.type === 'TASK_OVERDUE')

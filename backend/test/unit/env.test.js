@@ -229,51 +229,36 @@ describe('configuração centralizada', () => {
     );
   });
 
-  it('S2-02: valida o fuso de referência, a janela e a retenção das notificações', () => {
+  it('S2-02: valida o fuso de referência e a retenção; a janela de recuperação saiu (TF-REV-002)', () => {
     expect(createEnvironment(validSource)).toMatchObject({
       appTimeZone: 'America/Sao_Paulo',
-      notificationsDueLookbackDays: 7,
       notificationRetentionDays: 180
     });
+    expect(createEnvironment(validSource)).not.toHaveProperty('notificationsDueLookbackDays');
     expect(
       createEnvironment({
         ...validSource,
         APP_TIMEZONE: 'Asia/Tokyo',
-        NOTIFICATIONS_DUE_LOOKBACK_DAYS: '1',
+        NOTIFICATIONS_DUE_LOOKBACK_DAYS: '0',
         NOTIFICATION_RETENTION_DAYS: '30'
       })
     ).toMatchObject({
       appTimeZone: 'Asia/Tokyo',
-      notificationsDueLookbackDays: 1,
       notificationRetentionDays: 30
     });
     for (const APP_TIMEZONE of ['Mars/Olympus', 'America/Sao Paulo', '-03:00'])
       expect(() => createEnvironment({ ...validSource, APP_TIMEZONE })).toThrowError(
         /APP_TIMEZONE/
       );
-    for (const value of ['0', '91', '7.5', 'sete'])
-      expect(() =>
-        createEnvironment({ ...validSource, NOTIFICATIONS_DUE_LOOKBACK_DAYS: value })
-      ).toThrowError(/NOTIFICATIONS_DUE_LOOKBACK_DAYS/);
     expect(() =>
       createEnvironment({ ...validSource, NOTIFICATION_RETENTION_DAYS: '29' })
     ).toThrowError(/NOTIFICATION_RETENTION_DAYS/);
   });
 
-  it('S2-03: valida a janela dos eventos de issue e PR, de 1 a 90 dias, padrão 7', () => {
-    expect(createEnvironment(validSource)).toMatchObject({
-      githubEventNotificationsLookbackDays: 7
-    });
-    for (const [value, days] of [
-      ['1', 1],
-      ['90', 90]
-    ])
+  it('S2-03: a janela dos eventos de issue e PR saiu, e a variável antiga é ignorada (TF-REV-002)', () => {
+    for (const value of [undefined, '0', '7', 'sete'])
       expect(
         createEnvironment({ ...validSource, GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS: value })
-      ).toMatchObject({ githubEventNotificationsLookbackDays: days });
-    for (const value of ['0', '91', '7.5', 'sete'])
-      expect(() =>
-        createEnvironment({ ...validSource, GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS: value })
-      ).toThrowError(/GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS/);
+      ).not.toHaveProperty('githubEventNotificationsLookbackDays');
   });
 });

@@ -142,7 +142,6 @@ const job = (now, overrides = {}) =>
   service.notifyOverdueTasks({
     now: at(now),
     timeZone: 'America/Sao_Paulo',
-    lookbackDays: 7,
     dryRun: false,
     ...overrides
   });
@@ -396,7 +395,6 @@ describe('S2-02 correções — contas restritas não recebem (S202-A04)', () =>
     const report = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
 
     expect(report.excluded).toEqual({
-      OUTSIDE_WINDOW: 0,
       NO_RESPONSIBLE: 0,
       INACTIVE_ACCOUNT: 1,
       INACTIVE_MEMBER: 0,

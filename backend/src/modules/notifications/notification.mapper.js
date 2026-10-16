@@ -6,7 +6,8 @@ function contextOf(row) {
     return {
       fromStatus: row.fromStatus,
       toStatus: row.toStatus,
-      actor: row.actor ? { id: row.actor.id, name: row.actor.name } : null
+      actor: row.actor ? { id: row.actor.id, name: row.actor.name } : null,
+      selfAction: row.actorUserId !== null && row.actorUserId === row.recipientUserId
     };
   }
   const kind = artifactKindOf(row.type);

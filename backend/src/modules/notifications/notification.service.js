@@ -11,9 +11,8 @@ import {
   OVERDUE,
   addDays,
   dueDateOf,
-  dueDateRange,
   isOverdue,
-  isWithinLookback,
+  latestOverdueDueDate,
   NOTIFICATION_GROUPS,
   overdueCutoff,
   overdueDedupeKey,
@@ -23,13 +22,7 @@ import {
 } from './notification.policy.js';
 import { notificationRepository } from './notification.repository.js';
 
-const JOB_EXCLUSIONS = [
-  'OUTSIDE_WINDOW',
-  'NO_RESPONSIBLE',
-  'INACTIVE_ACCOUNT',
-  'INACTIVE_MEMBER',
-  'PREFERENCE_OFF'
-];
+const JOB_EXCLUSIONS = ['NO_RESPONSIBLE', 'INACTIVE_ACCOUNT', 'INACTIVE_MEMBER', 'PREFERENCE_OFF'];
 
 function notificationNotFound() {
   return new AppError({
@@ -70,18 +63,13 @@ export function createNotificationService({
   clock = () => new Date(),
   configuration = env
 } = {}) {
-  async function overdueForProject(projectId, { now, timeZone, lookbackDays, range, dryRun }) {
+  async function overdueForProject(projectId, { now, timeZone, range, dryRun }) {
     const counts = emptyCounts();
     const tasks = await repository.findOverdueCandidates(projectId, range);
-    counts.excluded.OUTSIDE_WINDOW = await repository.countOutsideWindow(projectId, range.from);
 
     const due = tasks
       .map((task) => ({ ...task, dueDate: dueDateOf(task.deadline) }))
-      .filter(
-        (task) =>
-          isOverdue(task, now, timeZone) &&
-          isWithinLookback(overdueCutoff(task.dueDate, timeZone), now, lookbackDays)
-      );
+      .filter((task) => isOverdue(task, now, timeZone));
     counts.scanned = due.length;
 
     const responsibleIds = due.map((task) => task.responsibleUserId).filter(Boolean);
@@ -98,7 +86,6 @@ export function createNotificationService({
     const rows = [];
     for (const task of due) {
       const exclusion = overdueExclusion({
-        withinWindow: true,
         responsibleUserId: task.responsibleUserId,
         accountActive: accounts.has(task.responsibleUserId),
         membershipActive: members.has(task.responsibleUserId),
@@ -123,14 +110,13 @@ export function createNotificationService({
     }
     counts.eligible = rows.length;
 
+    const existing = await repository.existingOverdueKeys(rows);
+    const fresh = rows.filter((row) => !existing.has(`${row.recipientUserId}|${row.dedupeKey}`));
     if (dryRun) {
-      const existing = await repository.existingOverdueKeys(rows);
-      counts.alreadyNotified = rows.filter((row) =>
-        existing.has(`${row.recipientUserId}|${row.dedupeKey}`)
-      ).length;
-      counts.wouldCreate = rows.length - counts.alreadyNotified;
+      counts.alreadyNotified = rows.length - fresh.length;
+      counts.wouldCreate = fresh.length;
     } else {
-      counts.created = await repository.insertOverdue(rows);
+      counts.created = await repository.insertOverdue(fresh);
       counts.alreadyNotified = rows.length - counts.created;
     }
     return counts;
@@ -202,21 +188,17 @@ export function createNotificationService({
     async notifyOverdueTasks({
       now = clock(),
       timeZone = configuration.appTimeZone,
-      lookbackDays = configuration.notificationsDueLookbackDays,
       projectId = null,
       dryRun = true
     } = {}) {
       const startedAt = Date.now();
-      const { minDueDate, maxDueDate } = dueDateRange(now, timeZone, lookbackDays);
       const range = {
-        from: new Date(`${minDueDate}T00:00:00.000Z`),
-        to: new Date(`${addDays(maxDueDate, 1)}T00:00:00.000Z`)
+        to: new Date(`${addDays(latestOverdueDueDate(now, timeZone), 1)}T00:00:00.000Z`)
       };
       log.info('Varredura de vencimentos iniciada.', {
         event: 'notifications_due_started',
         dryRun,
         timeZone,
-        lookbackDays,
         now: now.toISOString()
       });
 
@@ -225,13 +207,7 @@ export function createNotificationService({
       let failed = 0;
       for (const id of projectIds) {
         try {
-          const counts = await overdueForProject(id, {
-            now,
-            timeZone,
-            lookbackDays,
-            range,
-            dryRun
-          });
+          const counts = await overdueForProject(id, { now, timeZone, range, dryRun });
           for (const key of ['scanned', 'eligible', 'created', 'alreadyNotified', 'wouldCreate'])
             totals[key] += counts[key];
           for (const reason of JOB_EXCLUSIONS) totals.excluded[reason] += counts.excluded[reason];
@@ -249,7 +225,6 @@ export function createNotificationService({
       const report = {
         dryRun,
         timeZone,
-        lookbackDays,
         projects: projectIds.length,
         ...counts,
         ...(dryRun ? { wouldCreate } : {}),

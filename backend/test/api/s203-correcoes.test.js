@@ -14,7 +14,6 @@ const ISSUE_URL = 'https://github.com/usuario-s203/repositorio-s203/issues';
 const GITHUB_EXCLUSIONS = [
   'NO_TASK',
   'NO_PARTICIPANT',
-  'OUTSIDE_WINDOW',
   'INACTIVE_ACCOUNT',
   'INACTIVE_MEMBER',
   'PREFERENCE_OFF'
@@ -81,10 +80,7 @@ async function register(projectId, role = 'MEMBER') {
   };
 }
 
-const runJob = () =>
-  createGithubEventNotificationService({
-    configuration: { githubEventNotificationsLookbackDays: 7 }
-  }).runJob({ dryRun: false });
+const runJob = () => createGithubEventNotificationService().runJob({ dryRun: false });
 
 async function closedLinkedIssue(project, responsible) {
   sequence += 1;
@@ -175,7 +171,7 @@ describe('S2-03 correções — Fase 4: projeto excluído (S203-A02)', () => {
     expect(await prisma.notification.count({ where: { projectId: project.id } })).toBe(0);
   });
 
-  it('C4-03 o outcome dos eventos novos tem seis motivos e created + alreadyNotified = eligible', async () => {
+  it('C4-03 o outcome dos eventos novos tem cinco motivos, sem janela, e created + alreadyNotified = eligible (TF-REV-002)', async () => {
     const project = await createProject(prisma, { createdAt: PROJECT_CREATED_AT });
     const participant = await register(project.id);
     await closedLinkedIssue(project, participant);

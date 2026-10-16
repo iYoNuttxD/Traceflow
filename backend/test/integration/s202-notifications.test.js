@@ -16,7 +16,7 @@ let sequence = 0;
 const NOW = new Date('2026-10-20T12:00:00.000Z');
 const TIME_ZONE = 'America/Sao_Paulo';
 const IN_WINDOW = new Date('2026-10-15T00:00:00.000Z');
-const OUTSIDE_WINDOW = new Date('2026-10-01T00:00:00.000Z');
+const LONG_OVERDUE = new Date('2026-10-01T00:00:00.000Z');
 
 beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
@@ -71,7 +71,6 @@ const runJob = (overrides = {}) =>
   service.notifyOverdueTasks({
     now: NOW,
     timeZone: TIME_ZONE,
-    lookbackDays: 7,
     dryRun: false,
     ...overrides
   });
@@ -105,13 +104,15 @@ describe('S2-02 RF30: mudança de status (C1, D3, D4)', () => {
     });
   });
 
-  it('N2 o responsável que move a própria tarefa não é notificado', async () => {
+  it('N2 o responsável que move a própria tarefa também é notificado (TF-REV-002)', async () => {
     const { project, responsible } = await scenario();
     const task = await createTask(prisma, project.id, { responsibleUserId: responsible.id });
 
     await move(task, 'EM_ANDAMENTO', responsible);
 
-    expect(await prisma.notification.count()).toBe(0);
+    expect(await prisma.notification.findMany()).toEqual([
+      expect.objectContaining({ recipientUserId: responsible.id, actorUserId: responsible.id })
+    ]);
     expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
   });
 
@@ -277,18 +278,18 @@ describe('S2-02 RF59: vencimento pelo job (C2, D5, D6)', () => {
     ]);
   });
 
-  it('N12 tarefa vencida fora da janela não gera notificação e é contada à parte', async () => {
+  it('N12 tarefa vencida há 19 dias também é notificada, sem janela (TF-REV-002)', async () => {
     const { project, responsible } = await scenario();
     await createTask(prisma, project.id, {
       responsibleUserId: responsible.id,
-      deadline: OUTSIDE_WINDOW
+      deadline: LONG_OVERDUE
     });
 
     const report = await runJob();
 
-    expect(report.excluded.OUTSIDE_WINDOW).toBe(1);
-    expect(report.created).toBe(0);
-    expect(await prisma.notification.count()).toBe(0);
+    expect(report.excluded).not.toHaveProperty('OUTSIDE_WINDOW');
+    expect(report.created).toBe(1);
+    expect(await prisma.notification.count()).toBe(1);
   });
 
   it('N13 preferência desligada impede a criação nos dois tipos', async () => {
@@ -340,7 +341,7 @@ describe('S2-02 RF59: vencimento pelo job (C2, D5, D6)', () => {
 });
 
 describe('S2-02 métrica oficial (C7, D16)', () => {
-  it('M1 RF30: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo', async () => {
+  it('M1 RF30: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo e a mudança do próprio responsável notificada (TF-REV-002)', async () => {
     const { project, actor, responsible } = await scenario();
     const inactive = await person(project.id, { isActive: false });
     const restricted = await person(project.id);
@@ -361,50 +362,61 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
       [await createTask(prisma, project.id), actor],
       [await createTask(prisma, project.id, { responsibleUserId: inactive.id }), actor],
       [await createTask(prisma, project.id, { responsibleUserId: restricted.id }), actor],
-      [await createTask(prisma, project.id, { responsibleUserId: responsible.id }), responsible],
       [await createTask(prisma, project.id, { responsibleUserId: optedOut.id }), actor]
     ];
+    const selfTask = await createTask(prisma, project.id, { responsibleUserId: responsible.id });
     const spy = vi.spyOn(notifications, 'createStatusChangeNotification');
 
     const movementIds = [];
     for (const task of eligibleTasks)
       movementIds.push((await move(task, 'EM_ANDAMENTO', actor)).movement.id);
     for (const [task, who] of excludedMoves) await move(task, 'EM_ANDAMENTO', who);
+    const selfMovement = (await move(selfTask, 'EM_ANDAMENTO', responsible)).movement.id;
 
     const outcomes = await Promise.all(spy.mock.results.map((result) => result.value));
     const occurred = outcomes.length;
     const exclusions = outcomes.filter((item) => item.outcome !== 'CREATED');
     const eligible = occurred - exclusions.length;
     const rows = await prisma.notification.findMany({ orderBy: { id: 'asc' } });
-    const delivered = rows.filter(
-      (row, index) =>
-        row.recipientUserId === responsible.id &&
-        row.taskId === eligibleTasks[index].id &&
-        row.fromStatus === 'A_FAZER' &&
-        row.toStatus === 'EM_ANDAMENTO' &&
-        row.actorUserId === actor.id &&
-        row.dedupeKey === `TASK_STATUS_CHANGED:movement:${movementIds[index]}` &&
-        policy.notificationLink(row.projectId, row.taskId) ===
-          `/projects/${project.id}/kanban?task=${eligibleTasks[index].id}`
-    ).length;
+    const selfRow = rows.find((row) => row.taskId === selfTask.id);
+    const deliveredSelf =
+      selfRow?.recipientUserId === responsible.id &&
+      selfRow.actorUserId === responsible.id &&
+      selfRow.dedupeKey === `TASK_STATUS_CHANGED:movement:${selfMovement}`
+        ? 1
+        : 0;
+    const delivered =
+      deliveredSelf +
+      rows
+        .slice(0, eligibleTasks.length)
+        .filter(
+          (row, index) =>
+            row.recipientUserId === responsible.id &&
+            row.taskId === eligibleTasks[index].id &&
+            row.fromStatus === 'A_FAZER' &&
+            row.toStatus === 'EM_ANDAMENTO' &&
+            row.actorUserId === actor.id &&
+            row.dedupeKey === `TASK_STATUS_CHANGED:movement:${movementIds[index]}` &&
+            policy.notificationLink(row.projectId, row.taskId) ===
+              `/projects/${project.id}/kanban?task=${eligibleTasks[index].id}`
+        ).length;
 
     process.stdout.write(
       `M1 ${JSON.stringify({ occurred, eligible, delivered, exclusions: exclusions.map((item) => item.outcome).sort() })}\n`
     );
     expect(occurred).toBe(10);
-    expect(eligible).toBe(5);
-    expect(rows).toHaveLength(5);
+    expect(eligible).toBe(6);
+    expect(rows).toHaveLength(6);
     expect(policy.notificationCoverage({ delivered, eligible })).toBe(100);
     expect(exclusions.map((item) => item.outcome).sort()).toEqual([
       'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
       'NO_RESPONSIBLE',
-      'PREFERENCE_OFF',
-      'SELF_CHANGE'
+      'PREFERENCE_OFF'
     ]);
   });
 
-  it('M2 RF59: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo', async () => {
+  it('M2 RF59: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo e o vencimento antigo notificado (TF-REV-002)', async () => {
     const { project, responsible } = await scenario();
     const inactive = await person(project.id, { isActive: false });
     const restricted = await person(project.id);
@@ -431,10 +443,12 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
       deadline: IN_WINDOW
     });
     await createTask(prisma, project.id, { responsibleUserId: optedOut.id, deadline: IN_WINDOW });
-    await createTask(prisma, project.id, {
-      responsibleUserId: responsible.id,
-      deadline: OUTSIDE_WINDOW
-    });
+    eligibleTasks.push(
+      await createTask(prisma, project.id, {
+        responsibleUserId: responsible.id,
+        deadline: LONG_OVERDUE
+      })
+    );
     await createTask(prisma, project.id, {
       responsibleUserId: responsible.id,
       deadline: IN_WINDOW,
@@ -460,11 +474,10 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
       `M2 ${JSON.stringify({ eligible: report.eligible, created: report.created, delivered, excluded: report.excluded })}\n`
     );
     expect(report).toMatchObject({
-      eligible: 3,
-      created: 3,
+      eligible: 4,
+      created: 4,
       failed: 0,
       excluded: {
-        OUTSIDE_WINDOW: 1,
         NO_RESPONSIBLE: 1,
         INACTIVE_ACCOUNT: 1,
         INACTIVE_MEMBER: 1,
