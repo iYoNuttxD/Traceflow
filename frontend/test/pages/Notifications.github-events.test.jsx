@@ -13,20 +13,29 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('../../src/features/notifications/api/notifications.api.js', () => api);
 
-import { NotificationsPage } from '../../src/pages/NotificationsPage.jsx';
-import { UnreadNotificationsProvider } from '../../src/features/notifications/index.js';
+import {
+  NotificationPreferencesPage,
+  NotificationsPanel,
+  UnreadNotificationsProvider
+} from '../../src/features/notifications/index.js';
 import { formatInstant } from '../../src/features/notifications/model/notification-view.js';
 
 const OCCURRED = '2026-10-12T13:03:00.000Z';
+const CREATED = '2026-10-12T14:00:00.000Z';
 const ISSUE_URL = 'https://github.com/usuario-s203/repositorio-s203/issues/45';
 const PR_URL = 'https://github.com/usuario-s203/repositorio-s203/pull/8';
+const closePanel = () => {};
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={closePanel} />;
+}
 
 function githubNotification(id, overrides = {}) {
   const { context = {}, ...rest } = overrides;
   return {
     id,
     type: 'ISSUE_EVENT',
-    createdAt: '2026-10-12T14:00:00.000Z',
+    createdAt: CREATED,
     readAt: null,
     project: { id: 9, name: 'Projeto Escala' },
     task: { id: 100 + id, code: `TASK-${100 + id}`, title: `Tarefa ${id}`, available: true },
@@ -72,6 +81,7 @@ function renderPage() {
         <Routes>
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/projects/:projectId/kanban" element={<LocationProbe />} />
+          <Route path="/settings/notifications" element={<NotificationPreferencesPage />} />
         </Routes>
       </UnreadNotificationsProvider>
     </MemoryRouter>
@@ -88,34 +98,28 @@ beforeEach(() => {
 });
 
 describe('S2-03 central: eventos de issue e pull request (D13)', () => {
-  it('F1 o cartão da issue fechada mostra evento, data, artefato, tarefa e os dois links', async () => {
+  it('F1 o aviso da issue fechada mostra a frase com a tarefa, o horário e um único link, para a tarefa (painel, TF-REV-008)', async () => {
     api.listNotifications.mockResolvedValue(listing([githubNotification(1)]));
     renderPage();
 
     const card = await waitFor(() => cardOf('TASK-101'));
     expect(card).toHaveAccessibleName(
-      `Issue: TASK-101 Tarefa 1. Issue #45 fechada no GitHub em ${formatInstant(OCCURRED)}`
+      `Issue: Issue #45 fechada no GitHub · TASK-101. Projeto Escala, ${formatInstant(CREATED)}`
     );
-    expect(within(card).getByText('Issue')).toBeInTheDocument();
-    expect(
-      within(card).getByText(`Issue #45 fechada no GitHub em ${formatInstant(OCCURRED)}`)
-    ).toBeInTheDocument();
-    expect(within(card).getByText('Corrigir login')).toBeInTheDocument();
-    expect(within(card).getByText('Tarefa 1')).toBeInTheDocument();
+    expect(within(card).getByText('Issue #45 fechada no GitHub · TASK-101')).toBeInTheDocument();
     expect(within(card).getByText(/Projeto Escala/)).toBeInTheDocument();
-    expect(within(card).getByRole('link', { name: 'Abrir tarefa TASK-101' })).toHaveAttribute(
-      'href',
-      '/projects/9/kanban?task=101'
-    );
-    const external = within(card).getByRole('link', {
-      name: 'Abrir no GitHub a issue #45 (abre em nova aba)'
-    });
-    expect(external).toHaveAttribute('href', ISSUE_URL);
-    expect(external).toHaveAttribute('target', '_blank');
-    expect(external).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(card.querySelector('time')).toHaveAttribute('datetime', CREATED);
+    expect(card.querySelector('time')).toHaveTextContent(formatInstant(CREATED));
+    expect(
+      within(card).getByRole('link', { name: /Issue #45 fechada no GitHub · TASK-101/ })
+    ).toHaveAttribute('href', '/projects/9/kanban?task=101');
+    expect(within(card).getAllByRole('link')).toHaveLength(1);
+    expect(within(card).queryByRole('link', { name: /Abrir no GitHub/ })).not.toBeInTheDocument();
+    expect(card.querySelector(`a[href="${ISSUE_URL}"]`)).toBeNull();
+    expect(card.querySelector('a[target="_blank"]')).toBeNull();
   });
 
-  it('F2 os outros três eventos têm texto próprio; evento desconhecido não quebra o cartão', async () => {
+  it('F2 os outros três eventos têm texto próprio; evento desconhecido não quebra o cartão (painel, TF-REV-008)', async () => {
     api.listNotifications.mockResolvedValue(
       listing([
         githubNotification(1, { context: { event: 'ISSUE_REOPENED' } }),
@@ -127,30 +131,30 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
     renderPage();
 
     await waitFor(() => cardOf('TASK-101'));
-    const when = formatInstant(OCCURRED);
     expect(
-      within(cardOf('TASK-101')).getByText(
-        `Issue #45 reaberta no GitHub; última atualização em ${when}`
-      )
+      within(cardOf('TASK-101')).getByText('Issue #45 reaberta no GitHub · TASK-101')
     ).toBeInTheDocument();
     expect(
-      within(cardOf('TASK-102')).getByText(`Pull request #8 mesclada no GitHub em ${when}`)
+      within(cardOf('TASK-102')).getByText('PR #8 mesclada no GitHub · TASK-102')
     ).toBeInTheDocument();
     expect(
-      within(cardOf('TASK-103')).getByText(`Pull request #8 fechada sem merge no GitHub em ${when}`)
+      within(cardOf('TASK-103')).getByText('PR #8 fechada sem merge no GitHub · TASK-103')
     ).toBeInTheDocument();
-    expect(within(cardOf('TASK-102')).getByText('Pull request')).toBeInTheDocument();
+    expect(cardOf('TASK-102')).toHaveAccessibleName(/^Pull request: /);
     expect(
-      within(cardOf('TASK-102')).getByRole('link', {
-        name: 'Abrir no GitHub a pull request #8 (abre em nova aba)'
-      })
-    ).toHaveAttribute('href', PR_URL);
+      within(cardOf('TASK-102')).queryByRole('link', { name: /Abrir no GitHub/ })
+    ).not.toBeInTheDocument();
+    expect(within(cardOf('TASK-102')).getByRole('link')).toHaveAttribute(
+      'href',
+      '/projects/9/kanban?task=102'
+    );
+    expect(document.body.querySelector(`a[href="${PR_URL}"]`)).toBeNull();
     expect(
-      within(cardOf('TASK-104')).getByText(`Issue #45 mudou no GitHub em ${when}`)
+      within(cardOf('TASK-104')).getByText('Issue #45 mudou no GitHub · TASK-104')
     ).toBeInTheDocument();
   });
 
-  it('F3 título vindo do GitHub com HTML aparece como texto', async () => {
+  it('F3 título vindo do GitHub com HTML não entra no aviso nem vira HTML (painel, TF-REV-008)', async () => {
     const hostile = '<img src=x onerror="window.__s203=1">';
     api.listNotifications.mockResolvedValue(
       listing([
@@ -159,15 +163,26 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
         })
       ])
     );
-    const { container } = renderPage();
+    renderPage();
 
     await waitFor(() => cardOf('TASK-101'));
-    expect(within(cardOf('TASK-101')).getByText(hostile)).toBeInTheDocument();
-    expect(container.querySelector('img')).toBeNull();
+    expect(cardOf('TASK-101')).toHaveAccessibleName(
+      `Issue: Issue #45 fechada no GitHub · TASK-101. Projeto Escala, ${formatInstant(CREATED)}`
+    );
+    expect(cardOf('TASK-101')).not.toHaveTextContent(hostile);
+    expect(document.body.querySelector('img')).toBeNull();
     expect(window.__s203).toBeUndefined();
   });
 
-  it('F4 sem URL não há botão do GitHub; tarefa excluída mantém o botão do GitHub', async () => {
+  it('F4 sem URL o aviso só leva à tarefa; com a tarefa excluída, o aviso abre o GitHub em nova aba e marca como lida (painel, TF-REV-008)', async () => {
+    const user = userEvent.setup();
+    api.markNotification.mockResolvedValue({
+      notification: githubNotification(2, {
+        task: { id: null, code: null, title: 'Tarefa apagada', available: false },
+        link: null,
+        readAt: '2026-10-12T15:00:00.000Z'
+      })
+    });
     api.listNotifications.mockResolvedValue(
       listing([
         githubNotification(1, {
@@ -182,35 +197,51 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
     renderPage();
 
     await waitFor(() => cardOf('TASK-101'));
-    expect(
-      within(cardOf('TASK-101')).queryByRole('link', { name: /Abrir no GitHub/ })
-    ).not.toBeInTheDocument();
+    expect(within(cardOf('TASK-101')).getByRole('link')).toHaveAttribute(
+      'href',
+      '/projects/9/kanban?task=101'
+    );
+    expect(cardOf('TASK-101').querySelector('a[target="_blank"]')).toBeNull();
     const orphan = screen.getByRole('article', { name: /Tarefa apagada/ });
-    expect(within(orphan).getByText('Tarefa excluída')).toBeInTheDocument();
-    expect(within(orphan).queryByRole('link', { name: /Abrir tarefa/ })).not.toBeInTheDocument();
     expect(
-      within(orphan).getByRole('link', { name: 'Abrir no GitHub a issue #45 (abre em nova aba)' })
-    ).toHaveAttribute('href', ISSUE_URL);
+      within(orphan).getByText('Issue #45 fechada no GitHub · “Tarefa apagada”')
+    ).toBeInTheDocument();
+    const external = within(orphan).getByRole('link');
+    expect(external).toHaveAttribute('href', ISSUE_URL);
+    expect(external).toHaveAttribute('target', '_blank');
+    expect(external).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(external).toHaveTextContent('· Tarefa excluída · abre no GitHub em nova aba');
+
+    const stopNavigation = (event) => event.preventDefault();
+    document.addEventListener('click', stopNavigation, true);
+    await user.click(external);
+    document.removeEventListener('click', stopNavigation, true);
+
+    expect(api.markNotification).toHaveBeenCalledWith(2, true);
+    expect(screen.getByRole('dialog', { name: 'Notificações' })).toBeInTheDocument();
+    expect(
+      await within(orphan).findByRole('button', { name: /^Marcar como não lida: / })
+    ).toBeInTheDocument();
   });
 
-  it('F6 a ordem de foco percorre abrir tarefa, abrir no GitHub e marcar como lida', async () => {
+  it('F6 a ordem de foco vai do link do aviso para marcar como lida (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     api.listNotifications.mockResolvedValue(listing([githubNotification(1)]));
     renderPage();
     const card = await waitFor(() => cardOf('TASK-101'));
 
-    within(card).getByRole('link', { name: 'Abrir tarefa TASK-101' }).focus();
-    await user.tab();
-    expect(within(card).getByRole('link', { name: /Abrir no GitHub/ })).toHaveFocus();
+    within(card)
+      .getByRole('link', { name: /Issue #45 fechada no GitHub · TASK-101/ })
+      .focus();
     await user.tab();
     expect(
       within(card).getByRole('button', {
-        name: `Marcar como lida: Issue #45 fechada no GitHub em ${formatInstant(OCCURRED)}, TASK-101`
+        name: `Marcar como lida: Issue #45 fechada no GitHub · TASK-101, Projeto Escala, ${formatInstant(CREATED)}`
       })
     ).toHaveFocus();
   });
 
-  it('F7 F8 tipos misturados: marca como lida e não guarda nada no navegador', async () => {
+  it('F7 F8 tipos misturados: marca como lida e não guarda nada no navegador (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     const items = [
       githubNotification(1),
@@ -240,23 +271,49 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
       ).toBeInTheDocument()
     );
     expect(
-      within(cardOf('TASK-103')).getByText('Ana Souza moveu de A fazer para Em andamento')
+      within(cardOf('TASK-103')).getByText('Ana Souza moveu TASK-103 para Em andamento')
     ).toBeInTheDocument();
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
   });
 
-  it('F9 a abertura da central descreve os avisos de tarefa e os do GitHub com seus destinatários', async () => {
+  it('F9 o painel não tem texto de abertura; as preferências descrevem os avisos de tarefa e os do GitHub com seus destinatários (painel, TF-REV-008)', async () => {
+    const user = userEvent.setup();
     api.listNotifications.mockResolvedValue(listing([githubNotification(1)]));
+    api.getNotificationPreferences.mockResolvedValue({
+      preferences: {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: true,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
+      }
+    });
     renderPage();
 
-    const heading = await screen.findByRole('heading', { level: 1, name: 'Notificações' });
-    const introduction = heading.parentElement.querySelector('p');
-    expect(introduction).toHaveTextContent(
-      'mudanças de status feitas por outras pessoas e prazos vencidos nas tarefas pelas quais você é responsável'
+    const panel = await screen.findByRole('dialog', { name: 'Notificações' });
+    expect(
+      within(panel).getByRole('heading', { level: 2, name: 'Notificações' })
+    ).toBeInTheDocument();
+    expect(within(panel).queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+    const preferences = within(panel).getByRole('link', { name: 'Preferências de notificação' });
+    expect(preferences).toHaveAttribute('href', '/settings/notifications');
+
+    await user.click(preferences);
+
+    const taskNotices = await screen.findByRole('group', { name: 'Avisos sobre as suas tarefas' });
+    expect(taskNotices).toHaveTextContent(
+      'Avisa quando muda o status de uma tarefa da qual você é responsável'
     );
-    expect(introduction).toHaveTextContent(
-      'issues e pull requests do GitHub fechadas, reabertas ou mescladas nas tarefas de que você participa'
+    expect(taskNotices).toHaveTextContent(
+      'Avisa uma vez quando uma tarefa da qual você é responsável passa do prazo'
+    );
+    const githubNotices = screen.getByRole('group', { name: 'Avisos do GitHub' });
+    expect(githubNotices).toHaveTextContent(
+      'issue vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é fechada ou reaberta no GitHub'
+    );
+    expect(githubNotices).toHaveTextContent(
+      'pull request vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é mesclada ou fechada sem merge no GitHub'
     );
   });
 });

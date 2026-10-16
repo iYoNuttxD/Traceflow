@@ -526,6 +526,8 @@ aplicam a mesma semântica sem detecção de navegador ou sistema operacional po
 - fixados e recentes são preferências locais por usuário, sempre filtradas pela resposta atual do
   backend e nunca usadas como prova de acesso;
 - Theme, Configurações e Sair compartilham estado normal neutro; logout reutiliza a sessão vigente;
+- o sino de notificações é um botão que abre o painel lateral (seção "Painel de notificações");
+  no celular, fica na barra superior ao lado do ☰, que se chama só "Abrir navegação";
 - motion da sidebar e do drawer respeita `prefers-reduced-motion`.
 
 ## Auth público Focused
@@ -1129,3 +1131,37 @@ Esta composição substitui as duas linhas desktop descritas no P9.
   disponíveis para toque quando o navegador não oferece drag nativo confiável.
   Foco acompanha o item após reorder; Save/Cancel, trap e retorno de foco preservados.
 - Não houve troca de overlay, picker, catálogo ou primitives de indicadores.
+
+## Painel de notificações — PR #26, TF-REV-008 (2026-10-16)
+
+Substitui a página `/notifications`, que redireciona para `/projects` com o painel aberto (UX-D01).
+
+- **Abertura.** O sino da sidebar é um botão com `aria-haspopup="dialog"` e `aria-expanded`. O nome
+  acessível leva a contagem ("Notificações, 3 não lidas"); o selo continua oculto em zero e com
+  "99+" acima de 99. No celular, o sino fica na barra superior, com o ponto de não lidas.
+- **Forma.** Gaveta à direita, de até 400 px, sobre o overlay. Até 720 px, ocupa a tela inteira.
+  Fica num portal fora do `main` e entra na pilha do `useDialogLayer`, para o Escape fechar a
+  camada certa. Contém o foco, deixa o shell `inert` e trava a rolagem do `body`. O foco inicial vai
+  para o título e volta ao sino ao fechar. O movimento respeita `prefers-reduced-motion`; em
+  `forced-colors`, borda, ponto e anel de foco usam cores do sistema.
+- **Cabeçalho.** Título "Notificações", atalho para as preferências e fechar, os dois em botões de
+  ícone de 44 px. Sem parágrafo de abertura.
+- **Filtros.** Abas "Não lidas" e "Todas", com `tablist` completo (setas, Home e End). O
+  `SelectControl` "Origem" (Todas, Tarefas, GitHub, Inconsistências) divide a linha com "Marcar
+  todas como lidas", que segue o contador único.
+- **Item compacto.**
+  - Ícone por tipo, com token semântico: inconsistência em warning, vencimento em danger, status e
+    GitHub em info. A cor não é o único sinal, porque o ícone e o nome do tipo mudam junto.
+  - Uma linha de frase ("Ana moveu TASK-12 para Concluído", "TASK-7 venceu em 14/10/2026",
+    "Issue #45 fechada no GitHub · TASK-7", "PR #8 mesclada sem tarefa vinculada") e uma de
+    metadado: projeto, `<time datetime>` da criação do aviso, estado da inconsistência e "Tarefa
+    excluída".
+  - A não lida tem o ponto com o texto oculto "Não lida:", a frase em negrito e uma barra de
+    destaque. A lida fica em peso normal.
+  - O item inteiro é o link para o contexto: abrir marca como lida e fecha o painel. O botão de
+    ícone de 44 px alterna lida e não lida, com frase, projeto e horário no nome.
+  - "Abrir no GitHub" fica no destino. A exceção é o aviso do GitHub cuja tarefa foi excluída: sem
+    destino no TraceFlow, o item abre o artefato no GitHub em nova aba, continua no painel, e o
+    metadado avisa "abre no GitHub em nova aba".
+- **Estados.** Carregando, erro com nova tentativa, limite de taxa com `Retry-After`, vazio por aba
+  e por origem com "Ver todas", e "Carregar mais (N restantes)" pelo cursor.

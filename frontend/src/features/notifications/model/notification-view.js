@@ -7,7 +7,7 @@ export const NOTIFICATION_FILTERS = Object.freeze([
 ]);
 
 export const NOTIFICATION_GROUPS = Object.freeze([
-  { value: 'ALL', label: 'Todas as origens' },
+  { value: 'ALL', label: 'Todas' },
   { value: 'TASKS', label: 'Tarefas' },
   { value: 'GITHUB', label: 'GitHub' },
   { value: 'INCONSISTENCIES', label: 'Inconsistências' }
@@ -30,6 +30,22 @@ const TYPE_LABELS = Object.freeze({
   [INCONSISTENCY]: 'Inconsistência'
 });
 
+const TONES = Object.freeze({
+  TASK_STATUS_CHANGED: 'info',
+  TASK_OVERDUE: 'danger',
+  ISSUE_EVENT: 'info',
+  PULL_REQUEST_EVENT: 'info',
+  [INCONSISTENCY]: 'warning'
+});
+
+const ICONS = Object.freeze({
+  TASK_STATUS_CHANGED: 'status',
+  TASK_OVERDUE: 'clock',
+  ISSUE_EVENT: 'issue',
+  PULL_REQUEST_EVENT: 'merge',
+  [INCONSISTENCY]: 'alert'
+});
+
 const GITHUB_TYPES = new Set(['ISSUE_EVENT', 'PULL_REQUEST_EVENT']);
 
 const GITHUB_EVENT_VERBS = new Map([
@@ -37,16 +53,6 @@ const GITHUB_EVENT_VERBS = new Map([
   ['ISSUE_REOPENED', 'reaberta'],
   ['PULL_REQUEST_MERGED', 'mesclada'],
   ['PULL_REQUEST_CLOSED', 'fechada sem merge']
-]);
-
-const ARTIFACT_LABELS = new Map([
-  ['ISSUE', 'Issue'],
-  ['PULL_REQUEST', 'Pull request']
-]);
-
-const ARTIFACT_REFERENCES = new Map([
-  ['ISSUE', 'a issue'],
-  ['PULL_REQUEST', 'a pull request']
 ]);
 
 const ARTIFACT_CODES = new Map([
@@ -108,6 +114,23 @@ export function notificationTypeLabel(type) {
   return TYPE_LABELS[type] || 'Notificação';
 }
 
+export function notificationTone(notification) {
+  return TONES[notification.type] || 'info';
+}
+
+export function notificationIconName(notification) {
+  return ICONS[notification.type] || 'status';
+}
+
+export function isInconsistency(notification) {
+  return notification.type === INCONSISTENCY;
+}
+
+export function orphanGithubUrl(notification) {
+  if (notification.link || !GITHUB_TYPES.has(notification.type)) return null;
+  return notification.context?.artifact?.url || null;
+}
+
 export function taskStatusLabel(status) {
   return STATUS_LABELS[status] || status || '';
 }
@@ -127,109 +150,81 @@ export function formatInstant(value) {
   })}`;
 }
 
-function githubEventText(context) {
-  const artifact = context.artifact || {};
-  const subject = `${ARTIFACT_LABELS.get(artifact.kind) || 'Artefato'} #${artifact.number}`;
-  const change = GITHUB_EVENT_VERBS.has(context.event)
-    ? `${GITHUB_EVENT_VERBS.get(context.event)} no GitHub`
-    : 'mudou no GitHub';
-  if (!context.occurredAt) return `${subject} ${change}`;
-  if (context.event === 'ISSUE_REOPENED')
-    return `${subject} ${change}; última atualização em ${formatInstant(context.occurredAt)}`;
-  return `${subject} ${change} em ${formatInstant(context.occurredAt)}`;
-}
-
 function formatDay(value) {
   return value ? new Date(value).toLocaleDateString('pt-BR') : '';
-}
-
-function alertStateText(alert) {
-  if (alert?.status === 'RESOLVED') return `resolvida em ${formatDay(alert.resolvedAt)}`;
-  if (alert?.status === 'DISMISSED') return `dispensada em ${formatDay(alert.dismissedAt)}`;
-  return alert ? 'em aberto' : '';
 }
 
 function plural(count, singular, pluralForm) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
-function inconsistencyText(context) {
-  const { batch, artifact = {} } = context;
+function taskReference(task) {
+  if (task?.code) return task.code;
+  return task?.title ? `“${task.title}”` : 'uma tarefa removida';
+}
+
+function artifactReference(artifact) {
+  return artifact
+    ? `${ARTIFACT_CODES.get(artifact.kind) || 'Artefato'} #${artifact.number}`
+    : 'Artefato';
+}
+
+function inconsistencySentence({ batch, artifact }) {
   if (batch) {
     const parts = [
       batch.pullRequests && plural(batch.pullRequests, 'PR mesclada', 'PRs mescladas'),
       batch.issues && plural(batch.issues, 'issue fechada', 'issues fechadas')
     ].filter(Boolean);
-    return `${parts.join(' e ')} sem tarefa`;
+    return `${plural(batch.total, 'inconsistência nova', 'inconsistências novas')}: ${parts.join(' e ')} sem tarefa`;
   }
-  const subject = `${ARTIFACT_LABELS.get(artifact?.kind) || 'Artefato'} #${artifact?.number}`;
-  const change = artifact?.kind === 'ISSUE' ? 'fechada sem tarefa' : 'mesclada sem tarefa';
-  const when = context.occurredAt ? ` em ${formatInstant(context.occurredAt)}` : '';
-  const state = alertStateText(context.alert);
-  return `${subject} ${change}${when}${state ? `; ${state}` : ''}`;
+  const change = artifact?.kind === 'ISSUE' ? 'fechada' : 'mesclada';
+  return `${artifactReference(artifact)} ${change} sem tarefa vinculada`;
 }
 
-export function notificationSubject(notification) {
-  if (notification.type === INCONSISTENCY) {
-    const { artifact, batch } = notification.context || {};
-    if (batch)
-      return {
-        code: null,
-        title: plural(batch.total, 'inconsistência nova', 'inconsistências novas')
-      };
-    return {
-      code: artifact
-        ? `${ARTIFACT_CODES.get(artifact.kind) || 'Artefato'} #${artifact.number}`
-        : null,
-      title: artifact?.title || 'Artefato removido'
-    };
-  }
-  const task = notification.task || {};
-  return { code: task.code, title: task.title };
-}
-
-export function isInconsistency(notification) {
-  return notification.type === INCONSISTENCY;
-}
-
-export function githubLinkLabel(notification) {
-  const artifact = notification.context?.artifact || {};
-  const reference = ARTIFACT_REFERENCES.get(artifact.kind) || 'o artefato';
-  return `Abrir no GitHub ${reference} #${artifact.number} (abre em nova aba)`;
-}
-
-export function notificationContextText(notification) {
+export function notificationSentence(notification) {
   const context = notification.context || {};
-  if (notification.type === INCONSISTENCY) return inconsistencyText(context);
-  if (GITHUB_TYPES.has(notification.type)) return githubEventText(context);
+  const task = taskReference(notification.task);
+  if (notification.type === INCONSISTENCY) return inconsistencySentence(context);
+  if (GITHUB_TYPES.has(notification.type)) {
+    const change = GITHUB_EVENT_VERBS.get(context.event) || 'mudou';
+    return `${artifactReference(context.artifact)} ${change} no GitHub · ${task}`;
+  }
   if (notification.type === 'TASK_STATUS_CHANGED') {
     const actor = context.selfAction ? 'Você' : context.actor?.name || 'Pessoa removida';
-    return `${actor} moveu de ${taskStatusLabel(context.fromStatus)} para ${taskStatusLabel(context.toStatus)}`;
+    return `${actor} moveu ${task} para ${taskStatusLabel(context.toStatus)}`;
   }
   if (notification.type === 'TASK_OVERDUE')
-    return `Prazo venceu em ${formatDueDate(context.dueDate)}`;
-  return '';
+    return `${task} venceu em ${formatDueDate(context.dueDate)}`;
+  return `Notificação sobre ${task}`;
 }
 
-function subjectText(subject) {
-  return subject.code ? `${subject.code} ${subject.title}` : subject.title;
+export function notificationState(notification) {
+  if (notification.type !== INCONSISTENCY) return '';
+  const alert = notification.context?.alert;
+  if (alert?.status === 'RESOLVED') return `resolvida em ${formatDay(alert.resolvedAt)}`;
+  if (alert?.status === 'DISMISSED') return `dispensada em ${formatDay(alert.dismissedAt)}`;
+  return alert ? 'em aberto' : '';
 }
 
 export function notificationCardLabel(notification) {
-  const label = `${notificationTypeLabel(notification.type)}: ${subjectText(notificationSubject(notification))}`;
-  const context = notificationContextText(notification);
-  return context ? `${label}. ${context}` : label;
+  return `${notificationTypeLabel(notification.type)}: ${notificationSentence(notification)}. ${
+    notification.project?.name
+  }, ${formatInstant(notification.createdAt)}`;
 }
 
 export function readToggleLabel(notification) {
   const action = notification.readAt ? 'Marcar como não lida' : 'Marcar como lida';
-  const context = notificationContextText(notification);
-  const subject = notificationSubject(notification);
-  if (isInconsistency(notification))
-    return `${action}: ${context}, projeto ${notification.project?.name}`;
-  return context
-    ? `${action}: ${context}, ${subject.code || subject.title}`
-    : `${action}: ${subjectText(subject)}`;
+  const where = notification.project?.name ? `, ${notification.project.name}` : '';
+  return `${action}: ${notificationSentence(notification)}${where}, ${formatInstant(
+    notification.createdAt
+  )}`;
+}
+
+export function loadMoreLabel(remaining) {
+  if (!(remaining > 0)) return 'Carregar mais';
+  return `Carregar mais (${remaining.toLocaleString('pt-BR')} ${
+    remaining === 1 ? 'restante' : 'restantes'
+  })`;
 }
 
 export function notificationEmptyTitle(status, group = 'ALL') {
@@ -245,11 +240,6 @@ export function unreadBadge(count) {
 export function unreadNavLabel(count) {
   if (!count || count < 1) return 'Notificações';
   return `Notificações, ${count} ${count === 1 ? 'não lida' : 'não lidas'}`;
-}
-
-export function navigationMenuLabel(count) {
-  if (!count || count < 1) return 'Abrir navegação';
-  return `Abrir navegação, ${count} ${count === 1 ? 'notificação não lida' : 'notificações não lidas'}`;
 }
 
 export function markAllMessage(updated) {

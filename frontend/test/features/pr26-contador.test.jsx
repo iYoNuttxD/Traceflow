@@ -14,11 +14,17 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('../../src/features/notifications/api/notifications.api.js', () => api);
 
-import { NotificationsPage } from '../../src/pages/NotificationsPage.jsx';
 import {
+  NotificationsPanel,
   UnreadNotificationsProvider,
   useUnreadNotifications
 } from '../../src/features/notifications/index.js';
+
+const closePanel = () => {};
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={closePanel} />;
+}
 
 function notification(id, overrides = {}) {
   return {
@@ -130,7 +136,7 @@ describe('PR26 TF-REV-004: "Marcar todas" segue o contador único', () => {
     api.markAllNotificationsRead.mockResolvedValue({ updated: 1 });
     renderCentral();
 
-    await user.click(await screen.findByRole('radio', { name: 'Todas' }));
+    await user.click(await screen.findByRole('tab', { name: 'Todas' }));
     await screen.findByRole('article', { name: /TASK-101/ });
     expect(markAllButton()).toHaveAttribute('aria-disabled', 'true');
 
@@ -156,7 +162,7 @@ describe('PR26 TF-REV-004: "Marcar todas" segue o contador único', () => {
     api.markAllNotificationsRead.mockResolvedValue({ updated: 2 });
     renderCentral();
 
-    await user.click(await screen.findByRole('radio', { name: 'Todas' }));
+    await user.click(await screen.findByRole('tab', { name: 'Todas' }));
     await screen.findByRole('article', { name: /TASK-102/ });
     api.getUnreadNotificationCount.mockResolvedValueOnce({ unreadCount: 1 });
     await user.click(

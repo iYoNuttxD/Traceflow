@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,27 +13,36 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('../../src/features/notifications/api/notifications.api.js', () => api);
 
-import { NotificationsPage } from '../../src/pages/NotificationsPage.jsx';
-import { UnreadNotificationsProvider } from '../../src/features/notifications/index.js';
+import {
+  NotificationsPanel,
+  UnreadNotificationsProvider
+} from '../../src/features/notifications/index.js';
+import { formatInstant } from '../../src/features/notifications/model/notification-view.js';
 
 const OCCURRED = '2026-10-12T13:03:00.000Z';
+const CREATED = '2026-10-12T14:00:00.000Z';
 const EXPECTED_DATE = new Map([
-  ['America/Sao_Paulo', '12/10/2026 10:03'],
-  ['Pacific/Kiritimati', '13/10/2026 03:03'],
-  ['Pacific/Pago_Pago', '12/10/2026 02:03'],
-  ['UTC', '12/10/2026 13:03'],
-  ['Etc/UTC', '12/10/2026 13:03']
+  ['America/Sao_Paulo', '12/10/2026 11:00'],
+  ['Pacific/Kiritimati', '13/10/2026 04:00'],
+  ['Pacific/Pago_Pago', '12/10/2026 03:00'],
+  ['UTC', '12/10/2026 14:00'],
+  ['Etc/UTC', '12/10/2026 14:00']
 ]);
 const ISSUE_URL = 'https://github.com/usuario-s203/repositorio-s203/issues/45';
 const PR_URL = 'https://github.com/usuario-s203/repositorio-s203/pull/8';
 const XSS = '<img src=x onerror="window.__s203bateria=1">';
+const closePanel = () => {};
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={closePanel} />;
+}
 
 function notification(id, overrides = {}) {
   const { context = {}, task = {}, project = {}, ...rest } = overrides;
   return {
     id,
     type: 'ISSUE_EVENT',
-    createdAt: '2026-10-12T14:00:00.000Z',
+    createdAt: CREATED,
     readAt: null,
     project: { id: 9, name: 'Projeto Bateria', ...project },
     task: { id: 100, code: 'TASK-100', title: 'Tarefa da bateria', available: true, ...task },
@@ -88,7 +97,7 @@ beforeEach(() => {
 });
 
 describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
-  it('EV-U-01 os quatro eventos mostram texto próprio e a data no fuso do navegador', async () => {
+  it('EV-U-01 os quatro eventos mostram texto próprio e a data no fuso do navegador (painel, TF-REV-008)', async () => {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const expectedDate = EXPECTED_DATE.get(zone);
     api.listNotifications.mockResolvedValue(
@@ -106,31 +115,41 @@ describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
 
     const cards = await screen.findAllByRole('article');
     const texts = cards.map(
-      (card) => card.querySelector('.notification-card__context').textContent
+      (card) => card.querySelector('.notification-item__sentence').textContent
     );
     const verbs = [
-      'Issue #45 fechada no GitHub em',
-      'Issue #45 reaberta no GitHub; última atualização em',
-      'Pull request #8 mesclada no GitHub em',
-      'Pull request #8 fechada sem merge no GitHub em'
+      'Issue #45 fechada no GitHub · TASK-101',
+      'Issue #45 reaberta no GitHub · TASK-102',
+      'PR #8 mesclada no GitHub · TASK-103',
+      'PR #8 fechada sem merge no GitHub · TASK-104'
     ];
     verbs.forEach((verb, index) => expect(texts[index]).toContain(verb));
-    if (expectedDate) for (const text of texts) expect(text, zone).toContain(expectedDate);
     for (const card of cards) {
-      const external = within(card).getByRole('link', { name: /Abrir no GitHub/ });
-      expect(external).toHaveAttribute('target', '_blank');
-      expect(external).toHaveAttribute('rel', 'noopener noreferrer');
-      expect(within(card).getByRole('link', { name: /^Abrir tarefa TASK-/ })).toBeInTheDocument();
+      const time = card.querySelector('time');
+      expect(time).toHaveAttribute('datetime', CREATED);
+      if (expectedDate) expect(time.textContent, zone).toBe(expectedDate);
+      expect(within(card).queryByRole('link', { name: /Abrir no GitHub/ })).not.toBeInTheDocument();
+      expect(card.querySelector('a[target="_blank"]')).toBeNull();
+      expect(within(card).getByRole('link', { name: /no GitHub · TASK-/ })).toHaveAttribute(
+        'href',
+        '/projects/9/kanban?task=100'
+      );
       expect(within(card).getByRole('button', { name: /Marcar como lida/ })).toBeInTheDocument();
     }
   });
 
-  it('EV-U-03 títulos, nome do projeto e tarefa com HTML, script e quebra de linha aparecem como texto', async () => {
+  it('EV-U-03 títulos, nome do projeto e tarefa com HTML, script e quebra de linha aparecem como texto (painel, TF-REV-008)', async () => {
     api.listNotifications.mockResolvedValue(
       listing([
         notification(1, {
           project: { name: `Projeto ${XSS}` },
-          task: { title: `Tarefa </script><script>window.__s203bateria=2</script>` },
+          task: {
+            id: null,
+            code: null,
+            title: `Tarefa </script><script>window.__s203bateria=2</script>`,
+            available: false
+          },
+          link: null,
           context: {
             artifact: {
               kind: 'ISSUE',
@@ -142,35 +161,41 @@ describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
         })
       ])
     );
-    const { container } = renderPage();
+    renderPage();
 
     const card = await screen.findByRole('article');
-    expect(container.querySelector('img')).toBeNull();
-    expect(container.querySelector('script')).toBeNull();
+    expect(document.body.querySelector('img')).toBeNull();
+    expect(document.body.querySelector('script')).toBeNull();
     expect(window.__s203bateria).toBeUndefined();
-    const artifact = card.querySelector('.notification-card__artifact');
-    expect(artifact.textContent).toContain(XSS);
-    expect(artifact.textContent).toContain('\u202Eotset\u202C');
-    expect(artifact.textContent).toContain('e\u200Bzero');
-    expect(card.querySelector('.notification-card__context').textContent).not.toContain('\u202E');
+    const sentence = card.querySelector('.notification-item__sentence');
+    expect(sentence.textContent).toContain(
+      '“Tarefa </script><script>window.__s203bateria=2</script>”'
+    );
+    expect(sentence.textContent).not.toContain('\u202E');
+    expect(card.querySelector('.notification-item__meta').textContent).toContain(`Projeto ${XSS}`);
+    expect(card.textContent).not.toContain('quebrado');
     expect(card.textContent).toContain('</script><script>');
   });
 
-  it('EV-U-04 título de 256 caracteres sem espaço fica na linha própria, com a classe que quebra em qualquer ponto', async () => {
+  it('EV-U-04 título de 256 caracteres sem espaço fica na linha própria, com a classe que quebra em qualquer ponto (painel, TF-REV-008)', async () => {
     const title = `${'Título-longo-sem-espaço-'.repeat(11)}`.slice(0, 256);
     api.listNotifications.mockResolvedValue(
       listing([
         notification(1, {
           context: { artifact: { kind: 'ISSUE', number: 45, title, url: ISSUE_URL } }
-        })
+        }),
+        notification(2, { task: { id: null, code: null, title, available: false }, link: null })
       ])
     );
     renderPage();
 
-    const card = await screen.findByRole('article');
-    const artifact = card.querySelector('.notification-card__artifact');
-    expect(artifact.tagName).toBe('P');
-    expect(artifact.textContent).toBe(title);
+    const [githubTitle, taskTitle] = await screen.findAllByRole('article');
+    expect(githubTitle.textContent).not.toContain(title);
+    const sentence = taskTitle.querySelector('.notification-item__sentence');
+    expect(sentence.textContent).toBe(`Não lida: Issue #45 fechada no GitHub · “${title}”`);
+    expect(sentence.parentElement).toHaveClass('notification-item__main');
+    expect(getComputedStyle(sentence.parentElement).display).toBe('grid');
+    expect(getComputedStyle(sentence).overflowWrap).toBe('anywhere');
   });
 
   it('EV-U-08 tipos misturados no filtro Não lidas e marcar todas', async () => {
@@ -214,7 +239,7 @@ describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
 
     const card = await screen.findByRole('article');
     await user.click(within(card).getByRole('button', { name: /Marcar como lida/ }));
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
 
     const dump = (storage) =>
       Array.from({ length: storage.length }, (_, index) => {
@@ -228,7 +253,7 @@ describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
 });
 
 describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
-  it('C9-01 dois avisos da mesma tarefa e do mesmo tipo têm nomes distintos no cartão e no botão de leitura (EV-U-05)', async () => {
+  it('C9-01 dois avisos da mesma tarefa e do mesmo tipo têm nomes distintos no cartão e no botão de leitura (EV-U-05) (painel, TF-REV-008)', async () => {
     api.listNotifications.mockResolvedValue(
       listing([
         notification(1),
@@ -251,10 +276,13 @@ describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
     expect(new Set(names).size, JSON.stringify(names)).toBe(2);
     expect(new Set(readButtons).size, JSON.stringify(readButtons)).toBe(2);
     for (const card of cards)
-      expect(within(card).getByRole('link', { name: 'Abrir tarefa TASK-100' })).toBeInTheDocument();
+      expect(within(card).getByRole('link', { name: /· TASK-100/ })).toHaveAttribute(
+        'href',
+        '/projects/9/kanban?task=100'
+      );
   });
 
-  it('C9-03 o grupo Origem filtra pela API, recomeça a lista, funciona pelo teclado e mantém "Marcar todas" global', async () => {
+  it('C9-03 o grupo Origem filtra pela API, recomeça a lista, funciona pelo teclado e mantém "Marcar todas" global (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     api.listNotifications.mockImplementation(async (params) =>
       params.group === 'GITHUB' ? { ...listing([]), unreadCount: 1 } : listing([notification(1)])
@@ -262,15 +290,16 @@ describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
     api.markAllNotificationsRead.mockResolvedValue({ updated: 1 });
     renderPage();
     await screen.findAllByRole('article');
-    const origin = screen.getByRole('group', { name: 'Origem' });
+    const origin = screen.getByRole('combobox', { name: 'Origem' });
 
-    expect(within(origin).getByRole('radio', { name: 'Todas as origens' })).toBeChecked();
+    expect(origin).toHaveValue('ALL');
+    expect(within(origin).getByRole('option', { name: 'Todas' }).selected).toBe(true);
     expect(api.listNotifications).toHaveBeenLastCalledWith(
       { status: 'UNREAD', page: 1, limit: 20 },
       expect.objectContaining({ fresh: true })
     );
 
-    await user.click(within(origin).getByRole('radio', { name: 'GitHub' }));
+    await user.selectOptions(origin, 'GITHUB');
 
     expect(await screen.findByText('Nenhuma notificação do GitHub não lida.')).toBeInTheDocument();
     expect(screen.queryAllByRole('article')).toHaveLength(0);
@@ -279,8 +308,10 @@ describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
       expect.objectContaining({ fresh: true })
     );
 
-    within(origin).getByRole('radio', { name: 'Tarefas' }).focus();
-    await user.keyboard(' ');
+    screen.getByRole('tab', { name: /Não lidas/ }).focus();
+    await user.tab();
+    expect(origin).toHaveFocus();
+    fireEvent.change(origin, { target: { value: 'TASKS' } });
 
     await waitFor(() =>
       expect(api.listNotifications).toHaveBeenLastCalledWith(
@@ -288,9 +319,9 @@ describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
         expect.objectContaining({ fresh: true })
       )
     );
-    expect(within(origin).getByRole('radio', { name: 'Tarefas' })).toBeChecked();
+    expect(origin).toHaveValue('TASKS');
 
-    await user.click(within(origin).getByRole('radio', { name: 'GitHub' }));
+    await user.selectOptions(origin, 'GITHUB');
     await screen.findByText('Nenhuma notificação do GitHub não lida.');
     await user.click(screen.getByRole('button', { name: 'Marcar todas como lidas' }));
 
@@ -298,7 +329,7 @@ describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
     expect(api.markAllNotificationsRead).toHaveBeenCalledWith();
   });
 
-  it('C9-04 em escala, "Tarefas" mostra o aviso de tarefa em primeiro, sem "Carregar mais"', async () => {
+  it('C9-04 em escala, "Tarefas" mostra o aviso de tarefa em primeiro, sem "Carregar mais" (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     const github = Array.from({ length: 20 }, (_, index) =>
       notification(index + 1, { task: { id: 1000 + index, code: `TASK-${1000 + index}` } })
@@ -324,20 +355,18 @@ describe('S2-03 correções — central (S203-A04, S203-A07, S203-A08)', () => {
     );
     renderPage();
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
-    expect(screen.getByRole('button', { name: 'Carregar mais notificações' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Carregar mais (280 restantes)' })
+    ).toBeInTheDocument();
 
-    await user.click(
-      within(screen.getByRole('group', { name: 'Origem' })).getByRole('radio', {
-        name: 'Tarefas'
-      })
-    );
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Origem' }), 'TASKS');
 
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(1));
     expect(screen.getAllByRole('article')[0]).toHaveAccessibleName(
-      'Prazo vencido: TASK-500 Tarefa atrasada. Prazo venceu em 31/08/2026'
+      `Prazo vencido: TASK-500 venceu em 31/08/2026. Projeto Bateria, ${formatInstant(
+        '2026-09-01T12:00:00.000Z'
+      )}`
     );
-    expect(
-      screen.queryByRole('button', { name: 'Carregar mais notificações' })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Carregar mais/ })).not.toBeInTheDocument();
   });
 });

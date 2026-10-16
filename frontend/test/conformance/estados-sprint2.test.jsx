@@ -32,8 +32,12 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
 
 const { TraceabilityAlertsPage } = await import('../../src/pages/TraceabilityAlertsPage.jsx');
 const { UnlinkedTasksPage } = await import('../../src/pages/UnlinkedTasksPage.jsx');
-const { NotificationsPage } = await import('../../src/pages/NotificationsPage.jsx');
-const { UnreadNotificationsProvider } = await import('../../src/features/notifications/index.js');
+const { NotificationsPanel, UnreadNotificationsProvider } =
+  await import('../../src/features/notifications/index.js');
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={() => {}} />;
+}
 
 const permissions = { canLink: true, canManage: true };
 const summary = {

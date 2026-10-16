@@ -19,14 +19,20 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: { list: projects.list }
 }));
 
-import { NotificationsPage } from '../../src/pages/NotificationsPage.jsx';
 import {
+  NotificationsPanel,
   UnreadNotificationsProvider,
   useUnreadNotifications
 } from '../../src/features/notifications/index.js';
 import { AppShell } from '../../src/app/layout/AppShell.jsx';
 import { ThemeProvider } from '../../src/app/theme/ThemeProvider.jsx';
 import { ProjectsCatalogProvider } from '../../src/features/projects/index.js';
+
+const closePanel = () => {};
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={closePanel} />;
+}
 
 function notification(id, overrides = {}) {
   return {
@@ -130,7 +136,9 @@ function renderShell() {
 const cardOf = (code) => screen.getByRole('article', { name: new RegExp(`${code} `) });
 const markButton = (code) =>
   within(cardOf(code)).getByRole('button', { name: /Marcar como (não )?lida/ });
-const menuButton = () => document.querySelector('.trace-shell__mobile-topbar button');
+const menuButton = () => document.querySelector('[aria-controls="traceflow-global-navigation"]');
+const mobileBell = () =>
+  document.querySelector('.trace-shell__mobile-actions [aria-haspopup="dialog"]');
 const many = (count) => Array.from({ length: count }, (_, index) => notification(index + 1));
 
 beforeEach(() => {
@@ -163,17 +171,22 @@ describe('S2-02 reteste — correções na tela (bloco V)', () => {
   });
 
   it.each([
-    [0, 'Abrir navegação', false],
-    [1, 'Abrir navegação, 1 notificação não lida', true],
-    [99, 'Abrir navegação, 99 notificações não lidas', true],
-    [150, 'Abrir navegação, 150 notificações não lidas', true]
-  ])('RT-V-10 com %i não lidas o botão ☰ se chama "%s"', async (count, label, dot) => {
-    api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: count });
-    renderShell();
+    [0, 'Abrir navegação', 'Notificações', false],
+    [1, 'Abrir navegação', 'Notificações, 1 não lida', true],
+    [99, 'Abrir navegação', 'Notificações, 99 não lidas', true],
+    [150, 'Abrir navegação', 'Notificações, 150 não lidas', true]
+  ])(
+    'RT-V-10 com %i não lidas o ☰ continua "%s" e o sino do celular se chama "%s" (painel, TF-REV-008)',
+    async (count, label, bellLabel, dot) => {
+      api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: count });
+      renderShell();
 
-    await waitFor(() => expect(menuButton()).toHaveAttribute('aria-label', label));
-    expect(Boolean(menuButton().querySelector('.trace-shell__menu-dot'))).toBe(dot);
-  });
+      await waitFor(() => expect(mobileBell()).toHaveAttribute('aria-label', bellLabel));
+      expect(menuButton()).toHaveAttribute('aria-label', label);
+      expect(menuButton().querySelector('.trace-shell__menu-dot')).toBeNull();
+      expect(Boolean(mobileBell().querySelector('.trace-shell__menu-dot'))).toBe(dot);
+    }
+  );
 });
 
 describe('S2-02 reteste — central depois das correções (N-U)', () => {
@@ -189,11 +202,11 @@ describe('S2-02 reteste — central depois das correções (N-U)', () => {
     const serve = api.listNotifications.getMockImplementation();
     api.listNotifications.mockImplementationOnce(() => late.promise);
 
-    await user.click(screen.getByRole('button', { name: 'Carregar mais notificações' }));
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('button', { name: 'Carregar mais (5 restantes)' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
     await act(async () => late.resolve(await serve({ status: 'UNREAD', cursor: '6', limit: 20 })));
-    await user.click(screen.getByRole('button', { name: 'Carregar mais notificações' }));
+    await user.click(screen.getByRole('button', { name: 'Carregar mais (10 restantes)' }));
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(30));
 
     const allCalls = api.listNotifications.mock.calls.filter(([query]) => query.status === 'ALL');
@@ -282,25 +295,20 @@ describe('S2-02 reteste — central depois das correções (N-U)', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it('RT-N-U-06 o rótulo do ☰ acompanha a contagem, sem região viva que anuncie cada consulta', async () => {
+    it('RT-N-U-06 o rótulo do sino do celular acompanha a contagem, sem região viva que anuncie cada consulta (painel, TF-REV-008)', async () => {
       api.getUnreadNotificationCount
         .mockResolvedValueOnce({ unreadCount: 2 })
         .mockResolvedValue({ unreadCount: 5 });
       renderShell();
       await act(async () => {});
-      expect(menuButton()).toHaveAttribute(
-        'aria-label',
-        'Abrir navegação, 2 notificações não lidas'
-      );
+      expect(mobileBell()).toHaveAttribute('aria-label', 'Notificações, 2 não lidas');
 
       await act(async () => vi.advanceTimersByTime(60_000));
 
-      expect(menuButton()).toHaveAttribute(
-        'aria-label',
-        'Abrir navegação, 5 notificações não lidas'
-      );
-      expect(menuButton().closest('[aria-live]')).toBeNull();
-      expect(menuButton().querySelector('[aria-live]')).toBeNull();
+      expect(mobileBell()).toHaveAttribute('aria-label', 'Notificações, 5 não lidas');
+      expect(menuButton()).toHaveAttribute('aria-label', 'Abrir navegação');
+      expect(mobileBell().closest('[aria-live]')).toBeNull();
+      expect(mobileBell().querySelector('[aria-live]')).toBeNull();
     });
   });
 
@@ -331,9 +339,7 @@ describe('S2-02 reteste — central depois das correções (N-U)', () => {
     renderCenter();
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
 
-    expect(Boolean(screen.queryByRole('button', { name: 'Carregar mais notificações' }))).toBe(
-      visible
-    );
+    expect(Boolean(screen.queryByRole('button', { name: /^Carregar mais/ }))).toBe(visible);
   });
 
   it('RT-N-U-09 300 não lidas: 14 "Carregar mais" sem repetir cartão; tempo registrado', async () => {
@@ -344,7 +350,9 @@ describe('S2-02 reteste — central depois das correções (N-U)', () => {
     const started = performance.now();
 
     for (let click = 1; click <= 14; click += 1) {
-      await user.click(screen.getByRole('button', { name: 'Carregar mais notificações' }));
+      await user.click(
+        screen.getByRole('button', { name: `Carregar mais (${300 - 20 * click} restantes)` })
+      );
       await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20 * (click + 1)));
     }
 
@@ -353,8 +361,6 @@ describe('S2-02 reteste — central depois das correções (N-U)', () => {
       `RT-N-U-09 ${JSON.stringify({ cards: labels.length, ms: Math.round(performance.now() - started) })}\n`
     );
     expect(new Set(labels).size).toBe(300);
-    expect(
-      screen.queryByRole('button', { name: 'Carregar mais notificações' })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Carregar mais/ })).not.toBeInTheDocument();
   }, 120000);
 });

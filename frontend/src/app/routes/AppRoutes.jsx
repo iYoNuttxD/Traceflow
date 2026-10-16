@@ -73,10 +73,6 @@ const ProjectAuditPage = lazyNamed(
   () => import('../../pages/ProjectAuditPage.jsx'),
   'ProjectAuditPage'
 );
-const NotificationsPage = lazyNamed(
-  () => import('../../pages/NotificationsPage.jsx'),
-  'NotificationsPage'
-);
 const NotificationPreferencesPage = lazyNamed(
   () => import('../../features/notifications/pages/NotificationPreferencesPage.jsx'),
   'NotificationPreferencesPage'
@@ -206,7 +202,10 @@ export function AppRoutes() {
             <Route path="integrations" element={<IntegrationsSettingsPage />} />
             <Route path="notifications" element={<NotificationPreferencesPage />} />
           </Route>
-          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route
+            path="/notifications"
+            element={<Navigate to="/projects" replace state={{ openNotifications: true }} />}
+          />
           <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />
         </Route>
         <Route

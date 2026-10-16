@@ -15,8 +15,16 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('../../src/features/notifications/api/notifications.api.js', () => api);
 
-import { NotificationsPage } from '../../src/pages/NotificationsPage.jsx';
-import { UnreadNotificationsProvider } from '../../src/features/notifications/index.js';
+import {
+  NotificationsPanel,
+  UnreadNotificationsProvider
+} from '../../src/features/notifications/index.js';
+
+const closePanel = () => {};
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={closePanel} />;
+}
 
 function mediaBlock(css, condition) {
   const start = css.indexOf(`@media ${condition}`);
@@ -90,7 +98,7 @@ describe('S2-02 correções do reteste — "Carregar mais" sem refazer a lista (
   it('CR-08 a cada "Carregar mais", os cartões já exibidos não são refeitos', async () => {
     cursorServer(300);
     const commits = [];
-    const { container } = render(
+    render(
       <MemoryRouter initialEntries={['/notifications']}>
         <UnreadNotificationsProvider>
           <Profiler id="central" onRender={(_, __, actual, base) => commits.push({ actual, base })}>
@@ -101,10 +109,11 @@ describe('S2-02 correções do reteste — "Carregar mais" sem refazer a lista (
         </UnreadNotificationsProvider>
       </MemoryRouter>
     );
-    const cards = () => container.querySelectorAll('article').length;
+    const panel = () => document.body.querySelector('[role="dialog"]');
+    const cards = () => panel().querySelectorAll('article').length;
     const loadMore = () =>
-      [...container.querySelectorAll('button')].find(
-        (button) => button.textContent === 'Carregar mais notificações'
+      [...panel().querySelectorAll('button')].find((button) =>
+        /^Carregar mais \(\d+ restantes\)$/.test(button.textContent)
       );
     await waitFor(() => expect(cards()).toBe(20));
 

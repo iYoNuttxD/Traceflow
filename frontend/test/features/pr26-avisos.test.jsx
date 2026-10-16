@@ -1,24 +1,25 @@
 import { MemoryRouter } from 'react-router';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { NotificationCard } from '../../src/features/notifications/components/NotificationCard.jsx';
+import { NotificationItem } from '../../src/features/notifications/components/NotificationItem.jsx';
 import {
   formatInstant,
   notificationCardLabel,
-  notificationContextText,
-  notificationSubject,
+  notificationSentence,
+  notificationState,
   notificationTypeLabel,
   readToggleLabel
 } from '../../src/features/notifications/model/notification-view.js';
 
 const OCCURRED = '2026-10-10T12:00:00.000Z';
+const CREATED = '2026-10-15T12:00:00.000Z';
 const project = { id: 7, name: 'Projeto Alfa' };
 
 const notice = (alert, overrides = {}) => ({
   id: 90,
   type: 'TRACEABILITY_INCONSISTENCY',
   readAt: null,
-  createdAt: '2026-10-15T12:00:00.000Z',
+  createdAt: CREATED,
   project,
   task: null,
   link: '/projects/7/repository?alerta=12',
@@ -51,7 +52,7 @@ const summary = {
 };
 
 describe('PR #26 avisos de inconsistência na central (TF-REV-008)', () => {
-  it('A-F01 o aviso descreve o artefato, a data e o estado atual do alerta', () => {
+  it('A-F01 o aviso descreve o artefato, a data e o estado atual do alerta (painel, TF-REV-008)', () => {
     const resolved = { ...open, status: 'RESOLVED', resolvedAt: '2026-10-16T15:00:00.000Z' };
     const dismissed = { ...open, status: 'DISMISSED', dismissedAt: '2026-10-17T15:00:00.000Z' };
     const issue = notice(open, {
@@ -62,47 +63,50 @@ describe('PR #26 avisos de inconsistência na central (TF-REV-008)', () => {
     });
 
     expect(notificationTypeLabel('TRACEABILITY_INCONSISTENCY')).toBe('Inconsistência');
-    expect(notificationContextText(notice(open))).toBe(
-      `Pull request #8 mesclada sem tarefa em ${formatInstant(OCCURRED)}; em aberto`
+    expect(notificationSentence(notice(open))).toBe('PR #8 mesclada sem tarefa vinculada');
+    expect(notificationCardLabel(notice(open))).toBe(
+      `Inconsistência: PR #8 mesclada sem tarefa vinculada. Projeto Alfa, ${formatInstant(CREATED)}`
     );
-    expect(notificationContextText(notice(resolved))).toBe(
-      `Pull request #8 mesclada sem tarefa em ${formatInstant(OCCURRED)}; resolvida em ${new Date(
-        resolved.resolvedAt
-      ).toLocaleDateString('pt-BR')}`
+    expect(notificationState(notice(open))).toBe('em aberto');
+    expect(notificationState(notice(resolved))).toBe(
+      `resolvida em ${new Date(resolved.resolvedAt).toLocaleDateString('pt-BR')}`
     );
-    expect(notificationContextText(notice(dismissed))).toMatch(/; dispensada em /);
-    expect(notificationContextText(issue)).toMatch(/^Issue #45 fechada sem tarefa em /);
-    expect(notificationContextText(notice(null))).not.toMatch(/;/);
-    expect(notificationSubject(notice(open))).toEqual({ code: 'PR #8', title: 'Ajusta login' });
+    expect(notificationState(notice(dismissed))).toBe(
+      `dispensada em ${new Date(dismissed.dismissedAt).toLocaleDateString('pt-BR')}`
+    );
+    expect(notificationSentence(issue)).toBe('Issue #45 fechada sem tarefa vinculada');
+    expect(notificationState(notice(null))).toBe('');
   });
 
-  it('A-F02 o resumo conta as inconsistências por tipo, sem artefato', () => {
-    expect(notificationSubject(summary)).toEqual({ code: null, title: '12 inconsistências novas' });
-    expect(notificationContextText(summary)).toBe('9 PRs mescladas e 3 issues fechadas sem tarefa');
+  it('A-F02 o resumo conta as inconsistências por tipo, sem artefato (painel, TF-REV-008)', () => {
+    expect(notificationSentence(summary)).toBe(
+      '12 inconsistências novas: 9 PRs mescladas e 3 issues fechadas sem tarefa'
+    );
     expect(
-      notificationContextText({
+      notificationSentence({
         ...summary,
         context: { ...summary.context, batch: { total: 11, pullRequests: 11, issues: 0 } }
       })
-    ).toBe('11 PRs mescladas sem tarefa');
+    ).toBe('11 inconsistências novas: 11 PRs mescladas sem tarefa');
+    expect(notificationState(summary)).toBe('');
     expect(notificationCardLabel(summary)).toBe(
-      'Inconsistência: 12 inconsistências novas. 9 PRs mescladas e 3 issues fechadas sem tarefa'
+      `Inconsistência: 12 inconsistências novas: 9 PRs mescladas e 3 issues fechadas sem tarefa. Projeto Alfa, ${formatInstant(CREATED)}`
     );
     expect(readToggleLabel(summary)).toBe(
-      'Marcar como lida: 9 PRs mescladas e 3 issues fechadas sem tarefa, projeto Projeto Alfa'
+      `Marcar como lida: 12 inconsistências novas: 9 PRs mescladas e 3 issues fechadas sem tarefa, Projeto Alfa, ${formatInstant(CREATED)}`
     );
   });
 
-  it('A-F03 o cartão sem tarefa abre o Repositório, oferece o GitHub e não quebra', () => {
+  it('A-F03 o aviso sem tarefa abre o Repositório, deixa o GitHub para o destino e não quebra (painel, TF-REV-008)', () => {
     render(
       <MemoryRouter>
-        <NotificationCard
+        <NotificationItem
           notification={notice(open)}
           busy={false}
           onToggleRead={vi.fn()}
           onOpen={vi.fn()}
         />
-        <NotificationCard
+        <NotificationItem
           notification={summary}
           busy={false}
           onToggleRead={vi.fn()}
@@ -113,20 +117,20 @@ describe('PR #26 avisos de inconsistência na central (TF-REV-008)', () => {
 
     const [single, batch] = screen.getAllByRole('article');
     expect(single).toHaveAccessibleName(
-      `Inconsistência: PR #8 Ajusta login. Pull request #8 mesclada sem tarefa em ${formatInstant(
-        OCCURRED
-      )}; em aberto`
+      `Inconsistência: PR #8 mesclada sem tarefa vinculada. Projeto Alfa, ${formatInstant(CREATED)}`
+    );
+    expect(single.querySelector('.notification-item__meta')).toHaveTextContent(
+      `Projeto Alfa · ${formatInstant(CREATED)} · em aberto`
     );
     expect(
-      screen.getByRole('link', { name: 'Ver no Repositório: PR #8 Ajusta login' })
+      within(single).getByRole('link', { name: /PR #8 mesclada sem tarefa vinculada/ })
     ).toHaveAttribute('href', '/projects/7/repository?alerta=12');
     expect(
-      screen.getByRole('link', { name: 'Ver no Repositório: 12 inconsistências novas' })
+      within(batch).getByRole('link', { name: /12 inconsistências novas: 9 PRs mescladas/ })
     ).toHaveAttribute('href', '/projects/7/repository?inconsistencia=OPEN');
-    expect(screen.getByRole('link', { name: /Abrir no GitHub a pull request #8/ })).toHaveAttribute(
-      'href',
-      'https://github.com/o/r/pull/8'
-    );
+    expect(screen.queryByRole('link', { name: /Abrir no GitHub/ })).not.toBeInTheDocument();
+    expect(document.body.querySelector('a[href^="https://github.com"]')).toBeNull();
+    expect(single).not.toHaveTextContent('Tarefa excluída');
     expect(batch).not.toHaveTextContent('Tarefa excluída');
     expect(screen.queryByText('Abrir tarefa')).not.toBeInTheDocument();
   });

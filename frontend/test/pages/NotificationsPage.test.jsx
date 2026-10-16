@@ -17,20 +17,28 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: { list: projects.list }
 }));
 
-import { NotificationsPage } from '../../src/pages/NotificationsPage.jsx';
 import {
+  NotificationsPanel,
   UnreadNotificationsProvider,
   useUnreadNotifications
 } from '../../src/features/notifications/index.js';
+import { formatInstant } from '../../src/features/notifications/model/notification-view.js';
 import { AppShell } from '../../src/app/layout/AppShell.jsx';
 import { ThemeProvider } from '../../src/app/theme/ThemeProvider.jsx';
 import { ProjectsCatalogProvider } from '../../src/features/projects/index.js';
+
+const CREATED = '2026-10-09T14:30:00.000Z';
+const closePanel = () => {};
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={closePanel} />;
+}
 
 function notification(id, overrides = {}) {
   return {
     id,
     type: 'TASK_STATUS_CHANGED',
-    createdAt: '2026-10-09T14:30:00.000Z',
+    createdAt: CREATED,
     readAt: null,
     project: { id: 9, name: 'Projeto Escala' },
     task: { id: 100 + id, code: `TASK-${100 + id}`, title: `Tarefa ${id}`, available: true },
@@ -96,7 +104,7 @@ beforeEach(() => {
 });
 
 describe('S2-02 central de notificações', () => {
-  it('lista as não lidas por padrão com tipo, tarefa, projeto e contexto', async () => {
+  it('lista as não lidas por padrão com tipo, tarefa, projeto e contexto (painel, TF-REV-008)', async () => {
     api.listNotifications.mockResolvedValue(
       listing([
         notification(1),
@@ -113,14 +121,16 @@ describe('S2-02 central de notificações', () => {
       { status: 'UNREAD', page: 1, limit: 20 },
       expect.any(Object)
     );
-    expect(within(card).getByText('Mudança de status')).toBeInTheDocument();
-    expect(within(card).getByText('Não lida')).toBeInTheDocument();
-    expect(within(card).getByText('Tarefa 1')).toBeInTheDocument();
+    expect(card).toHaveAccessibleName(
+      `Mudança de status: Ana Souza moveu TASK-101 para Concluído. Projeto Escala, ${formatInstant(CREATED)}`
+    );
+    expect(within(card).getByText('Não lida:')).toBeInTheDocument();
     expect(within(card).getByText(/Projeto Escala/)).toBeInTheDocument();
+    expect(within(card).getByText('Ana Souza moveu TASK-101 para Concluído')).toBeInTheDocument();
+    expect(cardOf('TASK-102')).toHaveAccessibleName(/^Prazo vencido: /);
     expect(
-      within(card).getByText('Ana Souza moveu de Em andamento para Concluído')
+      within(cardOf('TASK-102')).getByText('TASK-102 venceu em 10/10/2026')
     ).toBeInTheDocument();
-    expect(within(cardOf('TASK-102')).getByText('Prazo venceu em 10/10/2026')).toBeInTheDocument();
   });
 
   it('alterna entre Não lidas e Todas', async () => {
@@ -133,7 +143,7 @@ describe('S2-02 central de notificações', () => {
     renderPage();
     await waitFor(() => cardOf('TASK-101'));
 
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
 
     await waitFor(() => cardOf('TASK-103'));
     expect(api.listNotifications).toHaveBeenLastCalledWith(
@@ -155,7 +165,7 @@ describe('S2-02 central de notificações', () => {
     expect(await screen.findByText('Nenhuma notificação não lida.')).toBeInTheDocument();
 
     api.listNotifications.mockRejectedValueOnce(apiError(500));
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('O TRACEFLOW encontrou um problema interno.');
     api.listNotifications.mockResolvedValueOnce(listing([notification(4)]));
@@ -188,7 +198,7 @@ describe('S2-02 central de notificações', () => {
     await user.click(within(cardOf('TASK-101')).getByRole('button', { name: /Marcar como lida/ }));
     expect(api.markNotification).toHaveBeenCalledWith(1, true);
     await waitFor(() => expect(screen.getByLabelText('Contador')).toHaveTextContent('0'));
-    expect(within(cardOf('TASK-101')).queryByText('Não lida')).not.toBeInTheDocument();
+    expect(within(cardOf('TASK-101')).queryByText('Não lida:')).not.toBeInTheDocument();
 
     await user.click(
       within(cardOf('TASK-101')).getByRole('button', { name: /Marcar como não lida/ })
@@ -217,19 +227,22 @@ describe('S2-02 central de notificações', () => {
     expect(api.getUnreadNotificationCount.mock.calls.length).toBeGreaterThan(countCalls);
   });
 
-  it('abrir a tarefa leva ao Kanban com o detalhe e marca a notificação como lida', async () => {
+  it('abrir a tarefa leva ao Kanban com o detalhe e marca a notificação como lida (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     api.listNotifications.mockResolvedValue(listing([notification(1)]));
     api.markNotification.mockResolvedValue({ notification: notification(1) });
     renderPage();
 
-    await user.click(await screen.findByRole('link', { name: 'Abrir tarefa TASK-101' }));
+    const card = await waitFor(() => cardOf('TASK-101'));
+    await user.click(
+      within(card).getByRole('link', { name: /Ana Souza moveu TASK-101 para Concluído/ })
+    );
 
     expect(screen.getByLabelText('Destino')).toHaveTextContent('/projects/9/kanban?task=101');
     expect(api.markNotification).toHaveBeenCalledWith(1, true);
   });
 
-  it('tarefa excluída aparece sem link', async () => {
+  it('tarefa excluída aparece sem link (painel, TF-REV-008)', async () => {
     api.listNotifications.mockResolvedValue(
       listing([
         notification(1, {
@@ -241,7 +254,7 @@ describe('S2-02 central de notificações', () => {
     renderPage();
 
     const card = await screen.findByRole('article', { name: /Tarefa apagada/ });
-    expect(within(card).getByText('Tarefa excluída')).toBeInTheDocument();
+    expect(within(card).getByText(/· Tarefa excluída$/)).toBeInTheDocument();
     expect(within(card).queryByRole('link')).not.toBeInTheDocument();
   });
 
@@ -268,15 +281,19 @@ describe('S2-02 central de notificações', () => {
     expect(screen.queryByText(/NOTIFICATION_NOT_FOUND/)).not.toBeInTheDocument();
   });
 
-  it('título vindo do usuário é exibido como texto', async () => {
+  it('título vindo do usuário é exibido como texto (painel, TF-REV-008)', async () => {
     const title = '<img src=x onerror="window.__s202=1">';
     api.listNotifications.mockResolvedValue(
-      listing([notification(1, { task: { id: 101, code: 'TASK-101', title, available: true } })])
+      listing([
+        notification(1, { task: { id: null, code: null, title, available: false }, link: null })
+      ])
     );
-    const { container } = renderPage();
+    renderPage();
 
-    expect(await screen.findByText(title)).toBeInTheDocument();
-    expect(container.querySelector('img')).toBeNull();
+    expect(
+      await screen.findByText(`Ana Souza moveu “${title}” para Concluído`)
+    ).toBeInTheDocument();
+    expect(document.body.querySelector('img')).toBeNull();
     expect(window.__s202).toBeUndefined();
   });
 
@@ -290,7 +307,7 @@ describe('S2-02 central de notificações', () => {
         name: /Marcar como lida/
       })
     );
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
 
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
@@ -331,22 +348,22 @@ describe('S2-02 contador no menu lateral', () => {
     projects.list.mockResolvedValue({ data: { projects: [] } });
   });
 
-  it('mostra Notificações sem contador quando não há não lidas', async () => {
+  it('mostra Notificações sem contador quando não há não lidas (painel, TF-REV-008)', async () => {
     api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: 0 });
     renderShell();
 
-    const link = await screen.findByRole('link', { name: 'Notificações' });
+    const bell = await screen.findByRole('button', { name: 'Notificações' });
     await waitFor(() => expect(api.getUnreadNotificationCount).toHaveBeenCalled());
-    expect(link).toHaveAttribute('href', '/notifications');
-    expect(link.querySelector('.trace-shell__badge')).toBeNull();
+    expect(bell).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(bell.querySelector('.trace-shell__badge')).toBeNull();
   });
 
   it('mostra o número e limita em 99+', async () => {
     api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: 150 });
     renderShell();
 
-    const link = await screen.findByRole('link', { name: 'Notificações, 150 não lidas' });
-    expect(within(link).getByText('99+')).toBeInTheDocument();
+    const bell = await screen.findByRole('button', { name: 'Notificações, 150 não lidas' });
+    expect(within(bell).getByText('99+')).toBeInTheDocument();
   });
 });
 

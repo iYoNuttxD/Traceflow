@@ -28,9 +28,9 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: { list: projects.list }
 }));
 
-import { NotificationsPage } from '../../src/pages/NotificationsPage.jsx';
 import {
   NotificationPreferencesPage,
+  NotificationsPanel,
   UnreadNotificationsProvider,
   useUnreadNotifications
 } from '../../src/features/notifications/index.js';
@@ -38,7 +38,7 @@ import {
   formatDueDate,
   formatInstant,
   markAllMessage,
-  notificationContextText,
+  notificationSentence,
   notificationTypeLabel,
   taskStatusLabel,
   unreadBadge
@@ -48,6 +48,12 @@ import { httpClient } from '../../src/api/http-client.js';
 import { AppShell } from '../../src/app/layout/AppShell.jsx';
 import { ThemeProvider } from '../../src/app/theme/ThemeProvider.jsx';
 import { ProjectsCatalogProvider } from '../../src/features/projects/index.js';
+
+const closePanel = () => {};
+
+function NotificationsPage() {
+  return <NotificationsPanel onClose={closePanel} />;
+}
 
 function notification(id, overrides = {}) {
   return {
@@ -190,41 +196,49 @@ describe('S2-02 bateria frontend — contador no menu (NT-U-01)', () => {
       </MemoryRouter>
     );
 
-    const link = await screen.findByRole('link', { name: label });
-    expect(within(link).getByText(badge)).toBeInTheDocument();
+    const bell = await screen.findByRole('button', { name: label });
+    expect(within(bell).getByText(badge)).toBeInTheDocument();
   });
 });
 
 describe('S2-02 correções — indicador no botão de navegação do celular (O-7)', () => {
   it.each([
-    [0, 'Abrir navegação', false],
-    [1, 'Abrir navegação, 1 notificação não lida', true],
-    [3, 'Abrir navegação, 3 notificações não lidas', true]
-  ])('C3-03 com %i não lidas o botão se chama "%s"', async (count, label, dot) => {
-    api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: count });
-    render(
-      <MemoryRouter initialEntries={['/projects']}>
-        <ThemeProvider>
-          <ProjectsCatalogProvider>
-            <UnreadNotificationsProvider>
-              <AppShell
-                user={{ id: 7, name: 'João Teste', email: 'joao@example.invalid' }}
-                onLogout={vi.fn()}
-              >
-                <p>Conteúdo</p>
-              </AppShell>
-            </UnreadNotificationsProvider>
-          </ProjectsCatalogProvider>
-        </ThemeProvider>
-      </MemoryRouter>
-    );
+    [0, 'Abrir navegação', 'Notificações', false],
+    [1, 'Abrir navegação', 'Notificações, 1 não lida', true],
+    [3, 'Abrir navegação', 'Notificações, 3 não lidas', true]
+  ])(
+    'C3-03 com %i não lidas o ☰ continua "%s" e o sino do celular se chama "%s" (painel, TF-REV-008)',
+    async (count, label, bellLabel, dot) => {
+      api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: count });
+      render(
+        <MemoryRouter initialEntries={['/projects']}>
+          <ThemeProvider>
+            <ProjectsCatalogProvider>
+              <UnreadNotificationsProvider>
+                <AppShell
+                  user={{ id: 7, name: 'João Teste', email: 'joao@example.invalid' }}
+                  onLogout={vi.fn()}
+                >
+                  <p>Conteúdo</p>
+                </AppShell>
+              </UnreadNotificationsProvider>
+            </ProjectsCatalogProvider>
+          </ThemeProvider>
+        </MemoryRouter>
+      );
 
-    const menuButton = () => document.querySelector('.trace-shell__mobile-topbar button');
-    await waitFor(() => expect(menuButton()).toHaveAttribute('aria-label', label));
-    const marker = menuButton().querySelector('.trace-shell__menu-dot');
-    expect(Boolean(marker)).toBe(dot);
-    if (marker) expect(marker).toHaveAttribute('aria-hidden', 'true');
-  });
+      const menuButton = () =>
+        document.querySelector('[aria-controls="traceflow-global-navigation"]');
+      const mobileBell = () =>
+        document.querySelector('.trace-shell__mobile-actions [aria-haspopup="dialog"]');
+      await waitFor(() => expect(mobileBell()).toHaveAttribute('aria-label', bellLabel));
+      expect(menuButton()).toHaveAttribute('aria-label', label);
+      expect(menuButton().querySelector('.trace-shell__menu-dot')).toBeNull();
+      const marker = mobileBell().querySelector('.trace-shell__menu-dot');
+      expect(Boolean(marker)).toBe(dot);
+      if (marker) expect(marker).toHaveAttribute('aria-hidden', 'true');
+    }
+  );
 });
 
 describe('S2-02 bateria frontend — consulta periódica e logout (NT-U-02, NT-U-07)', () => {
@@ -263,12 +277,12 @@ describe('S2-02 bateria frontend — central (NT-U-04, NT-U-05)', () => {
     await user.click(within(cardOf('TASK-102')).getByRole('button', { name: /Marcar como lida/ }));
 
     const card = cardOf('TASK-102');
-    expect(within(card).queryByText('Não lida')).not.toBeInTheDocument();
+    expect(within(card).queryByText('Não lida:')).not.toBeInTheDocument();
     expect(within(card).getByRole('button', { name: /Marcar como não lida/ })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Contador')).toHaveTextContent('1'));
   });
 
-  it('marcar todas leva o foco ao título da lista e o botão fica inativo sem pendências', async () => {
+  it('marcar todas leva o foco ao título do painel e o botão fica inativo sem pendências (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     const store = offsetServer([notification(1), notification(2)]);
     api.markAllNotificationsRead.mockImplementation(async () => {
@@ -285,14 +299,16 @@ describe('S2-02 bateria frontend — central (NT-U-04, NT-U-05)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Marcar todas como lidas' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Não lidas' })).toHaveFocus());
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Notificações' })).toHaveFocus()
+    );
     const button = screen.getByRole('button', { name: 'Marcar todas como lidas' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
     await user.click(button);
     expect(api.markAllNotificationsRead).toHaveBeenCalledTimes(1);
   });
 
-  it('NT-U-06 nome do projeto e do ator com HTML aparecem como texto', async () => {
+  it('NT-U-06 nome do projeto e do ator com HTML aparecem como texto (painel, TF-REV-008)', async () => {
     const hostile = '<img src=x onerror="window.__s202bat=1">';
     offsetServer([
       notification(1, {
@@ -300,7 +316,7 @@ describe('S2-02 bateria frontend — central (NT-U-04, NT-U-05)', () => {
         context: { fromStatus: 'A_FAZER', toStatus: 'CONCLUIDO', actor: { id: 3, name: hostile } }
       })
     ]);
-    const { container } = renderCenter();
+    renderCenter();
 
     await waitFor(() => cardOf('TASK-101'));
     const card = cardOf('TASK-101');
@@ -309,10 +325,8 @@ describe('S2-02 bateria frontend — central (NT-U-04, NT-U-05)', () => {
         new RegExp(`Projeto ${hostile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
       )
     ).toBeInTheDocument();
-    expect(
-      within(card).getByText(`${hostile} moveu de A fazer para Concluído`)
-    ).toBeInTheDocument();
-    expect(container.querySelector('img')).toBeNull();
+    expect(within(card).getByText(`${hostile} moveu TASK-101 para Concluído`)).toBeInTheDocument();
+    expect(document.body.querySelector('img')).toBeNull();
     expect(window.__s202bat).toBeUndefined();
   });
 });
@@ -370,7 +384,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
 
     store.push(notification(26));
-    await user.click(screen.getByRole('button', { name: 'Carregar mais notificações' }));
+    await user.click(screen.getByRole('button', { name: 'Carregar mais (5 restantes)' }));
 
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(25));
     const labels = screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'));
@@ -380,9 +394,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
       { status: 'UNREAD', cursor: '6', limit: 20 },
       expect.objectContaining({ fresh: true })
     );
-    expect(
-      screen.queryByRole('button', { name: 'Carregar mais notificações' })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Carregar mais/ })).not.toBeInTheDocument();
   });
 
   it('falha ao carregar mais mantém a página 1 e a nova tentativa repete o mesmo cursor', async () => {
@@ -392,13 +404,11 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
 
     api.listNotifications.mockRejectedValueOnce(apiError(500));
-    await user.click(screen.getByRole('button', { name: 'Carregar mais notificações' }));
+    await user.click(screen.getByRole('button', { name: 'Carregar mais (5 restantes)' }));
 
     const alert = await screen.findByRole('alert');
     expect(screen.getAllByRole('article')).toHaveLength(20);
-    expect(
-      screen.queryByRole('button', { name: 'Carregar mais notificações' })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Carregar mais/ })).not.toBeInTheDocument();
 
     await user.click(within(alert).getByRole('button', { name: 'Tentar novamente' }));
 
@@ -410,7 +420,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('resposta atrasada do filtro anterior não sobrescreve a lista nem o contador do filtro novo', async () => {
+  it('resposta atrasada do filtro anterior não sobrescreve a lista nem o contador do filtro novo (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     const late = deferred();
     api.listNotifications.mockImplementation(({ status }) =>
@@ -420,12 +430,12 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     );
     renderCenter();
 
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
     await waitFor(() => cardOf('TASK-102'));
     await act(async () => late.resolve(listing([notification(1)])));
 
     expect(screen.queryByRole('article', { name: /TASK-101/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Todas as notificações' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Todas' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByText('Carregando notificações...')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Contador')).toHaveTextContent('0');
   });
@@ -438,7 +448,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     );
     renderCenter();
 
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
     await waitFor(() => cardOf('TASK-102'));
     await act(async () => late.reject(apiError(500)));
 
@@ -458,7 +468,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     await waitFor(() => cardOf('TASK-101'));
 
     await user.click(within(cardOf('TASK-101')).getByRole('button', { name: /Marcar como lida/ }));
-    await user.click(screen.getByRole('radio', { name: 'Todas' }));
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
     await act(async () => marking.resolve({ notification: notification(1, { readAt: READ_AT }) }));
 
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
@@ -516,25 +526,25 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
         ).toBeInTheDocument()
       );
     }
-    await user.click(screen.getByRole('button', { name: 'Carregar mais notificações' }));
+    await user.click(screen.getByRole('button', { name: 'Carregar mais (5 restantes)' }));
 
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(25));
     const labels = screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'));
     expect(new Set(labels).size).toBe(25);
     for (const code of ['TASK-105', 'TASK-104', 'TASK-103', 'TASK-102', 'TASK-101'])
       expect(cardOf(code)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Carregar mais notificações' })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Carregar mais/ })).not.toBeInTheDocument();
   });
 
-  it('abrir uma tarefa já lida leva ao Kanban sem nova marcação', async () => {
+  it('abrir uma tarefa já lida leva ao Kanban sem nova marcação (painel, TF-REV-008)', async () => {
     const user = userEvent.setup();
     offsetServer([notification(1, { readAt: READ_AT })]);
     renderCenter();
 
-    await user.click(await screen.findByRole('radio', { name: 'Todas' }));
-    await user.click(await screen.findByRole('link', { name: 'Abrir tarefa TASK-101' }));
+    await user.click(await screen.findByRole('tab', { name: 'Todas' }));
+    await user.click(
+      await screen.findByRole('link', { name: /Ana Souza moveu TASK-101 para Em andamento/ })
+    );
 
     expect(await screen.findByText('Kanban aberto')).toBeInTheDocument();
     expect(api.markNotification).not.toHaveBeenCalled();
@@ -555,7 +565,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
     expect(api.listNotifications).toHaveBeenCalledTimes(loads);
-    expect(within(cardOf('TASK-101')).getByText('Não lida')).toBeInTheDocument();
+    expect(within(cardOf('TASK-101')).getByText('Não lida:')).toBeInTheDocument();
   });
 
   it('falha ao marcar todas avisa e mantém as pendências', async () => {
@@ -568,7 +578,7 @@ describe('S2-02 bateria frontend — paginação e corridas da central (NT-U-04,
     await user.click(screen.getByRole('button', { name: 'Marcar todas como lidas' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/problema interno/);
-    expect(within(cardOf('TASK-101')).getByText('Não lida')).toBeInTheDocument();
+    expect(within(cardOf('TASK-101')).getByText('Não lida:')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Marcar todas como lidas' })).toHaveAttribute(
       'aria-disabled',
       'false'
@@ -692,9 +702,9 @@ describe('S2-02 bateria frontend — rótulos e mensagens de borda (NT-U-05)', (
     ['status ausente', () => taskStatusLabel(undefined), ''],
     ['instante ausente', () => formatInstant(''), ''],
     [
-      'contexto de tipo desconhecido',
-      () => notificationContextText({ type: 'OUTRO', context: null }),
-      ''
+      'contexto de tipo desconhecido (painel, TF-REV-008)',
+      () => notificationSentence({ type: 'OUTRO', context: null }),
+      'Notificação sobre uma tarefa removida'
     ],
     ['nenhuma pendente', () => markAllMessage(0), 'Nenhuma notificação estava pendente.'],
     ['uma marcada', () => markAllMessage(1), '1 notificação marcada como lida.'],
