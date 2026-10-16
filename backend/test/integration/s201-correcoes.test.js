@@ -87,8 +87,13 @@ async function scenario() {
 
 const recordOf = (projectId) =>
   prisma.traceabilityAlertReconciliation.findUnique({ where: { projectId } });
-const summaryOf = async (projectId) =>
-  (await alertService.summary(projectId, { role: 'VIEWER' })).reconciliation;
+const summaryOf = async (projectId) => {
+  const { userId } = await prisma.projectMembership.findFirst({
+    where: { projectId },
+    select: { userId: true }
+  });
+  return (await alertService.summary(projectId, { actorUserId: userId })).reconciliation;
+};
 const injectFailure = () =>
   vi
     .spyOn(alerts, 'reconcileProject')
