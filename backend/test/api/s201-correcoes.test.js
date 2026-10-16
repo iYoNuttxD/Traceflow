@@ -234,16 +234,18 @@ describe('Correções S2-01 — reconciliar ao conectar o repositório (S201-A01
     return created.body.task;
   }
 
-  it('C2-01 conectar o repositório gera o alerta da tarefa já concluída sem commit (AT-T-09)', async () => {
+  it('C2-01 a tarefa concluída sem commit já alerta antes da conexão, e conectar mantém o alerta (AT-T-09, TF-REV-002)', async () => {
     const project = await createProject(prisma);
     const owner = await register('OWNER', project.id);
     const task = await concludedTask(owner, project.id);
-    expect((await owner.agent.get(`${base(project.id)}/alerts/summary`)).body.open.total).toBe(0);
+    const before = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
+    expect(before.open.total).toBe(1);
+    expect(before.rules.integrationConnected).toBe(false);
 
     expect((await connectRepository(owner, project.id)).status).toBe(200);
 
     const summary = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
-    expect(summary.rules.taskWithoutCommitActive).toBe(true);
+    expect(summary.rules).toEqual({ taskWithoutCommitActive: true, integrationConnected: true });
     expect(summary.open.total).toBe(1);
     const list = (await owner.agent.get(`${base(project.id)}/alerts`)).body;
     expect(list.alerts[0].subject).toMatchObject({ type: 'TASK', id: task.id });
@@ -264,14 +266,14 @@ describe('Correções S2-01 — reconciliar ao conectar o repositório (S201-A01
       1
     );
     const failedSummary = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
-    expect(failedSummary.open.total).toBe(0);
+    expect(failedSummary.open.total).toBe(1);
     expect(failedSummary.reconciliation).toMatchObject({
       lastTrigger: 'GITHUB_INTEGRATION',
       lastSucceededAt: null,
       stale: true
     });
     const recovered = await owner.mutate('post', `${base(project.id)}/alerts/reconcile`).send({});
-    expect(recovered.body.result.created).toBe(1);
+    expect(recovered.body.result).toMatchObject({ created: 0, kept: 1 });
     const healed = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
     expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', stale: false });
   });

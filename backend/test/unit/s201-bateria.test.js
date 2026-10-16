@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { authorizationService } from '../../src/modules/authorization/authorization.service.js';
 import { toAlertDetailDTO } from '../../src/modules/traceability/traceability-alert.mapper.js';
 import {
+  CLOSE_TIME_UNAVAILABLE,
   COMPLETION_TIME_UNAVAILABLE,
   ISSUE_ALERT,
   PULL_REQUEST_ALERT,
@@ -30,21 +31,19 @@ function product(...lists) {
   );
 }
 
-function expectedTask({ task, commitCount, integrationExists }) {
+function expectedTask({ task, commitCount }) {
   if (!task) return { active: false, resolutionReason: 'TASK_DELETED' };
-  if (task.status === 'CONCLUIDO' && commitCount === 0 && integrationExists)
-    return { active: true, resolutionReason: null };
   if (commitCount > 0) return { active: false, resolutionReason: 'COMMIT_LINKED' };
   if (task.status !== 'CONCLUIDO') return { active: false, resolutionReason: 'TASK_REOPENED' };
-  return { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' };
+  return { active: true, resolutionReason: null };
 }
 
-const insideCutoff = (value) => value !== null && Date.parse(value) >= cutoff.getTime();
+const isInstant = (value) => value !== null && !Number.isNaN(Date.parse(value));
 
 function expectedPullRequest({ pullRequest, linkedTaskCount }) {
   if (!pullRequest) return { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' };
   if (linkedTaskCount > 0) return { active: false, resolutionReason: 'PULL_REQUEST_LINKED' };
-  if (insideCutoff(pullRequest.mergedAtGithub)) return { active: true, resolutionReason: null };
+  if (isInstant(pullRequest.mergedAtGithub)) return { active: true, resolutionReason: null };
   return { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' };
 }
 
@@ -52,8 +51,7 @@ function expectedIssue({ issue, linkedTaskCount }) {
   if (!issue) return { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' };
   if (linkedTaskCount > 0) return { active: false, resolutionReason: 'ISSUE_LINKED' };
   if (issue.state !== 'closed') return { active: false, resolutionReason: 'ISSUE_REOPENED' };
-  if (insideCutoff(issue.closedAtGithub)) return { active: true, resolutionReason: null };
-  return { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' };
+  return { active: true, resolutionReason: null };
 }
 
 const instants = [
@@ -66,7 +64,7 @@ const instants = [
   'não-é-data'
 ];
 
-describe('Bateria S2-01 unidade — tabela de decisão do RF13 (AT-T-01)', () => {
+describe('Bateria S2-01 unidade — tabela de decisão do RF13, sem depender da integração (AT-T-01)', () => {
   const rows = [
     ...product(['A_FAZER', 'EM_ANDAMENTO', 'CONCLUIDO'], [0, 1, 2], [true, false], [null, 7]).map(
       ([status, commitCount, integrationExists, pullRequestId]) => ({
@@ -114,12 +112,11 @@ describe('Bateria S2-01 unidade — tabela de decisão do RF39 (AT-G-01)', () =>
     expect(evaluatePullRequestAlert(input)).toEqual(expectedPullRequest(input));
   });
 
-  it('o corte também vale com o projeto informado em texto ISO', () => {
+  it('o instante do merge em texto ISO vale como data', () => {
     expect(
       evaluatePullRequestAlert({
-        pullRequest: { mergedAtGithub: at(0) },
-        linkedTaskCount: 0,
-        cutoff: cutoff.toISOString()
+        pullRequest: { mergedAtGithub: at(-1).toISOString() },
+        linkedTaskCount: 0
       })
     ).toEqual({ active: true, resolutionReason: null });
   });
@@ -190,13 +187,15 @@ describe('Bateria S2-01 unidade — instante do fato (AT-T-07)', () => {
     expect(alertOccurredAt(ISSUE_ALERT, {})).toBeNull();
   });
 
-  it('só alerta de tarefa sem data declara a limitação', () => {
+  it('tarefa sem conclusão e issue sem fechamento declaram a limitação (TF-REV-002)', () => {
     expect(alertLimitations({ type: TASK_ALERT, occurredAt: null })).toEqual([
       COMPLETION_TIME_UNAVAILABLE
     ]);
     expect(alertLimitations({ type: TASK_ALERT, occurredAt: at(0) })).toEqual([]);
     expect(alertLimitations({ type: PULL_REQUEST_ALERT, occurredAt: null })).toEqual([]);
-    expect(alertLimitations({ type: ISSUE_ALERT, occurredAt: null })).toEqual([]);
+    expect(alertLimitations({ type: ISSUE_ALERT, occurredAt: null })).toEqual([
+      CLOSE_TIME_UNAVAILABLE
+    ]);
   });
 });
 

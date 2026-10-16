@@ -47,7 +47,8 @@ function alertContext(alert) {
           }
         : null,
       issueCount: task._count.issueLinks,
-      pendingCommitSuggestions: task._count.commitSuggestions
+      pendingCommitSuggestions: task._count.commitSuggestions,
+      integrationConnected: Boolean(alert.project?.githubIntegration)
     };
   }
   if (alert.type === PULL_REQUEST_ALERT) {
@@ -121,7 +122,7 @@ export function toAlertSummaryDTO({
       byType
     },
     dismissed: { total: dismissed },
-    rules: { taskWithoutCommitActive: integrationExists },
+    rules: { taskWithoutCommitActive: true, integrationConnected: integrationExists },
     reconciliation: toReconciliationDTO(reconciliation)
   };
 }

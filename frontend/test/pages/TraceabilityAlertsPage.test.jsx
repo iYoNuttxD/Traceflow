@@ -42,7 +42,7 @@ function summary({ total = 0, byType = {}, rules = true, permissions = roles.MAN
     projectId: 9,
     open: { total, byType },
     dismissed: { total: 0 },
-    rules: { taskWithoutCommitActive: rules },
+    rules: { taskWithoutCommitActive: true, integrationConnected: rules },
     permissions
   };
 }
@@ -234,15 +234,19 @@ describe('S2-01 tela de alertas: volumes de dados', () => {
     expect(await screen.findByText('Data da conclusão indisponível')).toBeInTheDocument();
   });
 
-  it('F13 avisa quando a regra de tarefa sem commit está inativa', async () => {
+  it('F13 explica o projeto sem repositório conectado, com a regra ativa (TF-REV-002)', async () => {
     api.getTraceabilityAlertSummary.mockResolvedValue(summary({ rules: false }));
     renderPage();
 
     expect(
       await screen.findByText(
-        'O alerta de tarefa concluída sem commit fica ativo quando o projeto tem um repositório GitHub integrado.'
+        /Projeto sem repositório conectado: nenhum commit pode ser vinculado\./
       )
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Abrir o repositório do projeto' })).toHaveAttribute(
+      'href',
+      '/projects/9/repository'
+    );
   });
 });
 

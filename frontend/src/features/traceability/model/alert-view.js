@@ -56,6 +56,9 @@ export const alertStatusTone = (status) => ALERT_STATUSES[status]?.tone || 'neut
 export const resolutionLabel = (reason) => RESOLUTION_REASONS[reason] || 'Motivo indisponível';
 export const taskStatusLabel = (status) => TASK_STATUSES[status] || 'Status indisponível';
 
+export const NO_REPOSITORY_MESSAGE =
+  'Projeto sem repositório conectado: nenhum commit pode ser vinculado.';
+
 export function formatInstant(value) {
   if (!value) return '';
   const date = new Date(value);

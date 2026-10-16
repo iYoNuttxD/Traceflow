@@ -217,7 +217,7 @@ describe('Bateria S2-01 integração — gatilhos por escritor (blocos T e G)', 
     ]);
   });
 
-  it('AT-G-01/02 o corte inclui o instante exato e o milissegundo seguinte, e exclui o anterior', async () => {
+  it('AT-G-01/02 sem corte: PR e issue de antes, do instante e de depois da criação do projeto alertam (TF-REV-002)', async () => {
     const { project } = await scenario();
     const pullRequests = await Promise.all(
       [-1, 0, 1].map((delta) =>
@@ -236,22 +236,29 @@ describe('Bateria S2-01 integração — gatilhos por escritor (blocos T e G)', 
         .map((row) => row.pullRequestId)
         .filter(Boolean)
         .sort()
-    ).toEqual([pullRequests[1].id, pullRequests[2].id].sort());
+    ).toEqual(pullRequests.map((row) => row.id).sort());
     expect(
       rows
         .map((row) => row.issueId)
         .filter(Boolean)
         .sort()
-    ).toEqual([issues[1].id, issues[2].id].sort());
+    ).toEqual(issues.map((row) => row.id).sort());
   });
 
-  it('AT-G-03 issue fechada sem data de fechamento não alerta', async () => {
+  it('AT-G-03 issue fechada sem data de fechamento alerta sem data da ocorrência (TF-REV-002)', async () => {
     const { project } = await scenario();
-    await createIssue(prisma, project.id, { state: 'closed', closedAtGithub: null });
+    const issue = await createIssue(prisma, project.id, { state: 'closed', closedAtGithub: null });
 
     await alertService.reconcileAfterSync(project.id);
 
-    expect(await alertsOf(project.id)).toEqual([]);
+    expect(await alertsOf(project.id)).toEqual([
+      expect.objectContaining({
+        type: 'ISSUE_CLOSED_WITHOUT_TASK',
+        issueId: issue.id,
+        status: 'OPEN',
+        occurredAt: null
+      })
+    ]);
   });
 
   it('AT-G-07 issue fechada, reaberta e fechada de novo gera duas ocorrências', async () => {
@@ -275,7 +282,7 @@ describe('Bateria S2-01 integração — gatilhos por escritor (blocos T e G)', 
     ]);
   });
 
-  it('AT-G-09 dado do GitHub corrigido para antes do corte resolve como RULE_NO_LONGER_APPLIES', async () => {
+  it('AT-G-09 data corrigida para antes da criação mantém os alertas; merge desfeito resolve como RULE_NO_LONGER_APPLIES (TF-REV-002)', async () => {
     const { project } = await scenario();
     const pullRequest = await createPullRequest(prisma, project.id, merged(AFTER));
     const issue = await createIssue(prisma, project.id, closed(AFTER));
@@ -287,8 +294,22 @@ describe('Bateria S2-01 integração — gatilhos por escritor (blocos T e G)', 
     await alertService.reconcileAfterSync(project.id);
 
     expect((await alertsOf(project.id)).map((row) => [row.status, row.resolutionReason])).toEqual([
-      ['RESOLVED', 'RULE_NO_LONGER_APPLIES'],
-      ['RESOLVED', 'RULE_NO_LONGER_APPLIES']
+      ['OPEN', null],
+      ['OPEN', null]
+    ]);
+
+    await prisma.pullRequest.update({
+      where: { id: pullRequest.id },
+      data: { mergedAtGithub: null }
+    });
+    await alertService.reconcileAfterSync(project.id);
+
+    const byPullRequest = (await alertsOf(project.id)).find(
+      (row) => row.pullRequestId === pullRequest.id
+    );
+    expect([byPullRequest.status, byPullRequest.resolutionReason]).toEqual([
+      'RESOLVED',
+      'RULE_NO_LONGER_APPLIES'
     ]);
   });
 });

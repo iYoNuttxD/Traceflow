@@ -9,7 +9,7 @@ import {
 } from '../../../shared/index.js';
 import { useTestCaseScope } from '../../testCases/index.js';
 import { dismissTraceabilityAlert, getTraceabilityAlert } from '../api/traceability.api.js';
-import { formatInstant, taskStatusLabel } from '../model/alert-view.js';
+import { NO_REPOSITORY_MESSAGE, formatInstant, taskStatusLabel } from '../model/alert-view.js';
 import { AlertBadges, AlertFacts } from './AlertCard.jsx';
 import { AlertDismissForm } from './AlertDismissForm.jsx';
 import { AlertLinkTask } from './AlertLinkTask.jsx';
@@ -37,6 +37,9 @@ function TaskContext({ context }) {
           : 'Nenhuma'}
       </ContextRow>
       <ContextRow label="Issues vinculadas">{context.issueCount}</ContextRow>
+      {context.integrationConnected === false && (
+        <ContextRow label="Repositório">{NO_REPOSITORY_MESSAGE}</ContextRow>
+      )}
     </>
   );
 }

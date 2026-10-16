@@ -195,7 +195,7 @@ describe('S2-01 gatilho de alertas no fim da sincronização GitHub', () => {
     ]);
   });
 
-  it('I10 artefatos encerrados antes da criação do projeto não geram alerta', async () => {
+  it('I10 artefatos encerrados antes da criação do projeto também geram alerta (TF-REV-002)', async () => {
     const owner = await register('owner-s201-cutoff@example.invalid');
     const project = await integratedProject(owner);
     githubBoundary.client = githubDouble({
@@ -205,8 +205,13 @@ describe('S2-01 gatilho de alertas no fim da sincronização GitHub', () => {
 
     const { reconciliation } = await syncAndReconcile(owner, project.id);
 
-    expect(reconciliation).toEqual({ created: 0, resolved: 0, kept: 0 });
-    expect(await alertsOf(project.id)).toEqual([]);
+    expect(reconciliation).toEqual({ created: 2, resolved: 0, kept: 0 });
+    expect(
+      (await alertsOf(project.id)).map((row) => [row.type, row.subjectCode, row.status]).sort()
+    ).toEqual([
+      ['ISSUE_CLOSED_WITHOUT_TASK', 'Issue #2', 'OPEN'],
+      ['PULL_REQUEST_MERGED_WITHOUT_TASK', 'PR #1', 'OPEN']
+    ]);
   });
 
   it('I11 issue reaberta no GitHub resolve o alerta no sync seguinte', async () => {

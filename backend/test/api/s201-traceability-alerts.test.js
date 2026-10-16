@@ -247,13 +247,16 @@ describe('S2-01 API de alertas: listagem, filtros, resumo e paginação (CA6)', 
     });
   });
 
-  it('informa que a regra de tarefa sem commit está inativa sem integração', async () => {
+  it('informa projeto sem repositório conectado, com a regra de tarefa sem commit ativa (TF-REV-002)', async () => {
     const project = await createProject(prisma);
     const viewer = await register('VIEWER', project.id);
 
     const summary = await viewer.agent.get(`${base(project.id)}/alerts/summary`);
 
-    expect(summary.body.rules.taskWithoutCommitActive).toBe(false);
+    expect(summary.body.rules).toEqual({
+      taskWithoutCommitActive: true,
+      integrationConnected: false
+    });
     expect(summary.body.open.total).toBe(0);
   });
 });

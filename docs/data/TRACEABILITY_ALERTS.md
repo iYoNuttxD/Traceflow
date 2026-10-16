@@ -28,7 +28,8 @@ Regras de borda:
 - **Projeto sem integração GitHub.**
   - O alerta RF13 nasce do mesmo jeito.
   - O detalhe diz "Projeto sem repositório conectado: nenhum commit pode ser vinculado".
-  - O resumo expõe `integrationExists` para a tela mostrar o atalho de conexão ao OWNER.
+  - O resumo expõe `rules.integrationConnected`, e o detalhe da tarefa, `context.integrationConnected`.
+    A tela usa os dois para explicar o alerta e levar ao repositório do projeto, onde o OWNER conecta.
   - Desconectar o repositório não resolve alerta.
 - `state` é o valor cru do GitHub, minúsculo, e não é normalizado.
 - PR vinculada a uma tarefa não silencia o RF13.

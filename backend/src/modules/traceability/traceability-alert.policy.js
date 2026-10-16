@@ -13,6 +13,7 @@ export const PULL_REQUEST_ALERT = 'PULL_REQUEST_MERGED_WITHOUT_TASK';
 export const ISSUE_ALERT = 'ISSUE_CLOSED_WITHOUT_TASK';
 
 export const COMPLETION_TIME_UNAVAILABLE = 'COMPLETION_TIME_UNAVAILABLE';
+export const CLOSE_TIME_UNAVAILABLE = 'CLOSE_TIME_UNAVAILABLE';
 
 export const SUBJECT_TITLE_MAX_LENGTH = 256;
 
@@ -31,12 +32,6 @@ function instant(value) {
   return Number.isNaN(time) ? null : time;
 }
 
-function isAtOrAfter(value, cutoff) {
-  const time = instant(value);
-  const limit = instant(cutoff);
-  return time !== null && limit !== null && time >= limit;
-}
-
 export function alertDedupeKey(type, subjectId) {
   return `${type}:${subjectId}`;
 }
@@ -46,26 +41,24 @@ export function subjectIdFromDedupeKey(dedupeKey) {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-export function evaluateTaskAlert({ task, commitCount = 0, integrationExists }) {
+export function evaluateTaskAlert({ task, commitCount = 0 }) {
   if (!task) return inactive('TASK_DELETED');
   if (commitCount > 0) return inactive('COMMIT_LINKED');
   if (task.status !== 'CONCLUIDO') return inactive('TASK_REOPENED');
-  if (!integrationExists) return inactive('RULE_NO_LONGER_APPLIES');
   return active;
 }
 
-export function evaluatePullRequestAlert({ pullRequest, linkedTaskCount = 0, cutoff }) {
+export function evaluatePullRequestAlert({ pullRequest, linkedTaskCount = 0 }) {
   if (!pullRequest) return inactive('RULE_NO_LONGER_APPLIES');
   if (linkedTaskCount > 0) return inactive('PULL_REQUEST_LINKED');
-  if (!isAtOrAfter(pullRequest.mergedAtGithub, cutoff)) return inactive('RULE_NO_LONGER_APPLIES');
+  if (instant(pullRequest.mergedAtGithub) === null) return inactive('RULE_NO_LONGER_APPLIES');
   return active;
 }
 
-export function evaluateIssueAlert({ issue, linkedTaskCount = 0, cutoff }) {
+export function evaluateIssueAlert({ issue, linkedTaskCount = 0 }) {
   if (!issue) return inactive('RULE_NO_LONGER_APPLIES');
   if (linkedTaskCount > 0) return inactive('ISSUE_LINKED');
   if (issue.state !== 'closed') return inactive('ISSUE_REOPENED');
-  if (!isAtOrAfter(issue.closedAtGithub, cutoff)) return inactive('RULE_NO_LONGER_APPLIES');
   return active;
 }
 
@@ -131,5 +124,8 @@ export function sortAlertCandidates(candidates) {
 }
 
 export function alertLimitations(alert) {
-  return alert.type === TASK_ALERT && !alert.occurredAt ? [COMPLETION_TIME_UNAVAILABLE] : [];
+  if (alert.occurredAt) return [];
+  if (alert.type === TASK_ALERT) return [COMPLETION_TIME_UNAVAILABLE];
+  if (alert.type === ISSUE_ALERT) return [CLOSE_TIME_UNAVAILABLE];
+  return [];
 }

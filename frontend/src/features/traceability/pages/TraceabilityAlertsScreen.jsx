@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import {
   ContextualErrorPage,
   EmptyState,
@@ -26,6 +26,7 @@ import {
   alertEmptyTitle,
   alertSummarySentence,
   alertTypeLabel,
+  NO_REPOSITORY_MESSAGE,
   reconcileMessage,
   reconciliationNotice
 } from '../model/alert-view.js';
@@ -167,10 +168,11 @@ function ProjectAlerts({ projectId }) {
               {reconciliationNotice(summary.reconciliation, permissions.canManage)}
             </p>
           )}
-          {summary && !summary.rules.taskWithoutCommitActive && (
+          {summary?.rules.integrationConnected === false && (
             <p className="trace-alert-notice">
-              O alerta de tarefa concluída sem commit fica ativo quando o projeto tem um repositório
-              GitHub integrado.
+              {NO_REPOSITORY_MESSAGE} Toda tarefa concluída fica com o alerta de tarefa sem commit
+              até o repositório ser conectado.{' '}
+              <Link to={`/projects/${projectId}/repository`}>Abrir o repositório do projeto</Link>
             </p>
           )}
           {permissions.canManage && (

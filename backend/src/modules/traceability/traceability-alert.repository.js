@@ -25,19 +25,14 @@ function uniqueIds(ids = []) {
   return [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))].sort((a, b) => a - b);
 }
 
-async function ruleContext(tx, projectId) {
-  const project = await tx.project.findUnique({
-    where: { id: projectId },
-    select: { createdAt: true, githubIntegration: { select: { id: true } } }
-  });
+async function assertProjectExists(tx, projectId) {
+  const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
-  return { cutoff: project.createdAt, integrationExists: Boolean(project.githubIntegration) };
 }
 
 const subjectRules = {
   [TASK_ALERT]: {
-    async candidates(tx, projectId, rule) {
-      if (!rule.integrationExists) return [];
+    async candidates(tx, projectId) {
       const rows = await tx.task.findMany({
         where: { projectId, status: 'CONCLUIDO', commitLinks: { none: {} } },
         select: { id: true }
@@ -50,18 +45,14 @@ const subjectRules = {
         select: { id: true, title: true, status: true, _count: { select: { commitLinks: true } } }
       });
     },
-    evaluate(subject, rule) {
-      return evaluateTaskAlert({
-        task: subject,
-        commitCount: subject?._count.commitLinks ?? 0,
-        integrationExists: rule.integrationExists
-      });
+    evaluate(subject) {
+      return evaluateTaskAlert({ task: subject, commitCount: subject?._count.commitLinks ?? 0 });
     }
   },
   [PULL_REQUEST_ALERT]: {
-    async candidates(tx, projectId, rule) {
+    async candidates(tx, projectId) {
       const rows = await tx.pullRequest.findMany({
-        where: { projectId, mergedAtGithub: { gte: rule.cutoff }, tasks: { none: {} } },
+        where: { projectId, mergedAtGithub: { not: null }, tasks: { none: {} } },
         select: { id: true }
       });
       return rows.map((row) => row.id);
@@ -78,23 +69,17 @@ const subjectRules = {
         }
       });
     },
-    evaluate(subject, rule) {
+    evaluate(subject) {
       return evaluatePullRequestAlert({
         pullRequest: subject,
-        linkedTaskCount: subject?._count.tasks ?? 0,
-        cutoff: rule.cutoff
+        linkedTaskCount: subject?._count.tasks ?? 0
       });
     }
   },
   [ISSUE_ALERT]: {
-    async candidates(tx, projectId, rule) {
+    async candidates(tx, projectId) {
       const rows = await tx.issue.findMany({
-        where: {
-          projectId,
-          state: 'closed',
-          closedAtGithub: { gte: rule.cutoff },
-          taskLinks: { none: {} }
-        },
+        where: { projectId, state: 'closed', taskLinks: { none: {} } },
         select: { id: true }
       });
       return rows.map((row) => row.id);
@@ -112,11 +97,10 @@ const subjectRules = {
         }
       });
     },
-    evaluate(subject, rule) {
+    evaluate(subject) {
       return evaluateIssueAlert({
         issue: subject,
-        linkedTaskCount: subject?._count.taskLinks ?? 0,
-        cutoff: rule.cutoff
+        linkedTaskCount: subject?._count.taskLinks ?? 0
       });
     }
   }
@@ -169,7 +153,7 @@ export async function reconcileTraceabilityAlerts(
   }
 ) {
   if (!dryRun) await lockActiveProject(tx, projectId);
-  const rule = await ruleContext(tx, projectId);
+  await assertProjectExists(tx, projectId);
   const requested = {
     [TASK_ALERT]: uniqueIds(taskIds),
     [PULL_REQUEST_ALERT]: uniqueIds(pullRequestIds),
@@ -190,7 +174,7 @@ export async function reconcileTraceabilityAlerts(
     const rules = subjectRules[type];
     const ids = full
       ? uniqueIds([
-          ...(await rules.candidates(tx, projectId, rule)),
+          ...(await rules.candidates(tx, projectId)),
           ...activeAlerts
             .filter((alert) => alert.type === type)
             .map((alert) => subjectIdFromDedupeKey(alert.dedupeKey))
@@ -203,7 +187,7 @@ export async function reconcileTraceabilityAlerts(
     const creating = [];
     for (const id of ids) {
       const subject = subjects.get(id) ?? null;
-      const verdict = rules.evaluate(subject, rule);
+      const verdict = rules.evaluate(subject);
       const alert = activeByKey.get(alertDedupeKey(type, id));
       if (verdict.active && !alert) creating.push(subject);
       else if (!verdict.active && alert)
@@ -263,6 +247,7 @@ const alertInclude = {
 
 const alertDetailInclude = {
   ...alertInclude,
+  project: { select: { githubIntegration: { select: { id: true } } } },
   task: {
     select: {
       id: true,

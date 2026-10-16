@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALERT_SUBJECTS,
+  CLOSE_TIME_UNAVAILABLE,
   COMPLETION_TIME_UNAVAILABLE,
   ISSUE_ALERT,
   PULL_REQUEST_ALERT,
@@ -47,15 +48,15 @@ describe('S2-01 política de alertas: tarefa concluída sem commit (RF13)', () =
       { active: false, resolutionReason: 'TASK_REOPENED' }
     ],
     [
-      'projeto sem integração GitHub',
+      'projeto sem integração GitHub também alerta (Quadro 3-51, TF-REV-002)',
       { task: { status: 'CONCLUIDO' }, commitCount: 0, integrationExists: false },
-      { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' }
+      { active: true, resolutionReason: null }
     ]
   ])('%s', (_, input, expected) => {
     expect(evaluateTaskAlert(input)).toEqual(expected);
   });
 
-  it('segue a precedência TASK_DELETED, COMMIT_LINKED, TASK_REOPENED, RULE_NO_LONGER_APPLIES', () => {
+  it('segue a precedência TASK_DELETED, COMMIT_LINKED, TASK_REOPENED', () => {
     expect(evaluateTaskAlert({ task: null, commitCount: 3, integrationExists: false })).toEqual({
       active: false,
       resolutionReason: 'TASK_DELETED'
@@ -72,19 +73,14 @@ describe('S2-01 política de alertas: tarefa concluída sem commit (RF13)', () =
 describe('S2-01 política de alertas: PR mesclada sem tarefa (RF39)', () => {
   it.each([
     [
-      'mesclada depois do corte, sem tarefa',
-      { pullRequest: { mergedAtGithub: cutoff }, linkedTaskCount: 0, cutoff },
+      'mesclada, sem tarefa',
+      { pullRequest: { mergedAtGithub: cutoff }, linkedTaskCount: 0 },
       { active: true, resolutionReason: null }
     ],
     [
-      'mesclada exatamente no instante do corte',
-      { pullRequest: { mergedAtGithub: new Date(cutoff) }, linkedTaskCount: 0, cutoff },
-      { active: true, resolutionReason: null }
-    ],
-    [
-      'mesclada um milissegundo antes do corte',
+      'mesclada antes da criação do projeto também alerta (Quadro 3-52, TF-REV-002)',
       { pullRequest: { mergedAtGithub: before }, linkedTaskCount: 0, cutoff },
-      { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' }
+      { active: true, resolutionReason: null }
     ],
     [
       'fechada sem merge',
@@ -112,8 +108,7 @@ describe('S2-01 política de alertas: PR mesclada sem tarefa (RF39)', () => {
   it('aceita instantes em texto ISO', () => {
     expect(
       evaluatePullRequestAlert({
-        pullRequest: { mergedAtGithub: '2026-08-02T00:00:00.000Z' },
-        cutoff: '2026-08-01T12:00:00.000Z'
+        pullRequest: { mergedAtGithub: '2026-08-02T00:00:00.000Z' }
       }).active
     ).toBe(true);
   });
@@ -122,19 +117,19 @@ describe('S2-01 política de alertas: PR mesclada sem tarefa (RF39)', () => {
 describe('S2-01 política de alertas: issue fechada sem tarefa (RF40)', () => {
   it.each([
     [
-      'fechada depois do corte, sem tarefa',
-      { issue: { state: 'closed', closedAtGithub: cutoff }, linkedTaskCount: 0, cutoff },
+      'fechada, sem tarefa',
+      { issue: { state: 'closed', closedAtGithub: cutoff }, linkedTaskCount: 0 },
       { active: true, resolutionReason: null }
     ],
     [
-      'fechada antes do corte',
+      'fechada antes da criação do projeto também alerta (Quadro 3-53, TF-REV-002)',
       { issue: { state: 'closed', closedAtGithub: before }, linkedTaskCount: 0, cutoff },
-      { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' }
+      { active: true, resolutionReason: null }
     ],
     [
-      'fechada sem closedAtGithub',
-      { issue: { state: 'closed', closedAtGithub: null }, linkedTaskCount: 0, cutoff },
-      { active: false, resolutionReason: 'RULE_NO_LONGER_APPLIES' }
+      'fechada sem closedAtGithub também alerta',
+      { issue: { state: 'closed', closedAtGithub: null }, linkedTaskCount: 0 },
+      { active: true, resolutionReason: null }
     ],
     [
       'reaberta',
@@ -269,11 +264,15 @@ describe('S2-01 política de alertas: chave, snapshot e datas', () => {
     ]);
   });
 
-  it('declara a limitação de data só para tarefa sem instante de conclusão', () => {
+  it('declara a limitação de data da tarefa sem conclusão e da issue sem fechamento', () => {
     expect(alertLimitations({ type: TASK_ALERT, occurredAt: null })).toEqual([
       COMPLETION_TIME_UNAVAILABLE
     ]);
     expect(alertLimitations({ type: TASK_ALERT, occurredAt: cutoff })).toEqual([]);
-    expect(alertLimitations({ type: ISSUE_ALERT, occurredAt: null })).toEqual([]);
+    expect(alertLimitations({ type: ISSUE_ALERT, occurredAt: null })).toEqual([
+      CLOSE_TIME_UNAVAILABLE
+    ]);
+    expect(alertLimitations({ type: ISSUE_ALERT, occurredAt: cutoff })).toEqual([]);
+    expect(alertLimitations({ type: PULL_REQUEST_ALERT, occurredAt: null })).toEqual([]);
   });
 });

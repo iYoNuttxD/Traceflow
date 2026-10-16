@@ -187,7 +187,7 @@ async function connectRepository(owner, projectId) {
 }
 
 describe('Bateria S2-01 — RF13 pelos caminhos públicos de escrita (bloco T)', () => {
-  it('AT-T-01/02 concluir por status ou por movimentação alerta só em projeto integrado e sem commit', async () => {
+  it('AT-T-01/02 concluir por status ou por movimentação alerta sem commit, com ou sem integração (TF-REV-002)', async () => {
     const project = await integrated();
     const plain = await createProject(prisma);
     const member = await register('MEMBER', project.id);
@@ -219,7 +219,9 @@ describe('Bateria S2-01 — RF13 pelos caminhos públicos de escrita (bloco T)',
       ].sort()
     );
     for (const alert of open) expect(alert.occurredAt).toEqual(expect.any(String));
-    expect(await openAlerts(member, plain.id)).toEqual([]);
+    expect(
+      (await openAlerts(member, plain.id)).map((alert) => [alert.type, alert.subject.id])
+    ).toEqual([['TASK_CONCLUDED_WITHOUT_COMMIT', notIntegrated.id]]);
   });
 
   it('AT-T-02 a criação de tarefa não aceita status, então não há atalho para nascer concluída', async () => {
@@ -383,6 +385,7 @@ describe('Bateria S2-01 — PR e issue pelos caminhos públicos (bloco G)', () =
     }
     expect(contextKeys).toEqual({
       TASK_CONCLUDED_WITHOUT_COMMIT: [
+        'integrationConnected',
         'issueCount',
         'pendingCommitSuggestions',
         'pullRequest',

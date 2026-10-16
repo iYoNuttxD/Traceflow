@@ -119,13 +119,19 @@ describe('S2-01 alertas de tarefa concluída sem commit (RF13)', () => {
     expect(await alertsOf(project.id)).toHaveLength(1);
   });
 
-  it('I2 projeto sem integração GitHub não alerta tarefa concluída', async () => {
+  it('I2 projeto sem integração GitHub também alerta tarefa concluída (TF-REV-002)', async () => {
     const { project, actor } = await scenario({ integration: false });
     const task = await createTask(prisma, project.id);
 
     await moveTo(task.id, 'CONCLUIDO', actor);
 
-    expect(await alertsOf(project.id)).toEqual([]);
+    expect(await alertsOf(project.id)).toEqual([
+      expect.objectContaining({
+        type: 'TASK_CONCLUDED_WITHOUT_COMMIT',
+        status: 'OPEN',
+        taskId: task.id
+      })
+    ]);
   });
 
   it('I3 vincular commit resolve o alerta com COMMIT_LINKED e libera a chave', async () => {
@@ -209,7 +215,7 @@ describe('S2-01 alertas de tarefa concluída sem commit (RF13)', () => {
     expect(alert.occurredAt).toBeNull();
   });
 
-  it('remover a integração resolve alertas de tarefa com RULE_NO_LONGER_APPLIES', async () => {
+  it('remover a integração não resolve o alerta de tarefa (TF-REV-002)', async () => {
     const { project, actor } = await scenario();
     const task = await createTask(prisma, project.id);
     await moveTo(task.id, 'CONCLUIDO', actor);
@@ -218,7 +224,7 @@ describe('S2-01 alertas de tarefa concluída sem commit (RF13)', () => {
     await alerts.reconcileProject(project.id, { dryRun: false });
 
     expect(await alertsOf(project.id)).toEqual([
-      expect.objectContaining({ status: 'RESOLVED', resolutionReason: 'RULE_NO_LONGER_APPLIES' })
+      expect.objectContaining({ status: 'OPEN', resolutionReason: null, taskId: task.id })
     ]);
   });
 });
@@ -292,9 +298,9 @@ describe('S2-01 alertas de PR mesclada e issue fechada sem tarefa (RF39, RF40)',
     ]);
   });
 
-  it('I10 o corte inclui o instante de criação do projeto e exclui o anterior', async () => {
+  it('I10 sem corte: PR e issue encerradas antes da criação do projeto também alertam (TF-REV-002)', async () => {
     const { project } = await scenario();
-    await createPullRequest(prisma, project.id, {
+    const old = await createPullRequest(prisma, project.id, {
       state: 'closed',
       mergedAtGithub: BEFORE_CUTOFF,
       closedAtGithub: BEFORE_CUTOFF
@@ -306,9 +312,18 @@ describe('S2-01 alertas de PR mesclada e issue fechada sem tarefa (RF39, RF40)',
 
     await alertService.reconcileAfterSync(project.id);
 
-    expect(await alertsOf(project.id)).toEqual([
-      expect.objectContaining({ type: 'ISSUE_CLOSED_WITHOUT_TASK', issueId: border.id })
-    ]);
+    const created = await alertsOf(project.id);
+    expect(created).toHaveLength(2);
+    expect(created).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'PULL_REQUEST_MERGED_WITHOUT_TASK',
+          pullRequestId: old.id,
+          occurredAt: BEFORE_CUTOFF
+        }),
+        expect.objectContaining({ type: 'ISSUE_CLOSED_WITHOUT_TASK', issueId: border.id })
+      ])
+    );
   });
 
   it('I11 issue reaberta num sync seguinte resolve com ISSUE_REOPENED', async () => {
