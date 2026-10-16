@@ -19,6 +19,8 @@ export const diagnosticPhases = Object.freeze(
       'DNS_IDENTITY',
       'TLS_PROBE',
       'PRISMA_INIT',
+      'SESSION_START',
+      'SESSION_END',
       'SQL_IDENTITY',
       'SERVER_IDENTITY',
       'SQL_SESSION_TLS',
@@ -27,6 +29,8 @@ export const diagnosticPhases = Object.freeze(
       'ROLES',
       'SQL_DIRECT_GRANTS',
       'DIRECT_GRANTS',
+      'SQL_ROLE_GRAPH',
+      'ROLE_GRAPH',
       'SQL_PUBLIC_GRANTS',
       'EFFECTIVE_GRANTS',
       'SQL_SELECT_ONE',
@@ -242,53 +246,147 @@ export function connectionContract(environment, authorization) {
   return { value, url, target, local, ca: url.searchParams.get('sslcert') };
 }
 
-export function validateGrants(rows, schema, role = 'diagnostic') {
+// Accept only the single-column SHOW GRANTS result, never arbitrary first values.
+function grantText(row, currentUser) {
+  let value = row;
+  if (typeof row !== 'string') {
+    check(row && typeof row === 'object' && !Array.isArray(row), 'MALFORMED_GRANTS');
+    const keys = Reflect.ownKeys(row);
+    check(
+      keys.length === 1 &&
+        typeof keys[0] === 'string' &&
+        (currentUser ? keys[0] === 'Grants for ' + currentUser : keys[0].startsWith('Grants for ')),
+      'MALFORMED_GRANTS'
+    );
+    value = errorProperty(row, keys[0]);
+  }
+  check(
+    typeof value === 'string' &&
+      value.length > 0 &&
+      ![...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127),
+    'MALFORMED_GRANTS'
+  );
+  return value;
+}
+
+function auditGrants(rows, schema, role, mandatoryPublic = false, currentUser) {
   const allowed =
     role === 'runtime' ? ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] : ['SELECT', 'SHOW VIEW'];
   check(['runtime', 'diagnostic', 'backup'].includes(role), 'UNKNOWN_ROLE');
-  const privileges = new Set();
+  check(Array.isArray(rows) && rows.length > 0, 'MALFORMED_GRANTS');
+  const privileges = new Set(),
+    seen = new Set();
+  let publicAssigned = false,
+    recipient = currentUser;
   for (const row of rows) {
-    const grant = typeof row === 'string' ? row : Object.values(row)[0];
-    if (/^GRANT USAGE ON \*\.\* TO [^\n]+$/.test(grant) && !grant.includes('WITH GRANT OPTION'))
+    const grant = grantText(row, currentUser);
+    check(!seen.has(grant), 'MALFORMED_GRANTS');
+    seen.add(grant);
+    // Anchored recipient syntax also refuses GRANT/ADMIN OPTION and unknown suffixes.
+    const statement = /^GRANT (.+) TO `([^`]+)`@`([^`]+)`$/.exec(grant);
+    check(statement, 'EXCESSIVE_OR_UNRESOLVED_GRANTS');
+    const account = statement[2] + '@' + statement[3];
+    recipient ??= account;
+    check(account === recipient, 'GRANT_IDENTITY_MISMATCH');
+    if (statement[1] === '`public`@`%`' && mandatoryPublic) {
+      check(!publicAssigned, 'MALFORMED_GRANTS');
+      publicAssigned = true;
       continue;
-    const match = /^GRANT ([A-Z ,]+) ON (`[^`]+`\.\*) TO [^\n]+$/.exec(grant);
-    check(
-      match && match[2] === '`' + schema + '`.*' && !grant.includes('WITH GRANT OPTION'),
-      'EXCESSIVE_OR_UNRESOLVED_GRANTS'
+    }
+    if (statement[1] === 'USAGE ON *.*') continue;
+    const match = /^([A-Z]+(?: [A-Z]+)*(?:, [A-Z]+(?: [A-Z]+)*)*) ON (`[^`]+`\.\*)$/.exec(
+      statement[1]
     );
-    for (const privilege of match[1].split(',').map((x) => x.trim())) {
+    check(match && match[2] === '`' + schema + '`.*', 'EXCESSIVE_OR_UNRESOLVED_GRANTS');
+    const listed = match[1].split(', ');
+    check(new Set(listed).size === listed.length, 'MALFORMED_GRANTS');
+    for (const privilege of listed) {
       check(allowed.includes(privilege), 'EXCESSIVE_OR_UNRESOLVED_GRANTS');
       privileges.add(privilege);
     }
   }
-  // SELECT on the target schema is required. Role grants are refused rather than guessed.
   check(privileges.has('SELECT'), 'SELECT_PRIVILEGE_REQUIRED');
-  return [...privileges].sort();
+  return { privileges: [...privileges].sort(), publicAssigned, recipient };
+}
+
+export function validateGrants(rows, schema, role = 'diagnostic') {
+  return auditGrants(rows, schema, role).privileges;
 }
 
 /** Resolve only the known mandatory public role; never guess effective privileges. */
 export function diagnosticRoles({ mandatoryRoles, activeRoles }) {
-  const publicRole = /^(?:public|['`"]public['`"])(?:@(?:%|['`"]%['`"]))?$/;
+  const publicRole = /^(?:public|'public'|"public"|`public`)(?:@(?:%|'%'|"%"|`%`))?$/;
   check(
     typeof mandatoryRoles === 'string' && typeof activeRoles === 'string',
     'ROLE_METADATA_REQUIRED'
   );
-  const mandatoryPublic = publicRole.test(mandatoryRoles);
+  const mandatoryPublic = publicRole.exec(mandatoryRoles)?.[0] === mandatoryRoles;
   check(mandatoryRoles === '' || mandatoryPublic, 'UNREVIEWED_MANDATORY_ROLE');
   check(
-    activeRoles === 'NONE' || (mandatoryPublic && publicRole.test(activeRoles)),
+    activeRoles === 'NONE' ||
+      (mandatoryPublic && publicRole.exec(activeRoles)?.[0] === activeRoles),
     'UNREVIEWED_ACTIVE_ROLE'
   );
   return { mandatoryPublic, activePublic: activeRoles !== 'NONE' };
 }
 
-export function validateEffectiveGrants(rows, schema, role, roles) {
-  const explicit = rows.filter((row) => {
-    const grant = typeof row === 'string' ? row : Object.values(row)[0];
-    // Ignore only the assignment after proving mandatory public and separately expanding it.
-    return !(roles.mandatoryPublic && /^GRANT `public`@`%` TO `[^`]+`@`[^`]+`$/.test(grant));
-  });
-  return validateGrants(explicit, schema, role);
+export function validateDirectGrants(rows, schema, role, roles, currentUser) {
+  return auditGrants(rows, schema, role, roles.mandatoryPublic, currentUser);
+}
+
+// APPLICABLE_ROLES includes mandatory seeds and recursive role edges. Do not filter
+// it in SQL: an unexpected/inactive/nested role must remain visible and be refused.
+export function validateRoleGraph(rows, roles, currentUser) {
+  check(Array.isArray(rows), 'MALFORMED_ROLE_GRAPH');
+  check(roles.mandatoryPublic && rows.length === 1, 'ROLE_GRAPH_UNVERIFIED');
+  const row = rows[0];
+  const fields = [
+    'USER',
+    'HOST',
+    'GRANTEE',
+    'GRANTEE_HOST',
+    'ROLE_NAME',
+    'ROLE_HOST',
+    'IS_GRANTABLE',
+    'IS_MANDATORY'
+  ];
+  check(
+    row &&
+      typeof row === 'object' &&
+      !Array.isArray(row) &&
+      Reflect.ownKeys(row).length === fields.length &&
+      fields.every((field) => typeof errorProperty(row, field) === 'string'),
+    'MALFORMED_ROLE_GRAPH'
+  );
+  check(
+    row.USER + '@' + row.HOST === currentUser &&
+      row.GRANTEE === row.USER &&
+      row.GRANTEE_HOST === row.HOST &&
+      row.ROLE_NAME === 'public' &&
+      row.ROLE_HOST === '%' &&
+      row.IS_MANDATORY === 'YES' &&
+      row.IS_GRANTABLE === 'NO',
+    'UNREVIEWED_ROLE_GRAPH'
+  );
+  return true;
+}
+
+export function validateEffectiveGrants(rows, schema, role, roles, evidence = {}) {
+  const { direct, currentUser, graphVerified } = evidence;
+  check(
+    direct && currentUser && (!roles.mandatoryPublic || graphVerified === true),
+    'EFFECTIVE_GRANTS_UNVERIFIED'
+  );
+  const effective = auditGrants(rows, schema, role, roles.mandatoryPublic, currentUser);
+  // Bare SHOW GRANTS must list mandatory public. USING omits an implicit assignment,
+  // but must retain an explicit one. In both cases all direct privileges must survive.
+  check(
+    direct.recipient === effective.recipient &&
+      direct.privileges.every((privilege) => effective.privileges.includes(privilege)) &&
+      (!(roles.activePublic || direct.publicAssigned) || effective.publicAssigned),
+    'EFFECTIVE_GRANTS_UNVERIFIED'
+  );
+  return effective.privileges;
 }
 
 export async function mysqlTlsProbe({ host, port, ca, timeoutMs = 5000 }) {

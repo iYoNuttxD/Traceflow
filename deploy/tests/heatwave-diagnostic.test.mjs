@@ -13,7 +13,9 @@ const source = await readFile(
   ),
   "utf8",
 );
-// Frozen SQL contract from cf155225. The test never sends these strings to a database.
+// Six historical statements from cf155225 remain byte-for-byte unchanged. 06.1.5
+// adds the unfiltered role graph and uses bare SHOW GRANTS only for active public.
+// MySQL behavior is sourced in runbook section 29, not proven by these test doubles.
 const originalSql = [
   "SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version, CURRENT_USER() AS currentUser",
   "SHOW SESSION STATUS WHERE Variable_name IN ('Ssl_cipher','Ssl_version')",
@@ -22,15 +24,38 @@ const originalSql = [
   "SHOW GRANTS FOR CURRENT_USER USING 'public'@'%'",
   "SELECT 1",
 ];
+const roleGraphSql =
+  "SELECT USER, HOST, GRANTEE, GRANTEE_HOST, ROLE_NAME, ROLE_HOST, IS_GRANTABLE, IS_MANDATORY FROM information_schema.APPLICABLE_ROLES";
+const currentSql = [
+  ...originalSql.slice(0, 4),
+  roleGraphSql,
+  "SHOW GRANTS",
+  originalSql[5],
+];
 const sqlPhases = [
   "SQL_IDENTITY",
   "SQL_SESSION_TLS",
   "SQL_SERVER_PARAMETERS",
   "SQL_DIRECT_GRANTS",
+  "SQL_ROLE_GRAPH",
   "SQL_PUBLIC_GRANTS",
   "SQL_SELECT_ONE",
 ];
 const syntheticPassword = "synthetic-test-only:@/";
+const recipient = "`traceflow_diag`@`10.20.1.184`";
+const publicAssignment = "GRANT `public`@`%` TO " + recipient;
+const publicGraph = {
+  USER: "traceflow_diag",
+  HOST: "10.20.1.184",
+  GRANTEE: "traceflow_diag",
+  GRANTEE_HOST: "10.20.1.184",
+  ROLE_NAME: "public",
+  ROLE_HOST: "%",
+  IS_GRANTABLE: "NO",
+  IS_MANDATORY: "YES",
+};
+const grantRows = (values) =>
+  values.map((grant) => ({ "Grants for traceflow_diag@10.20.1.184": grant }));
 const unsafeDetail =
   syntheticPassword +
   " mysql://synthetic.invalid/private SELECT private_payload";
@@ -116,6 +141,9 @@ async function scenario(options = {}) {
       target.schema +
       "`.* TO `traceflow_diag`@`10.20.1.184`",
   ];
+  const activePublic = options.publicRole !== false && !options.inactivePublic;
+  const responsesSql = [...currentSql];
+  if (!activePublic) responsesSql[5] = originalSql[4];
   const responses = [
     [identity],
     options.session ?? [
@@ -125,19 +153,31 @@ async function scenario(options = {}) {
     [
       {
         mandatoryRoles: options.publicRole === false ? "" : "public",
-        activeRoles: "NONE",
+        activeRoles: activePublic ? "`public`@`%`" : "NONE",
         maxConnections: 200n,
         ...options.parameters,
       },
     ],
-    options.directGrants ?? grants,
-    options.effectiveGrants ?? grants,
+    Object.hasOwn(options, "directGrants")
+      ? options.directGrants
+      : grantRows([
+          ...grants,
+          ...(options.explicitPublic ? [publicAssignment] : []),
+        ]),
+    Object.hasOwn(options, "roleGraph") ? options.roleGraph : [publicGraph],
+    Object.hasOwn(options, "effectiveGrants")
+      ? options.effectiveGrants
+      : grantRows([
+          ...grants,
+          ...(activePublic || options.explicitPublic ? [publicAssignment] : []),
+        ]),
     [{ value: 1n }],
   ];
-  const prisma = {
+  const sessionClient = {
     async $queryRawUnsafe(sql) {
+      assert.equal(events.includes("SESSION_START"), true);
       queries.push(sql);
-      const index = originalSql.indexOf(sql);
+      const index = responsesSql.indexOf(sql);
       assert.ok(index >= 0, "Unreviewed SQL refused by the test double");
       events.push(sqlPhases[index]);
       if (options.timeoutSql === index) {
@@ -147,11 +187,33 @@ async function scenario(options = {}) {
       if (options.failSql === index) throw options.error ?? fault();
       return responses[index];
     },
+  };
+  const prisma = {
+    async $queryRawUnsafe() {
+      assert.fail("SQL outside the pinned session is forbidden");
+    },
+    async $transaction(callback, limits) {
+      assert.equal(limits.maxWait, 5000);
+      assert.equal(limits.timeout, 30000);
+      events.push("SESSION_START");
+      if (options.transactionError) throw options.transactionError;
+      try {
+        const result = await callback(sessionClient);
+        events.push("SESSION_END");
+        if (options.transactionEndError) throw options.transactionEndError;
+        return result;
+      } catch (error) {
+        events.push("SESSION_ABORT");
+        if (options.timeoutAbort) timers[0].callback();
+        if (options.abortError) throw options.abortError;
+        throw error;
+      }
+    },
     async $disconnect() {
       events.push("DISCONNECT");
       assert.equal(
         stdout.length,
-        options.timeoutSql === undefined ? 0 : 1,
+        options.timeoutSql === undefined && !options.timeoutAbort ? 0 : 1,
         "Output must wait for cleanup unless the deadline fired",
       );
       if (options.timeoutDisconnect) timers[0].callback();
@@ -266,6 +328,7 @@ async function scenario(options = {}) {
     "mysql://",
     unsafeDetail,
     ...originalSql,
+    ...currentSql,
   ])
     assert.ok(
       !output.includes(secret),
@@ -305,7 +368,7 @@ for (let index = 0; index < sqlPhases.length; index++) {
         mysqlCode: "1227",
         writes: false,
       });
-      sameQueries(result.queries, originalSql.slice(0, index + 1));
+      sameQueries(result.queries, currentSql.slice(0, index + 1));
       assert.equal(
         result.events.filter((event) => event === "DISCONNECT").length,
         1,
@@ -318,20 +381,35 @@ for (let index = 0; index < sqlPhases.length; index++) {
 for (const local of [false, true]) {
   for (const publicRole of [false, true]) {
     test(
-      "original SQL order, conditional Q5 and successful cleanup: " +
+      "preserved SQL order, conditional role audit and successful cleanup: " +
         JSON.stringify({ local, publicRole }),
       async () => {
         const result = await scenario({ local, publicRole });
         sameQueries(
           result.queries,
-          originalSql.filter((_sql, index) => publicRole || index !== 4),
+          currentSql.filter(
+            (_sql, index) => publicRole || ![4, 5].includes(index),
+          ),
         );
         assert.equal(result.value.status, "PASS");
         assert.equal(result.value.disconnected, true);
         assert.equal(result.value.writes, false);
         assert.equal(result.value.parameters.maxConnections, "200");
         assert.equal(result.value.roleVerification.expanded, publicRole);
+        assert.equal(result.value.roleVerification.graphVerified, publicRole);
+        assert.equal(
+          result.value.roleVerification.strategy,
+          publicRole ? "active-session" : "direct-only",
+        );
         assert.equal(result.events.at(-1), "DISCONNECT");
+        assert.equal(
+          result.events.filter((event) => event === "SESSION_START").length,
+          1,
+        );
+        assert.equal(
+          result.events.filter((event) => event === "SESSION_END").length,
+          1,
+        );
         assert.equal(
           result.events.filter((event) => event === "DISCONNECT").length,
           1,
@@ -341,6 +419,327 @@ for (const local of [false, true]) {
     );
   }
 }
+
+test("identity, TLS, parameters, direct grants, USING and SELECT 1 remain unchanged", () => {
+  for (const sql of originalSql) assert.ok(source.includes(sql));
+});
+
+// These are input/output contracts for the documented aggregation paths, not a
+// simulation of the MySQL authorization engine or evidence about the managed host.
+for (const inactivePublic of [false, true]) {
+  for (const explicitPublic of [false, true]) {
+    test(
+      "mandatory public, USAGE-only inheritance: " +
+        JSON.stringify({ inactivePublic, explicitPublic }),
+      async () => {
+        const result = await scenario({ inactivePublic, explicitPublic });
+        const expected = [...currentSql];
+        if (inactivePublic) expected[5] = originalSql[4];
+        sameQueries(result.queries, expected);
+        assert.equal(result.value.status, "PASS");
+        assert.deepEqual(result.value.grants, ["SELECT"]);
+        assert.equal(
+          result.value.roleVerification.strategy,
+          inactivePublic ? "using-public" : "active-session",
+        );
+      },
+    );
+  }
+  test(
+    "allowed inherited reads: " + JSON.stringify({ inactivePublic }),
+    async () => {
+      const result = await scenario({
+        inactivePublic,
+        effectiveGrants: grantRows([
+          "GRANT USAGE ON *.* TO " + recipient,
+          "GRANT SELECT, SHOW VIEW ON `traceflow`.* TO " + recipient,
+          ...(!inactivePublic ? [publicAssignment] : []),
+        ]),
+      });
+      assert.equal(result.value.status, "PASS");
+      assert.deepEqual(result.value.grants, ["SELECT", "SHOW VIEW"]);
+    },
+  );
+  for (const extra of [
+    ...[
+      "INSERT",
+      "UPDATE",
+      "DELETE",
+      "CREATE",
+      "ALTER",
+      "DROP",
+      "INDEX",
+      "TRIGGER",
+    ].map(
+      (privilege) => "GRANT " + privilege + " ON `traceflow`.* TO " + recipient,
+    ),
+    ...["SELECT", "SUPER", "FILE", "SYSTEM_USER", "ROLE_ADMIN"].map(
+      (privilege) => "GRANT " + privilege + " ON *.* TO " + recipient,
+    ),
+    "GRANT SELECT ON `other`.* TO " + recipient,
+    "GRANT SELECT ON `traceflow`.specific_table TO " + recipient,
+    "GRANT SELECT ON `traceflow`.* TO " + recipient + " WITH GRANT OPTION",
+    "GRANT USAGE ON *.* TO " + recipient + " WITH GRANT OPTION",
+    publicAssignment + " WITH ADMIN OPTION",
+    "GRANT `nested`@`%` TO " + recipient,
+    "REVOKE SELECT ON `other`.* FROM " + recipient,
+  ]) {
+    test(
+      "refuses expanded privilege " + extra + "/inactive=" + inactivePublic,
+      async () => {
+        const result = await scenario({
+          inactivePublic,
+          effectiveGrants: grantRows([
+            "GRANT SELECT ON `traceflow`.* TO " + recipient,
+            ...(!inactivePublic ? [publicAssignment] : []),
+            extra,
+          ]),
+        });
+        assert.equal(result.value.status, "FAIL");
+        assert.equal(result.value.phase, "EFFECTIVE_GRANTS");
+        assert.equal(result.value.code, "EXCESSIVE_OR_UNRESOLVED_GRANTS");
+        assert.ok(!result.queries.includes("SELECT 1"));
+      },
+    );
+  }
+  for (const mysqlCode of ["3530", "1142", "1295", undefined]) {
+    test(
+      "no SQL error fallback: " + JSON.stringify({ inactivePublic, mysqlCode }),
+      async () => {
+        const error = fault("P2010", mysqlCode);
+        if (mysqlCode === undefined) delete error.meta.code;
+        const result = await scenario({ inactivePublic, failSql: 5, error });
+        assert.deepEqual(result.value, {
+          status: "FAIL",
+          code: "P2010",
+          phase: "SQL_PUBLIC_GRANTS",
+          ...(mysqlCode === undefined ? {} : { mysqlCode }),
+          writes: false,
+        });
+        assert.equal(result.queries.length, 6);
+        assert.equal(
+          result.queries.at(-1),
+          inactivePublic ? originalSql[4] : "SHOW GRANTS",
+        );
+        assert.ok(!result.queries.includes("SELECT 1"));
+      },
+    );
+  }
+}
+
+const graphCases = [
+  ["no applicable public (not resolved/granted)", [], "ROLE_GRAPH_UNVERIFIED"],
+  [
+    "additional inactive role",
+    [publicGraph, { ...publicGraph, ROLE_NAME: "other" }],
+    "ROLE_GRAPH_UNVERIFIED",
+  ],
+  [
+    "nested role",
+    [
+      publicGraph,
+      {
+        ...publicGraph,
+        GRANTEE: "public",
+        GRANTEE_HOST: "%",
+        ROLE_NAME: "nested",
+      },
+    ],
+    "ROLE_GRAPH_UNVERIFIED",
+  ],
+  ["duplicate role", [publicGraph, publicGraph], "ROLE_GRAPH_UNVERIFIED"],
+  [
+    "wrong role",
+    [{ ...publicGraph, ROLE_NAME: "administrator" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  [
+    "wrong role host",
+    [{ ...publicGraph, ROLE_HOST: "localhost" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  [
+    "not mandatory",
+    [{ ...publicGraph, IS_MANDATORY: "NO" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  [
+    "ADMIN OPTION",
+    [{ ...publicGraph, IS_GRANTABLE: "YES" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  [
+    "unknown grantability",
+    [{ ...publicGraph, IS_GRANTABLE: "UNKNOWN" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  [
+    "wrong user",
+    [{ ...publicGraph, USER: "another" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  ["wrong host", [{ ...publicGraph, HOST: "%" }], "UNREVIEWED_ROLE_GRAPH"],
+  [
+    "wrong grantee",
+    [{ ...publicGraph, GRANTEE: "another" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  [
+    "wrong grantee host",
+    [{ ...publicGraph, GRANTEE_HOST: "%" }],
+    "UNREVIEWED_ROLE_GRAPH",
+  ],
+  ["null response", null, "MALFORMED_ROLE_GRAPH"],
+  ["non-array response", publicGraph, "MALFORMED_ROLE_GRAPH"],
+  ["null row", [null], "MALFORMED_ROLE_GRAPH"],
+  [
+    "missing column",
+    [{ ...publicGraph, USER: undefined }],
+    "MALFORMED_ROLE_GRAPH",
+  ],
+  [
+    "extra column",
+    [{ ...publicGraph, unexpected: unsafeDetail }],
+    "MALFORMED_ROLE_GRAPH",
+  ],
+  [
+    "wrong type",
+    [{ ...publicGraph, ROLE_NAME: ["public"] }],
+    "MALFORMED_ROLE_GRAPH",
+  ],
+];
+for (const [name, roleGraph, code] of graphCases) {
+  test("fail-closed role inventory: " + name, async () => {
+    const result = await scenario({ roleGraph });
+    assert.deepEqual(result.value, {
+      status: "FAIL",
+      code,
+      phase: "ROLE_GRAPH",
+      writes: false,
+    });
+    sameQueries(result.queries, currentSql.slice(0, 5));
+    assert.equal(result.events.at(-1), "DISCONNECT");
+  });
+}
+
+for (const [name, options, code] of [
+  [
+    "active public not listed",
+    { effectiveGrants: ["GRANT SELECT ON `traceflow`.* TO " + recipient] },
+    "EFFECTIVE_GRANTS_UNVERIFIED",
+  ],
+  [
+    "explicit assignment lost",
+    {
+      inactivePublic: true,
+      explicitPublic: true,
+      effectiveGrants: ["GRANT SELECT ON `traceflow`.* TO " + recipient],
+    },
+    "EFFECTIVE_GRANTS_UNVERIFIED",
+  ],
+  [
+    "missing SELECT",
+    {
+      effectiveGrants: ["GRANT USAGE ON *.* TO " + recipient, publicAssignment],
+    },
+    "SELECT_PRIVILEGE_REQUIRED",
+  ],
+  [
+    "direct privileges lost",
+    {
+      directGrants: [
+        "GRANT SELECT, SHOW VIEW ON `traceflow`.* TO " + recipient,
+      ],
+    },
+    "EFFECTIVE_GRANTS_UNVERIFIED",
+  ],
+]) {
+  test("incomplete privilege audit: " + name, async () => {
+    const result = await scenario(options);
+    assert.equal(result.value.status, "FAIL");
+    assert.equal(result.value.phase, "EFFECTIVE_GRANTS");
+    assert.equal(result.value.code, code);
+    assert.ok(!result.queries.includes("SELECT 1"));
+  });
+}
+
+for (const grants of [
+  null,
+  {},
+  [],
+  [null],
+  [42],
+  [["GRANT SELECT ON `traceflow`.* TO " + recipient]],
+  [{ unexpected: unsafeDetail }],
+  [
+    {
+      "Grants for traceflow_diag@10.20.1.184":
+        "GRANT SELECT ON `traceflow`.* TO " + recipient,
+      extra: unsafeDetail,
+    },
+  ],
+  ["GRANT SELECT ON `traceflow`.* TO " + recipient + "\n"],
+  ["GRANT SELECT ON `traceflow`.* TO " + recipient + " " + unsafeDetail],
+  ["GRANT SELECT,,SHOW VIEW ON `traceflow`.* TO " + recipient],
+  ["GRANT SELECT, SELECT ON `traceflow`.* TO " + recipient],
+  ["GRANT SELECT ON `traceflow`.* TO `other`@`%`"],
+]) {
+  test(
+    "malformed grants refuse at both audit stages " + JSON.stringify(grants),
+    async () => {
+      for (const key of ["directGrants", "effectiveGrants"]) {
+        const result = await scenario({ [key]: grants });
+        assert.equal(result.value.status, "FAIL");
+        assert.equal(
+          result.value.phase,
+          key === "directGrants" ? "DIRECT_GRANTS" : "EFFECTIVE_GRANTS",
+        );
+        assert.ok(!result.queries.includes("SELECT 1"));
+      }
+    },
+  );
+}
+
+test("unknown explicit role is refused even without mandatory roles", async () => {
+  for (const publicRole of [false, true]) {
+    const result = await scenario({
+      publicRole,
+      directGrants: [
+        "GRANT SELECT ON `traceflow`.* TO " + recipient,
+        "GRANT `other`@`%` TO " + recipient,
+      ],
+    });
+    assert.equal(result.value.phase, "DIRECT_GRANTS");
+    assert.equal(result.value.code, "EXCESSIVE_OR_UNRESOLVED_GRANTS");
+    assert.equal(result.queries.length, 4);
+  }
+});
+
+test("malicious grant/role getters are rejected without invocation or leaked metadata", async () => {
+  let invoked = 0;
+  const trap = () => {
+    invoked++;
+    throw new Error(unsafeDetail);
+  };
+  const grant = Object.defineProperty(
+    {},
+    "Grants for traceflow_diag@10.20.1.184",
+    { get: trap },
+  );
+  const role = Object.defineProperty({ ...publicGraph }, "ROLE_NAME", {
+    get: trap,
+  });
+  for (const options of [
+    { directGrants: [grant] },
+    { effectiveGrants: [grant] },
+    { roleGraph: [role] },
+  ]) {
+    const result = await scenario(options);
+    assert.equal(result.value.status, "FAIL");
+    assert.ok(!Object.hasOwn(result.value, "mysqlCode"));
+  }
+  assert.equal(invoked, 0);
+});
 
 const validationCases = [
   [
@@ -407,16 +806,16 @@ const validationCases = [
     3,
   ],
   [
-    { directGrants: ["GRANT SELECT, INSERT ON `traceflow`.* TO `u`@`h`"] },
+    { directGrants: ["GRANT SELECT, INSERT ON `traceflow`.* TO " + recipient] },
     "DIRECT_GRANTS",
     "EXCESSIVE_OR_UNRESOLVED_GRANTS",
     4,
   ],
   [
-    { effectiveGrants: ["GRANT SELECT ON *.* TO `u`@`h`"] },
+    { effectiveGrants: ["GRANT SELECT ON *.* TO " + recipient] },
     "EFFECTIVE_GRANTS",
     "EXCESSIVE_OR_UNRESOLVED_GRANTS",
-    5,
+    6,
   ],
 ];
 for (const [options, phase, code, count] of validationCases) {
@@ -426,7 +825,7 @@ for (const [options, phase, code, count] of validationCases) {
     assert.equal(result.value.code, code);
     assert.equal(result.value.status, "FAIL");
     assert.equal(result.exitCode, 1);
-    sameQueries(result.queries, originalSql.slice(0, count));
+    sameQueries(result.queries, currentSql.slice(0, count));
     assert.equal(result.events.includes("DISCONNECT"), count > 0);
   });
 }
@@ -440,11 +839,29 @@ test("validate-only never imports Prisma, probes TLS, resolves DNS or executes S
     "DISCONNECT",
     "DNS",
     "TLS_PROBE",
+    "SESSION_START",
     "IMPORT:@prisma/client",
     "IMPORT:../src/database/prismaClient.js",
   ])
     assert.ok(!result.events.includes(event));
 });
+
+for (const [option, phase, count] of [
+  ["transactionError", "SESSION_START", 0],
+  ["transactionEndError", "SESSION_END", currentSql.length],
+]) {
+  test("pinned session failure remains fatal: " + phase, async () => {
+    const result = await scenario({
+      [option]: fault("P2028"),
+      disconnectError: fault("P1017"),
+    });
+    assert.equal(result.value.status, "FAIL");
+    assert.equal(result.value.code, "P2028");
+    assert.equal(result.value.phase, phase);
+    assert.equal(result.queries.length, count);
+    assert.equal(result.events.at(-1), "DISCONNECT");
+  });
+}
 
 test("a disconnect failure after successful queries is FAIL, never PASS", async () => {
   const result = await scenario({ disconnectError: fault("P1017", undefined) });
@@ -459,7 +876,7 @@ test("a disconnect failure after successful queries is FAIL, never PASS", async 
 
 test("disconnect failure cannot replace primary P2010 or emit another JSON", async () => {
   const result = await scenario({
-    failSql: 4,
+    failSql: 5,
     error: fault("P2010", "3530"),
     disconnectError: fault("P1017", "2013"),
   });
@@ -471,6 +888,24 @@ test("disconnect failure cannot replace primary P2010 or emit another JSON", asy
     writes: false,
   });
   assert.equal(result.exitCode, 1);
+});
+
+test("transaction rollback deadline/failure cannot hide primary P2010/3530", async () => {
+  const result = await scenario({
+    failSql: 5,
+    error: fault("P2010", "3530"),
+    timeoutAbort: true,
+    abortError: fault("P2028"),
+    disconnectError: fault("P1017"),
+  });
+  assert.deepEqual(result.value, {
+    status: "FAIL",
+    code: "P2010",
+    phase: "SQL_PUBLIC_GRANTS",
+    mysqlCode: "3530",
+    writes: false,
+  });
+  assert.deepEqual(result.exits, [1]);
 });
 
 test("deadline during cleanup preserves primary P2010 and emits only once", async () => {

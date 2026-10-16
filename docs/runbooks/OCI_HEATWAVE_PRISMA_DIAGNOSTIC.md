@@ -696,3 +696,176 @@ autorização própria. D03 continua FAIL. O launcher `--validate-only` também 
 e autorização válidas: não materializar esses arquivos na etapa de instalação. Nela, limitar
 a verificação sem banco ao extrator, preflight nativo e leitura/validação da CA pública.
 Uma nova conexão Prisma–HeatWave, B40/B41 e D04/relock exigem autorização separada.
+
+## 29. Adendo OCI-DEPLOY-06.1.5 — auditoria de roles obrigatórias
+
+Data: 16/10/2026. Este adendo descreve a implementação local atual; as seções anteriores
+permanecem registros históricos. Não autoriza empacotamento, instalação, conexão, alteração
+de grants ou reexecução do D03. A execução real da **06.1.4 permanece FAIL**.
+
+### 29.1 Evidência observada e limite do diagnóstico causal
+
+O operador informou `P2010`, fase `SQL_PUBLIC_GRANTS`, `mysqlCode="3530"`,
+`writes=false`, no pacote `traceflow-prisma-diagnostic-fa4a318dfa1c636d`.
+A consulta era `SHOW GRANTS FOR CURRENT_USER USING 'public'@'%'`.
+O código 3530 é `ER_ROLE_NOT_GRANTED`, conforme o
+[catálogo oficial de erros MySQL](https://dev.mysql.com/doc/mysql-errors/8.4/en/server-error-reference.html#error_er_role_not_granted).
+Isso identifica a rejeição da expansão solicitada; não demonstra um defeito de TLS,
+de `@@datadir`, de prepared statements ou do Prisma 6.12.0.
+
+A hipótese de que `USING` sempre exige um GRANT **explícito** não foi confirmada.
+O [manual de roles 26.7](https://dev.mysql.com/doc/refman/26.7/en/roles.html) descreve
+roles obrigatórias como concessões implícitas e distingue concessão de ativação.
+`mandatory_roles=public` não comprova existência/resolução nem ativação da role.
+`CURRENT_ROLE()` informa as roles ativas, não o inventário de todas as roles aplicáveis.
+Uma role nomeada na configuração pode não existir; o manual prevê que seja ignorada.
+
+Além disso, `mysql_show_grants()` no
+[código oficial upstream](https://github.com/mysql/mysql-server/blob/trunk/sql/auth/sql_authorization.cc)
+consulta tanto roles concedidas quanto obrigatórias antes de emitir 3530. Esse comportamento
+também aparece no [tag mysql-8.4.0](https://github.com/mysql/mysql-server/blob/mysql-8.4.0/sql/auth/sql_authorization.cc).
+Essas fontes não são prova dos bytes do build gerenciado `26.7.0-cloud`.
+Identidade efetiva da role, resolução/cache e particularidades do serviço continuam hipóteses.
+O valor de `CURRENT_ROLE()` da execução 06.1.4 não foi fornecido; não inferir `NONE` nem `public`.
+
+### 29.2 Fundamentação e estratégia
+
+O [manual SHOW GRANTS 26.7](https://dev.mysql.com/doc/refman/26.7/en/show-grants.html)
+distingue a forma sem `FOR`, que inclui roles obrigatórias, da forma com `FOR`.
+Consultar o próprio usuário não exige SELECT no schema `mysql`; consultar outra conta/role
+tem requisitos diferentes. Não adicionar permissões administrativas ao diagnóstico.
+
+A [documentação de autorização do servidor, identificada como 26.7.0](https://dev.mysql.com/doc/dev/mysql-server/latest/AUTHORIZATION_PAGE.html)
+explica a agregação dos privilégios das roles ativas em `SHOW GRANTS`.
+Listar uma atribuição de role não comprova, sozinho, que seus privilégios foram expandidos.
+O diagnóstico escolhe o caminho **antes** da execução SQL, sem fallback baseado em erro:
+
+| Metadata aceita                                  | Auditoria adicional                                              | Expansão obrigatória                                              |
+| ------------------------------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Nenhuma role obrigatória; `CURRENT_ROLE()=NONE`  | Grants do próprio usuário, recusando qualquer atribuição de role | Não há Q5; `direct-only`                                          |
+| Somente `public@%`, ativa                        | Inventário completo de roles aplicáveis                          | `SHOW GRANTS`; `active-session`                                   |
+| Somente `public@%`, inativa                      | Mesmo inventário completo                                        | `SHOW GRANTS FOR CURRENT_USER USING 'public'@'%'`; `using-public` |
+| Qualquer outra combinação ou metadata malformada | Recusa                                                           | FAIL                                                              |
+
+No caminho inativo a consulta original continua necessária e **pode continuar falhando com
+3530 no HeatWave**. Nenhum P2010/3530 é convertido em sucesso, repetido ou substituído por uma
+consulta mais permissiva. Se a expansão não puder ser demonstrada com a conta atual, manter
+FAIL e solicitar revisão humana das evidências, sem conceder privilégios adicionais.
+
+`SHOW GRANTS FOR CURRENT_USER` continua sendo auditado. Não pressupor que seu resultado seja
+equivalente ao comando sem `FOR`, nem que contenha exclusivamente direitos diretos em todas
+as situações: a implementação upstream também considera roles ativas para CURRENT_USER.
+Todos os direitos apresentados são validados, sem subtrações ou descarte de direitos herdados.
+
+### 29.3 Inventário de roles e validação dos grants
+
+A nova consulta de metadata, executada somente com `mandatoryPublic=true`, é:
+
+```sql
+SELECT USER, HOST, GRANTEE, GRANTEE_HOST, ROLE_NAME, ROLE_HOST,
+       IS_GRANTABLE, IS_MANDATORY
+FROM information_schema.APPLICABLE_ROLES;
+```
+
+A [definição oficial de APPLICABLE_ROLES](https://dev.mysql.com/doc/refman/26.7/en/information-schema-applicable-roles-table.html)
+descreve o inventário visível para o usuário corrente e as colunas utilizadas.
+O [código oficial da view](https://github.com/mysql/mysql-server/blob/trunk/sql/dd/impl/system_views/applicable_roles.cc)
+inclui as roles obrigatórias como sementes e percorre as relações recursivamente.
+Não há WHERE, filtro de role ou LIMIT que esconda outra role. Não se consulta `mysql.role_edges`
+diretamente. A disponibilidade e o comportamento dessa view no build gerenciado ainda precisam
+ser homologados; erro SQL, resultado vazio, duplicado ou inesperado implica FAIL.
+
+O contrato aceita exatamente uma linha: `public@%`, obrigatória (`YES`), não delegável (`NO`),
+cujo usuário/host e destinatário correspondem a `CURRENT_USER()` validado. Outra role, herança
+aninhada, ADMIN OPTION, host diferente ou colunas inesperadas são recusados, inclusive quando
+os privilégios da role adicional seriam apenas de leitura.
+
+A auditoria dos grants agora valida a coluna única de SHOW GRANTS, tipos, caracteres de
+controle, duplicatas, destinatário e sintaxe completa. Não executa getters nem coerções para
+ler os valores. Não ignora colunas adicionais ou sufixos desconhecidos.
+
+Para `role=diagnostic`, permanece a allowlist anterior: `USAGE ON *.*` e `SELECT`/`SHOW VIEW`
+exclusivamente em `traceflow.*`, com SELECT obrigatório. SHOW VIEW já era permitido pelo
+validador; isso não altera nem solicita o grant SELECT aprovado para a conta real.
+São recusados DML, DDL, privilégios administrativos/dinâmicos, leitura global, outro schema,
+grants de tabela/coluna/rotina fora do formato revisado, PROXY, GRANT OPTION, ADMIN OPTION e
+REVOKE/partial revokes. Formatos legítimos não reconhecidos também falham, por segurança.
+
+A atribuição de `public` é identificada separadamente, não tratada como evidência suficiente
+de expansão. O resultado final exige prova do inventário, preservação dos privilégios já
+observados e, no comando sem FOR, presença da atribuição obrigatória. No caminho USING,
+uma atribuição explícita observada anteriormente também precisa continuar presente.
+
+### 29.4 Sessão, consultas e saída operacional
+
+Todas as consultas passam pelo cliente de uma única transação interativa Prisma, contendo
+somente leituras. Isso mantém CURRENT_ROLE e a expansão na mesma conexão, conforme o
+[contrato Prisma v6 de transações](https://www.prisma.io/docs/orm/v6/prisma-client/queries/transactions).
+Não ativa roles, não altera grants e não define isolamento ou configuração TLS.
+O Prisma gerencia início e término/rollback da transação; não confundir ausência de escrita
+de dados com ausência desses comandos de controle de sessão na futura execução real.
+SHOW GRANTS não está entre as
+[instruções MySQL de commit implícito](https://dev.mysql.com/doc/refman/26.7/en/implicit-commit.html).
+
+Os limites continuam: pool de uma conexão, connect/pool timeout de 5s, socket de 10s,
+deadline global de 30s e supervisor de 35s. A transação tem `maxWait=5000` e `timeout=30000`;
+o deadline global continua limitando o tempo total. A falha primária é sanitizada antes do
+rollback, para que falhas/prazos no rollback ou na desconexão não a ocultem.
+
+Ordem SQL: identidade → TLS → parâmetros → grants do próprio usuário → inventário de roles
+(condicional) → expansão de public (condicional) → SELECT 1. Os seis textos SQL históricos
+permanecem intactos; Q5 escolhe o novo `SHOW GRANTS` apenas quando public está ativa.
+As consultas de identidade, TLS e parâmetros, incluindo `@@datadir`, não foram alteradas.
+
+Fases adicionais, todas constantes: `SESSION_START`, `SESSION_END`, `SQL_ROLE_GRAPH` e
+`ROLE_GRAPH`. As fases anteriores, incluindo `SQL_PUBLIC_GRANTS`, continuam válidas.
+Novas recusas estruturadas incluem `MALFORMED_GRANTS`, `GRANT_IDENTITY_MISMATCH`,
+`MALFORMED_ROLE_GRAPH`, `ROLE_GRAPH_UNVERIFIED`, `UNREVIEWED_ROLE_GRAPH` e
+`EFFECTIVE_GRANTS_UNVERIFIED`.
+
+O JSON de falha mantém exatamente o contrato da seção 27: `status`, `code`, `phase`,
+`writes=false`, e `mysqlCode` opcional decimal canônico entre 1 e 65535. O launcher acrescenta
+o packageId do futuro artefato verificado. Sem mensagens, SQL, objetos Error/meta, stack,
+senhas ou URLs na saída operacional; um único JSON após encerramento ou deadline.
+O launcher não foi modificado: sua validação usa a enumeração compartilhada de fases.
+
+Em PASS, `roleVerification` conserva `mandatoryPublic`, `activePublic` e `expanded`,
+e acrescenta `graphVerified` e `strategy` (`direct-only`, `active-session` ou `using-public`).
+Esses campos são booleanos/constantes; o inventário e os grants brutos não são impressos.
+
+### 29.5 Validação local e limites
+
+Testes do diagnóstico/launcher: **138 PASS**. Helpers de conexão: **50 PASS**.
+TLS e arquivos protegidos, com certificados sintéticos e peer em loopback: **10 PASS**.
+Total: **198 PASS**, sem MySQL, migrations ou credenciais reais.
+Comandos, verificações estáticas, limitações e cobertura dos 30 cenários estão no
+[relatório OCI-DEPLOY-06.1.5](../deliveries/OCI_DEPLOY_06_1_5_MANDATORY_ROLES_AUDIT_REPORT.md).
+
+Os doubles validam o comportamento do cliente para respostas fundamentadas nas fontes oficiais;
+não reproduzem nem comprovam o mecanismo ACL, a view ou os prepared statements do HeatWave.
+Os testes separam public explícita/implícita e ativa/inativa; não presumem que a execução real
+tenha usado qualquer dessas combinações. D03 e compatibilidade gerenciada continuam pendentes.
+
+A transação fixa a sessão, mas não congela mudanças administrativas de roles/grants feitas
+por outras conexões. A futura janela deve manter essa configuração estável. Uma auditoria
+é uma observação pontual, não uma garantia sobre grants concedidos posteriormente.
+
+### 29.6 Próxima homologação — depende de autorização separada
+
+1. Revisar fontes/diff e testes. Autorizar separadamente novo empacotamento ARM64, com as
+   fontes atuais, mesmo Prisma 6.12.0 e engine, novo packageId/manifesto/checksums. Não editar
+   nem reutilizar a identidade dos pacotes anteriores.
+2. Autorizar instalação/verificação do novo artefato em diretório exclusivo. Revalidar o
+   runtime ARM64 e a CA sem iniciar D03. Nenhuma dessas operações ocorreu nesta entrega.
+3. Somente em nova janela autorizada, preparar credencial/autorização protegidas e realizar
+   um diagnóstico. Não mudar a conta SELECT, ativar roles ou conceder acesso administrativo
+   para fazer a validação passar.
+4. Exigir inventário completo, expansão válida, direitos dentro da allowlist, identidade/TLS
+   válidos, SELECT 1, término de sessão e JSON único. Qualquer erro SQL, 3530, grafo
+   desconhecido/incompleto ou divergência mantém FAIL.
+5. Se continuar bloqueado, revisar sob autorização própria a identidade real de public,
+   sua existência/resolução, roles ativas/aplicáveis e comportamento do build gerenciado.
+   Evidência administrativa pode ser analisada pelo responsável; não conceder SELECT em
+   `mysql.*` à conta de diagnóstico nem contornar a falha automaticamente.
+6. Executar D04/relock, confirmar bloqueio e zero sessões/processos, remover os arquivos
+   temporários e restaurar o estado operacional. Preservar o FAIL histórico da 06.1.4.

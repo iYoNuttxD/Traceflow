@@ -4,7 +4,9 @@ import {
   connectionContract,
   validateGrants,
   diagnosticRoles,
+  validateDirectGrants,
   validateEffectiveGrants,
+  validateRoleGraph,
   managedHost,
   managedCaPath,
   verifyServerIdentity,
@@ -284,6 +286,10 @@ describe('mandatory role expansion boundary', () => {
       { mandatoryRoles: 'admin', activeRoles: 'NONE' },
       { mandatoryRoles: 'public,admin', activeRoles: 'NONE' },
       { mandatoryRoles: 'public@localhost', activeRoles: 'NONE' },
+      { mandatoryRoles: "'public`", activeRoles: 'NONE' },
+      { mandatoryRoles: 'public\n', activeRoles: 'NONE' },
+      { mandatoryRoles: 'public', activeRoles: '`public`@`%`\n' },
+      { mandatoryRoles: 'public', activeRoles: "`public'@`%`" },
       { mandatoryRoles: '', activeRoles: '`public`@`%`' },
       { mandatoryRoles: 'public', activeRoles: '`admin`@`%`' }
     ]) {
@@ -294,9 +300,29 @@ describe('mandatory role expansion boundary', () => {
     const base = ['GRANT USAGE ON *.* TO `u`@`h`', 'GRANT SELECT ON `tf_test`.* TO `u`@`h`'];
     const roles = diagnosticRoles({ mandatoryRoles: 'public', activeRoles: 'NONE' });
     const assignment = 'GRANT `public`@`%` TO `u`@`h`';
-    expect(validateEffectiveGrants([...base, assignment], 'tf_test', 'diagnostic', roles)).toEqual([
-      'SELECT'
-    ]);
+    const evidence = {
+      currentUser: 'u@h',
+      direct: validateDirectGrants([...base, assignment], 'tf_test', 'diagnostic', roles, 'u@h'),
+      graphVerified: validateRoleGraph(
+        [
+          {
+            USER: 'u',
+            HOST: 'h',
+            GRANTEE: 'u',
+            GRANTEE_HOST: 'h',
+            ROLE_NAME: 'public',
+            ROLE_HOST: '%',
+            IS_GRANTABLE: 'NO',
+            IS_MANDATORY: 'YES'
+          }
+        ],
+        roles,
+        'u@h'
+      )
+    };
+    expect(
+      validateEffectiveGrants([...base, assignment], 'tf_test', 'diagnostic', roles, evidence)
+    ).toEqual(['SELECT']);
     for (const extra of [
       'GRANT INSERT ON `tf_test`.* TO `u`@`h`',
       'GRANT SELECT ON *.* TO `u`@`h`',
@@ -306,12 +332,33 @@ describe('mandatory role expansion boundary', () => {
       'GRANT SELECT ON `tf_test`.* TO `u`@`h` WITH GRANT OPTION'
     ])
       expect(() =>
-        validateEffectiveGrants([...base, assignment, extra], 'tf_test', 'diagnostic', roles)
+        validateEffectiveGrants(
+          [...base, assignment, extra],
+          'tf_test',
+          'diagnostic',
+          roles,
+          evidence
+        )
       ).toThrow();
     expect(() =>
-      validateEffectiveGrants([...base, assignment], 'tf_test', 'diagnostic', {
-        mandatoryPublic: false
-      })
+      validateDirectGrants(
+        [...base, assignment],
+        'tf_test',
+        'diagnostic',
+        {
+          mandatoryPublic: false
+        },
+        'u@h'
+      )
     ).toThrow();
+    expect(() => validateEffectiveGrants(base, 'tf_test', 'diagnostic', roles)).toThrow(
+      expect.objectContaining({ code: 'EFFECTIVE_GRANTS_UNVERIFIED' })
+    );
+    expect(() =>
+      validateEffectiveGrants(base, 'tf_test', 'diagnostic', roles, {
+        ...evidence,
+        graphVerified: false
+      })
+    ).toThrow(expect.objectContaining({ code: 'EFFECTIVE_GRANTS_UNVERIFIED' }));
   });
 });

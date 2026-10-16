@@ -143,3 +143,52 @@ test("launcher rejects multiple JSON records and non-object outputs", () => {
       sanitizedResult({ code: 1, output }, "synthetic-test-only"),
     );
 });
+
+test("launcher accepts only the predefined role-audit phases and safe errors", () => {
+  for (const phase of [
+    "SESSION_START",
+    "SESSION_END",
+    "SQL_ROLE_GRAPH",
+    "ROLE_GRAPH",
+    "SQL_PUBLIC_GRANTS",
+    "EFFECTIVE_GRANTS",
+  ]) {
+    const diagnostic = {
+      status: "FAIL",
+      code: "P2010",
+      phase,
+      mysqlCode: "3530",
+      writes: false,
+    };
+    assert.deepEqual(
+      sanitizedResult(
+        { code: 1, output: JSON.stringify(diagnostic) },
+        "synthetic-test-only",
+      ),
+      diagnostic,
+    );
+  }
+  for (const phase of [
+    "SQL_ROLE_GRAPH_EXTRA",
+    "ROLE_GRAPH\n",
+    "SHOW GRANTS",
+    { name: "ROLE_GRAPH" },
+  ]) {
+    assert.throws(
+      () =>
+        sanitizedResult(
+          {
+            code: 1,
+            output: JSON.stringify({
+              status: "FAIL",
+              code: "P2010",
+              phase,
+              writes: false,
+            }),
+          },
+          "synthetic-test-only",
+        ),
+      { code: "DIAGNOSTIC_OUTPUT_REFUSED" },
+    );
+  }
+});
