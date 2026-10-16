@@ -61,7 +61,7 @@ export const PREFERENCE_OPTIONS = Object.freeze([
     group: 'TASKS',
     label: 'Mudança de status das minhas tarefas',
     description:
-      'Avisa quando alguém muda o status de uma tarefa da qual você é responsável. Mudanças feitas por você não geram aviso.'
+      'Avisa quando muda o status de uma tarefa da qual você é responsável, inclusive quando é você quem muda.'
   },
   {
     type: 'TASK_OVERDUE',

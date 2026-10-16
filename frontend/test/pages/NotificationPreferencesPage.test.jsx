@@ -63,9 +63,7 @@ describe('S2-02 preferências de notificação (D7)', () => {
 
     await waitFor(() => expect(statusSwitch()).toBeChecked());
     expect(overdueSwitch()).not.toBeChecked();
-    expect(
-      screen.getByText(/alguém muda o status de uma tarefa da qual você é responsável/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/inclusive quando é você quem muda/)).toBeInTheDocument();
     expect(screen.getByText(/passa do prazo/)).toBeInTheDocument();
     expect(screen.getByText(/aparecem só aqui no TRACEFLOW/)).toBeInTheDocument();
     expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
