@@ -153,8 +153,15 @@ describe('S2-01 serviço de alertas: dispensa e permissões', () => {
 
   it('lista com paginação, padrão OPEN e permissões pelo papel', async () => {
     const list = vi.fn().mockResolvedValue({ total: 41, alerts: [issueAlertRow] });
+    const findMembershipRole = vi.fn().mockResolvedValue('VIEWER');
 
-    const result = await service({ list }).list(9, { page: 3, limit: 20 }, { role: 'VIEWER' });
+    const result = await service({ list, findMembershipRole }).list(
+      9,
+      { page: 3, limit: 20 },
+      { actorUserId: 5 }
+    );
+
+    expect(findMembershipRole).toHaveBeenCalledWith(9, 5);
 
     expect(list).toHaveBeenCalledWith(9, { status: 'OPEN', type: null, skip: 40, take: 20 });
     expect(result.pagination).toEqual({ page: 3, limit: 20, total: 41, totalPages: 3 });

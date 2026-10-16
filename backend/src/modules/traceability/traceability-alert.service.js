@@ -34,6 +34,15 @@ function alertNotOpen() {
   });
 }
 
+function resourceNotFound() {
+  return new AppError({
+    message: 'Recurso não encontrado.',
+    statusCode: 404,
+    code: ERROR_CODES.RESOURCE_NOT_FOUND,
+    exposeTechnicalDetails: true
+  });
+}
+
 function forbidden() {
   return new AppError({
     message: 'Você não possui permissão para esta operação.',
@@ -128,6 +137,13 @@ export function createTraceabilityAlertService(
     if (!MANAGER_ROLES.has(role)) throw forbidden();
   }
 
+  async function requireMember(projectId, actorUserId) {
+    if (!Number.isInteger(actorUserId)) throw resourceNotFound();
+    const role = await repository.findMembershipRole(projectId, actorUserId);
+    if (!role) throw resourceNotFound();
+    return role;
+  }
+
   return {
     reconcileProject(projectId, { dryRun = false, trigger = 'MANUAL' } = {}) {
       return reconcile(projectId, { dryRun, trigger });
@@ -171,6 +187,7 @@ export function createTraceabilityAlertService(
 
     async list(projectId, query = {}, context = {}) {
       const id = Number(projectId);
+      const role = await requireMember(id, context.actorUserId);
       const page = pageOf(query);
       const status = query.status || 'OPEN';
       const type = query.type || null;
@@ -186,22 +203,25 @@ export function createTraceabilityAlertService(
         type,
         alerts: alerts.map(toAlertDTO),
         pagination: pagination(page, total),
-        permissions: alertPermissions(context.role)
+        permissions: alertPermissions(role)
       };
     },
 
     async summary(projectId, context = {}) {
       const id = Number(projectId);
+      const role = await requireMember(id, context.actorUserId);
       return {
         ...toAlertSummaryDTO({ projectId: id, ...(await repository.summary(id)) }),
-        permissions: alertPermissions(context.role)
+        permissions: alertPermissions(role)
       };
     },
 
     async get(projectId, alertId, context = {}) {
-      const alert = await repository.findDetail(Number(projectId), Number(alertId));
+      const id = Number(projectId);
+      const role = await requireMember(id, context.actorUserId);
+      const alert = await repository.findDetail(id, Number(alertId));
       if (!alert) throw alertNotFound();
-      return { alert: toAlertDetailDTO(alert), permissions: alertPermissions(context.role) };
+      return { alert: toAlertDetailDTO(alert), permissions: alertPermissions(role) };
     },
 
     async dismiss(projectId, alertId, body, context) {
@@ -231,8 +251,9 @@ export function createTraceabilityAlertService(
       return { alert: toAlertDTO(result.alert), changed: result.outcome === 'UPDATED' };
     },
 
-    async listUnlinkedTasks(projectId, query = {}) {
+    async listUnlinkedTasks(projectId, query = {}, context = {}) {
       const id = Number(projectId);
+      await requireMember(id, context.actorUserId);
       const page = pageOf(query);
       const status = query.status || null;
       const { total, tasks } = await repository.listUnlinkedTasks(id, {

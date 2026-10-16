@@ -3,8 +3,7 @@ import { traceabilityAlertService } from './traceability-alert.service.js';
 
 const context = (req) => ({
   actorUserId: req.auth.user.id,
-  requestId: req.requestId,
-  role: req.projectMembership?.role
+  requestId: req.requestId
 });
 
 export const traceabilityAlertController = {
@@ -51,7 +50,13 @@ export const traceabilityAlertController = {
 
   listUnlinkedTasks: asyncHandler(
     async (req, res) =>
-      res.json(await traceabilityAlertService.listUnlinkedTasks(req.params.projectId, req.query)),
+      res.json(
+        await traceabilityAlertService.listUnlinkedTasks(
+          req.params.projectId,
+          req.query,
+          context(req)
+        )
+      ),
     { fallbackMessage: 'Erro interno ao listar tarefas sem vínculo técnico.' }
   )
 };

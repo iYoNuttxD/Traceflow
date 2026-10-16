@@ -622,9 +622,22 @@ describe('Bateria S2-01 integração — ciclo de vida (bloco V) e script', () =
       }
     });
 
+    const reader = await prisma.user.create({
+      data: {
+        name: `Leitora da bateria ${sequence}`,
+        username: `s201leitora${sequence}`,
+        email: `s201-leitora-${sequence}@example.invalid`
+      }
+    });
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: reader.id, role: 'VIEWER' }
+    });
+
     await privacyService.processDueDeletions({ dryRun: false });
 
-    const { alert: detail } = await alertService.get(project.id, alert.id, { role: 'VIEWER' });
+    const { alert: detail } = await alertService.get(project.id, alert.id, {
+      actorUserId: reader.id
+    });
     expect(detail.dismissal.reason).toBe(reason);
     expect(detail.dismissal.by.id).toBe(user.id);
     expect(detail.dismissal.by.name).not.toBe(user.name);
