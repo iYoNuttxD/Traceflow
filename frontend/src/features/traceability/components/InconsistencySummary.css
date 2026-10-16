@@ -1,0 +1,27 @@
+.trace-inconsistency-summary {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-primary);
+}
+
+.trace-inconsistency-summary__sentence {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-3);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.trace-inconsistency-summary__sentence a {
+  color: var(--color-accent-text);
+}
+
+@media (max-width: 640px) {
+  .trace-inconsistency-summary {
+    padding: var(--space-4);
+  }
+}

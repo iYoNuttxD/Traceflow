@@ -20,8 +20,8 @@ export function AlertDismissForm({ busy, onSubmit, onCancel }) {
   return (
     <form className="trace-alert-form" onSubmit={submit} noValidate>
       <p className="field-help">
-        Dispensar mantém o alerta registrado e impede que ele volte enquanto a inconsistência
-        continuar. Se ela for corrigida, o alerta é resolvido automaticamente.
+        A dispensa fica registrada com a justificativa, e a inconsistência não volta a abrir
+        enquanto continuar. Se ela for corrigida, é resolvida automaticamente.
       </p>
       <label className="field" htmlFor={`${id}-reason`}>
         <span>Justificativa</span>
@@ -61,7 +61,7 @@ export function AlertDismissForm({ busy, onSubmit, onCancel }) {
           disabled={busy}
           aria-busy={busy || undefined}
         >
-          Dispensar alerta
+          Dispensar
         </button>
       </div>
     </form>

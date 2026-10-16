@@ -3,17 +3,18 @@ import {
   ALERT_STATUSES,
   ALERT_TYPES,
   RESOLUTION_REASONS,
-  activeAlertFilterCount,
-  alertEmptyTitle,
   alertFactText,
+  alertHistoryDetail,
+  alertHistoryTitle,
   alertStatusLabel,
-  alertSummarySentence,
+  alertSubjectFilter,
   alertTypeLabel,
-  emptyAlertFilters,
   formatInstant,
+  historyToggleLabel,
+  inconsistencySummaryParts,
   reconcileMessage,
+  reconciliationNotice,
   resolutionLabel,
-  unlinkedCountLabel,
   validateDismissReason
 } from '../../src/features/traceability/model/alert-view.js';
 
@@ -59,32 +60,44 @@ describe('S2-01 vocabulário de alertas na interface', () => {
     expect(formatInstant(null)).toBe('');
   });
 
-  it('resume os alertas abertos em texto com singular e plural', () => {
-    expect(alertSummarySentence(null)).toBe('');
-    expect(alertSummarySentence({ open: { total: 0, byType: {} } })).toBe('Nenhum alerta aberto.');
+  it('resume as inconsistências abertas por tipo, com plural, milhar e destino filtrado (TF-REV-008)', () => {
+    expect(inconsistencySummaryParts(null, 9)).toEqual([]);
+    expect(inconsistencySummaryParts({ open: { total: 0, byType: {} } }, 9)).toEqual([]);
     expect(
-      alertSummarySentence({
-        open: {
-          total: 3,
-          byType: { TASK_CONCLUDED_WITHOUT_COMMIT: 2, PULL_REQUEST_MERGED_WITHOUT_TASK: 1 }
-        }
-      })
-    ).toBe('3 alertas abertos: 2 tarefas concluídas sem commit, 1 PR mesclada sem tarefa.');
-    expect(
-      alertSummarySentence({ open: { total: 1, byType: { ISSUE_CLOSED_WITHOUT_TASK: 1 } } })
-    ).toBe('1 alerta aberto: 1 issue fechada sem tarefa.');
+      inconsistencySummaryParts(
+        {
+          open: {
+            total: 1206,
+            byType: {
+              TASK_CONCLUDED_WITHOUT_COMMIT: 1,
+              PULL_REQUEST_MERGED_WITHOUT_TASK: 1204,
+              ISSUE_CLOSED_WITHOUT_TASK: 1
+            }
+          }
+        },
+        9
+      ).map(({ text, to }) => [text, to])
+    ).toEqual([
+      ['1 tarefa concluída sem commit', '/projects/9/tasks?rastreabilidade=SEM_COMMIT'],
+      [
+        '1.204 PRs mescladas sem tarefa',
+        '/projects/9/repository?inconsistencia=OPEN&tipo=pull_request'
+      ],
+      ['1 issue fechada sem tarefa', '/projects/9/repository?inconsistencia=OPEN&tipo=issue']
+    ]);
   });
 
-  it('escreve o resultado do reprocessamento e a contagem do RF58', () => {
+  it('escreve o resultado do reprocessamento e o aviso de números desatualizados', () => {
     expect(reconcileMessage({ created: 2, resolved: 1, kept: 5 })).toBe(
       'Reprocessamento concluído: 2 novos, 1 resolvido, 5 mantidos.'
     );
     expect(reconcileMessage({ created: 1, resolved: 0, kept: 1 })).toBe(
       'Reprocessamento concluído: 1 novo, 0 resolvidos, 1 mantido.'
     );
-    expect(unlinkedCountLabel(1)).toBe('1 tarefa sem vínculo técnico');
-    expect(unlinkedCountLabel(12)).toBe('12 tarefas sem vínculo técnico');
-    expect(unlinkedCountLabel(undefined)).toBe('');
+    expect(reconciliationNotice({ stale: false }, true)).toBe('');
+    expect(
+      reconciliationNotice({ stale: true, lastFailedAt: '2026-10-08T10:00:00.000Z' }, false)
+    ).toContain('Peça a um gestor do projeto para reprocessar as inconsistências.');
   });
 
   it('valida a justificativa de dispensa com os mesmos limites do servidor', () => {
@@ -96,18 +109,35 @@ describe('S2-01 vocabulário de alertas na interface', () => {
     expect(validateDismissReason(undefined)).toBe(message);
   });
 
-  it('conta filtros ativos e escolhe o título do estado vazio', () => {
-    expect(activeAlertFilterCount(emptyAlertFilters)).toBe(0);
-    expect(activeAlertFilterCount({ status: 'RESOLVED', type: 'ISSUE_CLOSED_WITHOUT_TASK' })).toBe(
-      2
+  it('descreve o histórico de um sujeito com quem, quando e por quê (TF-REV-008)', () => {
+    const detectedAt = '2026-10-01T10:00:00.000Z';
+    const at = '2026-10-03T12:00:00.000Z';
+    const dismissed = {
+      status: 'DISMISSED',
+      detectedAt,
+      dismissal: { at, reason: 'Sem código.', by: { id: 3, name: 'Carla Dias' } }
+    };
+    expect(alertHistoryTitle(dismissed)).toBe(`Dispensada por Carla Dias em ${formatInstant(at)}`);
+    expect(
+      alertHistoryTitle({ ...dismissed, dismissal: { ...dismissed.dismissal, by: null } })
+    ).toBe(`Dispensada por pessoa removida em ${formatInstant(at)}`);
+    expect(alertHistoryDetail(dismissed)).toBe(
+      `Detectada em ${formatInstant(detectedAt)}. Justificativa: “Sem código.”`
     );
-    expect(alertEmptyTitle(emptyAlertFilters)).toBe(
-      'Nenhuma inconsistência pendente neste projeto.'
-    );
-    expect(alertEmptyTitle({ status: 'DISMISSED', type: '' })).toBe('Nenhum alerta dispensado.');
-    expect(alertEmptyTitle({ status: 'RESOLVED', type: '' })).toBe('Nenhum alerta resolvido.');
-    expect(alertEmptyTitle({ status: 'OPEN', type: 'ISSUE_CLOSED_WITHOUT_TASK' })).toBe(
-      'Nenhum alerta corresponde aos filtros.'
-    );
+    const resolved = {
+      status: 'RESOLVED',
+      detectedAt,
+      resolvedAt: at,
+      resolutionReason: 'TASK_REOPENED'
+    };
+    expect(alertHistoryTitle(resolved)).toBe(`Resolvida em ${formatInstant(at)} · Tarefa reaberta`);
+    expect(alertHistoryDetail(resolved)).toBe(`Detectada em ${formatInstant(detectedAt)}.`);
+    expect(historyToggleLabel(1204)).toBe('Histórico (1.204)');
+    expect(alertSubjectFilter({ subject: { type: 'TASK', id: 31 } })).toEqual({ taskId: 31 });
+    expect(alertSubjectFilter({ subject: { type: 'PULL_REQUEST', id: 70 } })).toEqual({
+      pullRequestId: 70
+    });
+    expect(alertSubjectFilter({ subject: { type: 'ISSUE', id: null } })).toBeNull();
+    expect(alertSubjectFilter(null)).toBeNull();
   });
 });

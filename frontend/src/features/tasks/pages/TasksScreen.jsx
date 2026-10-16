@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import {
   deleteTask,
   linkTaskCommit,
@@ -17,6 +17,7 @@ import { requirementsApi } from '../../requirements/index.js';
 import { CollapsibleFilterPanel, scheduleApi, SprintDialog } from '../../schedule/index.js';
 import { projectsApi, ProjectSectionNav } from '../../projects/index.js';
 import { getProjectCommits, getProjectIssues, getProjectPullRequests } from '../../github/index.js';
+import { useOpenAlertIndex } from '../../traceability/index.js';
 import {
   ContextualErrorPage,
   FeedbackRegion,
@@ -38,6 +39,12 @@ import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
 import { TaskMetrics } from '../components/TaskMetrics.jsx';
 import { TaskList } from '../components/TaskList.jsx';
 import { priorityLabels, statusLabels } from '../components/kanban-display.js';
+import {
+  isTraceabilityFilter,
+  matchesTraceabilityFilter,
+  TRACEABILITY_FILTERS
+} from '../components/kanban-view.js';
+import { AlertIndexNotice, TechnicalLinkSummary } from '../components/TaskIndications.jsx';
 import './TasksScreen.css';
 
 const EMPTY_FILTERS = Object.freeze({
@@ -45,8 +52,11 @@ const EMPTY_FILTERS = Object.freeze({
   status: '',
   priority: '',
   responsibleUserId: '',
-  sprintId: ''
+  sprintId: '',
+  traceability: ''
 });
+
+const TRACEABILITY_PARAM = 'rastreabilidade';
 
 function getErrorMessage(error, fallback) {
   return normalizeApiError(error, fallback).message;
@@ -63,6 +73,7 @@ function normalized(value) {
 export function TasksScreen() {
   const confirm = useConfirm();
   const { projectId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [requirements, setRequirements] = useState([]);
@@ -76,7 +87,16 @@ export function TasksScreen() {
   const [projectMembers, setProjectMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [sprints, setSprints] = useState([]);
-  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
+  const [filters, setFilters] = useState(() => {
+    const requested = searchParams.get(TRACEABILITY_PARAM);
+    return {
+      ...EMPTY_FILTERS,
+      traceability: isTraceabilityFilter(requested) ? requested : ''
+    };
+  });
+  const [detailsSection, setDetailsSection] = useState(null);
+  const alertIndex = useOpenAlertIndex(projectId);
+  const reloadAlertIndex = alertIndex.reload;
   const [formData, setFormData] = useState(emptyTaskForm);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -96,6 +116,15 @@ export function TasksScreen() {
   const detailsReturnFocusRef = useRef(null);
 
   const canWrite = Boolean(currentMembership && currentMembership.role !== 'VIEWER');
+
+  useEffect(() => {
+    const current = searchParams.get(TRACEABILITY_PARAM) || '';
+    if (current === filters.traceability) return;
+    const next = new URLSearchParams(searchParams);
+    if (filters.traceability) next.set(TRACEABILITY_PARAM, filters.traceability);
+    else next.delete(TRACEABILITY_PARAM);
+    setSearchParams(next, { replace: true });
+  }, [filters.traceability, searchParams, setSearchParams]);
 
   const loadTaskData = useCallback(
     async ({ showLoading = true } = {}) => {
@@ -458,8 +487,9 @@ export function TasksScreen() {
     }
   }
 
-  async function openTaskDetails(task, trigger) {
+  async function openTaskDetails(task, trigger, section = null) {
     detailsReturnFocusRef.current = trigger;
+    setDetailsSection(section);
     setSelectedTask(task);
     setError('');
     const sequence = ++detailsSequenceRef.current;
@@ -505,6 +535,7 @@ export function TasksScreen() {
       if (String(editingTaskId) === String(task.id)) closeForm();
       setTasks((current) => current.filter((item) => String(item.id) !== String(task.id)));
       setSuccess(response.message || 'Tarefa excluída com sucesso.');
+      void reloadAlertIndex();
       await loadTaskData({ showLoading: false });
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível excluir a tarefa.'));
@@ -527,6 +558,7 @@ export function TasksScreen() {
     setSuccess(outcome.successMessage || 'Tarefa atualizada com sucesso.');
     setWarning(outcome.warning || '');
     void loadTaskData({ showLoading: false });
+    void reloadAlertIndex();
     return updatedTask;
   }
 
@@ -571,10 +603,11 @@ export function TasksScreen() {
         (!filters.sprintId ||
           (filters.sprintId === 'backlog'
             ? !task.sprintId
-            : String(task.sprintId || '') === String(filters.sprintId)))
+            : String(task.sprintId || '') === String(filters.sprintId))) &&
+        matchesTraceabilityFilter(task, filters.traceability, alertIndex.tasks)
       );
     });
-  }, [filters, tasks]);
+  }, [alertIndex.tasks, filters, tasks]);
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   if (!loading && !project && pageError) {
@@ -690,8 +723,35 @@ export function TasksScreen() {
                     ))}
                   </SelectControl>
                 </label>
+                <label className="tasks-filter">
+                  <span>Rastreabilidade</span>
+                  <SelectControl
+                    value={filters.traceability}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, traceability: event.target.value }))
+                    }
+                  >
+                    {TRACEABILITY_FILTERS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </SelectControl>
+                </label>
               </div>
             </CollapsibleFilterPanel>
+
+            <TechnicalLinkSummary
+              tasks={tasks}
+              active={filters.traceability === 'SEM_VINCULO'}
+              onToggle={() =>
+                setFilters((current) => ({
+                  ...current,
+                  traceability: current.traceability === 'SEM_VINCULO' ? '' : 'SEM_VINCULO'
+                }))
+              }
+            />
+            <AlertIndexNotice error={alertIndex.error} onRetry={reloadAlertIndex} />
 
             <TaskList
               tasks={filteredTasks}
@@ -699,8 +759,12 @@ export function TasksScreen() {
               deletingTaskId={deletingTaskId}
               canWrite={canWrite}
               filtered={activeFilterCount > 0}
+              openAlertTasks={alertIndex.tasks}
               onCreate={openCreate}
               onOpen={openTaskDetails}
+              onOpenInconsistency={(task, trigger) =>
+                openTaskDetails(task, trigger, 'inconsistency')
+              }
               onEdit={startEditing}
               onDelete={handleDeleteTask}
             />
@@ -779,6 +843,9 @@ export function TasksScreen() {
           canDelete={canWrite}
           deleting={deletingTaskId === selectedTask.id}
           returnFocusRef={detailsReturnFocusRef}
+          openAlertId={alertIndex.tasks.get(selectedTask.id)}
+          initialSection={detailsSection}
+          onAlertsChanged={reloadAlertIndex}
           onClose={closeTaskDetails}
           onDelete={handleDeleteTask}
           onSave={handleDetailsSave}

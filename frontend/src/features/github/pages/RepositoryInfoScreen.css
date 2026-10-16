@@ -337,6 +337,36 @@
   color: var(--color-text-secondary);
 }
 
+.repository-artifact-status .repository-artifact-gap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-warning-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.repository-artifact-status .repository-artifact-gap--past {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-regular);
+}
+
+.repository-artifact-gap svg {
+  flex: 0 0 auto;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.repository-artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.repository-artifact-actions .button {
+  min-height: var(--size-touch-target);
+  white-space: nowrap;
+}
+
 .repository-empty-state {
   display: grid;
   justify-items: center;
@@ -404,4 +434,9 @@
     padding-top: var(--space-6);
   }
 }
-.repository-filter-form { margin: 0; padding: 0; border: 0; min-width: 0; }
+.repository-filter-form {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}

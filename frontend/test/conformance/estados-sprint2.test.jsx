@@ -1,6 +1,5 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { cleanup, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
 
@@ -9,8 +8,7 @@ const traceability = vi.hoisted(() => ({
   getTraceabilityAlertSummary: vi.fn(),
   getTraceabilityAlert: vi.fn(),
   dismissTraceabilityAlert: vi.fn(),
-  reconcileTraceabilityAlerts: vi.fn(),
-  getTasksWithoutTechnicalLinks: vi.fn()
+  reconcileTraceabilityAlerts: vi.fn()
 }));
 const notifications = vi.hoisted(() => ({
   listNotifications: vi.fn(),
@@ -30,8 +28,10 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: { list: vi.fn().mockResolvedValue({ projects: [] }) }
 }));
 
-const { TraceabilityAlertsPage } = await import('../../src/pages/TraceabilityAlertsPage.jsx');
-const { UnlinkedTasksPage } = await import('../../src/pages/UnlinkedTasksPage.jsx');
+const { InconsistencySummary } =
+  await import('../../src/features/traceability/components/InconsistencySummary.jsx');
+const { AlertDetails } =
+  await import('../../src/features/traceability/components/AlertDetails.jsx');
 const { NotificationsPanel, UnreadNotificationsProvider } =
   await import('../../src/features/notifications/index.js');
 
@@ -59,36 +59,50 @@ function failure(status, retryAfter) {
   return error;
 }
 
+const inconsistency = {
+  id: 12,
+  type: 'PULL_REQUEST_MERGED_WITHOUT_TASK',
+  status: 'OPEN',
+  occurredAt: '2026-10-05T17:32:00.000Z',
+  detectedAt: '2026-10-05T17:33:00.000Z',
+  resolvedAt: null,
+  resolutionReason: null,
+  dismissal: null,
+  limitations: [],
+  subject: {
+    type: 'PULL_REQUEST',
+    id: 70,
+    code: 'PR #45',
+    title: 'Ajusta CI',
+    available: true,
+    githubUrl: null
+  },
+  context: null
+};
+
 const pages = {
-  alertas: {
-    path: '/projects/9/traceability/alerts',
-    route: '/projects/:projectId/traceability/alerts',
-    element: <TraceabilityAlertsPage />,
+  resumoDeInconsistencias: {
+    path: '/projects/9/traceability',
+    route: '/projects/:projectId/traceability',
+    element: <InconsistencySummary projectId="9" />,
     arrange(load) {
-      traceability.getTraceabilityAlertSummary.mockResolvedValue(summary);
-      traceability.getTraceabilityAlerts.mockImplementation(
-        load ??
-          (() =>
-            Promise.resolve({
-              projectId: 9,
-              status: 'OPEN',
-              type: null,
-              alerts: [],
-              pagination: emptyPage,
-              permissions
-            }))
+      traceability.getTraceabilityAlertSummary.mockImplementation(
+        load ?? (() => Promise.resolve(summary))
       );
     }
   },
-  tarefasSemVinculo: {
-    path: '/projects/9/traceability/unlinked-tasks',
-    route: '/projects/:projectId/traceability/unlinked-tasks',
-    element: <UnlinkedTasksPage />,
+  detalheDeInconsistencia: {
+    path: '/projects/9/repository',
+    route: '/projects/:projectId/repository',
+    element: <AlertDetails projectId="9" alertId={12} />,
     arrange(load) {
-      traceability.getTraceabilityAlertSummary.mockResolvedValue(summary);
-      traceability.getTasksWithoutTechnicalLinks.mockImplementation(
-        load ??
-          (() => Promise.resolve({ projectId: 9, tasks: [], pagination: emptyPage, permissions }))
+      traceability.getTraceabilityAlerts.mockResolvedValue({
+        alerts: [],
+        pagination: emptyPage,
+        permissions
+      });
+      traceability.getTraceabilityAlert.mockImplementation(
+        load ?? (() => Promise.resolve({ alert: inconsistency, permissions }))
       );
     }
   },
@@ -157,13 +171,4 @@ describe('H38 — estados das telas da Sprint 2', () => {
       expect(screen.queryByRole('alert')).toBeNull();
     });
   }
-
-  it('alertas: com filtro ativo, "Limpar filtros" aparece uma vez', async () => {
-    const user = userEvent.setup();
-    pages.alertas.arrange(null);
-    renderPage(pages.alertas);
-    await user.click(await screen.findByRole('button', { name: /Buscar e filtrar/ }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Situação' }), 'DISMISSED');
-    expect(await screen.findAllByRole('button', { name: /Limpar filtros/ })).toHaveLength(1);
-  });
 });

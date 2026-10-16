@@ -1,10 +1,15 @@
 import { Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate, useParams } from 'react-router';
 import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
 import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
 import { AuthenticatedLayout } from '../layout/AuthenticatedLayout.jsx';
 import { lazyNamed } from './lazy-route.js';
 import { ProjectEventsRoute } from './ProjectEventsRoute.jsx';
+
+function ProjectRedirect({ to }) {
+  const { projectId } = useParams();
+  return <Navigate to={to(projectId)} replace />;
+}
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
 const RegisterPage = lazyNamed(() => import('../../pages/RegisterPage.jsx'), 'RegisterPage');
@@ -60,14 +65,6 @@ const RepositoryInfoPage = lazyNamed(
 const TraceabilityPage = lazyNamed(
   () => import('../../pages/TraceabilityPage.jsx'),
   'TraceabilityPage'
-);
-const TraceabilityAlertsPage = lazyNamed(
-  () => import('../../pages/TraceabilityAlertsPage.jsx'),
-  'TraceabilityAlertsPage'
-);
-const UnlinkedTasksPage = lazyNamed(
-  () => import('../../pages/UnlinkedTasksPage.jsx'),
-  'UnlinkedTasksPage'
 );
 const ProjectAuditPage = lazyNamed(
   () => import('../../pages/ProjectAuditPage.jsx'),
@@ -188,11 +185,13 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
           <Route
             path="/projects/:projectId/traceability/alerts"
-            element={<TraceabilityAlertsPage />}
+            element={<ProjectRedirect to={(id) => `/projects/${id}/traceability`} />}
           />
           <Route
             path="/projects/:projectId/traceability/unlinked-tasks"
-            element={<UnlinkedTasksPage />}
+            element={
+              <ProjectRedirect to={(id) => `/projects/${id}/tasks?rastreabilidade=SEM_VINCULO`} />
+            }
           />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="account" replace />} />

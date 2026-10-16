@@ -99,35 +99,36 @@ beforeEach(() => {
     permissions: { canLink: true, canManage: false }
   });
 });
-describe('S2-01 sub-navegação da rastreabilidade', () => {
-  it('mostra as três seções com Requisitos atual e a contagem de alertas abertos', async () => {
+describe('PR #26 resumo de inconsistências no lugar da sub-navegação (TF-REV-008)', () => {
+  it('mostra a linha de inconsistências abertas no topo, sem a sub-navegação', async () => {
     api.getTraceabilityAlertSummary.mockResolvedValue({
       projectId: 9,
-      open: { total: 3, byType: {} },
+      open: {
+        total: 3,
+        byType: { TASK_CONCLUDED_WITHOUT_COMMIT: 2, ISSUE_CLOSED_WITHOUT_TASK: 1 }
+      },
       dismissed: { total: 0 },
-      rules: { taskWithoutCommitActive: true },
+      rules: { taskWithoutCommitActive: true, integrationConnected: true },
       permissions: { canLink: true, canManage: false }
     });
     renderPage();
-    const nav = await screen.findByRole('navigation', { name: 'Seções da rastreabilidade' });
-    expect(within(nav).getByRole('link', { name: 'Requisitos' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
-    expect(await within(nav).findByRole('link', { name: 'Alertas (3)' })).toHaveAttribute(
-      'href',
-      '/projects/9/traceability/alerts'
-    );
-    expect(within(nav).getByRole('link', { name: 'Tarefas sem vínculo técnico' })).toHaveAttribute(
-      'href',
-      '/projects/9/traceability/unlinked-tasks'
-    );
+    const summary = await screen.findByRole('region', { name: 'Inconsistências abertas' });
+    expect(
+      await within(summary).findByRole('link', { name: '2 tarefas concluídas sem commit' })
+    ).toHaveAttribute('href', '/projects/9/tasks?rastreabilidade=SEM_COMMIT');
+    expect(
+      within(summary).getByRole('link', { name: '1 issue fechada sem tarefa' })
+    ).toHaveAttribute('href', '/projects/9/repository?inconsistencia=OPEN&tipo=issue');
+    expect(screen.queryByRole('navigation', { name: 'Seções da rastreabilidade' })).toBeNull();
   });
 
-  it('falha no resumo de alertas não derruba a tela de requisitos', async () => {
+  it('falha no resumo de inconsistências não derruba a tela de requisitos', async () => {
     api.getTraceabilityAlertSummary.mockRejectedValue(new Error('indisponível'));
     renderPage();
-    expect(await screen.findByRole('link', { name: 'Alertas' })).toBeInTheDocument();
+    const summary = await screen.findByRole('region', { name: 'Inconsistências abertas' });
+    expect(
+      await within(summary).findByRole('button', { name: /Tentar novamente/ })
+    ).toBeInTheDocument();
     expect(await screen.findByText('Requisito 10')).toBeInTheDocument();
   });
 });

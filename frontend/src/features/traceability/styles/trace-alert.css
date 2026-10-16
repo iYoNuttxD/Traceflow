@@ -1,9 +1,3 @@
-.trace-alerts-content {
-  display: grid;
-  gap: var(--layout-section-gap);
-  min-width: 0;
-}
-
 .trace-alert-pill {
   display: inline-flex;
   max-width: 100%;
@@ -85,9 +79,4 @@
 .trace-alert-actions a.button,
 a.button.trace-alert-link {
   text-decoration: none;
-}
-
-.trace-alert-load-more {
-  display: block;
-  margin: var(--space-6) auto 0;
 }

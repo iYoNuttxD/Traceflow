@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Link } from 'react-router';
 import {
   ErrorState,
@@ -9,9 +9,16 @@ import {
 } from '../../../shared/index.js';
 import { useTestCaseScope } from '../../testCases/index.js';
 import { dismissTraceabilityAlert, getTraceabilityAlert } from '../api/traceability.api.js';
-import { NO_REPOSITORY_MESSAGE, formatInstant, taskStatusLabel } from '../model/alert-view.js';
+import { useSubjectAlerts } from '../hooks/useSubjectAlerts.js';
+import {
+  NO_REPOSITORY_MESSAGE,
+  alertSubjectFilter,
+  formatInstant,
+  taskStatusLabel
+} from '../model/alert-view.js';
 import { AlertBadges, AlertFacts } from './AlertCard.jsx';
 import { AlertDismissForm } from './AlertDismissForm.jsx';
+import { AlertHistoryList, AlertHistoryToggle } from './AlertHistory.jsx';
 import { AlertLinkTask } from './AlertLinkTask.jsx';
 import '../styles/trace-alert.css';
 import './AlertDetails.css';
@@ -72,12 +79,22 @@ function IssueContext({ context }) {
 
 const contexts = { TASK: TaskContext, PULL_REQUEST: PullRequestContext, ISSUE: IssueContext };
 
-export function AlertDetails({ projectId, alertId, permissions = {}, onChanged }) {
+export function AlertDetails({ projectId, alertId, permissions, onChanged }) {
+  const historyId = useId();
   const scope = useTestCaseScope(`${projectId}:alert:${alertId}`);
-  const [state, setState] = useState({ loading: true, data: null, error: null });
+  const [state, setState] = useState({
+    loading: true,
+    data: null,
+    permissions: null,
+    error: null
+  });
   const [view, setView] = useState('details');
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState({});
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const history = useSubjectAlerts(projectId, alertSubjectFilter(state.data), {
+    enabled: Boolean(state.data)
+  });
   const read = useCallback(async () => {
     const token = scope.begin('alert');
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -87,13 +104,18 @@ export function AlertDetails({ projectId, alertId, permissions = {}, onChanged }
         fresh: true
       });
       if (scope.accepts('alert', token))
-        setState({ loading: false, data: response.alert, error: null });
+        setState({
+          loading: false,
+          data: response.alert,
+          permissions: response.permissions || null,
+          error: null
+        });
     } catch (failure) {
       if (scope.accepts('alert', token))
         setState((current) => ({
           ...current,
           loading: false,
-          error: normalizeApiError(failure, 'Não foi possível carregar o alerta.')
+          error: normalizeApiError(failure, 'Não foi possível carregar a inconsistência.')
         }));
     }
   }, [projectId, alertId, scope]);
@@ -105,6 +127,7 @@ export function AlertDetails({ projectId, alertId, permissions = {}, onChanged }
     setView('details');
     setFeedback({ success });
     onChanged?.();
+    void history.reload();
     await read();
   }
 
@@ -113,12 +136,12 @@ export function AlertDetails({ projectId, alertId, permissions = {}, onChanged }
     setFeedback({});
     try {
       await dismissTraceabilityAlert(projectId, alertId, reason);
-      await afterMutation('Alerta dispensado.');
+      await afterMutation('Inconsistência dispensada.');
     } catch (failure) {
-      const error = normalizeApiError(failure, 'Não foi possível dispensar o alerta.');
+      const error = normalizeApiError(failure, 'Não foi possível dispensar a inconsistência.');
       if (error.code === 'TRACEABILITY_ALERT_NOT_OPEN') {
         setView('details');
-        setFeedback({ error: 'Este alerta já foi resolvido. A lista foi atualizada.' });
+        setFeedback({ error: 'Esta inconsistência já foi resolvida. A lista foi atualizada.' });
         onChanged?.();
         await read();
       } else setFeedback({ error: error.message });
@@ -128,19 +151,38 @@ export function AlertDetails({ projectId, alertId, permissions = {}, onChanged }
   }
 
   const alert = state.data;
-  if (!alert && state.loading) return <LoadingState message="Carregando alerta..." />;
-  if (!alert) return <ErrorState message={state.error?.message} onRetry={read} />;
+  if (!alert && state.loading) return <LoadingState message="Carregando inconsistência..." />;
+  if (!alert)
+    return (
+      <ErrorState
+        message={state.error?.message}
+        retryAfterSeconds={state.error?.retryAfterSeconds}
+        onRetry={read}
+      />
+    );
 
+  const allowed = permissions || state.permissions || {};
   const Context = contexts[alert.subject.type];
   const active = alert.status !== 'RESOLVED';
   const canLink =
-    permissions.canLink && active && alert.subject.available && alert.subject.type !== 'TASK';
-  const canDismiss = permissions.canManage && alert.status === 'OPEN';
+    allowed.canLink && active && alert.subject.available && alert.subject.type !== 'TASK';
+  const canDismiss = allowed.canManage && alert.status === 'OPEN';
+  const entries = history.alerts.filter((item) => item.id !== alert.id);
+  const historyTotal = Math.max(
+    0,
+    history.total - (history.alerts.some((item) => item.id === alert.id) ? 1 : 0)
+  );
 
   return (
     <div className="trace-alert-details">
       <FeedbackRegion success={feedback.success} error={feedback.error} />
-      {state.error && <ErrorState message={state.error.message} onRetry={read} />}
+      {state.error && (
+        <ErrorState
+          message={state.error.message}
+          retryAfterSeconds={state.error.retryAfterSeconds}
+          onRetry={read}
+        />
+      )}
       <AlertBadges alert={alert} />
       <p className="trace-alert-subject">
         <span className="trace-alert-subject__code">{alert.subject.code}</span>
@@ -148,12 +190,12 @@ export function AlertDetails({ projectId, alertId, permissions = {}, onChanged }
       </p>
       {!alert.subject.available && (
         <p className="trace-alert-notice">
-          O item deste alerta foi excluído. Os dados exibidos são os da detecção.
+          O item desta inconsistência foi excluído. Os dados exibidos são os da detecção.
         </p>
       )}
       <AlertFacts alert={alert} />
       {alert.context && Context && (
-        <section aria-label="Contexto do alerta">
+        <section aria-label="Contexto da inconsistência">
           <h4>Contexto</h4>
           <dl className="trace-alert-context">
             <Context context={alert.context} />
@@ -199,11 +241,30 @@ export function AlertDetails({ projectId, alertId, permissions = {}, onChanged }
               className="button button-secondary"
               onClick={() => setView('dismiss')}
             >
-              Dispensar alerta
+              Dispensar
             </button>
           )}
           {alert.subject.githubUrl && <GithubExternalAction href={alert.subject.githubUrl} />}
+          {alertSubjectFilter(alert) && (
+            <AlertHistoryToggle
+              controls={historyId}
+              expanded={historyOpen}
+              total={historyTotal}
+              disabled={!history.loaded && !history.error}
+              onToggle={() => setHistoryOpen((open) => !open)}
+            />
+          )}
         </div>
+      )}
+      {view === 'details' && historyOpen && (
+        <AlertHistoryList
+          id={historyId}
+          entries={entries}
+          total={historyTotal}
+          error={history.error}
+          emptyText="Nenhuma inconsistência anterior deste item."
+          onRetry={history.reload}
+        />
       )}
     </div>
   );

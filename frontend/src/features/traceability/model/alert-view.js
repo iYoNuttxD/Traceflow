@@ -23,9 +23,9 @@ export const ALERT_TYPES = Object.freeze({
 });
 
 export const ALERT_STATUSES = Object.freeze({
-  OPEN: Object.freeze({ label: 'Aberto', filter: 'Abertos', tone: 'warning' }),
-  DISMISSED: Object.freeze({ label: 'Dispensado', filter: 'Dispensados', tone: 'neutral' }),
-  RESOLVED: Object.freeze({ label: 'Resolvido', filter: 'Resolvidos', tone: 'success' })
+  OPEN: Object.freeze({ label: 'Aberta', tone: 'warning' }),
+  DISMISSED: Object.freeze({ label: 'Dispensada', tone: 'neutral' }),
+  RESOLVED: Object.freeze({ label: 'Resolvida', tone: 'success' })
 });
 
 export const RESOLUTION_REASONS = Object.freeze({
@@ -46,8 +46,6 @@ export const TASK_STATUSES = Object.freeze({
 
 export const DISMISS_REASON_MIN = 10;
 export const DISMISS_REASON_MAX = 500;
-
-export const emptyAlertFilters = Object.freeze({ status: 'OPEN', type: '' });
 
 export const alertTypeLabel = (type) => ALERT_TYPES[type]?.label || 'Alerta';
 export const alertStatusLabel = (status) =>
@@ -74,17 +72,57 @@ export function alertFactText(alert) {
   return alert.occurredAt ? `${type.fact} ${formatInstant(alert.occurredAt)}` : type.missingFact;
 }
 
-const counted = (count, singular, plural) => `${count} ${count === 1 ? singular : plural}`;
+const counted = (count, singular, plural) =>
+  `${count.toLocaleString('pt-BR')} ${count === 1 ? singular : plural}`;
 
-export function alertSummarySentence(summary) {
-  if (!summary) return '';
-  const total = summary.open.total;
-  if (!total) return 'Nenhum alerta aberto.';
-  const parts = Object.entries(ALERT_TYPES)
-    .map(([type, labels]) => [summary.open.byType[type] || 0, labels])
-    .filter(([count]) => count > 0)
-    .map(([count, labels]) => counted(count, labels.singular, labels.plural));
-  return `${counted(total, 'alerta aberto', 'alertas abertos')}: ${parts.join(', ')}.`;
+const SUMMARY_TARGETS = Object.freeze({
+  TASK_CONCLUDED_WITHOUT_COMMIT: (projectId) =>
+    `/projects/${projectId}/tasks?rastreabilidade=SEM_COMMIT`,
+  PULL_REQUEST_MERGED_WITHOUT_TASK: (projectId) =>
+    `/projects/${projectId}/repository?inconsistencia=OPEN&tipo=pull_request`,
+  ISSUE_CLOSED_WITHOUT_TASK: (projectId) =>
+    `/projects/${projectId}/repository?inconsistencia=OPEN&tipo=issue`
+});
+
+export function inconsistencySummaryParts(summary, projectId) {
+  if (!summary) return [];
+  return Object.entries(ALERT_TYPES)
+    .map(([type, labels]) => ({ type, labels, count: summary.open.byType[type] || 0 }))
+    .filter((part) => part.count > 0)
+    .map(({ type, labels, count }) => ({
+      type,
+      count,
+      text: counted(count, labels.singular, labels.plural),
+      to: SUMMARY_TARGETS[type](projectId)
+    }));
+}
+
+export function alertSubjectFilter(alert) {
+  const key = { TASK: 'taskId', PULL_REQUEST: 'pullRequestId', ISSUE: 'issueId' }[
+    alert?.subject?.type
+  ];
+  return key && alert.subject.id ? { [key]: alert.subject.id } : null;
+}
+
+export function alertHistoryTitle(alert) {
+  if (alert.status === 'DISMISSED')
+    return `Dispensada por ${alert.dismissal?.by?.name || 'pessoa removida'} em ${formatInstant(
+      alert.dismissal?.at
+    )}`;
+  if (alert.status === 'RESOLVED')
+    return `Resolvida em ${formatInstant(alert.resolvedAt)} · ${resolutionLabel(alert.resolutionReason)}`;
+  return `Em aberto desde ${formatInstant(alert.detectedAt)}`;
+}
+
+export function alertHistoryDetail(alert) {
+  const detected = `Detectada em ${formatInstant(alert.detectedAt)}`;
+  return alert.status === 'DISMISSED' && alert.dismissal?.reason
+    ? `${detected}. Justificativa: “${alert.dismissal.reason}”`
+    : `${detected}.`;
+}
+
+export function historyToggleLabel(total) {
+  return `Histórico (${total.toLocaleString('pt-BR')})`;
 }
 
 export function reconcileMessage(result) {
@@ -93,11 +131,6 @@ export function reconcileMessage(result) {
     'resolvido',
     'resolvidos'
   )}, ${counted(result.kept, 'mantido', 'mantidos')}.`;
-}
-
-export function unlinkedCountLabel(total) {
-  if (total === undefined || total === null) return '';
-  return counted(total, 'tarefa sem vínculo técnico', 'tarefas sem vínculo técnico');
 }
 
 export const dismissReasonLength = (reason) => Array.from(String(reason ?? '').trim()).length;
@@ -112,19 +145,9 @@ export function validateDismissReason(reason) {
 export function reconciliationNotice(reconciliation, canManage) {
   if (!reconciliation?.stale) return '';
   const guidance = canManage
-    ? 'Use Reprocessar alertas para atualizá-los.'
-    : 'Peça a um gestor do projeto para reprocessar os alertas.';
-  return `A última atualização dos alertas falhou em ${formatInstant(reconciliation.lastFailedAt)}. Os alertas podem estar desatualizados. ${guidance}`;
+    ? 'Use Reprocessar inconsistências para atualizá-las.'
+    : 'Peça a um gestor do projeto para reprocessar as inconsistências.';
+  return `A última atualização das inconsistências falhou em ${formatInstant(reconciliation.lastFailedAt)}. Os números podem estar desatualizados. ${guidance}`;
 }
-
-export function alertEmptyTitle(filters) {
-  if (filters.type) return 'Nenhum alerta corresponde aos filtros.';
-  if (filters.status === 'DISMISSED') return 'Nenhum alerta dispensado.';
-  if (filters.status === 'RESOLVED') return 'Nenhum alerta resolvido.';
-  return 'Nenhuma inconsistência pendente neste projeto.';
-}
-
-export const activeAlertFilterCount = (filters) =>
-  (filters.status !== emptyAlertFilters.status ? 1 : 0) + (filters.type ? 1 : 0);
 
 export const taskOptionLabel = (task) => (task ? `TASK-${task.id} · ${task.title}` : '');

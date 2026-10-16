@@ -61,7 +61,8 @@ describe('Tasks facelift responsivo', () => {
     expect(listSource).toContain('className="new-task-card"');
     expect(listSource).toContain('<SprintActionsMenu');
     expect(listSource).not.toContain('Ver detalhes');
-    expect(listSource).not.toContain('Rastreabilidade');
+    expect(listSource).toContain('<TaskTraceabilityLine task={task} />');
+    expect(listSource).not.toContain("from './TaskTraceability.jsx'");
     expect(listSource).not.toContain('onUnlinkCommit');
     expect(
       ruleDeclarations(parseStylesheet(listCss), '.task-catalog-card__description')

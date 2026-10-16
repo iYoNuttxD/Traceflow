@@ -1165,3 +1165,37 @@ Substitui a página `/notifications`, que redireciona para `/projects` com o pai
     metadado avisa "abre no GitHub em nova aba".
 - **Estados.** Carregando, erro com nova tentativa, limite de taxa com `Retry-After`, vazio por aba
   e por origem com "Ver todas", e "Carregar mais (N restantes)" pelo cursor.
+
+## Indicações de inconsistência — PR #26, TF-REV-008 (2026-10-16)
+
+Substituem as páginas de alertas e de tarefas sem vínculo técnico (UX-D02). A informação aparece onde
+o trabalho acontece, sem tela própria.
+
+- **Marcador "Concluída sem commit" (RF13).** No cartão do Kanban e no item da lista de tarefas,
+  quando há alerta aberto no índice `GET /traceability/alerts/index`. Segue o marcador de correção
+  do S1-08, com ícone `alert`, tipografia de metadado, tokens warning e alvo de 44 px; o cartão não
+  recebe tratamento de erro. O nome acessível é "Concluída sem commit: abrir a inconsistência da
+  TASK-31", e o clique abre os detalhes com o foco no título da seção de inconsistência.
+- **Linha de rastreabilidade (RF58).** Separa o vínculo técnico ("1 PR · 2 commits", ou "Sem vínculo
+  técnico" em semibold) do requisito ("1 req", ou "Sem requisito" em `text-secondary`). Sem
+  requisito é informação, não alerta.
+- **Resumo do RF58.** Linha própria, abaixo dos filtros do Kanban e da lista: "Sem vínculo técnico:
+  12 de 80 tarefas (15%)", com o denominador do recorte. É um botão com `aria-pressed` que aplica e
+  retira o filtro; sem tarefas sem vínculo, vira texto simples. Nos extremos, "<1%" e ">99%", para
+  não arredondar para 0% ou 100%.
+- **Filtro "Rastreabilidade".** `SelectControl` nos filtros do Kanban e da lista: Todas, Sem vínculo
+  técnico (RF58) e Concluídas sem commit (RF13). Na lista, acompanha `?rastreabilidade=`.
+- **Seção "Inconsistência" nos detalhes.** No topo da Rastreabilidade da tarefa, em superfície
+  warning com borda: tipo, conclusão e detecção; "Vincular commit" (abre o editor de vínculos com o
+  foco na busca de commits), "Dispensar" (MANAGER+, com o `AlertDismissForm`) e "Histórico (n)",
+  com quem, quando e por quê.
+- **Repositório.** A célula de estado ganha a linha "sem tarefa vinculada" (warning, com ícone) ou
+  "sem tarefa · dispensada em …" e "inconsistência resolvida em …" (discretas). A ação "Ver
+  inconsistência" abre o detalhe num `SprintDialog`, com vincular, dispensar, GitHub e histórico.
+- **Rastreabilidade do projeto.** A sub-navegação saiu. O topo traz a linha "3 tarefas concluídas sem
+  commit · 2 PRs mescladas sem tarefa · 1 issue fechada sem tarefa", em que cada parte é link para a
+  lista filtrada, mais o aviso de números desatualizados e "Reprocessar inconsistências" para
+  MANAGER+.
+- **Vocabulário.** Na interface, o alerta é "inconsistência", no feminino: Aberta, Dispensada,
+  Resolvida.
+
