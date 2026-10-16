@@ -28,8 +28,8 @@ function failureFeedback(failure, fallback) {
 }
 
 export function NotificationsScreen() {
-  const { refresh: refreshCount, report } = useUnreadNotifications();
-  const list = useNotifications({ onCount: report });
+  const { unreadCount, refresh: refreshCount, report, begin } = useUnreadNotifications();
+  const list = useNotifications({ onCount: report, beginCount: begin });
   const [feedback, setFeedback] = useState({});
   const [busyIds, setBusyIds] = useState(() => new Set());
   const [markingAll, setMarkingAll] = useState(false);
@@ -39,7 +39,6 @@ export function NotificationsScreen() {
   listRef.current = list;
   busyRef.current = busyIds;
   const items = list.data?.notifications || [];
-  const unreadCount = list.data?.unreadCount ?? 0;
 
   const toggleRead = useCallback(
     async (notification) => {

@@ -186,11 +186,14 @@ describe('S2-03 bateria — bloco U: cartões do GitHub', () => {
     ];
     api.listNotifications.mockResolvedValue(listing(items));
     api.markAllNotificationsRead.mockResolvedValue({ updated: 3 });
+    api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: 3 });
     renderPage();
 
     await screen.findAllByRole('article');
     expect(screen.getAllByRole('article')).toHaveLength(3);
-    await user.click(screen.getByRole('button', { name: 'Marcar todas como lidas' }));
+    const markAll = screen.getByRole('button', { name: 'Marcar todas como lidas' });
+    await waitFor(() => expect(markAll).toHaveAttribute('aria-disabled', 'false'));
+    await user.click(markAll);
 
     expect(api.markAllNotificationsRead).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(api.listNotifications.mock.calls.length).toBeGreaterThanOrEqual(1));

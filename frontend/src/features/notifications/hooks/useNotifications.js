@@ -8,7 +8,7 @@ function mergeById(previous, next) {
   return [...previous, ...next.filter((item) => !seen.has(item.id))];
 }
 
-export function useNotifications({ onCount } = {}) {
+export function useNotifications({ onCount, beginCount } = {}) {
   const [status, setStatus] = useState('UNREAD');
   const [group, setGroup] = useState('ALL');
   const [data, setData] = useState(null);
@@ -17,7 +17,9 @@ export function useNotifications({ onCount } = {}) {
   const [failedCursor, setFailedCursor] = useState(null);
   const current = useRef(null);
   const countRef = useRef(onCount);
+  const beginRef = useRef(beginCount);
   countRef.current = onCount;
+  beginRef.current = beginCount;
 
   const load = useCallback(
     async (cursor = null) => {
@@ -26,6 +28,7 @@ export function useNotifications({ onCount } = {}) {
       current.current = controller;
       setLoading(true);
       setError(null);
+      const ticket = beginRef.current?.();
       try {
         const filters = group === 'ALL' ? { status } : { status, group };
         const next = await listNotifications(
@@ -41,7 +44,7 @@ export function useNotifications({ onCount } = {}) {
             ? mergeById(previous?.notifications || [], next.notifications)
             : next.notifications
         }));
-        countRef.current?.(next.unreadCount);
+        countRef.current?.(next.unreadCount, ticket);
       } catch (failure) {
         if (current.current !== controller) return;
         setError(normalizeApiError(failure, 'Não foi possível carregar as notificações.'));

@@ -203,11 +203,14 @@ describe('S2-02 central de notificações', () => {
       .mockResolvedValueOnce(listing([notification(1), notification(2)]))
       .mockResolvedValueOnce(listing([]));
     api.markAllNotificationsRead.mockResolvedValue({ updated: 2 });
+    api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: 2 });
     renderPage();
     await waitFor(() => cardOf('TASK-101'));
+    const markAll = screen.getByRole('button', { name: 'Marcar todas como lidas' });
+    await waitFor(() => expect(markAll).toHaveAttribute('aria-disabled', 'false'));
     const countCalls = api.getUnreadNotificationCount.mock.calls.length;
 
-    await user.click(screen.getByRole('button', { name: 'Marcar todas como lidas' }));
+    await user.click(markAll);
 
     expect(await screen.findByText('2 notificações marcadas como lidas.')).toBeInTheDocument();
     expect(await screen.findByText('Nenhuma notificação não lida.')).toBeInTheDocument();
