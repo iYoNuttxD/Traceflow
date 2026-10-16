@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 import {
   protectedFile,
   connectionContract,
+  isDiagnosticCode,
+  isDiagnosticPhase,
+  sanitizedMysqlCode,
 } from "../../backend/scripts/lib/heatwave-connection.js";
 import { validateRuntime } from "./diagnostic-runtime.mjs";
 
@@ -87,7 +90,9 @@ export function sanitizedResult(result, password) {
   );
   const diagnostic = JSON.parse(result.output);
   check(
-    ["PASS", "FAIL", "CONFIG_VALID"].includes(diagnostic.status),
+    diagnostic &&
+      !Array.isArray(diagnostic) &&
+      ["PASS", "FAIL", "CONFIG_VALID"].includes(diagnostic.status),
     "DIAGNOSTIC_OUTPUT_REFUSED",
   );
   check(
@@ -96,11 +101,49 @@ export function sanitizedResult(result, password) {
       : diagnostic.status === "FAIL",
     "DIAGNOSTIC_EXIT_MISMATCH",
   );
-  if (diagnostic.status === "FAIL")
+  const allowedFields = {
+    FAIL: ["status", "code", "phase", "mysqlCode", "writes"],
+    CONFIG_VALID: ["status", "connected", "mode"],
+    PASS: [
+      "formatVersion",
+      "status",
+      "mode",
+      "checkedAt",
+      "version",
+      "prisma",
+      "ca",
+      "serverIdentityVerified",
+      "effectiveUserVerified",
+      "tls",
+      "tlsSession",
+      "grants",
+      "roleVerification",
+      "parameters",
+      "pool",
+      "writes",
+      "disconnected",
+    ],
+  };
+  check(
+    Object.keys(diagnostic).every((key) =>
+      allowedFields[diagnostic.status].includes(key),
+    ),
+    "DIAGNOSTIC_OUTPUT_REFUSED",
+  );
+  if (diagnostic.status === "FAIL") {
     check(
-      /^[A-Z0-9_]+$/.test(diagnostic.code || ""),
+      isDiagnosticCode(diagnostic.code) &&
+        isDiagnosticPhase(diagnostic.phase) &&
+        diagnostic.writes === false,
       "DIAGNOSTIC_OUTPUT_REFUSED",
     );
+    if (Object.hasOwn(diagnostic, "mysqlCode"))
+      check(
+        typeof diagnostic.mysqlCode === "string" &&
+          sanitizedMysqlCode(diagnostic.mysqlCode) === diagnostic.mysqlCode,
+        "DIAGNOSTIC_OUTPUT_REFUSED",
+      );
+  }
   return diagnostic;
 }
 

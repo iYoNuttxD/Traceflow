@@ -11,6 +11,72 @@ import { requireCondition as check } from './oci-compatibility-safety.js';
 export const managedHost = 'traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com';
 export const managedCaPath = '/etc/pki/traceflow/mysql-ca.pem';
 
+export const diagnosticPhases = Object.freeze(
+  Object.fromEntries(
+    [
+      'PREVALIDATION',
+      'TLS_CA',
+      'DNS_IDENTITY',
+      'TLS_PROBE',
+      'PRISMA_INIT',
+      'SQL_IDENTITY',
+      'SERVER_IDENTITY',
+      'SQL_SESSION_TLS',
+      'SESSION_TLS',
+      'SQL_SERVER_PARAMETERS',
+      'ROLES',
+      'SQL_DIRECT_GRANTS',
+      'DIRECT_GRANTS',
+      'SQL_PUBLIC_GRANTS',
+      'EFFECTIVE_GRANTS',
+      'SQL_SELECT_ONE',
+      'DISCONNECT',
+      'UNKNOWN'
+    ].map((phase) => [phase, phase])
+  )
+);
+
+export function isDiagnosticPhase(value) {
+  return typeof value === 'string' && Object.hasOwn(diagnosticPhases, value);
+}
+
+export function isDiagnosticCode(value) {
+  return typeof value === 'string' && /^[A-Z0-9_]{1,64}$/.test(value);
+}
+
+// Read data properties only: never invoke metadata getters, coercion or toJSON.
+function errorProperty(value, key) {
+  if (!value || typeof value !== 'object') return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.hasOwn(descriptor, 'value') ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function sanitizedMysqlCode(value) {
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined;
+  if (typeof value === 'string' && !/^[1-9][0-9]{0,4}$/.test(value)) return undefined;
+  const number = Number(value);
+  // MySQL protocol error numbers are unsigned 16-bit integers; zero is not an error.
+  if (!Number.isInteger(number) || number < 1 || number > 65535) return undefined;
+  const canonical = String(number);
+  return typeof value === 'number' || canonical === value ? canonical : undefined;
+}
+
+export function diagnosticFailure(error, phase) {
+  const code = errorProperty(error, 'code');
+  const mysqlCode = sanitizedMysqlCode(errorProperty(errorProperty(error, 'meta'), 'code'));
+  return {
+    status: 'FAIL',
+    code: isDiagnosticCode(code) ? code : 'DIAGNOSTIC_FAILED',
+    phase: isDiagnosticPhase(phase) ? phase : diagnosticPhases.UNKNOWN,
+    ...(mysqlCode === undefined ? {} : { mysqlCode }),
+    writes: false
+  };
+}
+
 export async function protectedFile(path, { privateFile = false, rootOwned = false } = {}) {
   check(isAbsolute(path || '') && path === resolve(path), 'ABSOLUTE_FILE_REQUIRED');
   check((await realpath(path)) === path, 'UNSAFE_FILE');

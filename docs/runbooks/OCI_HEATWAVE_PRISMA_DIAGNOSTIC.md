@@ -484,3 +484,142 @@ Depois, resolver em escopo próprio: migration job exige literal +00:00 e o serv
 UTC; o fluxo de primeiro schema vazio exige backupVerified/backupReference/restoreRehearsed.
 Não fabricar backup de dados inexistentes, alterar flags ou modificar release-database.mjs.
 Homologar backup/restore, retenção, RPO/RTO e runtime antes de autorizar OCI-DEPLOY-07.
+
+## 27. Adendo OCI-DEPLOY-06.1.1 — instrumentação local de P2010
+
+As seções 1–26 e as evidências E01–E17 acima permanecem como registro da entrega anterior.
+Este adendo descreve a instrumentação local baseada no HEAD
+`cf15522587b3de0293c951c83ffdd0165cd5d6e5`, branch `daniel-dev`. Não gera pacote de distribuição,
+não atualiza o pacote instalado e não autoriza conexão ou operação remota.
+
+Estado mais recente informado pelo operador, sem reconfirmação remota nesta entrega:
+D01/D02/B40/B41 PASS; D03 FAIL com `P2010` no pacote
+`traceflow-prisma-diagnostic-efa7abc8191bbf10`; D04/limpeza concluídos. Conta `traceflow_diag`
+bloqueada novamente (`account_locked=Y`), zero sessões remanescentes, credenciais temporárias
+removidas e swap reativada. Schema vazio, sem migrations. A causa SQL permanece desconhecida.
+
+### 27.1 Contrato de falha do diagnóstico canônico
+
+O stdout contém exatamente um objeto JSON terminado por newline. Exemplo **ilustrativo**,
+sem atribuir a falha real à consulta ou ao código abaixo:
+
+```json
+{
+  "status": "FAIL",
+  "code": "P2010",
+  "phase": "SQL_IDENTITY",
+  "mysqlCode": "1227",
+  "writes": false
+}
+```
+
+- `code`: preserva o código Prisma original, incluindo `P2010`. Códigos estruturados aceitos
+  são strings de 1–64 caracteres ASCII maiúsculos, dígitos ou underscore; conteúdo inválido
+  ou ausente produz `DIAGNOSTIC_FAILED`, sem mensagem ou stack.
+- `phase`: identificador constante da operação que falhou; não contém SQL, parâmetros,
+  nomes recebidos do servidor, caminhos ou conteúdo de arquivos.
+- `mysqlCode`: opcional, obtido exclusivamente de `error.meta.code`. Aceita número inteiro
+  ou string decimal canônica entre **1 e 65535**, emitido sempre como string decimal.
+  O intervalo acompanha o campo `int<2>` do [MySQL ERR_Packet](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_err_packet.html).
+  Zero, negativos, frações, valores fora do intervalo, espaços, sinais, zeros à esquerda,
+  notação exponencial/hexadecimal, controles, objetos, arrays, `N/A` e ausência são omitidos.
+  A omissão não muda `code` nem converte FAIL em PASS. Não se tenta extrair números da mensagem.
+- `writes`: permanece `false`; toda falha termina com exit code diferente de zero.
+
+O serializador lê apenas propriedades próprias de dados; não invoca getters, `toString`
+ou `toJSON` do erro/metadata. Não serializa Error, meta completo, mensagem, stack, SQL,
+DATABASE_URL, credencial ou arquivo privado. Não há logs de progresso no stdout.
+
+O launcher valida a lista de campos de topo por status; FAIL exige `status`, `code`, `phase`
+e `writes=false`, permitindo apenas `mysqlCode` adicional em formato canônico. Campos extras
+são recusados. O launcher acrescenta `packageId` somente após essa validação, a partir do
+recibo de integridade. Os formatos de sucesso PASS/CONFIG_VALID permanecem inalterados.
+Falhas próprias do launcher (integridade, supervisão, contrato de saída etc.) preservam seu
+formato anterior, sem atribuir uma etapa SQL que o launcher não conhece. Stderr do filho
+continua suprimido; nenhum debug/trace deve ser habilitado.
+
+### 27.2 Identificadores de etapas
+
+| Identificador | Operação identificada |
+| --- | --- |
+| PREVALIDATION | Argumentos, autorização protegida e contrato de conexão |
+| TLS_CA | Leitura protegida e validação da CA pública |
+| DNS_IDENTITY | Verificação do DNS gerenciado |
+| TLS_PROBE | Handshake TLS independente, sem autenticação SQL |
+| PRISMA_INIT | Verificação da versão e importação do cliente compartilhado |
+| SQL_IDENTITY | Q1: consulta original de identidade, incluindo @@datadir |
+| SERVER_IDENTITY | Validação do resultado de Q1 |
+| SQL_SESSION_TLS | Q2: SHOW SESSION STATUS original |
+| SESSION_TLS | Validação de cipher/versão TLS da sessão Prisma |
+| SQL_SERVER_PARAMETERS | Q3: consulta original dos parâmetros e roles |
+| ROLES | Validação das roles obrigatórias e ativas |
+| SQL_DIRECT_GRANTS | Q4: SHOW GRANTS FOR CURRENT_USER original |
+| DIRECT_GRANTS | Validação dos grants diretos |
+| SQL_PUBLIC_GRANTS | Q5: expansão original de public, somente quando obrigatória |
+| EFFECTIVE_GRANTS | Validação dos grants efetivos |
+| SQL_SELECT_ONE | Q6: SELECT 1 original |
+| DISCONNECT | Encerramento do Prisma quando não existe falha primária |
+| UNKNOWN | Proteção do serializador contra identificador não reconhecido |
+
+As seis consultas, sua ordem e a condição de Q5 foram preservadas. Não foi removido @@datadir,
+alterado qualquer GRANT ou modificado o cliente Prisma compartilhado, schema ou migrations.
+
+### 27.3 Encerramento, prazo e interpretação
+
+O resultado aguarda a tentativa de desconexão. Há uma única tentativa de `$disconnect`
+quando o cliente foi obtido. Se a consulta ou validação já falhou, o erro da limpeza não
+substitui `code`, `phase` ou `mysqlCode` da falha primária e não gera outro JSON.
+Se apenas a desconexão falhar, o resultado é FAIL/DISCONNECT; PASS só é emitido após sucesso
+da desconexão. CONFIG_VALID continua sem carregar Prisma nem abrir conexão.
+
+O deadline canônico permanece 30 segundos. Se expirar sem erro anterior, emite
+`DIAGNOSTIC_DEADLINE` com a fase em andamento e encerra com código 1. Se expirar durante a
+limpeza após outro erro, emite a falha primária já sanitizada e encerra com código 1.
+A proteção de emissão única também impede uma segunda saída se o fluxo retomar.
+Permanecem os limites do launcher de 35 segundos/1 MiB, sinais e controle do próprio filho,
+assim como os timeouts TLS/Prisma e as verificações de integridade, identidade, roles e grants.
+
+`phase` identifica a chamada ou validação, não a expressão individual de um SELECT composto
+nem o estágio interno prepare/execute/decode do engine. `mysqlCode` permite classificar um
+erro nativo, mas pode estar ausente; ausência não comprova falha de TLS ou privilégio.
+Uma falha de metadados não autoriza ampliar permissões, omitir verificações ou executar
+migrations. A saída FAIL não atesta ausência de sessões; D04 continua necessário, inclusive
+quando o prazo expirar. A instrumentação não resolve nem comprova a causa do P2010 anterior.
+
+### 27.4 Validação local sem banco
+
+Com Node 22 e as dependências já instaladas, na raiz do repositório:
+
+```bash
+node --experimental-vm-modules --test \
+  deploy/tests/heatwave-diagnostic.test.mjs \
+  deploy/tests/diagnostic-launcher.test.mjs
+```
+
+O novo teste executa o entrypoint real em um contexto JavaScript com imports explicitamente
+substituídos, Prisma simulado, arquivos/CA/DNS/TLS sintéticos e relógio controlado. Nenhum
+cliente real ou conexão de rede é carregado pelo entrypoint testado. O módulo de segurança
+real é usado nas validações puras. A flag experimental serve somente ao harness de testes,
+nunca ao comando operacional do diagnóstico. Não são criados arquivos privados, banco ou
+pacote, e nenhuma migration é executada. Não usar os harnesses persistentes da seção 24
+como validação desta entrega.
+
+Cobertura: P2010 em cada SQL, parada após falha, ordem/texto das seis consultas, Q5 condicional,
+modos local/gerenciado, pré-validação, CA/DNS/TLS, identidade, roles/grants, sanitização,
+metadata maliciosa, validate-only, desconexão, falha dupla, deadline e contrato do launcher.
+
+### 27.5 Próxima homologação — proposta OCI-DEPLOY-06.1.2
+
+1. Revisar e aprovar separadamente esta implementação local e seus testes. D03 permanece FAIL.
+2. Em entrega própria autorizada, gerar e validar um novo pacote ARM64 com manifesto e hashes
+   novos. Não editar o pacote `efa7abc8191bbf10`, reaproveitar seus pins para fontes modificadas
+   ou misturar launcher/diagnóstico de versões diferentes: FAIL sem phase será recusado pelo
+   novo launcher. Não existe novo packageId aprovado nesta entrega.
+3. Preparar os comandos exatos com os novos pins e revisar as autorizações D01/D02, custódia,
+   B40/B41, D03 e D04/relock. Conta bloqueada e ausência de credenciais continuam sendo o
+   estado de repouso. As autorizações anteriores não autorizam uma nova tentativa.
+4. Somente após autorização explícita, executar validate-only e uma tentativa diagnóstica;
+   preservar apenas o JSON sanitizado, exit code e identificação do pacote. Sem retries.
+5. Concluir D04, relock verificado e limpeza mesmo em falha. Interpretar phase/mysqlCode
+   antes de propor qualquer alteração SQL ou de privilégios. Encerrar os gates gerenciados
+   apenas com evidência real; não iniciar OCI-DEPLOY-07 automaticamente.
