@@ -112,13 +112,15 @@ const OFF = {
   TASK_STATUS_CHANGED: true,
   TASK_OVERDUE: false,
   ISSUE_EVENT: true,
-  PULL_REQUEST_EVENT: true
+  PULL_REQUEST_EVENT: true,
+  TRACEABILITY_INCONSISTENCY: true
 };
 const ON = {
   TASK_STATUS_CHANGED: true,
   TASK_OVERDUE: true,
   ISSUE_EVENT: true,
-  PULL_REQUEST_EVENT: true
+  PULL_REQUEST_EVENT: true,
+  TRACEABILITY_INCONSISTENCY: true
 };
 
 function replay(events) {
@@ -126,7 +128,8 @@ function replay(events) {
     TASK_STATUS_CHANGED: true,
     TASK_OVERDUE: true,
     ISSUE_EVENT: true,
-    PULL_REQUEST_EVENT: true
+    PULL_REQUEST_EVENT: true,
+    TRACEABILITY_INCONSISTENCY: true
   };
   for (const event of events) {
     const changed = event.metadataJson.changedTypes.split(',');
@@ -155,21 +158,30 @@ describe('S2-02 reteste — correções verificadas no banco (bloco V)', () => {
         TASK_STATUS_CHANGED: false,
         TASK_OVERDUE: true,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       },
       {
         TASK_STATUS_CHANGED: true,
         TASK_OVERDUE: false,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       },
       {
         TASK_STATUS_CHANGED: false,
         TASK_OVERDUE: false,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       },
-      { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true, ISSUE_EVENT: true, PULL_REQUEST_EVENT: true }
+      {
+        TASK_STATUS_CHANGED: true,
+        TASK_OVERDUE: true,
+        ISSUE_EVENT: true,
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
+      }
     ];
     const outcomes = [];
     for (let round = 0; round < 20; round += 1) {
@@ -297,7 +309,8 @@ describe('S2-02 reteste — PUT serializado (N-L)', () => {
       TASK_STATUS_CHANGED: index % 2 === 0,
       TASK_OVERDUE: index % 3 === 0,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     }));
 
     const results = await Promise.allSettled(
@@ -529,7 +542,8 @@ describe('S2-02 reteste — enabledAt (N-E)', () => {
       TASK_STATUS_CHANGED: false,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     await serviceAt('2026-10-02T00:00:00.000Z').updatePreferences(responsible.id, ON);
 

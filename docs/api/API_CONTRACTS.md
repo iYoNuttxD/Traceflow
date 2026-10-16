@@ -2218,7 +2218,9 @@ passou a exigir as quatro.
 avisos de tarefa não fiquem soterrados pelos do GitHub (seção S2-02, "Origem").
 
 **Exportação do titular.** Em `notifications.json`, os itens dos tipos novos trazem também
-`githubEvent`, `artifactNumber`, `artifactTitle`, `artifactUrl` e `githubOccurredAt`. Os itens dos
+`githubEvent`, `artifactNumber`, `artifactTitle`, `artifactUrl` e `githubOccurredAt`. Os avisos
+`TRACEABILITY_INCONSISTENCY` (desde 15/10/2026) trazem esses campos e mais `traceabilityAlertId` e
+`batchSummary`, com `taskId` e `taskTitle` nulos. Os itens dos
 tipos do S2-02 não mudam. `artifactUrl` é conferida de novo na exportação: fora do prefixo
 `https://github.com/` ou acima de 512 caracteres, sai `null`, como no DTO.
 

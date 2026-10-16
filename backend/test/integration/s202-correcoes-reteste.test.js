@@ -15,13 +15,15 @@ const OFF = {
   TASK_STATUS_CHANGED: true,
   TASK_OVERDUE: false,
   ISSUE_EVENT: true,
-  PULL_REQUEST_EVENT: true
+  PULL_REQUEST_EVENT: true,
+  TRACEABILITY_INCONSISTENCY: true
 };
 const ON = {
   TASK_STATUS_CHANGED: true,
   TASK_OVERDUE: true,
   ISSUE_EVENT: true,
-  PULL_REQUEST_EVENT: true
+  PULL_REQUEST_EVENT: true,
+  TRACEABILITY_INCONSISTENCY: true
 };
 
 beforeAll(async () => {

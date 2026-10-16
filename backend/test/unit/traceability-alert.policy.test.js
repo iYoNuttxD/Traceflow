@@ -218,7 +218,7 @@ describe('S2-01 política de alertas: chave, snapshot e datas', () => {
     expect(alertOccurredAt(ISSUE_ALERT, { closedAtGithub: merged })).toBe(merged);
   });
 
-  it('monta a linha de criação com a FK do tipo e o snapshot', () => {
+  it('monta a linha de criação com a FK do tipo, o snapshot e a fila do aviso (TF-REV-008)', () => {
     const detectedAt = new Date('2026-10-07T00:00:00.000Z');
     expect(
       alertCreateData({
@@ -237,8 +237,18 @@ describe('S2-01 política de alertas: chave, snapshot e datas', () => {
       subjectCode: 'PR #45',
       subjectTitle: 'Ajusta CI',
       occurredAt: cutoff,
-      detectedAt
+      detectedAt,
+      noticeState: 'PENDING'
     });
+    expect(
+      alertCreateData({
+        projectId: 9,
+        type: 'TASK_CONCLUDED_WITHOUT_COMMIT',
+        subject: { id: 4, title: 'Tarefa' },
+        occurredAt: cutoff,
+        detectedAt
+      }).noticeState
+    ).toBe('NOT_APPLICABLE');
     expect(Object.keys(ALERT_SUBJECTS)).toEqual([...TRACEABILITY_ALERT_TYPES]);
   });
 

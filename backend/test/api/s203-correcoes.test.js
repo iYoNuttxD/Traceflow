@@ -236,7 +236,8 @@ describe('S2-03 correções — Fase 7: exportação e preferências (S203-A09, 
     TASK_STATUS_CHANGED: true,
     TASK_OVERDUE: true,
     ISSUE_EVENT: true,
-    PULL_REQUEST_EVENT: true
+    PULL_REQUEST_EVENT: true,
+    TRACEABILITY_INCONSISTENCY: true
   };
 
   it('C7-01 a exportação devolve artifactUrl nula fora do prefixo e preserva a válida (EV-D-01)', async () => {
@@ -297,7 +298,8 @@ describe('S2-03 correções — Fase 7: exportação e preferências (S203-A09, 
       message: RELOAD,
       details: [
         { field: 'preferences.ISSUE_EVENT', message: RELOAD },
-        { field: 'preferences.PULL_REQUEST_EVENT', message: RELOAD }
+        { field: 'preferences.PULL_REQUEST_EVENT', message: RELOAD },
+        { field: 'preferences.TRACEABILITY_INCONSISTENCY', message: RELOAD }
       ]
     });
     expect(invalid.status).toBe(400);

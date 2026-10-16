@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prismaClient.js';
+import { traceabilityNoticeService } from '../notifications/traceability-notice.service.js';
 import { lockActiveProject } from '../projects/active-project-write.js';
 import { loadRequirementProjections } from './requirement-projection.repository.js';
 import { relatedRequirementIds } from './requirement-traceability.policy.js';
@@ -151,9 +152,9 @@ async function resolveContext(tx, context) {
 }
 
 async function reconcileTaskAlerts(tx, scope, before) {
-  if (!scope.taskIds?.length) return;
+  if (!scope.taskIds?.length) return null;
   const after = await alertScopeForTasks(tx, scope.projectId, scope.taskIds);
-  await reconcileTraceabilityAlerts(tx, {
+  return reconcileTraceabilityAlerts(tx, {
     projectId: scope.projectId,
     taskIds: scope.taskIds,
     pullRequestIds: [...before.pullRequestIds, ...after.pullRequestIds],
@@ -161,7 +162,7 @@ async function reconcileTaskAlerts(tx, scope, before) {
   });
 }
 
-export async function traceabilityMutation(tx, context, work) {
+export async function traceabilityMutation(tx, context, work, report = {}) {
   const scope = await resolveContext(tx, context);
   if (!scope.projectId) return work();
   await lockActiveProject(tx, scope.projectId);
@@ -174,7 +175,9 @@ export async function traceabilityMutation(tx, context, work) {
   }
   const after = await affectedRequirementIds(tx, scope);
   await reconcileRequirements(tx, { ...scope, requirementIds: unique([...before, ...after]) });
-  await reconcileTaskAlerts(tx, scope, alertsBefore);
+  const alerts = await reconcileTaskAlerts(tx, scope, alertsBefore);
+  report.projectId = scope.projectId;
+  report.noticesPending = Boolean(alerts?.noticesPending);
   const linkedRequirement = (result?.task ?? result)?.requirement;
   if (linkedRequirement?.id && linkedRequirement.status !== undefined) {
     const current = await tx.requirement.findUnique({
@@ -197,11 +200,15 @@ export async function traceabilityMutation(tx, context, work) {
   return result;
 }
 
-export function traceabilityTransaction(context, work, client = prisma) {
-  return client.$transaction((tx) => traceabilityMutation(tx, context, () => work(tx)), {
-    isolationLevel: 'ReadCommitted',
-    timeout: 15000
-  });
+export async function traceabilityTransaction(context, work, client = prisma) {
+  const report = {};
+  const result = await client.$transaction(
+    (tx) => traceabilityMutation(tx, context, () => work(tx), report),
+    { isolationLevel: 'ReadCommitted', timeout: 15000 }
+  );
+  if (report.noticesPending)
+    await traceabilityNoticeService.dispatchSafely(report.projectId, 'TRACEABILITY_MUTATION');
+  return result;
 }
 
 export function reconcileProject(

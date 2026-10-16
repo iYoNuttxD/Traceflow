@@ -47,7 +47,6 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 
 | ID | Pendência | Requisito/impacto | Prioridade | Critério para iniciar |
 |---|---|---|---|---|
-| S201-F01 | Notificar alertas a pessoas | o S2-01 entrega alertas do projeto, sem destinatário (ADR-015 D1); avisar responsáveis pertence à central de notificações | MÉDIA | S2-02/S2-03 entregues; decidir quem recebe cada tipo de alerta |
 | S201-F02 | Alerta de PR e issue só nasce no fim do sync | webhooks não processam `pull_request`/`issues`, e não há sync automático; o atraso é igual ao intervalo entre syncs manuais | MÉDIA | decisão sobre sync por webhook ou agendado (S2-03 e OCI) |
 | S201-F03 | Desfazer dispensa ou reabrir alerta | hoje a dispensa só se desfaz quando a condição cessa e volta; não existe ação para reverter uma dispensa equivocada | BAIXA | pedido de uso real; exige contrato, auditoria e regra para a chave ativa |
 | S201-F04 | Persistir `state_reason` da issue | issue fechada como "not planned" também gera alerta; a dispensa cobre o caso | BAIXA | se o volume desses alertas incomodar; exige campo novo no sync e regra na política |
@@ -180,6 +179,7 @@ Origem: a revisão independente publicada na PR #26 (TF-REV-001 a TF-REV-008) e 
 | ID | Pendência | Correção |
 |---|---|---|
 | CONF-F51 | autorização entre projetos furada por ID codificado no caminho: um não membro lia 53 rotas e escrevia em 17, e um VIEWER fazia 18 escritas; a revisão (TF-REV-001) reproduziu o desvio nas quatro leituras de alertas do S2-01 | `970471b`: as leituras de alertas conferem a membership no serviço; o commit seguinte: middleware de caminho canônico (`%` no caminho da `/api` recebe o 404 opaco) e varredura com ID codificado em cada posição ([ADR-003](../architecture/ADR-003-AUTHORIZATION-MODEL.md), emenda de 15/10/2026) |
+| S201-F01 | notificar alertas a pessoas | o commit da Fase 9 (TF-REV-008): PR mesclada e issue fechada sem tarefa avisam todos os membros ativos, nos quatro papéis, com resumo acima de 10 alertas da mesma detecção e preferência própria; o alerta RF13 fica nas indicações da tarefa ([ADR-022](../architecture/ADR-022-CONSULTA-CONTEXTUAL-E-AVISOS-DE-INCONSISTENCIA.md) D5 a D9) |
 
 ## Fechada pela correção do S203-F22 (13/10/2026)
 

@@ -142,8 +142,10 @@ A regra completa está no ADR-022 (D5 a D9). Em resumo:
 | Estado da fila no alerta (`noticeState`) | `PENDING` na criação dos dois tipos; `NOT_APPLICABLE` no RF13 e nos alertas criados antes de 15/10/2026; `DISPATCHED` depois do despacho, com `noticedAt` |
 | Destinatários | toda membership ativa (qualquer papel), com conta `ACTIVE`, `joinedAt` até o `detectedAt` e preferência `TRACEABILITY_INCONSISTENCY` ligada antes da detecção |
 | Lote | alertas pendentes do mesmo projeto com o mesmo `detectedAt`; até 10, um aviso por alerta; acima disso, um resumo por pessoa |
-| Chaves | `TRACEABILITY_INCONSISTENCY:alert:<alertId>` e `TRACEABILITY_INCONSISTENCY:batch:<projectId>:<detectedAt>`, únicas por destinatário |
-| Quando despacha | depois da reconciliação da sincronização, do reprocessamento manual, do script e das mutações por `traceabilityTransaction`; o job periódico recupera o que ficou pendente |
+| Chaves | `TRACEABILITY_INCONSISTENCY:alert:<alertId>` e `TRACEABILITY_INCONSISTENCY:batch:<projectId>:<detectedAt em milissegundos>`, únicas por destinatário |
+| Quando despacha | depois da reconciliação da sincronização, da conexão, do reprocessamento manual e do script; e depois do commit das mutações por `traceabilityTransaction` que criaram alerta de PR ou de issue |
+| Falha do despacho | não desfaz a reconciliação nem a mutação: o alerta continua `PENDING`, o log registra `traceability_notices_dispatch_failed` com o código, e a próxima reconciliação do projeto despacha. O job periódico de recuperação é o ADR-024, proposto |
+| Idempotência | inserção com `skipDuplicates` pela chave única e marcação `DISPATCHED` depois; repetir o despacho, ou retomá-lo depois de uma queda entre as duas etapas, não duplica |
 | Leitura | individual; ler não resolve nem dispensa o alerta; resolver ou dispensar não apaga nem marca o aviso |
 
 ## Dispensa

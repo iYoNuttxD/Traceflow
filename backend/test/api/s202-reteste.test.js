@@ -442,13 +442,15 @@ describe('S2-02 reteste — preferências, conta restrita e exportação na API 
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     const reenabled = await put({
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     const read = await owner.agent.get('/api/settings/notifications');
     const files = await exportOf(owner);
@@ -459,14 +461,16 @@ describe('S2-02 reteste — preferências, conta restrita e exportação na API 
           TASK_STATUS_CHANGED: true,
           TASK_OVERDUE: true,
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         }
       });
     expect(files['notification-preferences.json']).toEqual({
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     expect(JSON.stringify(files)).not.toContain('enabledAt');
   });

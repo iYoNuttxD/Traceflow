@@ -52,7 +52,8 @@ beforeEach(() => {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     }
   });
 });
@@ -78,7 +79,8 @@ describe('S2-02 preferências de notificação (D7)', () => {
         TASK_STATUS_CHANGED: false,
         TASK_OVERDUE: false,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       }
     });
     renderPage();
@@ -91,7 +93,8 @@ describe('S2-02 preferências de notificação (D7)', () => {
       TASK_STATUS_CHANGED: false,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     expect(await screen.findByText('Preferências salvas.')).toBeInTheDocument();
     expect(statusSwitch()).not.toBeChecked();
@@ -164,7 +167,8 @@ describe('S2-03 preferências dos avisos do GitHub (D7, D13)', () => {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: false,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     expect(await screen.findByText('Preferências salvas.')).toBeInTheDocument();
     expect(issueSwitch()).not.toBeChecked();

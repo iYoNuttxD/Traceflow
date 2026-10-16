@@ -61,7 +61,9 @@ export const notificationListQuerySchema = strictObject({
     .optional()
     .default('UNREAD'),
   group: z
-    .enum(['ALL', 'TASKS', 'GITHUB'], { error: 'Origem inválida. Use ALL, TASKS ou GITHUB.' })
+    .enum(['ALL', 'TASKS', 'GITHUB', 'INCONSISTENCIES'], {
+      error: 'Origem inválida. Use ALL, TASKS, GITHUB ou INCONSISTENCIES.'
+    })
     .optional()
     .default('ALL'),
   cursor: z.string({ error: cursorMessage }).transform(decodeCursor).optional(),
@@ -87,7 +89,8 @@ export const notificationPreferencesBodySchema = withoutPrototypeKeys(
       TASK_STATUS_CHANGED: preference(),
       TASK_OVERDUE: preference(),
       ISSUE_EVENT: preference(),
-      PULL_REQUEST_EVENT: preference()
+      PULL_REQUEST_EVENT: preference(),
+      TRACEABILITY_INCONSISTENCY: preference()
     })
   })
 );

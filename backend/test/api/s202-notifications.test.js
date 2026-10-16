@@ -102,7 +102,8 @@ describe('S2-02 API: autenticação, CSRF e cabeçalhos', () => {
             TASK_STATUS_CHANGED: false,
             TASK_OVERDUE: true,
             ISSUE_EVENT: true,
-            PULL_REQUEST_EVENT: true
+            PULL_REQUEST_EVENT: true,
+            TRACEABILITY_INCONSISTENCY: true
           }
         })
       ).status
@@ -405,7 +406,8 @@ describe('S2-02 API: preferências (D7)', () => {
         TASK_STATUS_CHANGED: true,
         TASK_OVERDUE: true,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       }
     });
     const saved = await owner.mutate('put', '/api/settings/notifications').send({
@@ -413,7 +415,8 @@ describe('S2-02 API: preferências (D7)', () => {
         TASK_STATUS_CHANGED: true,
         TASK_OVERDUE: false,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       }
     });
 
@@ -423,7 +426,8 @@ describe('S2-02 API: preferências (D7)', () => {
         TASK_STATUS_CHANGED: true,
         TASK_OVERDUE: false,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       }
     });
     expect((await owner.agent.get('/api/settings/notifications')).body).toEqual(saved.body);
@@ -439,7 +443,8 @@ describe('S2-02 API: preferências (D7)', () => {
           TASK_STATUS_CHANGED: true,
           TASK_OVERDUE: 'false',
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         }
       },
       {
@@ -456,15 +461,16 @@ describe('S2-02 API: preferências (D7)', () => {
           TASK_STATUS_CHANGED: true,
           TASK_OVERDUE: true,
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         },
         userId: 1
       },
       JSON.parse(
-        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"__proto__":{"admin":true}}}'
+        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"TRACEABILITY_INCONSISTENCY":true,"__proto__":{"admin":true}}}'
       ),
       JSON.parse(
-        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"constructor":{"x":1}}}'
+        '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"TRACEABILITY_INCONSISTENCY":true,"constructor":{"x":1}}}'
       )
     ])
       expect(
@@ -483,13 +489,15 @@ describe('S2-02 API: preferências (D7)', () => {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     await put({
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
 
     const events = await prisma.auditEvent.findMany({
@@ -573,7 +581,8 @@ describe('S2-02 API: exportação do titular (D13)', () => {
         TASK_STATUS_CHANGED: true,
         TASK_OVERDUE: false,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       }
     });
 
@@ -592,7 +601,8 @@ describe('S2-02 API: exportação do titular (D13)', () => {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     expect(files['notifications.json']).toEqual([
       {

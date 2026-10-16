@@ -20,7 +20,10 @@ const LOCK_RETRY_MS = 20;
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms + Math.random() * ms));
 const dtoInclude = {
   project: { select: { id: true, name: true } },
-  actor: { select: { id: true, name: true } }
+  actor: { select: { id: true, name: true } },
+  traceabilityAlert: {
+    select: { id: true, type: true, status: true, resolvedAt: true, dismissedAt: true }
+  }
 };
 const preferenceSelect = { type: true, enabled: true };
 

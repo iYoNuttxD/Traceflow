@@ -16,7 +16,8 @@ function service(repository) {
     { recordReconciliation: vi.fn(), ...repository },
     log,
     () => now,
-    audit
+    audit,
+    { dispatchSafely: vi.fn() }
   );
 }
 

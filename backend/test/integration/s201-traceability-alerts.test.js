@@ -385,7 +385,7 @@ describe('S2-01 alertas de PR mesclada e issue fechada sem tarefa (RF39, RF40)',
 });
 
 describe('S2-01 idempotência, concorrência e persistência', () => {
-  it('I14 duas varreduras concorrentes produzem um único ativo por sujeito', async () => {
+  it('I14 duas varreduras concorrentes produzem um único ativo por sujeito; só a que criou o alerta de issue deixa aviso pendente (TF-REV-008)', async () => {
     const { project } = await scenario();
     await createTask(prisma, project.id, { status: 'CONCLUIDO' });
     await createIssue(prisma, project.id, { state: 'closed', closedAtGithub: AFTER_CUTOFF });
@@ -409,7 +409,7 @@ describe('S2-01 idempotência, concorrência e persistência', () => {
     gate.resolve();
     const [a, b] = await Promise.all([first, second]);
 
-    expect(a).toEqual({ created: 2, resolved: 0, kept: 0 });
+    expect(a).toEqual({ created: 2, resolved: 0, kept: 0, noticesPending: true });
     expect(b).toEqual({ created: 0, resolved: 0, kept: 2 });
     expect(await alertsOf(project.id, { status: 'OPEN' })).toHaveLength(2);
   });

@@ -10,7 +10,8 @@ function serviceWith(repository) {
       { recordReconciliation: vi.fn(), ...repository },
       log,
       () => new Date('2026-10-09T12:00:00.000Z'),
-      audit
+      audit,
+      { dispatchSafely: vi.fn() }
     )
   };
 }

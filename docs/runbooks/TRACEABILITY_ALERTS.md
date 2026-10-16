@@ -49,4 +49,8 @@ npm run traceability:alerts
 - O registro da última reconciliação daquele projeto guarda o código do erro, e o resumo passa a
   avisar a reconciliação atrasada.
 - Rode de novo depois de corrigir a causa: a reconciliação é idempotente e não duplica alertas.
+- **Avisos pendentes.** A falha do despacho dos avisos não derruba a reconciliação: o log traz
+  `traceability_notices_dispatch_failed` com o projeto e o código, e os alertas continuam
+  `PENDING`. A próxima reconciliação do projeto (sync, reprocessamento ou este script) despacha
+  sem duplicar. Para conferir a fila: `noticeState = 'PENDING'` em `TraceabilityAlert`.
 - Os logs trazem só contagens, projeto e código de erro, sem título nem nome.

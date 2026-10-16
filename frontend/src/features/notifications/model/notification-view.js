@@ -9,20 +9,25 @@ export const NOTIFICATION_FILTERS = Object.freeze([
 export const NOTIFICATION_GROUPS = Object.freeze([
   { value: 'ALL', label: 'Todas as origens' },
   { value: 'TASKS', label: 'Tarefas' },
-  { value: 'GITHUB', label: 'GitHub' }
+  { value: 'GITHUB', label: 'GitHub' },
+  { value: 'INCONSISTENCIES', label: 'Inconsistências' }
 ]);
 
 const GROUP_NOUNS = Object.freeze({
   ALL: 'Nenhuma notificação',
   TASKS: 'Nenhuma notificação de tarefas',
-  GITHUB: 'Nenhuma notificação do GitHub'
+  GITHUB: 'Nenhuma notificação do GitHub',
+  INCONSISTENCIES: 'Nenhuma notificação de inconsistência'
 });
+
+const INCONSISTENCY = 'TRACEABILITY_INCONSISTENCY';
 
 const TYPE_LABELS = Object.freeze({
   TASK_STATUS_CHANGED: 'Mudança de status',
   TASK_OVERDUE: 'Prazo vencido',
   ISSUE_EVENT: 'Issue',
-  PULL_REQUEST_EVENT: 'Pull request'
+  PULL_REQUEST_EVENT: 'Pull request',
+  [INCONSISTENCY]: 'Inconsistência'
 });
 
 const GITHUB_TYPES = new Set(['ISSUE_EVENT', 'PULL_REQUEST_EVENT']);
@@ -44,6 +49,11 @@ const ARTIFACT_REFERENCES = new Map([
   ['PULL_REQUEST', 'a pull request']
 ]);
 
+const ARTIFACT_CODES = new Map([
+  ['ISSUE', 'Issue'],
+  ['PULL_REQUEST', 'PR']
+]);
+
 const STATUS_LABELS = Object.freeze({
   A_FAZER: 'A fazer',
   EM_ANDAMENTO: 'Em andamento',
@@ -52,7 +62,8 @@ const STATUS_LABELS = Object.freeze({
 
 export const PREFERENCE_GROUPS = Object.freeze([
   { key: 'TASKS', legend: 'Avisos sobre as suas tarefas' },
-  { key: 'GITHUB', legend: 'Avisos do GitHub' }
+  { key: 'GITHUB', legend: 'Avisos do GitHub' },
+  { key: 'INCONSISTENCIES', legend: 'Avisos de inconsistência do projeto' }
 ]);
 
 export const PREFERENCE_OPTIONS = Object.freeze([
@@ -83,6 +94,13 @@ export const PREFERENCE_OPTIONS = Object.freeze([
     label: 'Pull requests vinculadas às tarefas de que você participa',
     description:
       'Avisa quando uma pull request vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é mesclada ou fechada sem merge no GitHub.'
+  },
+  {
+    type: INCONSISTENCY,
+    group: 'INCONSISTENCIES',
+    label: 'PRs mescladas e issues fechadas sem tarefa',
+    description:
+      'Avisa os membros do projeto quando uma pull request é mesclada ou uma issue é fechada no GitHub sem tarefa vinculada.'
   }
 ]);
 
@@ -121,6 +139,59 @@ function githubEventText(context) {
   return `${subject} ${change} em ${formatInstant(context.occurredAt)}`;
 }
 
+function formatDay(value) {
+  return value ? new Date(value).toLocaleDateString('pt-BR') : '';
+}
+
+function alertStateText(alert) {
+  if (alert?.status === 'RESOLVED') return `resolvida em ${formatDay(alert.resolvedAt)}`;
+  if (alert?.status === 'DISMISSED') return `dispensada em ${formatDay(alert.dismissedAt)}`;
+  return alert ? 'em aberto' : '';
+}
+
+function plural(count, singular, pluralForm) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+function inconsistencyText(context) {
+  const { batch, artifact = {} } = context;
+  if (batch) {
+    const parts = [
+      batch.pullRequests && plural(batch.pullRequests, 'PR mesclada', 'PRs mescladas'),
+      batch.issues && plural(batch.issues, 'issue fechada', 'issues fechadas')
+    ].filter(Boolean);
+    return `${parts.join(' e ')} sem tarefa`;
+  }
+  const subject = `${ARTIFACT_LABELS.get(artifact?.kind) || 'Artefato'} #${artifact?.number}`;
+  const change = artifact?.kind === 'ISSUE' ? 'fechada sem tarefa' : 'mesclada sem tarefa';
+  const when = context.occurredAt ? ` em ${formatInstant(context.occurredAt)}` : '';
+  const state = alertStateText(context.alert);
+  return `${subject} ${change}${when}${state ? `; ${state}` : ''}`;
+}
+
+export function notificationSubject(notification) {
+  if (notification.type === INCONSISTENCY) {
+    const { artifact, batch } = notification.context || {};
+    if (batch)
+      return {
+        code: null,
+        title: plural(batch.total, 'inconsistência nova', 'inconsistências novas')
+      };
+    return {
+      code: artifact
+        ? `${ARTIFACT_CODES.get(artifact.kind) || 'Artefato'} #${artifact.number}`
+        : null,
+      title: artifact?.title || 'Artefato removido'
+    };
+  }
+  const task = notification.task || {};
+  return { code: task.code, title: task.title };
+}
+
+export function isInconsistency(notification) {
+  return notification.type === INCONSISTENCY;
+}
+
 export function githubLinkLabel(notification) {
   const artifact = notification.context?.artifact || {};
   const reference = ARTIFACT_REFERENCES.get(artifact.kind) || 'o artefato';
@@ -129,6 +200,7 @@ export function githubLinkLabel(notification) {
 
 export function notificationContextText(notification) {
   const context = notification.context || {};
+  if (notification.type === INCONSISTENCY) return inconsistencyText(context);
   if (GITHUB_TYPES.has(notification.type)) return githubEventText(context);
   if (notification.type === 'TASK_STATUS_CHANGED') {
     const actor = context.selfAction ? 'Você' : context.actor?.name || 'Pessoa removida';
@@ -139,12 +211,12 @@ export function notificationContextText(notification) {
   return '';
 }
 
-function taskSubject(task = {}) {
-  return task.code ? `${task.code} ${task.title}` : task.title;
+function subjectText(subject) {
+  return subject.code ? `${subject.code} ${subject.title}` : subject.title;
 }
 
 export function notificationCardLabel(notification) {
-  const label = `${notificationTypeLabel(notification.type)}: ${taskSubject(notification.task)}`;
+  const label = `${notificationTypeLabel(notification.type)}: ${subjectText(notificationSubject(notification))}`;
   const context = notificationContextText(notification);
   return context ? `${label}. ${context}` : label;
 }
@@ -152,10 +224,12 @@ export function notificationCardLabel(notification) {
 export function readToggleLabel(notification) {
   const action = notification.readAt ? 'Marcar como não lida' : 'Marcar como lida';
   const context = notificationContextText(notification);
-  const task = notification.task || {};
+  const subject = notificationSubject(notification);
+  if (isInconsistency(notification))
+    return `${action}: ${context}, projeto ${notification.project?.name}`;
   return context
-    ? `${action}: ${context}, ${task.code || task.title}`
-    : `${action}: ${taskSubject(task)}`;
+    ? `${action}: ${context}, ${subject.code || subject.title}`
+    : `${action}: ${subjectText(subject)}`;
 }
 
 export function notificationEmptyTitle(status, group = 'ALL') {

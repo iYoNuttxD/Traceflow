@@ -680,6 +680,8 @@ export const settingsRepository = {
             artifactTitle: true,
             artifactUrl: true,
             githubOccurredAt: true,
+            traceabilityAlertId: true,
+            batchSummary: true,
             createdAt: true,
             readAt: true,
             project: {

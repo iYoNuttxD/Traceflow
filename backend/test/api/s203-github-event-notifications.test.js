@@ -18,7 +18,8 @@ const ALL_ON = {
   TASK_STATUS_CHANGED: true,
   TASK_OVERDUE: true,
   ISSUE_EVENT: true,
-  PULL_REQUEST_EVENT: true
+  PULL_REQUEST_EVENT: true,
+  TRACEABILITY_INCONSISTENCY: true
 };
 const OCCURRED = new Date('2026-10-12T13:00:00.000Z');
 
@@ -217,7 +218,7 @@ describe('S2-03 API: preferências com quatro chaves (D7, D12)', () => {
       { ...ALL_ON, EXTRA_EVENT: true },
       { ...ALL_ON, PULL_REQUEST_EVENT: 'false' },
       JSON.parse(
-        `{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"__proto__":{"x":1}}`
+        `{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"TRACEABILITY_INCONSISTENCY":true,"__proto__":{"x":1}}`
       )
     ])
       expect(

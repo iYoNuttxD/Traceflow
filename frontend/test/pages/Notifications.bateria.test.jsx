@@ -324,7 +324,8 @@ describe('S2-02 bateria frontend — preferências e datas (NT-U-08, NT-U-09)', 
         TASK_STATUS_CHANGED: true,
         TASK_OVERDUE: true,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       }
     });
     render(
@@ -334,7 +335,7 @@ describe('S2-02 bateria frontend — preferências e datas (NT-U-08, NT-U-09)', 
     );
 
     const boxes = await screen.findAllByRole('checkbox');
-    expect(boxes).toHaveLength(4);
+    expect(boxes).toHaveLength(5);
     for (const box of boxes) {
       const description = document.getElementById(box.getAttribute('aria-describedby'));
       expect(description?.textContent).toMatch(/Avisa/);

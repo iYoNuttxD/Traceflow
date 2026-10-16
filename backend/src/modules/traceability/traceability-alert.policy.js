@@ -94,6 +94,10 @@ export function alertOccurredAt(type, subject, completionInstant = null) {
   return subject.closedAtGithub ?? null;
 }
 
+function noticeStateOf(type) {
+  return type === TASK_ALERT ? 'NOT_APPLICABLE' : 'PENDING';
+}
+
 export function alertCreateData({ projectId, type, subject, occurredAt, detectedAt }) {
   return {
     projectId,
@@ -103,7 +107,8 @@ export function alertCreateData({ projectId, type, subject, occurredAt, detected
     [ALERT_SUBJECTS[type].foreignKey]: subject.id,
     ...subjectSnapshot(type, subject),
     occurredAt: occurredAt ?? null,
-    detectedAt
+    detectedAt,
+    noticeState: noticeStateOf(type)
   };
 }
 

@@ -8,6 +8,7 @@ import {
   toAlertSummaryDTO,
   toUnlinkedTaskDTO
 } from './traceability-alert.mapper.js';
+import { traceabilityNoticeService } from '../notifications/traceability-notice.service.js';
 import { traceabilityAlertRepository } from './traceability-alert.repository.js';
 
 const MANAGER_ROLES = new Set(['MANAGER', 'OWNER']);
@@ -66,7 +67,8 @@ export function createTraceabilityAlertService(
   repository = traceabilityAlertRepository,
   log = logger,
   clock = () => new Date(),
-  audit = auditService
+  audit = auditService,
+  notices = traceabilityNoticeService
 ) {
   async function recordOutcome(projectId, trigger, errorCode = null) {
     try {
@@ -106,6 +108,7 @@ export function createTraceabilityAlertService(
         durationMs: Date.now() - startedAt
       });
       await recordOutcome(projectId, trigger);
+      await notices.dispatchSafely(projectId, trigger);
     }
     return result;
   }

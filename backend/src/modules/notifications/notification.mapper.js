@@ -1,7 +1,14 @@
-import { NOTIFICATION_TYPES, STATUS_CHANGED, notificationLink } from './notification.policy.js';
+import {
+  INCONSISTENCY,
+  NOTIFICATION_TYPES,
+  STATUS_CHANGED,
+  notificationLink
+} from './notification.policy.js';
 import { artifactKindOf, safeGithubUrl } from './github-event.policy.js';
+import { noticeContext, noticeLink } from './traceability-notice.policy.js';
 
 function contextOf(row) {
+  if (row.type === INCONSISTENCY) return noticeContext(row);
   if (row.type === STATUS_CHANGED) {
     return {
       fromStatus: row.fromStatus,
@@ -33,14 +40,20 @@ export function toNotificationDTO(row) {
     createdAt: row.createdAt,
     readAt: row.readAt,
     project: { id: row.project.id, name: row.project.name },
-    task: {
-      id: row.taskId,
-      code: row.taskId ? `TASK-${row.taskId}` : null,
-      title: row.taskTitle,
-      available: Boolean(row.taskId)
-    },
+    task:
+      row.type === INCONSISTENCY
+        ? null
+        : {
+            id: row.taskId,
+            code: row.taskId ? `TASK-${row.taskId}` : null,
+            title: row.taskTitle,
+            available: Boolean(row.taskId)
+          },
     context: contextOf(row),
-    link: notificationLink(row.projectId, row.taskId)
+    link:
+      row.type === INCONSISTENCY
+        ? noticeLink(row.projectId, row.traceabilityAlertId)
+        : notificationLink(row.projectId, row.taskId)
   };
 }
 
@@ -54,8 +67,12 @@ export function toPreferencesDTO(rows) {
 }
 
 function githubExportFields(row) {
-  if (!artifactKindOf(row.type)) return {};
+  const inconsistency = row.type === INCONSISTENCY;
+  if (!inconsistency && !artifactKindOf(row.type)) return {};
   return {
+    ...(inconsistency
+      ? { traceabilityAlertId: row.traceabilityAlertId, batchSummary: row.batchSummary }
+      : {}),
     githubEvent: row.githubEvent,
     artifactNumber: row.artifactNumber,
     artifactTitle: row.artifactTitle,

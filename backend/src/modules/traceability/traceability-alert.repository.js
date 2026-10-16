@@ -218,6 +218,7 @@ export async function reconcileTraceabilityAlerts(
 
   const pendingResolutions = [...toResolve.values()].reduce((sum, ids) => sum + ids.length, 0);
   if (dryRun) return { created: toCreate.length, resolved: pendingResolutions, kept };
+  const noticesPending = toCreate.some((alert) => alert.noticeState === 'PENDING');
 
   let created = 0;
   if (toCreate.length)
@@ -235,7 +236,7 @@ export async function reconcileTraceabilityAlerts(
     });
     resolved += update.count;
   }
-  return { created, resolved, kept };
+  return { created, resolved, kept, noticesPending };
 }
 
 const alertInclude = {
@@ -424,11 +425,12 @@ export const traceabilityAlertRepository = {
     return { total, tasks };
   },
 
-  reconcileProject(projectId, { dryRun, now = new Date() }, client = prisma) {
-    return client.$transaction(
+  async reconcileProject(projectId, { dryRun, now = new Date() }, client = prisma) {
+    const { created, resolved, kept } = await client.$transaction(
       (tx) => reconcileTraceabilityAlerts(tx, { projectId, full: true, dryRun, now }),
       { isolationLevel: dryRun ? 'RepeatableRead' : 'ReadCommitted', timeout: 15000 }
     );
+    return { created, resolved, kept };
   },
 
   async findActiveProjectIds() {

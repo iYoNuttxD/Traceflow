@@ -138,12 +138,13 @@ describe('S2-02 política: elegibilidade (D3, D7)', () => {
     expect(overdueExclusion({ ...base, actorUserId: 5 })).toBeNull();
   });
 
-  it('expõe os tipos e os motivos documentados', () => {
+  it('expõe os tipos e os motivos documentados, com o aviso de inconsistência (TF-REV-008)', () => {
     expect(NOTIFICATION_TYPES).toEqual([
       'TASK_STATUS_CHANGED',
       'TASK_OVERDUE',
       'ISSUE_EVENT',
-      'PULL_REQUEST_EVENT'
+      'PULL_REQUEST_EVENT',
+      'TRACEABILITY_INCONSISTENCY'
     ]);
     expect(NOTIFICATION_EXCLUSIONS).toEqual([
       'NO_RESPONSIBLE',

@@ -128,7 +128,7 @@ describe('S2-03 modelo de exibição dos eventos do GitHub', () => {
     );
   });
 
-  it('rotula os tipos, o link externo e os dois grupos de preferências', () => {
+  it('rotula os tipos, o link externo e os três grupos de preferências (TF-REV-008)', () => {
     expect(notificationTypeLabel('ISSUE_EVENT')).toBe('Issue');
     expect(notificationTypeLabel('PULL_REQUEST_EVENT')).toBe('Pull request');
     expect(githubLinkLabel(event('ISSUE_EVENT', 'ISSUE_CLOSED', 45))).toBe(
@@ -139,13 +139,15 @@ describe('S2-03 modelo de exibição dos eventos do GitHub', () => {
     );
     expect(PREFERENCE_GROUPS.map((group) => group.legend)).toEqual([
       'Avisos sobre as suas tarefas',
-      'Avisos do GitHub'
+      'Avisos do GitHub',
+      'Avisos de inconsistência do projeto'
     ]);
     expect(PREFERENCE_OPTIONS.map((option) => [option.type, option.group])).toEqual([
       ['TASK_STATUS_CHANGED', 'TASKS'],
       ['TASK_OVERDUE', 'TASKS'],
       ['ISSUE_EVENT', 'GITHUB'],
-      ['PULL_REQUEST_EVENT', 'GITHUB']
+      ['PULL_REQUEST_EVENT', 'GITHUB'],
+      ['TRACEABILITY_INCONSISTENCY', 'INCONSISTENCIES']
     ]);
   });
 });
@@ -230,11 +232,12 @@ describe('S2-03 correções — nomes, reabertura e origem (S203-A04, S203-A07, 
     );
   });
 
-  it('C9-03 as origens e o estado vazio de cada uma', () => {
+  it('C9-03 as origens e o estado vazio de cada uma, com as inconsistências (TF-REV-008)', () => {
     expect(NOTIFICATION_GROUPS.map((group) => [group.value, group.label])).toEqual([
       ['ALL', 'Todas as origens'],
       ['TASKS', 'Tarefas'],
-      ['GITHUB', 'GitHub']
+      ['GITHUB', 'GitHub'],
+      ['INCONSISTENCIES', 'Inconsistências']
     ]);
     expect(
       [
@@ -243,7 +246,9 @@ describe('S2-03 correções — nomes, reabertura e origem (S203-A04, S203-A07, 
         ['UNREAD', 'TASKS'],
         ['ALL', 'TASKS'],
         ['UNREAD', 'GITHUB'],
-        ['ALL', 'GITHUB']
+        ['ALL', 'GITHUB'],
+        ['UNREAD', 'INCONSISTENCIES'],
+        ['ALL', 'INCONSISTENCIES']
       ].map(([status, group]) => notificationEmptyTitle(status, group))
     ).toEqual([
       'Nenhuma notificação não lida.',
@@ -251,7 +256,9 @@ describe('S2-03 correções — nomes, reabertura e origem (S203-A04, S203-A07, 
       'Nenhuma notificação de tarefas não lida.',
       'Nenhuma notificação de tarefas recebida.',
       'Nenhuma notificação do GitHub não lida.',
-      'Nenhuma notificação do GitHub recebida.'
+      'Nenhuma notificação do GitHub recebida.',
+      'Nenhuma notificação de inconsistência não lida.',
+      'Nenhuma notificação de inconsistência recebida.'
     ]);
   });
 });

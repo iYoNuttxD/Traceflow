@@ -335,7 +335,8 @@ describe('S2-02 bateria API — preferências (bloco F)', () => {
           TASK_STATUS_CHANGED: null,
           TASK_OVERDUE: true,
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         }
       },
       {
@@ -343,13 +344,14 @@ describe('S2-02 bateria API — preferências (bloco F)', () => {
           TASK_STATUS_CHANGED: 0,
           TASK_OVERDUE: 1,
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         }
       },
       { preferences: { TASK_STATUS_CHANGED: true, TASK_OVERDUE: true, prototype: {} } },
-      '{"__proto__":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true}}',
-      '{"constructor":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true}}',
-      '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"__proto__":{"polluted":true}}}'
+      '{"__proto__":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"TRACEABILITY_INCONSISTENCY":true}}',
+      '{"constructor":{"x":1},"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"TRACEABILITY_INCONSISTENCY":true}}',
+      '{"preferences":{"TASK_STATUS_CHANGED":true,"TASK_OVERDUE":true,"ISSUE_EVENT":true,"PULL_REQUEST_EVENT":true,"TRACEABILITY_INCONSISTENCY":true,"__proto__":{"polluted":true}}}'
     ];
 
     for (const body of bodies)
@@ -380,7 +382,8 @@ describe('S2-02 bateria API — preferências (bloco F)', () => {
           TASK_STATUS_CHANGED: value,
           TASK_OVERDUE: true,
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         }
       });
 
@@ -408,7 +411,8 @@ describe('S2-02 bateria API — preferências (bloco F)', () => {
         TASK_STATUS_CHANGED: false,
         TASK_OVERDUE: true,
         ISSUE_EVENT: true,
-        PULL_REQUEST_EVENT: true
+        PULL_REQUEST_EVENT: true,
+        TRACEABILITY_INCONSISTENCY: true
       }
     });
 

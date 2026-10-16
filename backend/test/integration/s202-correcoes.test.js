@@ -54,7 +54,8 @@ function replay(events) {
     TASK_STATUS_CHANGED: true,
     TASK_OVERDUE: true,
     ISSUE_EVENT: true,
-    PULL_REQUEST_EVENT: true
+    PULL_REQUEST_EVENT: true,
+    TRACEABILITY_INCONSISTENCY: true
   };
   for (const event of events) {
     const changed = event.metadataJson.changedTypes.split(',');
@@ -75,13 +76,15 @@ describe('S2-02 correções — PUT de preferências serializado (S202-A02)', ()
           TASK_STATUS_CHANGED: false,
           TASK_OVERDUE: true,
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         }),
         service.updatePreferences(user.id, {
           TASK_STATUS_CHANGED: true,
           TASK_OVERDUE: false,
           ISSUE_EVENT: true,
-          PULL_REQUEST_EVENT: true
+          PULL_REQUEST_EVENT: true,
+          TRACEABILITY_INCONSISTENCY: true
         })
       ]);
       const final = (await service.preferences(user.id)).preferences;
@@ -97,7 +100,8 @@ describe('S2-02 correções — PUT de preferências serializado (S202-A02)', ()
       TASK_STATUS_CHANGED: false,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     };
 
     await Promise.all([
@@ -114,7 +118,8 @@ describe('S2-02 correções — PUT de preferências serializado (S202-A02)', ()
       TASK_STATUS_CHANGED: false,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     };
     await service.updatePreferences(user.id, choice);
     const before = await prisma.notificationPreference.findMany({
@@ -166,7 +171,8 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
 
     const whileOff = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
@@ -174,7 +180,8 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     const afterOn = await job('2026-10-17T13:00:00.000Z', { projectId: project.id });
 
@@ -189,13 +196,15 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     await serviceAt('2026-10-15T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
 
     const report = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
@@ -209,13 +218,15 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     await serviceAt('2026-10-16T03:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
 
     const report = await job('2026-10-16T12:00:00.000Z', { projectId: project.id });
@@ -234,7 +245,8 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
       TASK_STATUS_CHANGED: false,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
 
     const report = await job('2026-10-17T13:00:00.000Z', { projectId: project.id });
@@ -258,13 +270,15 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     await serviceAt('2026-10-17T12:00:00.000Z').updatePreferences(responsible.id, {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
 
     const report = await job('2026-10-18T12:00:00.000Z', { projectId: project.id });
@@ -285,21 +299,24 @@ describe('S2-02 correções — religar o aviso de prazo não é retroativo (S20
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: false,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     const off = await read();
     await serviceAt('2026-10-15T12:00:00.000Z').updatePreferences(user.id, {
       TASK_STATUS_CHANGED: true,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     const on = await read();
     await serviceAt('2026-10-16T12:00:00.000Z').updatePreferences(user.id, {
       TASK_STATUS_CHANGED: false,
       TASK_OVERDUE: true,
       ISSUE_EVENT: true,
-      PULL_REQUEST_EVENT: true
+      PULL_REQUEST_EVENT: true,
+      TRACEABILITY_INCONSISTENCY: true
     });
     const unchanged = await read();
 
