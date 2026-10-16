@@ -10,6 +10,7 @@ import { syncProjectGithubData } from './sync-project-github.service.js';
 
 import { env } from '../../../config/env.js';
 import { withProjectWriteGuard } from '../../projects/project-write-context.js';
+import { isProjectWriteBusy } from '../../projects/active-project-write.js';
 
 export const GITHUB_SYNC_STALE_AFTER_MS = env.githubSyncLeaseMs;
 const FAILURE_RECORD_PAUSES_MS = [250, 500];
@@ -23,6 +24,10 @@ const CONNECTION_FAILURES = new Set([
   'P2028'
 ]);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const retryableRecord = (error) =>
+  CONNECTION_FAILURES.has(error?.code) ||
+  error?.code === 'GITHUB_SYNC_BUSY' ||
+  isProjectWriteBusy(error);
 
 function publicRun(run, { alreadyRunning = false } = {}) {
   if (!run) return null;
@@ -114,7 +119,7 @@ async function recordFailure(run, failure) {
         ? await githubSyncRunRepository.fail(run.id, failure)
         : await githubSyncRunRepository.failOnRecoveryConnection(run.id, failure);
     } catch (error) {
-      if (!CONNECTION_FAILURES.has(error?.code) || attempt >= FAILURE_RECORD_PAUSES_MS.length) {
+      if (!retryableRecord(error) || attempt >= FAILURE_RECORD_PAUSES_MS.length) {
         logger.error('Não foi possível registrar a falha da execução GitHub.', {
           event: 'github_sync_run_failure_unrecorded',
           projectId: run.projectId,

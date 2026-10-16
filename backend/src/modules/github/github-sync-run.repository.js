@@ -3,7 +3,12 @@ import { recoveryPrisma } from '../../database/recovery-prisma.js';
 
 const activeStatuses = ['QUEUED', 'RUNNING'];
 
-import { isProjectWriteBusy, withActiveProjectWrite } from '../projects/active-project-write.js';
+import {
+  isProjectWriteBusy,
+  lockActiveProject,
+  withActiveProjectWrite
+} from '../projects/active-project-write.js';
+import { assertProjectWriteGuard } from '../projects/project-write-context.js';
 import { ProjectServiceError } from '../projects/project.schema.js';
 import {
   distributedSyncAt,
@@ -11,6 +16,8 @@ import {
   nextSyncAfterRun,
   syncSchedulePolicy
 } from './github-sync-schedule.js';
+
+const RECOVERY_LOCK_WAIT_SECONDS = 2;
 
 const leaseLost = () =>
   new ProjectServiceError('A execução não está mais ativa.', 409, 'GITHUB_SYNC_LEASE_LOST');
@@ -273,8 +280,35 @@ export const githubSyncRunRepository = {
     return changed ? this.findById(id) : null;
   },
 
-  failOnRecoveryConnection(id, failure) {
-    return recoveryPrisma().gitHubSyncRun.update({ where: { id }, data: failedRun(failure) });
+  async failOnRecoveryConnection(id, failure) {
+    const client = recoveryPrisma();
+    const found = await client.gitHubSyncRun.findUnique({
+      where: { id },
+      select: { projectId: true }
+    });
+    if (!found) return null;
+    const changed = await client.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SET SESSION innodb_lock_wait_timeout = ${RECOVERY_LOCK_WAIT_SECONDS}`
+      );
+      try {
+        await lockActiveProject(tx, found.projectId, { nowait: true });
+      } catch (error) {
+        if (error instanceof ProjectServiceError && error.statusCode === 404) return false;
+        throw error;
+      }
+      await assertProjectWriteGuard(tx, found.projectId);
+      const run = await lockedRun(tx, id);
+      if (!ownsLease(run, failure.finishedAt)) return false;
+      await reschedule(tx, run, failure.finishedAt, {
+        failed: true,
+        retryAt: failure.retryAt,
+        permanent: failure.permanent
+      });
+      await tx.gitHubSyncRun.update({ where: { id }, data: failedRun(failure) });
+      return true;
+    });
+    return changed ? client.gitHubSyncRun.findUnique({ where: { id } }) : null;
   },
 
   async expireIfStillStale(id, projectId, cutoff, now = new Date()) {
