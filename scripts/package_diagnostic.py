@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export only diagnostic inputs from the working tree; build only in native OL9.8 ARM64."""
+"""Export reviewed inputs; build natively or repack verified ARM64 dependencies offline."""
 import argparse
 import contextlib
 import json
@@ -18,7 +18,18 @@ from diagnostic_contract import (SOURCES, DRIVERS, DEPENDENCIES, ENGINE, Refused
 
 RECIPES = ('scripts/package-diagnostic.mjs', 'scripts/package_diagnostic.py',
            'deploy/lib/diagnostic_contract.py', *DRIVERS)
-INPUTS = tuple(dict.fromkeys((*SOURCES, *RECIPES, 'backend/package.json', 'backend/package-lock.json')))
+REVIEW_INPUTS = ('deploy/tests/heatwave-diagnostic.test.mjs',
+                'deploy/tests/diagnostic-launcher.test.mjs',
+                'docs/runbooks/OCI_HEATWAVE_PRISMA_DIAGNOSTIC.md',
+                'deploy/tests/test_diagnostic_offline.py')
+INPUTS = tuple(dict.fromkeys((*SOURCES, *RECIPES, 'backend/package.json',
+                            'backend/package-lock.json', *REVIEW_INPUTS)))
+# Reuse is permitted only when the generator inputs and unchanged runtime contracts match.
+REUSE_GUARDS = ('backend/package.json', 'backend/package-lock.json',
+                'backend/prisma/schema.prisma', 'backend/src/database/prismaClient.js',
+                'backend/src/database/database-safety.js', 'backend/scripts/lib/database-safety.js',
+                'backend/scripts/lib/oci-compatibility-safety.js',
+                'deploy/scripts/diagnostic-runtime.mjs', 'deploy/lib/diagnostic_contract.py')
 
 
 def command(args, cwd=None, env=None, timeout=900):
@@ -62,7 +73,7 @@ def export(args):
 
 @contextlib.contextmanager
 def workspace(identity):
-    path = Path('/tmp') / ('traceflow-diagnostic-build-' + identity)
+    path = Path('/tmp').resolve() / ('traceflow-diagnostic-build-' + identity)
     require(not path.exists() and not path.is_symlink(), 'BUILD_WORKSPACE_EXISTS')
     path.mkdir(mode=0o700)
     owner = (path.stat().st_ino, path.stat().st_uid)
@@ -73,9 +84,7 @@ def workspace(identity):
         shutil.rmtree(path)
 
 
-def build(args):
-    require(platform.system() == 'Linux' and platform.machine() in ('aarch64', 'arm64'), 'LINUX_ARM64_REQUIRED')
-    require('Oracle Linux Server release 9.8' in Path('/etc/oracle-release').read_text(), 'ORACLE98_REQUIRED')
+def verified_source(args):
     source = trusted(args.source, directory=True)
     proof_path = trusted(source / 'source.json')
     require(file_digest(proof_path) == args.source_sha256, 'SOURCE_TRUST')
@@ -89,6 +98,13 @@ def build(args):
     # The executing recipes must be the reviewed recipes in the source manifest.
     for name in RECIPES:
         require(file_digest(ROOT / name) == proof['files'][name]['sha256'], 'RECIPE_MISMATCH')
+    return source, proof
+
+
+def build(args):
+    require(platform.system() == 'Linux' and platform.machine() in ('aarch64', 'arm64'), 'LINUX_ARM64_REQUIRED')
+    require('Oracle Linux Server release 9.8' in Path('/etc/oracle-release').read_text(), 'ORACLE98_REQUIRED')
+    source, proof = verified_source(args)
     output = Path(os.path.abspath(args.output))
     trusted(output.parent, directory=True)
     require(not output.exists(), 'OUTPUT_EXISTS')
@@ -167,6 +183,102 @@ def build(args):
         print(json.dumps({'status': 'BUILT', **receipt}))
 
 
+def offline(args):
+    """OCI-DEPLOY-06.1.2: reuse pinned native bytes, never install/generate/connect."""
+    source, proof = verified_source(args)
+    output = Path(os.path.abspath(args.output))
+    trusted(output.parent, directory=True)
+    require(not output.exists() and not output.is_symlink(), 'OUTPUT_EXISTS')
+    clean = {'PATH': os.environ['PATH'], 'HOME': '/nonexistent', 'LANG': 'C', 'TZ': 'UTC'}
+    node = command(['node', '-p', 'process.versions.node'], env=clean).decode().strip()
+    require(node.split('.')[0] == '22', 'NODE22_REQUIRED')
+    with workspace(args.source_sha256[:16]) as work:
+        base_root = work / 'verified-base'
+        base = extract(args.base_archive, args.base_sha256, args.base_manifest_sha256, base_root)
+        require(base['nodeVersion'] == '22.23.2', 'BASE_NODE_VERSION')
+        for name in REUSE_GUARDS:
+            require(base.get('sourceFiles', {}).get(name) == proof['files'][name], 'REUSE_INPUT_CHANGED')
+        lock = json.loads((source / 'backend/package-lock.json').read_bytes())
+        require(lock['packages']['node_modules/prisma']['version'] == '6.12.0' and
+                lock['packages']['node_modules/@prisma/client']['version'] == '6.12.0', 'PRISMA_VERSION')
+        dependencies = {'@prisma/client': '6.12.0',
+                        'dotenv': lock['packages']['node_modules/dotenv']['version']}
+        require(base.get('dependencies') == dependencies, 'DEPENDENCY_VERSION')
+        for name, version in dependencies.items():
+            value = json.loads((base_root / 'backend/node_modules' / name / 'package.json').read_bytes())
+            require(value['version'] == version, 'DEPENDENCY_VERSION')
+        index = (base_root / 'backend/node_modules/.prisma/client/index.js').read_text()
+        match = re.search(r'"relativeEnvPaths"\s*:\s*(\{[^}]*\})', index)
+        require(match is not None, 'GENERATED_ENV_DISCOVERY')
+        env_paths = json.loads(match.group(1))
+        require(set(env_paths).issubset({'rootEnvPath', 'schemaEnvPath'}) and
+                all(value is None for value in env_paths.values()), 'GENERATED_ENV_DISCOVERY')
+        package_id = 'traceflow-prisma-diagnostic-' + args.source_sha256[:16]
+        require(package_id != base['packageId'], 'PACKAGE_ID_REUSED')
+        runtime = work / 'package'
+        runtime.mkdir(mode=0o750)
+        for name in (*SOURCES, *DRIVERS, *DEPENDENCIES):
+            src = base_root / name if name in DEPENDENCIES else source / name
+            expected = base['files'][name] if name in DEPENDENCIES else proof['files'][name]
+            data = trusted(src).read_bytes()
+            require(digest(data) == expected['sha256'] and len(data) == expected['size'], 'RUNTIME_INPUT_CHANGED')
+            dst = runtime / name
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            with dst.open('xb') as stream:
+                stream.write(data)
+            dst.chmod(0o644)
+        verifier = source / 'deploy/lib/diagnostic_contract.py'
+        require(file_digest(verifier) == proof['files']['deploy/lib/diagnostic_contract.py']['sha256'], 'SOURCE_DIGEST')
+        shutil.copyfile(verifier, runtime / 'diagnostic-tool.py')
+        (runtime / 'diagnostic-tool.py').chmod(0o644)
+        thin = {'name': 'traceflow-prisma-diagnostic-runtime', 'private': True,
+                'type': 'module', 'dependencies': dependencies}
+        (runtime / 'backend/package.json').write_bytes(encoded(thin))
+        (runtime / 'backend/package.json').chmod(0o644)
+        metadata = {
+            'formatVersion': 1, 'kind': 'prisma-diagnostic', 'application': 'TraceFlow',
+            'productionRelease': False, 'packageId': package_id,
+            'head': proof['head'], 'branch': proof['branch'], 'sourceState': proof['sourceState'],
+            'sourceSha256': args.source_sha256, 'sourceFiles': proof['files'],
+            'includedLocalChanges': proof['includedLocalChanges'],
+            # These describe the inherited native dependency toolchain, not a new native build.
+            'nodeVersion': base['nodeVersion'], 'npmVersion': base['npmVersion'],
+            'openssl': base['openssl'], 'prismaVersion': '6.12.0',
+            'engine': 'linux-arm64-openssl-3.0.x', 'dependencies': dependencies,
+            'platform': base['platform'], 'buildMethod': 'offline-verified-dependencies',
+            'packager': {'os': platform.system(), 'architecture': platform.machine(),
+                         'nodeVersion': node, 'pythonVersion': platform.python_version()},
+            'runtimeProvenance': {'packageId': base['packageId'], 'head': base['head'],
+                                  'archiveSha256': args.base_sha256,
+                                  'manifestSha256': args.base_manifest_sha256,
+                                  'sourceSha256': base['sourceSha256'],
+                                  'files': {name: base['files'][name] for name in DEPENDENCIES}},
+            'validation': {'nativeRuntime': 'NOT_EXECUTED', 'databaseConnection': False},
+        }
+        # Verify a fresh extraction before publishing a new, exclusively created output directory.
+        archive = work / (package_id + '.tar.gz')
+        receipt = pack(runtime, archive, metadata)
+        require(receipt['sha256'] != args.base_sha256 and
+                receipt['manifestSha256'] != args.base_manifest_sha256, 'PACKAGE_IDENTITY_REUSED')
+        extract(archive, receipt['sha256'], receipt['manifestSha256'], work / 'extracted')
+        receipt.update(packageId=package_id, verifierSha256=file_digest(runtime / 'diagnostic-tool.py'),
+                       head=proof['head'], sourceSha256=args.source_sha256, productionRelease=False,
+                       buildMethod=metadata['buildMethod'], nativeRuntime='NOT_EXECUTED')
+        output.mkdir(mode=0o750)
+        for name, src in ((archive.name, archive), ('manifest.json', runtime / 'manifest.json'),
+                          ('diagnostic-tool.py', runtime / 'diagnostic-tool.py')):
+            with (output / name).open('xb') as stream:
+                stream.write(src.read_bytes())
+            (output / name).chmod(0o644)
+        with (output / 'artifact.json').open('xb') as stream:
+            stream.write(encoded(receipt))
+        (output / 'artifact.json').chmod(0o644)
+        require(file_digest(output / archive.name) == receipt['sha256'] and
+                file_digest(output / 'manifest.json') == receipt['manifestSha256'] and
+                file_digest(output / 'diagnostic-tool.py') == receipt['verifierSha256'], 'OUTPUT_INTEGRITY')
+        print(json.dumps({'status': 'PACKAGED_OFFLINE', **receipt}))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
@@ -176,8 +288,11 @@ def main():
     b.add_argument('--source', required=True)
     b.add_argument('--source-sha256', required=True)
     b.add_argument('--output', required=True)
+    o = sub.add_parser('offline', help='Repack verified ARM64 dependency bytes without installations or native execution')
+    for key in ('source', 'source-sha256', 'base-archive', 'base-sha256', 'base-manifest-sha256', 'output'):
+        o.add_argument('--' + key, required=True)
     args = parser.parse_args()
-    export(args) if args.action == 'export' else build(args)
+    {'export': export, 'build': build, 'offline': offline}[args.action](args)
 
 
 if __name__ == '__main__':

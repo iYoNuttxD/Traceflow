@@ -623,3 +623,76 @@ metadata maliciosa, validate-only, desconexão, falha dupla, deadline e contrato
 5. Concluir D04, relock verificado e limpeza mesmo em falha. Interpretar phase/mysqlCode
    antes de propor qualquer alteração SQL ou de privilégios. Encerrar os gates gerenciados
    apenas com evidência real; não iniciar OCI-DEPLOY-07 automaticamente.
+
+## 28. OCI-DEPLOY-06.1.2 — empacotamento offline autorizado
+
+O operador autorizou acrescentar `offline` à receita existente exclusivamente nesta entrega,
+sem instalações, downloads, SQL, acesso à OCI ou execução em VM. O modo `build` nativo mantém
+seus requisitos. Não contornar suas verificações nem executar `npm ci` nesta etapa.
+
+O modo offline verifica primeiro os pins externos do tar e do manifesto do pacote anterior,
+extrai com o mesmo extrator fechado e valida todos os arquivos. Reutiliza **somente os 13
+arquivos de dependências** da allowlist, incluindo o engine ARM64. Os módulos internos e
+os dois drivers são copiados integralmente da nova exportação revisada. Não copia o launcher
+antigo nem acessa `node_modules` do DEV para montar o runtime.
+
+A reutilização exige igualdade dos hashes de package.json, lockfile, schema, cliente Prisma
+compartilhado, módulos de segurança preservados, preflight e verificador. Exige versões
+Prisma 6.12.0/dotenv compatíveis com o lockfile e geração sem descoberta de .env. O schema
+gerado anterior é preservado byte a byte: o gerador original normalizou alinhamentos de
+espaços em relação ao schema fonte, sem diferença nos tokens observada nesta auditoria.
+Não regenerar nem editar esse arquivo para simular uma geração nova.
+
+A exportação agora inclui, para rastreabilidade, os dois testes da 06.1.1, este runbook e o
+teste do modo offline. As seis alterações da 06.1.1 ficam identificadas em `sourceFiles`:
+os três módulos operacionais entram no runtime; testes/documentação permanecem na exportação
+de fontes, fora da allowlist de execução. O tar continua com 24 arquivos inventariados e
+manifest.json como 25º membro. Não é uma release da aplicação.
+
+Receita local, com diretórios de saída novos e pais previamente protegidos:
+
+```bash
+node scripts/package-diagnostic.mjs export --output "$DIAGNOSTIC_SOURCE_DIR"
+node scripts/package-diagnostic.mjs offline \
+  --source "$DIAGNOSTIC_SOURCE_DIR" \
+  --source-sha256 "$DIAGNOSTIC_SOURCE_SHA256" \
+  --base-archive "$DIAGNOSTIC_PREVIOUS_DIR/traceflow-prisma-diagnostic-efa7abc8191bbf10.tar.gz" \
+  --base-sha256 5344f07d4387f17f57d57e1418e0772a2a10b10ca51079f2b9f41080152a730b \
+  --base-manifest-sha256 e155bf4ccf3e323a4fd2b0b9bafb1451713d1127bf501b9ca7df7ca17be00ea1 \
+  --output "$DIAGNOSTIC_NEW_ARTIFACT_DIR"
+```
+
+Não executar esses comandos com variáveis vazias, diretórios existentes ou fontes divergentes.
+O packageId deriva do novo sourceSha256 e deve diferir do anterior. Tar e manifesto recebem
+hashes novos; o SHA do verificador é **recalculado** e pode continuar igual, pois seus bytes
+não mudaram. Identidade nova não exige alterar arquivos intactos apenas para mudar hashes.
+
+`buildMethod=offline-verified-dependencies` distingue a montagem da geração nativa original.
+`nodeVersion`, `npmVersion` e `openssl` descrevem a toolchain nativa herdada; `packager` registra
+o host/toolchain que montou o pacote. `runtimeProvenance` registra os pins do pacote anterior
+e os hashes dos 13 arquivos reutilizados. `validation.nativeRuntime=NOT_EXECUTED` impede
+interpretar essa montagem como novo PASS ARM64. Uma extração de verificação precede a
+publicação em diretório novo; saídas existentes são recusadas.
+
+Testes locais sem banco, com diretórios temporários sintéticos próprios:
+
+```bash
+python3 -B -m unittest discover -s deploy/tests -p 'test_diagnostic_*.py' -v
+node --experimental-vm-modules --test \
+  deploy/tests/heatwave-diagnostic.test.mjs deploy/tests/diagnostic-launcher.test.mjs
+```
+
+O novo teste cobre procedência, cópia das fontes atuais, reutilização exata, reprodução dos
+bytes e recusa de pins, inputs do gerador, versões, descoberta de .env, fontes/receitas,
+destino existente e packageId reutilizado. Fixtures ELF sintéticas não demonstram execução
+nativa. Não executar os harnesses de MySQL/qualidade persistente nesta entrega.
+
+Os novos pins, inventário, evidências locais e procedimento específico de instalação estarão
+em [OCI_DEPLOY_06_1_2_PRISMA_DIAGNOSTIC_PACKAGING_REPORT](../deliveries/OCI_DEPLOY_06_1_2_PRISMA_DIAGNOSTIC_PACKAGING_REPORT.md).
+As seções anteriores e E01–E17 continuam históricas; não usar os pins antigos para o novo tar.
+
+OCI-DEPLOY-06.1.3 será somente transferência/instalação e verificações locais da VM, mediante
+autorização própria. D03 continua FAIL. O launcher `--validate-only` também exige credencial
+e autorização válidas: não materializar esses arquivos na etapa de instalação. Nela, limitar
+a verificação sem banco ao extrator, preflight nativo e leitura/validação da CA pública.
+Uma nova conexão Prisma–HeatWave, B40/B41 e D04/relock exigem autorização separada.
