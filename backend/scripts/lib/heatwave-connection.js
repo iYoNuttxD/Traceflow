@@ -15,6 +15,10 @@ export const diagnosticPhases = Object.freeze(
   Object.fromEntries(
     [
       'PREVALIDATION',
+      'ADMIN_ROLE_ATTESTATION',
+      'ROLE_ATTESTATION_FINAL',
+      'SQL_ROLE_SETTINGS',
+      'ROLE_WARNINGS',
       'TLS_CA',
       'DNS_IDENTITY',
       'TLS_PROBE',
@@ -144,7 +148,9 @@ export function verifyServerIdentity(identity, target, local) {
       identity.uuid === target.serverUuid &&
       Number(identity.port) === target.port &&
       identity.version === target.version &&
-      identity.currentUser?.split('@')[0] === target.user &&
+      (target.account !== undefined
+        ? identity.currentUser === target.account
+        : identity.currentUser?.split('@')[0] === target.user) &&
       (!local || identity.datadir.replace(/\/$/, '') === target.datadir.replace(/\/$/, '')),
     'SERVER_IDENTITY_MISMATCH'
   );
@@ -330,8 +336,9 @@ export function diagnosticRoles({ mandatoryRoles, activeRoles }) {
   return { mandatoryPublic, activePublic: activeRoles !== 'NONE' };
 }
 
-export function validateDirectGrants(rows, schema, role, roles, currentUser) {
-  return auditGrants(rows, schema, role, roles.mandatoryPublic, currentUser);
+export function validateDirectGrants(rows, schema, role, _roles, currentUser) {
+  // No role assignment is acceptable on the only enabled (direct/ABSENT) path.
+  return auditGrants(rows, schema, role, false, currentUser);
 }
 
 // APPLICABLE_ROLES includes mandatory seeds and recursive role edges. Do not filter
@@ -372,14 +379,16 @@ export function validateRoleGraph(rows, roles, currentUser) {
 }
 
 export function validateEffectiveGrants(rows, schema, role, roles, evidence = {}) {
+  // PRESENT has no demonstrated complete expansion contract in this delivery.
+  check(!roles.mandatoryPublic, 'EFFECTIVE_GRANTS_UNVERIFIED');
   const { direct, currentUser, graphVerified } = evidence;
   check(
     direct && currentUser && (!roles.mandatoryPublic || graphVerified === true),
     'EFFECTIVE_GRANTS_UNVERIFIED'
   );
   const effective = auditGrants(rows, schema, role, roles.mandatoryPublic, currentUser);
-  // Bare SHOW GRANTS must list mandatory public. USING omits an implicit assignment,
-  // but must retain an explicit one. In both cases all direct privileges must survive.
+  // Only direct-only evidence reaches this check. A recognized graph or a role
+  // assignment alone never proves expansion; mandatory roles were refused above.
   check(
     direct.recipient === effective.recipient &&
       direct.privileges.every((privilege) => effective.privileges.includes(privilege)) &&

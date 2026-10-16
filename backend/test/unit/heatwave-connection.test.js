@@ -296,69 +296,80 @@ describe('mandatory role expansion boundary', () => {
       expect(() => diagnosticRoles(metadata)).toThrow();
     }
   });
-  it('permits only known assignment and still checks every expanded privilege', () => {
+  it('refuses mandatory role inheritance even with a recognized graph and claimed expansion', () => {
     const base = ['GRANT USAGE ON *.* TO `u`@`h`', 'GRANT SELECT ON `tf_test`.* TO `u`@`h`'];
     const roles = diagnosticRoles({ mandatoryRoles: 'public', activeRoles: 'NONE' });
     const assignment = 'GRANT `public`@`%` TO `u`@`h`';
+    const direct = validateDirectGrants(base, 'tf_test', 'diagnostic', roles, 'u@h');
+    const graphVerified = validateRoleGraph(
+      [
+        {
+          USER: 'u',
+          HOST: 'h',
+          GRANTEE: 'u',
+          GRANTEE_HOST: 'h',
+          ROLE_NAME: 'public',
+          ROLE_HOST: '%',
+          IS_GRANTABLE: 'NO',
+          IS_MANDATORY: 'YES'
+        }
+      ],
+      roles,
+      'u@h'
+    );
+    // Recognizing the old graph shape is not proof of inherited privileges or warnings.
+    expect(() =>
+      validateDirectGrants([...base, assignment], 'tf_test', 'diagnostic', roles, 'u@h')
+    ).toThrow();
+    for (const rows of [base, [...base, assignment]])
+      expect(() =>
+        validateEffectiveGrants(rows, 'tf_test', 'diagnostic', roles, {
+          direct,
+          currentUser: 'u@h',
+          graphVerified
+        })
+      ).toThrow(expect.objectContaining({ code: 'EFFECTIVE_GRANTS_UNVERIFIED' }));
+  });
+  it('preserves direct-only audit and refuses incomplete or excessive evidence', () => {
+    const base = ['GRANT USAGE ON *.* TO `u`@`h`', 'GRANT SELECT ON `tf_test`.* TO `u`@`h`'];
+    const roles = diagnosticRoles({ mandatoryRoles: '', activeRoles: 'NONE' });
     const evidence = {
       currentUser: 'u@h',
-      direct: validateDirectGrants([...base, assignment], 'tf_test', 'diagnostic', roles, 'u@h'),
-      graphVerified: validateRoleGraph(
-        [
-          {
-            USER: 'u',
-            HOST: 'h',
-            GRANTEE: 'u',
-            GRANTEE_HOST: 'h',
-            ROLE_NAME: 'public',
-            ROLE_HOST: '%',
-            IS_GRANTABLE: 'NO',
-            IS_MANDATORY: 'YES'
-          }
-        ],
-        roles,
-        'u@h'
-      )
+      direct: validateDirectGrants(base, 'tf_test', 'diagnostic', roles, 'u@h'),
+      graphVerified: false
     };
-    expect(
-      validateEffectiveGrants([...base, assignment], 'tf_test', 'diagnostic', roles, evidence)
-    ).toEqual(['SELECT']);
+    expect(validateEffectiveGrants(base, 'tf_test', 'diagnostic', roles, evidence)).toEqual([
+      'SELECT'
+    ]);
     for (const extra of [
       'GRANT INSERT ON `tf_test`.* TO `u`@`h`',
       'GRANT SELECT ON *.* TO `u`@`h`',
       'GRANT SELECT ON `other`.* TO `u`@`h`',
-      assignment + ' WITH ADMIN OPTION',
-      'GRANT `nested`@`%` TO `u`@`h`',
+      'GRANT `public`@`%` TO `u`@`h`',
+      'GRANT `nested`@`%` TO `u`@`h` WITH ADMIN OPTION',
       'GRANT SELECT ON `tf_test`.* TO `u`@`h` WITH GRANT OPTION'
     ])
       expect(() =>
-        validateEffectiveGrants(
-          [...base, assignment, extra],
-          'tf_test',
-          'diagnostic',
-          roles,
-          evidence
-        )
+        validateEffectiveGrants([...base, extra], 'tf_test', 'diagnostic', roles, evidence)
       ).toThrow();
-    expect(() =>
-      validateDirectGrants(
-        [...base, assignment],
-        'tf_test',
-        'diagnostic',
-        {
-          mandatoryPublic: false
-        },
-        'u@h'
-      )
-    ).toThrow();
     expect(() => validateEffectiveGrants(base, 'tf_test', 'diagnostic', roles)).toThrow(
       expect.objectContaining({ code: 'EFFECTIVE_GRANTS_UNVERIFIED' })
     );
+  });
+  it('compares the complete authenticated identity when the authorization specifies it', () => {
+    const { target } = fixture().authorization;
+    target.account = target.user + '@10.20.1.184';
+    const identity = {
+      db: target.schema,
+      uuid: target.serverUuid,
+      version: target.version,
+      port: target.port,
+      datadir: target.datadir,
+      currentUser: target.account
+    };
+    expect(() => verifyServerIdentity(identity, target, true)).not.toThrow();
     expect(() =>
-      validateEffectiveGrants(base, 'tf_test', 'diagnostic', roles, {
-        ...evidence,
-        graphVerified: false
-      })
-    ).toThrow(expect.objectContaining({ code: 'EFFECTIVE_GRANTS_UNVERIFIED' }));
+      verifyServerIdentity({ ...identity, currentUser: target.user + '@%' }, target, true)
+    ).toThrow(expect.objectContaining({ code: 'SERVER_IDENTITY_MISMATCH' }));
   });
 });

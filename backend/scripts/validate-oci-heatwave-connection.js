@@ -1,4 +1,13 @@
 import { parseArgs } from 'node:util';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  loadRoleAttestation,
+  requireAbsentRole,
+  validateAbsentSession,
+  validateAbsentInventory,
+  requireVerifiableRoleWarnings
+} from './lib/heatwave-role-attestation.js';
 import {
   connectionContract,
   diagnosticFailure,
@@ -7,7 +16,6 @@ import {
   diagnosticRoles,
   validateDirectGrants,
   validateEffectiveGrants,
-  validateRoleGraph,
   mysqlTlsProbe,
   publicCaContract,
   verifyServerIdentity,
@@ -15,7 +23,10 @@ import {
 } from './lib/heatwave-connection.js';
 import { requireCondition as check } from './lib/oci-compatibility-safety.js';
 
-let prisma,
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+let authorization,
+  roleEvidence,
+  prisma,
   phase = phases.PREVALIDATION,
   failure,
   result,
@@ -35,10 +46,13 @@ try {
   const { values } = parseArgs({
     options: { authorization: { type: 'string' }, 'validate-only': { type: 'boolean' } }
   });
-  const authorization = JSON.parse(
-    await protectedFile(values.authorization, { privateFile: true })
-  );
+  authorization = JSON.parse(await protectedFile(values.authorization, { privateFile: true }));
   const contract = connectionContract(process.env, authorization);
+  if (!contract.local || authorization.roleAttestation) {
+    phase = phases.ADMIN_ROLE_ATTESTATION;
+    roleEvidence = await loadRoleAttestation(authorization, packageRoot);
+    requireAbsentRole(roleEvidence);
+  }
   phase = phases.TLS_CA;
   const ca = await protectedFile(contract.ca, { rootOwned: !contract.local });
   const caIdentity = publicCaContract(ca, contract.target.caSha256);
@@ -86,6 +100,9 @@ try {
           );
           phase = phases.ROLES;
           const roles = diagnosticRoles(parameters);
+          if (roleEvidence)
+            validateAbsentSession(roleEvidence, authorization, identity, parameters);
+          else check(!roles.mandatoryPublic, 'ROLE_ATTESTATION_REQUIRED');
           phase = phases.SQL_DIRECT_GRANTS;
           const directRows = await sessionClient.$queryRawUnsafe('SHOW GRANTS FOR CURRENT_USER');
           phase = phases.DIRECT_GRANTS;
@@ -96,32 +113,41 @@ try {
             roles,
             identity.currentUser
           );
-          let graphVerified = false;
-          if (roles.mandatoryPublic) {
+          if (roleEvidence) {
+            check(
+              direct.privileges.length === 1 && direct.privileges[0] === 'SELECT',
+              'ROLE_ATTESTATION_GRANTS_MISMATCH'
+            );
+            phase = phases.SQL_ROLE_SETTINGS;
+            const settings = await sessionClient.$queryRawUnsafe(
+              'SELECT @@GLOBAL.activate_all_roles_on_login AS activateAllRolesOnLogin'
+            );
+            phase = phases.ROLES;
+            check(
+              Array.isArray(settings) &&
+                settings.length === 1 &&
+                settings[0] &&
+                Object.keys(settings[0]).length === 1 &&
+                [0, 0n].includes(settings[0].activateAllRolesOnLogin),
+              'ROLE_ATTESTATION_SESSION_MISMATCH'
+            );
             phase = phases.SQL_ROLE_GRAPH;
             const graph = await sessionClient.$queryRawUnsafe(
               'SELECT USER, HOST, GRANTEE, GRANTEE_HOST, ROLE_NAME, ROLE_HOST, IS_GRANTABLE, IS_MANDATORY FROM information_schema.APPLICABLE_ROLES'
             );
             phase = phases.ROLE_GRAPH;
-            graphVerified = validateRoleGraph(graph, roles, identity.currentUser);
+            validateAbsentInventory(graph);
+            phase = phases.ROLE_WARNINGS;
+            // No SQL workaround, retry, user flag or mock evidence can waive this blocker.
+            requireVerifiableRoleWarnings();
           }
-          phase = phases.SQL_PUBLIC_GRANTS;
-          // An active role is expanded by bare SHOW GRANTS. An inactive role still
-          // requires USING; any SQL failure (including 3530) remains fatal, with no retry.
-          const effective = roles.mandatoryPublic
-            ? await sessionClient.$queryRawUnsafe(
-                roles.activePublic
-                  ? 'SHOW GRANTS'
-                  : "SHOW GRANTS FOR CURRENT_USER USING 'public'@'%'"
-              )
-            : directRows;
           phase = phases.EFFECTIVE_GRANTS;
           const grants = validateEffectiveGrants(
-            effective,
+            directRows,
             contract.target.schema,
             authorization.role || 'diagnostic',
             roles,
-            { direct, currentUser: identity.currentUser, graphVerified }
+            { direct, currentUser: identity.currentUser, graphVerified: false }
           );
           phase = phases.SQL_SELECT_ONE;
           await sessionClient.$queryRawUnsafe('SELECT 1');
@@ -141,13 +167,9 @@ try {
             grants,
             roleVerification: {
               ...roles,
-              expanded: roles.mandatoryPublic,
-              graphVerified,
-              strategy: !roles.mandatoryPublic
-                ? 'direct-only'
-                : roles.activePublic
-                  ? 'active-session'
-                  : 'using-public'
+              expanded: false,
+              graphVerified: false,
+              strategy: 'direct-only'
             },
             parameters,
             pool: { connectionLimit: 1, connectTimeout: 5, poolTimeout: 5, socketTimeout: 10 },
@@ -171,6 +193,15 @@ try {
     phase = phases.DISCONNECT;
     try {
       await prisma.$disconnect();
+    } catch (error) {
+      failure ??= diagnosticFailure(error, phase);
+      process.exitCode = 1;
+    }
+  }
+  if (roleEvidence) {
+    phase = phases.ROLE_ATTESTATION_FINAL;
+    try {
+      await loadRoleAttestation(authorization, packageRoot);
     } catch (error) {
       failure ??= diagnosticFailure(error, phase);
       process.exitCode = 1;

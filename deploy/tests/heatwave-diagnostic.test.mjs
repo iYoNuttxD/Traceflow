@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm";
 import * as heatwave from "../../backend/scripts/lib/heatwave-connection.js";
 import { requireCondition } from "../../backend/scripts/lib/oci-compatibility-safety.js";
+import * as roleAttestation from "../../backend/scripts/lib/heatwave-role-attestation.js";
+import { attestationFixture } from "./helpers/role-attestation-fixture.mjs";
+import * as nodePath from "node:path";
+import * as nodeUrl from "node:url";
 import { sanitizedResult } from "../scripts/diagnostic-launcher.mjs";
 
 const source = await readFile(
@@ -13,9 +17,8 @@ const source = await readFile(
   ),
   "utf8",
 );
-// Six historical statements from cf155225 remain byte-for-byte unchanged. 06.1.5
-// adds the unfiltered role graph and uses bare SHOW GRANTS only for active public.
-// MySQL behavior is sourced in runbook section 29, not proven by these test doubles.
+// Historical SQL fixtures preserve identity/TLS/parameters. No role expansion is
+// executed in the attested-absence path. Mocks cannot certify MySQL warning semantics.
 const originalSql = [
   "SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version, CURRENT_USER() AS currentUser",
   "SHOW SESSION STATUS WHERE Variable_name IN ('Ssl_cipher','Ssl_version')",
@@ -28,8 +31,8 @@ const roleGraphSql =
   "SELECT USER, HOST, GRANTEE, GRANTEE_HOST, ROLE_NAME, ROLE_HOST, IS_GRANTABLE, IS_MANDATORY FROM information_schema.APPLICABLE_ROLES";
 const currentSql = [
   ...originalSql.slice(0, 4),
+  "SELECT @@GLOBAL.activate_all_roles_on_login AS activateAllRolesOnLogin",
   roleGraphSql,
-  "SHOW GRANTS",
   originalSql[5],
 ];
 const sqlPhases = [
@@ -37,8 +40,8 @@ const sqlPhases = [
   "SQL_SESSION_TLS",
   "SQL_SERVER_PARAMETERS",
   "SQL_DIRECT_GRANTS",
+  "SQL_ROLE_SETTINGS",
   "SQL_ROLE_GRAPH",
-  "SQL_PUBLIC_GRANTS",
   "SQL_SELECT_ONE",
 ];
 const syntheticPassword = "synthetic-test-only:@/";
@@ -69,26 +72,19 @@ const fault = (code = "P2010", mysqlCode = "1227") =>
 // are linkable: neither the canonical Prisma module nor a network client can be loaded.
 async function scenario(options = {}) {
   const local = options.local === true;
-  const target = {
-    host: local ? "127.0.0.1" : heatwave.managedHost,
-    port: local ? 54321 : 3306,
-    schema: local ? "tf_oci_abcdef012345_test" : "traceflow",
-    user: "traceflow_diag",
-    serverUuid: "11111111-1111-1111-1111-111111111111",
-    version: "26.7.0-cloud",
-    datadir: "/synthetic-owned-data",
-    expectedAddress: "10.20.2.25",
-    caSha256: "a".repeat(64),
-  };
-  const authorization = {
-    formatVersion: 1,
-    operation: "diagnose-read-only",
+  const fixture = attestationFixture({
     mode: local ? "local-isolated" : "oci-read-only",
-    approved: true,
-    role: "diagnostic",
-    expiresAt: new Date(Date.now() + 3600000).toISOString(),
-    target,
-  };
+  });
+  if (options.evidenceCount !== undefined)
+    fixture.evidence.observations.existence.accountCount =
+      options.evidenceCount;
+  const authorization = fixture.authorization;
+  const target = authorization.target;
+  if (options.attested === false || (local && options.publicRole === false))
+    delete authorization.roleAttestation;
+  if (options.authorizationExpired)
+    authorization.expiresAt = "2000-01-01T00:00:00.000Z";
+  let evidenceLoads = 0;
   const url = new URL("mysql://" + target.host);
   url.port = String(target.port);
   url.pathname = "/" + target.schema;
@@ -141,9 +137,9 @@ async function scenario(options = {}) {
       target.schema +
       "`.* TO `traceflow_diag`@`10.20.1.184`",
   ];
-  const activePublic = options.publicRole !== false && !options.inactivePublic;
+  const activePublic = options.activePublic === true;
   const responsesSql = [...currentSql];
-  if (!activePublic) responsesSql[5] = originalSql[4];
+
   const responses = [
     [identity],
     options.session ?? [
@@ -164,13 +160,8 @@ async function scenario(options = {}) {
           ...grants,
           ...(options.explicitPublic ? [publicAssignment] : []),
         ]),
-    Object.hasOwn(options, "roleGraph") ? options.roleGraph : [publicGraph],
-    Object.hasOwn(options, "effectiveGrants")
-      ? options.effectiveGrants
-      : grantRows([
-          ...grants,
-          ...(activePublic || options.explicitPublic ? [publicAssignment] : []),
-        ]),
+    options.settings ?? [{ activateAllRolesOnLogin: 0n }],
+    Object.hasOwn(options, "roleGraph") ? options.roleGraph : [],
     [{ value: 1n }],
   ];
   const sessionClient = {
@@ -267,6 +258,23 @@ async function scenario(options = {}) {
     },
   });
   const exportsBySpecifier = {
+    "node:path": nodePath,
+    "node:url": nodeUrl,
+    "./lib/heatwave-role-attestation.js": {
+      ...roleAttestation,
+      async loadRoleAttestation(auth) {
+        evidenceLoads++;
+        events.push("ATTESTATION:" + evidenceLoads);
+        if (options.attestationError) throw options.attestationError;
+        if (evidenceLoads > 1 && options.finalEvidenceError)
+          throw options.finalEvidenceError;
+        return roleAttestation.validateRoleAttestation(
+          fixture.evidence,
+          auth,
+          fixture.binding,
+        );
+      },
+    },
     "node:util": {
       parseArgs: () => ({
         values: {
@@ -307,6 +315,12 @@ async function scenario(options = {}) {
   }
   const module = new SourceTextModule(source, {
     context,
+    initializeImportMeta(meta) {
+      meta.url = new URL(
+        "../../backend/scripts/validate-oci-heatwave-connection.js",
+        import.meta.url,
+      ).href;
+    },
     importModuleDynamically: link,
   });
   await module.link(link);
@@ -355,592 +369,6 @@ function sameQueries(actual, expected) {
     "Original SQL text/order changed",
   );
 }
-
-for (let index = 0; index < sqlPhases.length; index++) {
-  test(
-    "P2010 identifies " + sqlPhases[index] + " and stops subsequent queries",
-    async () => {
-      const result = await scenario({ failSql: index });
-      assert.deepEqual(result.value, {
-        status: "FAIL",
-        code: "P2010",
-        phase: sqlPhases[index],
-        mysqlCode: "1227",
-        writes: false,
-      });
-      sameQueries(result.queries, currentSql.slice(0, index + 1));
-      assert.equal(
-        result.events.filter((event) => event === "DISCONNECT").length,
-        1,
-      );
-      assert.equal(result.exitCode, 1);
-    },
-  );
-}
-
-for (const local of [false, true]) {
-  for (const publicRole of [false, true]) {
-    test(
-      "preserved SQL order, conditional role audit and successful cleanup: " +
-        JSON.stringify({ local, publicRole }),
-      async () => {
-        const result = await scenario({ local, publicRole });
-        sameQueries(
-          result.queries,
-          currentSql.filter(
-            (_sql, index) => publicRole || ![4, 5].includes(index),
-          ),
-        );
-        assert.equal(result.value.status, "PASS");
-        assert.equal(result.value.disconnected, true);
-        assert.equal(result.value.writes, false);
-        assert.equal(result.value.parameters.maxConnections, "200");
-        assert.equal(result.value.roleVerification.expanded, publicRole);
-        assert.equal(result.value.roleVerification.graphVerified, publicRole);
-        assert.equal(
-          result.value.roleVerification.strategy,
-          publicRole ? "active-session" : "direct-only",
-        );
-        assert.equal(result.events.at(-1), "DISCONNECT");
-        assert.equal(
-          result.events.filter((event) => event === "SESSION_START").length,
-          1,
-        );
-        assert.equal(
-          result.events.filter((event) => event === "SESSION_END").length,
-          1,
-        );
-        assert.equal(
-          result.events.filter((event) => event === "DISCONNECT").length,
-          1,
-        );
-        assert.equal(result.exitCode, 0);
-      },
-    );
-  }
-}
-
-test("identity, TLS, parameters, direct grants, USING and SELECT 1 remain unchanged", () => {
-  for (const sql of originalSql) assert.ok(source.includes(sql));
-});
-
-// These are input/output contracts for the documented aggregation paths, not a
-// simulation of the MySQL authorization engine or evidence about the managed host.
-for (const inactivePublic of [false, true]) {
-  for (const explicitPublic of [false, true]) {
-    test(
-      "mandatory public, USAGE-only inheritance: " +
-        JSON.stringify({ inactivePublic, explicitPublic }),
-      async () => {
-        const result = await scenario({ inactivePublic, explicitPublic });
-        const expected = [...currentSql];
-        if (inactivePublic) expected[5] = originalSql[4];
-        sameQueries(result.queries, expected);
-        assert.equal(result.value.status, "PASS");
-        assert.deepEqual(result.value.grants, ["SELECT"]);
-        assert.equal(
-          result.value.roleVerification.strategy,
-          inactivePublic ? "using-public" : "active-session",
-        );
-      },
-    );
-  }
-  test(
-    "allowed inherited reads: " + JSON.stringify({ inactivePublic }),
-    async () => {
-      const result = await scenario({
-        inactivePublic,
-        effectiveGrants: grantRows([
-          "GRANT USAGE ON *.* TO " + recipient,
-          "GRANT SELECT, SHOW VIEW ON `traceflow`.* TO " + recipient,
-          ...(!inactivePublic ? [publicAssignment] : []),
-        ]),
-      });
-      assert.equal(result.value.status, "PASS");
-      assert.deepEqual(result.value.grants, ["SELECT", "SHOW VIEW"]);
-    },
-  );
-  for (const extra of [
-    ...[
-      "INSERT",
-      "UPDATE",
-      "DELETE",
-      "CREATE",
-      "ALTER",
-      "DROP",
-      "INDEX",
-      "TRIGGER",
-    ].map(
-      (privilege) => "GRANT " + privilege + " ON `traceflow`.* TO " + recipient,
-    ),
-    ...["SELECT", "SUPER", "FILE", "SYSTEM_USER", "ROLE_ADMIN"].map(
-      (privilege) => "GRANT " + privilege + " ON *.* TO " + recipient,
-    ),
-    "GRANT SELECT ON `other`.* TO " + recipient,
-    "GRANT SELECT ON `traceflow`.specific_table TO " + recipient,
-    "GRANT SELECT ON `traceflow`.* TO " + recipient + " WITH GRANT OPTION",
-    "GRANT USAGE ON *.* TO " + recipient + " WITH GRANT OPTION",
-    publicAssignment + " WITH ADMIN OPTION",
-    "GRANT `nested`@`%` TO " + recipient,
-    "REVOKE SELECT ON `other`.* FROM " + recipient,
-  ]) {
-    test(
-      "refuses expanded privilege " + extra + "/inactive=" + inactivePublic,
-      async () => {
-        const result = await scenario({
-          inactivePublic,
-          effectiveGrants: grantRows([
-            "GRANT SELECT ON `traceflow`.* TO " + recipient,
-            ...(!inactivePublic ? [publicAssignment] : []),
-            extra,
-          ]),
-        });
-        assert.equal(result.value.status, "FAIL");
-        assert.equal(result.value.phase, "EFFECTIVE_GRANTS");
-        assert.equal(result.value.code, "EXCESSIVE_OR_UNRESOLVED_GRANTS");
-        assert.ok(!result.queries.includes("SELECT 1"));
-      },
-    );
-  }
-  for (const mysqlCode of ["3530", "1142", "1295", undefined]) {
-    test(
-      "no SQL error fallback: " + JSON.stringify({ inactivePublic, mysqlCode }),
-      async () => {
-        const error = fault("P2010", mysqlCode);
-        if (mysqlCode === undefined) delete error.meta.code;
-        const result = await scenario({ inactivePublic, failSql: 5, error });
-        assert.deepEqual(result.value, {
-          status: "FAIL",
-          code: "P2010",
-          phase: "SQL_PUBLIC_GRANTS",
-          ...(mysqlCode === undefined ? {} : { mysqlCode }),
-          writes: false,
-        });
-        assert.equal(result.queries.length, 6);
-        assert.equal(
-          result.queries.at(-1),
-          inactivePublic ? originalSql[4] : "SHOW GRANTS",
-        );
-        assert.ok(!result.queries.includes("SELECT 1"));
-      },
-    );
-  }
-}
-
-const graphCases = [
-  ["no applicable public (not resolved/granted)", [], "ROLE_GRAPH_UNVERIFIED"],
-  [
-    "additional inactive role",
-    [publicGraph, { ...publicGraph, ROLE_NAME: "other" }],
-    "ROLE_GRAPH_UNVERIFIED",
-  ],
-  [
-    "nested role",
-    [
-      publicGraph,
-      {
-        ...publicGraph,
-        GRANTEE: "public",
-        GRANTEE_HOST: "%",
-        ROLE_NAME: "nested",
-      },
-    ],
-    "ROLE_GRAPH_UNVERIFIED",
-  ],
-  ["duplicate role", [publicGraph, publicGraph], "ROLE_GRAPH_UNVERIFIED"],
-  [
-    "wrong role",
-    [{ ...publicGraph, ROLE_NAME: "administrator" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  [
-    "wrong role host",
-    [{ ...publicGraph, ROLE_HOST: "localhost" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  [
-    "not mandatory",
-    [{ ...publicGraph, IS_MANDATORY: "NO" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  [
-    "ADMIN OPTION",
-    [{ ...publicGraph, IS_GRANTABLE: "YES" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  [
-    "unknown grantability",
-    [{ ...publicGraph, IS_GRANTABLE: "UNKNOWN" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  [
-    "wrong user",
-    [{ ...publicGraph, USER: "another" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  ["wrong host", [{ ...publicGraph, HOST: "%" }], "UNREVIEWED_ROLE_GRAPH"],
-  [
-    "wrong grantee",
-    [{ ...publicGraph, GRANTEE: "another" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  [
-    "wrong grantee host",
-    [{ ...publicGraph, GRANTEE_HOST: "%" }],
-    "UNREVIEWED_ROLE_GRAPH",
-  ],
-  ["null response", null, "MALFORMED_ROLE_GRAPH"],
-  ["non-array response", publicGraph, "MALFORMED_ROLE_GRAPH"],
-  ["null row", [null], "MALFORMED_ROLE_GRAPH"],
-  [
-    "missing column",
-    [{ ...publicGraph, USER: undefined }],
-    "MALFORMED_ROLE_GRAPH",
-  ],
-  [
-    "extra column",
-    [{ ...publicGraph, unexpected: unsafeDetail }],
-    "MALFORMED_ROLE_GRAPH",
-  ],
-  [
-    "wrong type",
-    [{ ...publicGraph, ROLE_NAME: ["public"] }],
-    "MALFORMED_ROLE_GRAPH",
-  ],
-];
-for (const [name, roleGraph, code] of graphCases) {
-  test("fail-closed role inventory: " + name, async () => {
-    const result = await scenario({ roleGraph });
-    assert.deepEqual(result.value, {
-      status: "FAIL",
-      code,
-      phase: "ROLE_GRAPH",
-      writes: false,
-    });
-    sameQueries(result.queries, currentSql.slice(0, 5));
-    assert.equal(result.events.at(-1), "DISCONNECT");
-  });
-}
-
-for (const [name, options, code] of [
-  [
-    "active public not listed",
-    { effectiveGrants: ["GRANT SELECT ON `traceflow`.* TO " + recipient] },
-    "EFFECTIVE_GRANTS_UNVERIFIED",
-  ],
-  [
-    "explicit assignment lost",
-    {
-      inactivePublic: true,
-      explicitPublic: true,
-      effectiveGrants: ["GRANT SELECT ON `traceflow`.* TO " + recipient],
-    },
-    "EFFECTIVE_GRANTS_UNVERIFIED",
-  ],
-  [
-    "missing SELECT",
-    {
-      effectiveGrants: ["GRANT USAGE ON *.* TO " + recipient, publicAssignment],
-    },
-    "SELECT_PRIVILEGE_REQUIRED",
-  ],
-  [
-    "direct privileges lost",
-    {
-      directGrants: [
-        "GRANT SELECT, SHOW VIEW ON `traceflow`.* TO " + recipient,
-      ],
-    },
-    "EFFECTIVE_GRANTS_UNVERIFIED",
-  ],
-]) {
-  test("incomplete privilege audit: " + name, async () => {
-    const result = await scenario(options);
-    assert.equal(result.value.status, "FAIL");
-    assert.equal(result.value.phase, "EFFECTIVE_GRANTS");
-    assert.equal(result.value.code, code);
-    assert.ok(!result.queries.includes("SELECT 1"));
-  });
-}
-
-for (const grants of [
-  null,
-  {},
-  [],
-  [null],
-  [42],
-  [["GRANT SELECT ON `traceflow`.* TO " + recipient]],
-  [{ unexpected: unsafeDetail }],
-  [
-    {
-      "Grants for traceflow_diag@10.20.1.184":
-        "GRANT SELECT ON `traceflow`.* TO " + recipient,
-      extra: unsafeDetail,
-    },
-  ],
-  ["GRANT SELECT ON `traceflow`.* TO " + recipient + "\n"],
-  ["GRANT SELECT ON `traceflow`.* TO " + recipient + " " + unsafeDetail],
-  ["GRANT SELECT,,SHOW VIEW ON `traceflow`.* TO " + recipient],
-  ["GRANT SELECT, SELECT ON `traceflow`.* TO " + recipient],
-  ["GRANT SELECT ON `traceflow`.* TO `other`@`%`"],
-]) {
-  test(
-    "malformed grants refuse at both audit stages " + JSON.stringify(grants),
-    async () => {
-      for (const key of ["directGrants", "effectiveGrants"]) {
-        const result = await scenario({ [key]: grants });
-        assert.equal(result.value.status, "FAIL");
-        assert.equal(
-          result.value.phase,
-          key === "directGrants" ? "DIRECT_GRANTS" : "EFFECTIVE_GRANTS",
-        );
-        assert.ok(!result.queries.includes("SELECT 1"));
-      }
-    },
-  );
-}
-
-test("unknown explicit role is refused even without mandatory roles", async () => {
-  for (const publicRole of [false, true]) {
-    const result = await scenario({
-      publicRole,
-      directGrants: [
-        "GRANT SELECT ON `traceflow`.* TO " + recipient,
-        "GRANT `other`@`%` TO " + recipient,
-      ],
-    });
-    assert.equal(result.value.phase, "DIRECT_GRANTS");
-    assert.equal(result.value.code, "EXCESSIVE_OR_UNRESOLVED_GRANTS");
-    assert.equal(result.queries.length, 4);
-  }
-});
-
-test("malicious grant/role getters are rejected without invocation or leaked metadata", async () => {
-  let invoked = 0;
-  const trap = () => {
-    invoked++;
-    throw new Error(unsafeDetail);
-  };
-  const grant = Object.defineProperty(
-    {},
-    "Grants for traceflow_diag@10.20.1.184",
-    { get: trap },
-  );
-  const role = Object.defineProperty({ ...publicGraph }, "ROLE_NAME", {
-    get: trap,
-  });
-  for (const options of [
-    { directGrants: [grant] },
-    { effectiveGrants: [grant] },
-    { roleGraph: [role] },
-  ]) {
-    const result = await scenario(options);
-    assert.equal(result.value.status, "FAIL");
-    assert.ok(!Object.hasOwn(result.value, "mysqlCode"));
-  }
-  assert.equal(invoked, 0);
-});
-
-const validationCases = [
-  [
-    { authorizationText: "{" + unsafeDetail },
-    "PREVALIDATION",
-    "DIAGNOSTIC_FAILED",
-    0,
-  ],
-  [
-    { authorizationError: fault("PRIVATE_FILE_REQUIRED") },
-    "PREVALIDATION",
-    "PRIVATE_FILE_REQUIRED",
-    0,
-  ],
-  [
-    { ambiguousEnvironment: true },
-    "PREVALIDATION",
-    "AMBIGUOUS_DATABASE_URL",
-    0,
-  ],
-  [
-    { caError: fault("CA_FINGERPRINT_MISMATCH") },
-    "TLS_CA",
-    "CA_FINGERPRINT_MISMATCH",
-    0,
-  ],
-  [
-    { dnsError: fault("DNS_IDENTITY_MISMATCH") },
-    "DNS_IDENTITY",
-    "DNS_IDENTITY_MISMATCH",
-    0,
-  ],
-  [
-    { tlsError: fault("ERR_TLS_CERT_ALTNAME_INVALID") },
-    "TLS_PROBE",
-    "ERR_TLS_CERT_ALTNAME_INVALID",
-    0,
-  ],
-  [{ prismaVersion: "unreviewed" }, "PRISMA_INIT", "PRISMA_VERSION", 0],
-  [{ importError: fault("P1000") }, "PRISMA_INIT", "P1000", 0],
-  [
-    { identity: { uuid: "unexpected" } },
-    "SERVER_IDENTITY",
-    "SERVER_IDENTITY_MISMATCH",
-    1,
-  ],
-  [
-    { local: true, identity: { datadir: "/wrong-data" } },
-    "SERVER_IDENTITY",
-    "SERVER_IDENTITY_MISMATCH",
-    1,
-  ],
-  [{ session: [] }, "SESSION_TLS", "PRISMA_TLS_REQUIRED", 2],
-  [
-    { parameters: { mandatoryRoles: "administrator" } },
-    "ROLES",
-    "UNREVIEWED_MANDATORY_ROLE",
-    3,
-  ],
-  [
-    { parameters: { activeRoles: "administrator" } },
-    "ROLES",
-    "UNREVIEWED_ACTIVE_ROLE",
-    3,
-  ],
-  [
-    { directGrants: ["GRANT SELECT, INSERT ON `traceflow`.* TO " + recipient] },
-    "DIRECT_GRANTS",
-    "EXCESSIVE_OR_UNRESOLVED_GRANTS",
-    4,
-  ],
-  [
-    { effectiveGrants: ["GRANT SELECT ON *.* TO " + recipient] },
-    "EFFECTIVE_GRANTS",
-    "EXCESSIVE_OR_UNRESOLVED_GRANTS",
-    6,
-  ],
-];
-for (const [options, phase, code, count] of validationCases) {
-  test("fail-closed validation: " + phase + "/" + code, async () => {
-    const result = await scenario(options);
-    assert.equal(result.value.phase, phase);
-    assert.equal(result.value.code, code);
-    assert.equal(result.value.status, "FAIL");
-    assert.equal(result.exitCode, 1);
-    sameQueries(result.queries, currentSql.slice(0, count));
-    assert.equal(result.events.includes("DISCONNECT"), count > 0);
-  });
-}
-
-test("validate-only never imports Prisma, probes TLS, resolves DNS or executes SQL", async () => {
-  const result = await scenario({ validateOnly: true });
-  assert.equal(result.value.status, "CONFIG_VALID");
-  assert.equal(result.value.connected, false);
-  assert.equal(result.queries.length, 0);
-  for (const event of [
-    "DISCONNECT",
-    "DNS",
-    "TLS_PROBE",
-    "SESSION_START",
-    "IMPORT:@prisma/client",
-    "IMPORT:../src/database/prismaClient.js",
-  ])
-    assert.ok(!result.events.includes(event));
-});
-
-for (const [option, phase, count] of [
-  ["transactionError", "SESSION_START", 0],
-  ["transactionEndError", "SESSION_END", currentSql.length],
-]) {
-  test("pinned session failure remains fatal: " + phase, async () => {
-    const result = await scenario({
-      [option]: fault("P2028"),
-      disconnectError: fault("P1017"),
-    });
-    assert.equal(result.value.status, "FAIL");
-    assert.equal(result.value.code, "P2028");
-    assert.equal(result.value.phase, phase);
-    assert.equal(result.queries.length, count);
-    assert.equal(result.events.at(-1), "DISCONNECT");
-  });
-}
-
-test("a disconnect failure after successful queries is FAIL, never PASS", async () => {
-  const result = await scenario({ disconnectError: fault("P1017", undefined) });
-  assert.equal(result.value.phase, "DISCONNECT");
-  assert.equal(result.value.code, "P1017");
-  assert.equal(result.exitCode, 1);
-  assert.equal(
-    result.events.filter((event) => event === "DISCONNECT").length,
-    1,
-  );
-});
-
-test("disconnect failure cannot replace primary P2010 or emit another JSON", async () => {
-  const result = await scenario({
-    failSql: 5,
-    error: fault("P2010", "3530"),
-    disconnectError: fault("P1017", "2013"),
-  });
-  assert.deepEqual(result.value, {
-    status: "FAIL",
-    code: "P2010",
-    phase: "SQL_PUBLIC_GRANTS",
-    mysqlCode: "3530",
-    writes: false,
-  });
-  assert.equal(result.exitCode, 1);
-});
-
-test("transaction rollback deadline/failure cannot hide primary P2010/3530", async () => {
-  const result = await scenario({
-    failSql: 5,
-    error: fault("P2010", "3530"),
-    timeoutAbort: true,
-    abortError: fault("P2028"),
-    disconnectError: fault("P1017"),
-  });
-  assert.deepEqual(result.value, {
-    status: "FAIL",
-    code: "P2010",
-    phase: "SQL_PUBLIC_GRANTS",
-    mysqlCode: "3530",
-    writes: false,
-  });
-  assert.deepEqual(result.exits, [1]);
-});
-
-test("deadline during cleanup preserves primary P2010 and emits only once", async () => {
-  const result = await scenario({
-    failSql: 0,
-    timeoutDisconnect: true,
-    disconnectError: fault("P1017"),
-  });
-  assert.equal(result.value.code, "P2010");
-  assert.equal(result.value.phase, "SQL_IDENTITY");
-  assert.deepEqual(result.exits, [1]);
-});
-
-test("deadline without an earlier failure identifies DISCONNECT", async () => {
-  const result = await scenario({ timeoutDisconnect: true });
-  assert.deepEqual(result.value, {
-    status: "FAIL",
-    code: "DIAGNOSTIC_DEADLINE",
-    phase: "DISCONNECT",
-    writes: false,
-  });
-  assert.deepEqual(result.exits, [1]);
-});
-
-test("deadline during SQL identifies the active query and remains fail-closed", async () => {
-  const result = await scenario({ timeoutSql: 1 });
-  assert.deepEqual(result.value, {
-    status: "FAIL",
-    code: "DIAGNOSTIC_DEADLINE",
-    phase: "SQL_SESSION_TLS",
-    writes: false,
-  });
-  sameQueries(result.queries, originalSql.slice(0, 2));
-  assert.deepEqual(result.exits, [1]);
-});
 
 test("numeric MySQL codes accept only canonical positive unsigned 16-bit values", () => {
   for (const code of [1, "1", 1227, "1227", 1295, "3530", 65535, "65535"]) {
@@ -1062,3 +490,445 @@ test("preserves Prisma codes and refuses unstructured codes/phases", () => {
     "UNKNOWN",
   );
 });
+
+for (let index = 0; index < sqlPhases.length; index++)
+  test("SQL fault retains phase " + sqlPhases[index], async () => {
+    const local = index === 6;
+    const result = await scenario({
+      failSql: index,
+      ...(local ? { local: true, publicRole: false } : {}),
+    });
+    assert.deepEqual(result.value, {
+      status: "FAIL",
+      code: "P2010",
+      phase: sqlPhases[index],
+      mysqlCode: "1227",
+      writes: false,
+    });
+    sameQueries(
+      result.queries,
+      local
+        ? [...currentSql.slice(0, 4), originalSql[5]]
+        : currentSql.slice(0, index + 1),
+    );
+    assert.equal(result.events.filter((x) => x === "DISCONNECT").length, 1);
+  });
+test("ABSENT is audited but cannot PASS with unproven warning completeness", async () => {
+  const result = await scenario();
+  assert.deepEqual(result.value, {
+    status: "FAIL",
+    code: "ROLE_WARNINGS_UNVERIFIED",
+    phase: "ROLE_WARNINGS",
+    writes: false,
+  });
+  sameQueries(result.queries, currentSql.slice(0, 6));
+  assert.ok(
+    !result.queries.includes(originalSql[4]) &&
+      !result.queries.includes("SHOW GRANTS"),
+  );
+  assert.equal(
+    result.events.filter((x) => x.startsWith("ATTESTATION:")).length,
+    2,
+  );
+  assert.equal(result.events.at(-2), "DISCONNECT");
+});
+test("local-isolated without roles preserves direct-only PASS", async () => {
+  const result = await scenario({ local: true, publicRole: false });
+  assert.equal(result.value.status, "PASS");
+  assert.deepEqual(result.value.grants, ["SELECT"]);
+  assert.deepEqual(result.value.roleVerification, {
+    mandatoryPublic: false,
+    activePublic: false,
+    expanded: false,
+    graphVerified: false,
+    strategy: "direct-only",
+  });
+  sameQueries(result.queries, [...currentSql.slice(0, 4), originalSql[5]]);
+  assert.equal(result.value.disconnected, true);
+});
+test("identity, TLS and server parameters remain byte-for-byte unchanged", () => {
+  for (const sql of originalSql.slice(0, 4)) assert.ok(source.includes(sql));
+  assert.ok(source.includes(originalSql[5]));
+});
+for (const count of [1, 2])
+  test("PRESENT fails before SQL, count=" + count, async () => {
+    const result = await scenario({ evidenceCount: count });
+    assert.equal(result.value.code, "ROLE_PRESENT_UNVERIFIED");
+    assert.equal(result.value.phase, "ADMIN_ROLE_ATTESTATION");
+    assert.equal(result.queries.length, 0);
+  });
+for (const [name, options, phase, expected, count] of [
+  [
+    "missing attestation",
+    { attested: false },
+    "ADMIN_ROLE_ATTESTATION",
+    "ROLE_ATTESTATION_REQUIRED",
+    0,
+  ],
+  [
+    "expired evidence",
+    { attestationError: fault("ROLE_ATTESTATION_EXPIRED") },
+    "ADMIN_ROLE_ATTESTATION",
+    "ROLE_ATTESTATION_EXPIRED",
+    0,
+  ],
+  [
+    "bad evidence hash",
+    { attestationError: fault("ROLE_ATTESTATION_HASH_MISMATCH") },
+    "ADMIN_ROLE_ATTESTATION",
+    "ROLE_ATTESTATION_HASH_MISMATCH",
+    0,
+  ],
+  [
+    "invalid authorization",
+    { authorizationText: "{" + unsafeDetail },
+    "PREVALIDATION",
+    "DIAGNOSTIC_FAILED",
+    0,
+  ],
+  [
+    "authorization file",
+    { authorizationError: fault("PRIVATE_FILE_REQUIRED") },
+    "PREVALIDATION",
+    "PRIVATE_FILE_REQUIRED",
+    0,
+  ],
+  [
+    "expired authorization",
+    { authorizationExpired: true },
+    "PREVALIDATION",
+    "AUTHORIZATION_EXPIRED",
+    0,
+  ],
+  [
+    "ambiguous env",
+    { ambiguousEnvironment: true },
+    "PREVALIDATION",
+    "AMBIGUOUS_DATABASE_URL",
+    0,
+  ],
+  [
+    "CA",
+    { caError: fault("CA_FINGERPRINT_MISMATCH") },
+    "TLS_CA",
+    "CA_FINGERPRINT_MISMATCH",
+    0,
+  ],
+  [
+    "DNS",
+    { dnsError: fault("DNS_IDENTITY_MISMATCH") },
+    "DNS_IDENTITY",
+    "DNS_IDENTITY_MISMATCH",
+    0,
+  ],
+  [
+    "hostname TLS",
+    { tlsError: fault("ERR_TLS_CERT_ALTNAME_INVALID") },
+    "TLS_PROBE",
+    "ERR_TLS_CERT_ALTNAME_INVALID",
+    0,
+  ],
+  [
+    "Prisma version",
+    { prismaVersion: "other" },
+    "PRISMA_INIT",
+    "PRISMA_VERSION",
+    0,
+  ],
+  ["connection", { importError: fault("P1000") }, "PRISMA_INIT", "P1000", 0],
+  [
+    "UUID",
+    { identity: { uuid: "wrong" } },
+    "SERVER_IDENTITY",
+    "SERVER_IDENTITY_MISMATCH",
+    1,
+  ],
+  [
+    "full account",
+    { identity: { currentUser: "traceflow_diag@%" } },
+    "SERVER_IDENTITY",
+    "SERVER_IDENTITY_MISMATCH",
+    1,
+  ],
+  [
+    "local datadir",
+    { local: true, publicRole: false, identity: { datadir: "/wrong" } },
+    "SERVER_IDENTITY",
+    "SERVER_IDENTITY_MISMATCH",
+    1,
+  ],
+  ["TLS session", { session: [] }, "SESSION_TLS", "PRISMA_TLS_REQUIRED", 2],
+  [
+    "unknown mandatory",
+    { parameters: { mandatoryRoles: "administrator" } },
+    "ROLES",
+    "UNREVIEWED_MANDATORY_ROLE",
+    3,
+  ],
+  [
+    "unknown active",
+    { parameters: { activeRoles: "administrator" } },
+    "ROLES",
+    "UNREVIEWED_ACTIVE_ROLE",
+    3,
+  ],
+  [
+    "configuration contradiction",
+    { parameters: { mandatoryRoles: "" } },
+    "ROLES",
+    "ROLE_ATTESTATION_SESSION_MISMATCH",
+    3,
+  ],
+  [
+    "active public contradiction",
+    { activePublic: true },
+    "ROLES",
+    "ROLE_ATTESTATION_SESSION_MISMATCH",
+    3,
+  ],
+  [
+    "global activation contradiction",
+    { settings: [{ activateAllRolesOnLogin: 1n }] },
+    "ROLES",
+    "ROLE_ATTESTATION_SESSION_MISMATCH",
+    5,
+  ],
+  [
+    "malformed settings",
+    { settings: [] },
+    "ROLES",
+    "ROLE_ATTESTATION_SESSION_MISMATCH",
+    5,
+  ],
+  [
+    "extra settings",
+    { settings: [{ activateAllRolesOnLogin: 0, unexpected: true }] },
+    "ROLES",
+    "ROLE_ATTESTATION_SESSION_MISMATCH",
+    5,
+  ],
+  [
+    "unresolved public",
+    { roleGraph: [publicGraph] },
+    "ROLE_GRAPH",
+    "ROLE_ATTESTATION_SESSION_MISMATCH",
+    6,
+  ],
+  [
+    "additional role",
+    { roleGraph: [{ ...publicGraph, ROLE_NAME: "admin" }] },
+    "ROLE_GRAPH",
+    "ROLE_ATTESTATION_SESSION_MISMATCH",
+    6,
+  ],
+  [
+    "malformed inventory",
+    { roleGraph: null },
+    "ROLE_GRAPH",
+    "MALFORMED_ROLE_GRAPH",
+    6,
+  ],
+])
+  test("fail-closed " + name, async () => {
+    const result = await scenario(options);
+    assert.equal(result.value.status, "FAIL");
+    assert.equal(result.value.phase, phase);
+    assert.equal(result.value.code, expected);
+    sameQueries(result.queries, currentSql.slice(0, count));
+  });
+for (const grant of [
+  publicAssignment,
+  "GRANT `other`@`%` TO " + recipient,
+  ...["INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP"].map(
+    (p) => "GRANT " + p + " ON `traceflow`.* TO " + recipient,
+  ),
+  ...["SELECT", "SUPER", "FILE", "SYSTEM_USER", "ROLE_ADMIN"].map(
+    (p) => "GRANT " + p + " ON *.* TO " + recipient,
+  ),
+  "GRANT SELECT ON `other`.* TO " + recipient,
+  "GRANT SELECT ON `traceflow`.* TO " + recipient + " WITH GRANT OPTION",
+  publicAssignment + " WITH ADMIN OPTION",
+  "REVOKE SELECT ON `other`.* FROM " + recipient,
+])
+  test(
+    "ABSENT never ignores direct privilege/assignment " + grant,
+    async () => {
+      const result = await scenario({
+        directGrants: grantRows([
+          "GRANT SELECT ON `traceflow`.* TO " + recipient,
+          grant,
+        ]),
+      });
+      assert.equal(result.value.status, "FAIL");
+      assert.equal(result.value.phase, "DIRECT_GRANTS");
+      assert.equal(result.value.code, "EXCESSIVE_OR_UNRESOLVED_GRANTS");
+      assert.equal(result.queries.length, 4);
+    },
+  );
+for (const grants of [
+  null,
+  {},
+  [],
+  [null],
+  [42],
+  [["invalid"]],
+  [{ unexpected: unsafeDetail }],
+  [
+    {
+      "Grants for traceflow_diag@10.20.1.184":
+        "GRANT SELECT ON `traceflow`.* TO " + recipient,
+      extra: unsafeDetail,
+    },
+  ],
+  ["GRANT SELECT ON `traceflow`.* TO " + recipient + "\n"],
+  ["GRANT SELECT, SELECT ON `traceflow`.* TO " + recipient],
+  ["GRANT SELECT ON `traceflow`.* TO `other`@`%`"],
+])
+  test("malformed direct grants " + JSON.stringify(grants), async () => {
+    const result = await scenario({ directGrants: grants });
+    assert.equal(result.value.status, "FAIL");
+    assert.equal(result.value.phase, "DIRECT_GRANTS");
+  });
+test("administrative SELECT evidence cannot authorize additional SHOW VIEW", async () => {
+  const result = await scenario({
+    directGrants: ["GRANT SELECT, SHOW VIEW ON `traceflow`.* TO " + recipient],
+  });
+  assert.equal(result.value.code, "ROLE_ATTESTATION_GRANTS_MISMATCH");
+});
+test("grant getter cannot execute or leak", async () => {
+  let invoked = 0;
+  const grant = Object.defineProperty(
+    {},
+    "Grants for traceflow_diag@10.20.1.184",
+    {
+      get() {
+        invoked++;
+        throw Error(unsafeDetail);
+      },
+    },
+  );
+  const result = await scenario({ directGrants: [grant] });
+  assert.equal(result.value.code, "MALFORMED_GRANTS");
+  assert.equal(invoked, 0);
+});
+for (const mysqlCode of ["3530", "1141", "1295", undefined])
+  test("SQL error never becomes absence: " + mysqlCode, async () => {
+    const error = fault("P2010", mysqlCode);
+    if (mysqlCode === undefined) delete error.meta.code;
+    const result = await scenario({
+      failSql: 5,
+      error,
+      disconnectError: fault("P1017", "2013"),
+    });
+    assert.deepEqual(result.value, {
+      status: "FAIL",
+      code: "P2010",
+      phase: "SQL_ROLE_GRAPH",
+      ...(mysqlCode === undefined ? {} : { mysqlCode }),
+      writes: false,
+    });
+  });
+test("validate-only validates evidence twice and performs no network/Prisma operations", async () => {
+  const result = await scenario({ validateOnly: true });
+  assert.equal(result.value.status, "CONFIG_VALID");
+  assert.equal(result.value.connected, false);
+  assert.equal(result.queries.length, 0);
+  for (const event of [
+    "DNS",
+    "TLS_PROBE",
+    "SESSION_START",
+    "DISCONNECT",
+    "IMPORT:@prisma/client",
+    "IMPORT:../src/database/prismaClient.js",
+  ])
+    assert.ok(!result.events.includes(event));
+  assert.equal(
+    result.events.filter((x) => x.startsWith("ATTESTATION:")).length,
+    2,
+  );
+});
+test("expiry/replacement at final revalidation prevents CONFIG_VALID", async () => {
+  for (const code of [
+    "ROLE_ATTESTATION_EXPIRED",
+    "ROLE_ATTESTATION_FILE_CHANGED",
+  ]) {
+    const result = await scenario({
+      validateOnly: true,
+      finalEvidenceError: fault(code),
+    });
+    assert.equal(result.value.status, "FAIL");
+    assert.equal(result.value.phase, "ROLE_ATTESTATION_FINAL");
+    assert.equal(result.value.code, code);
+  }
+});
+test("final evidence error preserves earlier failure", async () => {
+  const result = await scenario({
+    failSql: 0,
+    error: fault("P2010", "1141"),
+    finalEvidenceError: fault("ROLE_ATTESTATION_EXPIRED"),
+  });
+  assert.equal(result.value.code, "P2010");
+  assert.equal(result.value.phase, "SQL_IDENTITY");
+});
+for (const [option, phase] of [
+  ["transactionError", "SESSION_START"],
+  ["transactionEndError", "SESSION_END"],
+])
+  test("transaction failure " + phase, async () => {
+    const result = await scenario({
+      local: true,
+      publicRole: false,
+      [option]: fault("P2028"),
+      disconnectError: fault("P1017"),
+    });
+    assert.equal(result.value.code, "P2028");
+    assert.equal(result.value.phase, phase);
+  });
+test("disconnect failure after direct-only success is FAIL", async () => {
+  const result = await scenario({
+    local: true,
+    publicRole: false,
+    disconnectError: fault("P1017", undefined),
+  });
+  assert.equal(result.value.phase, "DISCONNECT");
+  assert.equal(result.value.code, "P1017");
+});
+test("warning blocker survives disconnect and rollback failures", async () => {
+  const result = await scenario({
+    disconnectError: fault("P1017"),
+    abortError: fault("P2028"),
+  });
+  assert.equal(result.value.code, "ROLE_WARNINGS_UNVERIFIED");
+  assert.equal(result.events.filter((x) => x === "DISCONNECT").length, 1);
+});
+test("rollback deadline preserves primary SQL failure", async () => {
+  const result = await scenario({
+    failSql: 5,
+    error: fault("P2010", "3530"),
+    timeoutAbort: true,
+    abortError: fault("P2028"),
+    disconnectError: fault("P1017"),
+  });
+  assert.equal(result.value.code, "P2010");
+  assert.equal(result.value.mysqlCode, "3530");
+  assert.deepEqual(result.exits, [1]);
+});
+for (const [options, phase, code] of [
+  [{ timeoutSql: 1 }, "SQL_SESSION_TLS", "DIAGNOSTIC_DEADLINE"],
+  [
+    { local: true, publicRole: false, timeoutDisconnect: true },
+    "DISCONNECT",
+    "DIAGNOSTIC_DEADLINE",
+  ],
+  [
+    { failSql: 0, timeoutDisconnect: true, disconnectError: fault("P1017") },
+    "SQL_IDENTITY",
+    "P2010",
+  ],
+])
+  test("deadline retains single JSON " + phase, async () => {
+    const result = await scenario(options);
+    assert.equal(result.value.phase, phase);
+    assert.equal(result.value.code, code);
+    assert.deepEqual(result.exits, [1]);
+  });

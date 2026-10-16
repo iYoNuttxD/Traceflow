@@ -57,19 +57,19 @@ working tree, identifica HEAD/branch, hashes e sete alterações locais incluíd
 
 Em checkout/cópia autorizado, com Node 22, destino novo e pais protegidos:
 
-~~~bash
+```bash
 node scripts/package-diagnostic.mjs export --output "$DIAGNOSTIC_SOURCE_DIR"
-~~~
+```
 
 Revisar o sourceSha256 emitido; transportar somente essa exportação para uma VM de build
 descartável OL9.8 ARM64. Executar a receita contida na própria exportação:
 
-~~~bash
+```bash
 node "$DIAGNOSTIC_SOURCE_DIR/scripts/package-diagnostic.mjs" build \
   --source "$DIAGNOSTIC_SOURCE_DIR" \
   --source-sha256 "$DIAGNOSTIC_SOURCE_SHA256" \
   --output "$DIAGNOSTIC_ARTIFACT_DIR"
-~~~
+```
 
 Cada build cria workspace exclusivo, HOME/cache/npmrc novos, npm ci pelo lockfile, Prisma
 validate/generate sem conexão e sem .env; copia só a allowlist e remove o workspace próprio.
@@ -105,15 +105,15 @@ Pasta local ignorada pelo Git:
 
 `build/oci-deploy-06-1-prisma-diagnostic/traceflow-prisma-diagnostic-efa7abc8191bbf10/`
 
-| Campo | Valor |
-| --- | --- |
-| Arquivo | traceflow-prisma-diagnostic-efa7abc8191bbf10.tar.gz |
-| Tamanho | 7.498.083 bytes |
-| SHA-256 tar.gz | 5344f07d4387f17f57d57e1418e0772a2a10b10ca51079f2b9f41080152a730b |
-| SHA-256 manifest.json | e155bf4ccf3e323a4fd2b0b9bafb1451713d1127bf501b9ca7df7ca17be00ea1 |
+| Campo                      | Valor                                                            |
+| -------------------------- | ---------------------------------------------------------------- |
+| Arquivo                    | traceflow-prisma-diagnostic-efa7abc8191bbf10.tar.gz              |
+| Tamanho                    | 7.498.083 bytes                                                  |
+| SHA-256 tar.gz             | 5344f07d4387f17f57d57e1418e0772a2a10b10ca51079f2b9f41080152a730b |
+| SHA-256 manifest.json      | e155bf4ccf3e323a4fd2b0b9bafb1451713d1127bf501b9ca7df7ca17be00ea1 |
 | SHA-256 diagnostic-tool.py | a6b4a77d725f24c31f1a8368983ff8a28bde0db4c29de61e0a18b7d1cf254378 |
-| SHA-256 source.json | efa7abc8191bbf10871b9c013044ed0b7dc3479a9a35da88be60078bc5a76d68 |
-| HEAD base | 09d98d7fb6a7ffcf4b6e1546ab866afc7090915f |
+| SHA-256 source.json        | efa7abc8191bbf10871b9c013044ed0b7dc3479a9a35da88be60078bc5a76d68 |
+| HEAD base                  | 09d98d7fb6a7ffcf4b6e1546ab866afc7090915f                         |
 
 Dois builds finais com cache/workspace novos produziram os mesmos bytes. O tar usa ordem,
 mtime, uid/gid e modos fixos. A prova vale para estes inputs e toolchain; não é promessa
@@ -159,7 +159,7 @@ não dispensa TLS estrito nem o REQUIRE SSL das contas.
 
 Template documental **inválido**, sem senha e sem autorização automática:
 
-~~~json
+```json
 {
   "formatVersion": 1,
   "operation": "diagnose-read-only",
@@ -178,7 +178,7 @@ Template documental **inválido**, sem senha e sem autorização automática:
     "caSha256": "2eaee0e206741bf81b651f1ae33f44f0a92949ed6a99137a4aa8b0013486d295"
   }
 }
-~~~
+```
 
 Somente após autorização humana D03, o operador materializa uma cópia fora do Git/pacote,
 com approved true e expiresAt UTC curto (proposta: 30 minutos; contrato exige menos de 24 h).
@@ -195,7 +195,7 @@ contendo somente o campo password. Nunca colocar o valor em argv, export, histó
 Após D02 autorizado, o operador pode inserir a senha existente por TTY local privado.
 Exemplo futuro, no terminal da VM, sem gravação de sessão e sem set -x:
 
-~~~bash
+```bash
 test ! -e /run/traceflow-diagnostic
 test ! -L /run/traceflow-diagnostic
 sudo install -d -o traceflow -g traceflow -m 0700 /run/traceflow-diagnostic
@@ -211,7 +211,7 @@ fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
 with os.fdopen(fd, "w") as stream:
     json.dump({"password": secret}, stream)
 '
-~~~
+```
 
 Aprovar previamente que /run/traceflow-diagnostic é um destino novo, privado e não symlink;
 se já existir, interromper e investigar, sem sobrescrever. Confirmar tmpfs e proteção de
@@ -244,13 +244,13 @@ Origem: pasta local da seção 8. Destino SSH conhecido informado: opc@144.22.18
 `/home/opc/traceflow-prisma-diagnostic-efa7abc8191bbf10.incoming`, dono opc 0700.
 O operador cria esse diretório novo na VM antes da cópia autorizada.
 
-~~~bash
+```bash
 scp "$DIAGNOSTIC_ARTIFACT_DIR/traceflow-prisma-diagnostic-efa7abc8191bbf10.tar.gz" \
     "$DIAGNOSTIC_ARTIFACT_DIR/manifest.json" \
     "$DIAGNOSTIC_ARTIFACT_DIR/diagnostic-tool.py" \
     "$DIAGNOSTIC_ARTIFACT_DIR/artifact.json" \
     opc@144.22.183.254:/home/opc/traceflow-prisma-diagnostic-efa7abc8191bbf10.incoming/
-~~~
+```
 
 Nenhuma transferência foi feita. Não usar esse comando antes da autorização D01.
 
@@ -265,7 +265,7 @@ Em sessão root aprovada, para a primeira instalação, materializar somente os 
 novos abaixo. Se a base já existir, parar para revisar proprietário/permissões e preparar
 um procedimento específico; não sobrescrever nem reparar automaticamente.
 
-~~~bash
+```bash
 set +x
 set -eu
 umask 077
@@ -287,7 +287,7 @@ for public_file in "$DIAGNOSTIC_PACKAGE_ID.tar.gz" manifest.json diagnostic-tool
   test ! -L "$DIAGNOSTIC_TRANSIT/$public_file"
   install -o root -g root -m 0644 "$DIAGNOSTIC_TRANSIT/$public_file" "$DIAGNOSTIC_STAGING_DIR/$public_file"
 done
-~~~
+```
 
 Conferir previamente /opt root-owned, diretório real e sem escrita por terceiros. A base
 dedicada evita depender da propriedade de /var/lib/traceflow ou /opt/traceflow, ainda não
@@ -297,7 +297,7 @@ reconfirmada nesta entrega. Não executar conteúdo pertencente a opc como root.
 
 Na pasta staging root, verificar os valores fixos por canal confiável, não apenas artifact.json:
 
-~~~bash
+```bash
 cd "$DIAGNOSTIC_STAGING_DIR"
 sha256sum --check <<'CHECKSUMS'
 5344f07d4387f17f57d57e1418e0772a2a10b10ca51079f2b9f41080152a730b  traceflow-prisma-diagnostic-efa7abc8191bbf10.tar.gz
@@ -311,7 +311,7 @@ CHECKSUMS
   --destination "$DIAGNOSTIC_PACKAGE_DIR"
 chown -R root:traceflow "$DIAGNOSTIC_PACKAGE_DIR"
 chmod 0750 "$DIAGNOSTIC_PACKAGE_DIR"
-~~~
+```
 
 Somente o destino novo criado pelo extrator é objeto do chown. Não usar caminhos vazios,
 symlinks, globs nem diretórios de releases. Nenhum npm install/generate remoto é necessário.
@@ -324,7 +324,7 @@ Binário/path diferente requer revisão, não instalação automática.
 Verificar usuário, pais, modos e CA root:root 0644/cert_t; comparar DER SHA e validade.
 Não ler runtime.env nem credenciais de outras contas.
 
-~~~bash
+```bash
 sudo -u traceflow env -i PATH=/usr/bin:/bin HOME=/nonexistent \
   /usr/bin/python3 -I "$DIAGNOSTIC_PACKAGE_DIR/diagnostic-tool.py" verify \
   --root "$DIAGNOSTIC_PACKAGE_DIR" \
@@ -334,7 +334,7 @@ sudo -u traceflow env -i PATH=/usr/bin:/bin HOME=/nonexistent \
   /usr/bin/node "$DIAGNOSTIC_PACKAGE_DIR/deploy/scripts/diagnostic-runtime.mjs"
 
 openssl x509 -in /etc/pki/traceflow/mysql-ca.pem -noout -fingerprint -sha256 -dates
-~~~
+```
 
 Esses comandos verificam pacote/plataforma/CA local e não autenticam no banco.
 Verificação de rota/DNS na VM exige que sua leitura esteja incluída no cartão D02.
@@ -349,19 +349,19 @@ com /usr/bin/mysql e traceflow_admin informados pelo operador, senha no TTY,
 
 B40, somente mediante autorização mutável específica:
 
-~~~sql
+```sql
 ALTER USER 'traceflow_diag'@'10.20.1.184' ACCOUNT UNLOCK;
-~~~
+```
 
 B41, leitura separadamente autorizada:
 
-~~~sql
+```sql
 SELECT User, Host, plugin, ssl_type, account_locked, password_expired
 FROM mysql.user
 WHERE User IN ('traceflow_api', 'traceflow_worker', 'traceflow_diag', 'traceflow_migrator')
 ORDER BY User, Host;
 SHOW GRANTS FOR 'traceflow_diag'@'10.20.1.184';
-~~~
+```
 
 Só diag pode ter account_locked=N; demais continuam Y, REQUIRE SSL e grants aprovados.
 B41 administrativo não substitui a verificação dos próprios grants efetivos no diagnóstico.
@@ -374,14 +374,14 @@ custódia, aprovação explícita do JSON e plano de D04/relock. Materializar au
 
 Primeiro --validate-only (sem DNS/SQL; ainda exige autorização válida e senha protegida):
 
-~~~bash
+```bash
 sudo -u traceflow env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 TZ=UTC \
   /usr/bin/node "$DIAGNOSTIC_PACKAGE_DIR/deploy/scripts/diagnostic-launcher.mjs" \
   --authorization /run/traceflow-diagnostic/authorization.json \
   --credential-file /run/traceflow-diagnostic/password.json \
   --manifest-sha256 e155bf4ccf3e323a4fd2b0b9bafb1451713d1127bf501b9ca7df7ca17be00ea1 \
   --validate-only
-~~~
+```
 
 Após CONFIG_VALID e dentro da autorização D03, executar exatamente o mesmo comando sem
 --validate-only. Não mudar host, SSL, grants ou UUID para fazê-lo passar. Salvar apenas
@@ -399,16 +399,16 @@ Relock é operação mutável separada, que precisa estar explicitamente autoriz
 para o caminho de erro. Usar o mesmo cliente administrativo protegido, com o seguinte lote
 único — não chamar um B42 inexistente no helper do bootstrap:
 
-~~~sql
+```sql
 ALTER USER 'traceflow_diag'@'10.20.1.184' ACCOUNT LOCK;
 SELECT User, Host, account_locked
 FROM mysql.user
 WHERE User='traceflow_diag' AND Host='10.20.1.184';
-~~~
+```
 
 Execução manual alternativa, depois da autorização de relock, em terminal root privado:
 
-~~~bash
+```bash
 env -i PATH=/usr/bin:/bin HOME=/nonexistent MYSQL_HISTFILE=/dev/null \
   /usr/bin/timeout --foreground --signal=TERM --kill-after=5s 60s \
   /usr/bin/mysql --no-defaults --no-login-paths \
@@ -417,7 +417,7 @@ env -i PATH=/usr/bin:/bin HOME=/nonexistent MYSQL_HISTFILE=/dev/null \
   --ssl-mode=VERIFY_IDENTITY --ssl-ca=/etc/pki/traceflow/mysql-ca.pem \
   --tls-version=TLSv1.2,TLSv1.3 --connect-timeout=5 --local-infile=0 \
   --batch --skip-reconnect < "$DIAGNOSTIC_RELOCK_SQL"
-~~~
+```
 
 DIAGNOSTIC_RELOCK_SQL deve ser arquivo novo root:root 0600, sem symlink, somente com o lote
 acima. ACCOUNT LOCK não encerra sessões existentes; confirmar desconexão primeiro. Se houver
@@ -453,7 +453,7 @@ Separar operador, laboratório, histórico e procedimento não executado.
 No laboratório OL9.8 sem mounts/segredos reais, dependências instaladas por npm ci em cópia
 limpa de fontes e ferramentas verificadas:
 
-~~~bash
+```bash
 python3 -B -m unittest discover -s deploy/tests -p test_diagnostic_package.py -v
 node --test deploy/tests/diagnostic-launcher.test.mjs
 
@@ -463,7 +463,7 @@ python3 -B deploy/tests/run-diagnostic-package-lab.py \
 
 python3 -B deploy/tests/run-diagnostic-quality.py \
   --mysql-base "$MYSQL_LAB_BASE" --node "$NODE22_EXECUTABLE" --report "$LOCAL_QUALITY_REPORT"
-~~~
+```
 
 O último comando aplica 68 migrations exclusivamente na instância sintética que cria, por
 autorização adicional do usuário nesta sessão. Nunca usá-lo na VM OCI. O primeiro harness
@@ -540,26 +540,26 @@ continua suprimido; nenhum debug/trace deve ser habilitado.
 
 ### 27.2 Identificadores de etapas
 
-| Identificador | Operação identificada |
-| --- | --- |
-| PREVALIDATION | Argumentos, autorização protegida e contrato de conexão |
-| TLS_CA | Leitura protegida e validação da CA pública |
-| DNS_IDENTITY | Verificação do DNS gerenciado |
-| TLS_PROBE | Handshake TLS independente, sem autenticação SQL |
-| PRISMA_INIT | Verificação da versão e importação do cliente compartilhado |
-| SQL_IDENTITY | Q1: consulta original de identidade, incluindo @@datadir |
-| SERVER_IDENTITY | Validação do resultado de Q1 |
-| SQL_SESSION_TLS | Q2: SHOW SESSION STATUS original |
-| SESSION_TLS | Validação de cipher/versão TLS da sessão Prisma |
-| SQL_SERVER_PARAMETERS | Q3: consulta original dos parâmetros e roles |
-| ROLES | Validação das roles obrigatórias e ativas |
-| SQL_DIRECT_GRANTS | Q4: SHOW GRANTS FOR CURRENT_USER original |
-| DIRECT_GRANTS | Validação dos grants diretos |
-| SQL_PUBLIC_GRANTS | Q5: expansão original de public, somente quando obrigatória |
-| EFFECTIVE_GRANTS | Validação dos grants efetivos |
-| SQL_SELECT_ONE | Q6: SELECT 1 original |
-| DISCONNECT | Encerramento do Prisma quando não existe falha primária |
-| UNKNOWN | Proteção do serializador contra identificador não reconhecido |
+| Identificador         | Operação identificada                                         |
+| --------------------- | ------------------------------------------------------------- |
+| PREVALIDATION         | Argumentos, autorização protegida e contrato de conexão       |
+| TLS_CA                | Leitura protegida e validação da CA pública                   |
+| DNS_IDENTITY          | Verificação do DNS gerenciado                                 |
+| TLS_PROBE             | Handshake TLS independente, sem autenticação SQL              |
+| PRISMA_INIT           | Verificação da versão e importação do cliente compartilhado   |
+| SQL_IDENTITY          | Q1: consulta original de identidade, incluindo @@datadir      |
+| SERVER_IDENTITY       | Validação do resultado de Q1                                  |
+| SQL_SESSION_TLS       | Q2: SHOW SESSION STATUS original                              |
+| SESSION_TLS           | Validação de cipher/versão TLS da sessão Prisma               |
+| SQL_SERVER_PARAMETERS | Q3: consulta original dos parâmetros e roles                  |
+| ROLES                 | Validação das roles obrigatórias e ativas                     |
+| SQL_DIRECT_GRANTS     | Q4: SHOW GRANTS FOR CURRENT_USER original                     |
+| DIRECT_GRANTS         | Validação dos grants diretos                                  |
+| SQL_PUBLIC_GRANTS     | Q5: expansão original de public, somente quando obrigatória   |
+| EFFECTIVE_GRANTS      | Validação dos grants efetivos                                 |
+| SQL_SELECT_ONE        | Q6: SELECT 1 original                                         |
+| DISCONNECT            | Encerramento do Prisma quando não existe falha primária       |
+| UNKNOWN               | Proteção do serializador contra identificador não reconhecido |
 
 As seis consultas, sua ordem e a condição de Q5 foram preservadas. Não foi removido @@datadir,
 alterado qualquer GRANT ou modificado o cliente Prisma compartilhado, schema ou migrations.
@@ -869,3 +869,290 @@ por outras conexões. A futura janela deve manter essa configuração estável. 
    `mysql.*` à conta de diagnóstico nem contornar a falha automaticamente.
 6. Executar D04/relock, confirmar bloqueio e zero sessões/processos, remover os arquivos
    temporários e restaurar o estado operacional. Preservar o FAIL histórico da 06.1.4.
+
+## 30. Complementação OCI-DEPLOY-06.1.5 — atestado administrativo de ausência
+
+Data: 16/10/2026. Baseline: `daniel-dev`, HEAD
+`8f6681c4e0b74abfb1959c63539ea0861984b05c`, working tree inicialmente limpo.
+
+**Estado desta complementação: PARTIAL. Não está pronta para empacotamento.**
+Esta seção substitui as orientações operacionais da seção 29 para a versão candidata;
+as seções anteriores preservam o histórico. A 06.1.4 e o D03 continuam **FAIL**.
+Nenhuma autorização para conectar, coletar evidência, desbloquear conta ou executar
+qualquer etapa futura decorre desta implementação.
+
+### 30.1 Evidência comunicada e decisão de segurança
+
+O operador informou: `mandatory_roles=public`, `activate_all_roles_on_login=0`,
+contagem administrativa de contas de nome `public` igual a zero e erro 1141 ao
+consultar os grants de `public@%`. Esses fatos não foram recoletados nesta tarefa.
+A documentação [MySQL 26.7 — roles](https://dev.mysql.com/doc/refman/26.7/en/roles.html)
+distingue configuração, existência, concessão e ativação: uma role configurada
+como obrigatória, mas ausente de `mysql.user`, não é concedida aos usuários.
+
+O zero obtido por consulta administrativa bem-sucedida sustenta ausência naquele
+instante. O 1141 e o P2010/3530 histórico não substituem essa evidência. Nenhum dos
+dois erros é tratado como sucesso ou dispara retry/fallback. Um nome em
+`mandatory_roles`, `CURRENT_ROLE()=NONE` ou uma atribuição em `SHOW GRANTS`
+isoladamente não prova ausência nem auditoria dos privilégios herdados.
+
+| Estado  | Evidência                                                                          | Comportamento candidato                                                                    |
+| ------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| ABSENT  | Contrato e custódia válidos; consulta de existência bem-sucedida com contagem zero | Continua as verificações de sessão e grants; ainda termina em FAIL no bloqueio de warnings |
+| PRESENT | Contagem positiva de contas de nome public                                         | FAIL antes do SQL; não há auditoria de herança habilitada                                  |
+| UNKNOWN | Evidência ausente, inválida, vencida, incompleta ou contraditória                  | FAIL; nenhum atalho por erro SQL                                                           |
+
+Uma contagem positiva em qualquer host bloqueia conservadoramente o caminho de
+ausência; não é prova da identidade exata ou dos privilégios de `public@%`.
+O estado ABSENT atestado é necessário, mas não suficiente para PASS.
+
+### 30.2 Contrato fechado v1
+
+O atestado é JSON UTF-8, até **16 KiB**, sem campos extras em qualquer objeto,
+membros duplicados (inclusive nomes equivalentes escapados), getters ou coerções.
+O parser limita a profundidade. IDs de evidência, execução e referência de grants
+são UUID v4 canônicos em minúsculas; identificadores reais não são inventados.
+
+| Caminho                     | Conteúdo exigido                                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `formatVersion`, `kind`     | `1`, `mysql-role-existence-attestation`                                                                                 |
+| `evidenceId`, `executionId` | IDs distintos, iguais aos da autorização atual                                                                          |
+| `collectedAt`, `expiresAt`  | UTC canônico `YYYY-MM-DDTHH:mm:ss.sssZ`                                                                                 |
+| `operatorId`                | Identificação administrativa, 1–64 caracteres alfanuméricos, ponto, hífen ou sublinhado; primeiro alfanumérico          |
+| `mode`, `source`            | Produção: `oci-read-only` e `administrative-read-only`; laboratório: `local-isolated` e `synthetic-lab`                 |
+| `target`                    | Exatamente `serverUuid`, `version`, `host`, `expectedAddress`, `port`, `caSha256`, `schema`, `account`                  |
+| `role`                      | Exatamente `name: public`, `host: %`                                                                                    |
+| `observations`              | Exatamente `mandatoryRoles: public`, `activateAllRolesOnLogin: 0`, `existence`                                          |
+| `observations.existence`    | `queryId: MYSQL_USER_PUBLIC_COUNT_V1`, `status: SUCCESS`, `accountCount` inteiro seguro não negativo                    |
+| `grantsAudit`               | Exatamente `referenceId`, `sha256`, `status: PASS`, `account`, `schema`, `privileges: [SELECT]`, `explicitRoleCount: 0` |
+| `package`                   | Exatamente `packageId`, `manifestSha256`                                                                                |
+
+O identificador `MYSQL_USER_PUBLIC_COUNT_V1` corresponde exclusivamente à coleta
+administrativa `SELECT COUNT(*) FROM mysql.user WHERE User = 'public'`, concluída
+com sucesso. Conta todos os hosts; zero também exclui `public@%`. O diagnóstico
+não executa essa consulta nem solicita SELECT em `mysql.*`. Não basta preencher
+`status: SUCCESS`: o operador deve conservar o resultado original bem-sucedido e
+a auditoria referenciada sob custódia administrativa. `grantsAudit.sha256` fixa
+os bytes desse registro independente; o programa não abre esse registro nem
+revalida a coleta administrativa por uma nova conexão.
+
+O target deve coincidir integralmente com a autorização. Em produção são fixados
+FQDN `traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com`, IP `10.20.2.25`,
+porta `3306`, versão `26.7.0-cloud`, schema `traceflow` e conta completa
+`traceflow_diag@10.20.1.184`. UUID e fingerprint SHA-256 da CA vêm da evidência
+autorizada, não de valores fabricados. O fingerprint é o SHA-256 DER do certificado,
+conforme o contrato existente da CA.
+
+A autorização ganha um objeto fechado `roleAttestation` com exatamente:
+`formatVersion: 1`, `evidenceId`, `sha256`, `executionId`, `packageId`,
+`manifestSha256`. Seu `target.account` inclui nome **e host**. Os hashes são
+64 dígitos hexadecimais minúsculos; `sha256` cobre os bytes exatos do atestado,
+incluindo espaços e newline. Os demais contratos da autorização continuam vigentes.
+O packageId segue `traceflow-prisma-diagnostic-` mais 16 dígitos hexadecimais.
+A vinculação confere o manifesto real protegido, seu hash e o recibo do verificador.
+
+Não há exemplo operacional preenchido, gerador de atestados, credenciais, arquivo de
+autorização ou atestado real nesta entrega. Fixtures ficam somente nos testes,
+em memória. O rótulo de origem não autentica o conteúdo por si só: um administrador
+confiável é responsável por nunca instalar uma fixture ou declaração sem coleta.
+
+### 30.3 Custódia, revalidação e validade temporal
+
+Caminho operacional fixo:
+`/etc/traceflow/diagnostic-evidence/<evidenceId>.json`. Não se aceita caminho
+arbitrário na autorização. O pacote deverá estar em
+`/opt/traceflow-diagnostics/<packageId>`.
+
+O leitor exige Linux e executor não root. Arquivo regular de root, link count 1,
+modo 0400/0440/0600/0640, leitura efetivamente permitida e escrita efetivamente
+negada ao executor. Na instalação futura, 0440 ou 0640 com grupo administrativo
+que permita somente leitura ao executor são exemplos compatíveis; 0400/0600
+sem permissão de leitura resultarão em FAIL. Não se altera permissão nesta etapa.
+
+Todos os ancestrais precisam ser diretórios de root sem escrita para grupo/outros.
+São verificados canonicalização, ausência de symlinks, `O_NOFOLLOW`, limites de
+leitura e identidade por dispositivo/inode/modo/proprietário/grupo/link count/
+tamanho/mtime/ctime antes e depois da leitura por descritor. Mudança do caminho,
+arquivo ou ancestrais provoca FAIL; o manifesto tem verificações análogas.
+O executor não pode substituir o arquivo removendo ou escrevendo em seu diretório.
+
+O hash detecta divergências, **não prova origem**. O modelo confia na custódia root,
+no sistema operacional, no relógio UTC e no operador. Não protege contra root
+comprometido, adulteração deliberada pelo próprio custodiante ou uma coleta falsa.
+
+O launcher verifica integridade do pacote, autorização e atestado **antes de ler
+a credencial**. O filho reabre e verifica o atestado antes da CA/conexão e novamente
+após a desconexão, inclusive em falha. A evidência é imutável em memória. Exigem-se:
+
+- Coleta não futura, instante atual estritamente anterior à expiração.
+- Expiração posterior à coleta, intervalo máximo de 600.000 ms.
+- Expiração do atestado não posterior à autorização.
+- Mesmo evidenceId, executionId, servidor, conta, CA, schema, packageId e manifesto.
+
+Expiração/substituição durante a execução impede sucesso; uma falha anterior permanece
+primária. Não há ledger persistente de consumo: o procedimento deve alocar novo
+executionId/evidenceId por tentativa e não reutilizar a mesma autorização. O contrato
+recusa vínculo de outra execução; ele não pretende provar uso único de arquivos copiados
+com os mesmos identificadores. Nenhum estado operacional foi criado para esse fim.
+
+A coleta administrativa e a sessão Prisma **não são snapshot atômico**. Prazo curto,
+transação na mesma conexão e revalidação de arquivo não congelam ACLs do servidor.
+Congelamento operacional de mudanças e confirmação administrativa posterior continuam
+pré-requisitos de uma futura homologação; ainda não há caminho de PASS gerenciado.
+
+### 30.4 Auditoria implementada na sessão
+
+As consultas originais de identidade, TLS e parâmetros permanecem byte a byte,
+incluindo `@@datadir`. `CURRENT_USER()` é comparado à conta completa autorizada.
+Preservam-se TLS estrito, CA/hostname/DNS, UUID, versão, schema, Prisma 6.12.0 e pool/
+timeouts. Nenhuma alteração no Prisma compartilhado, schema, migrations ou grants.
+
+Depois da atestação ABSENT, a sessão exige `mandatoryRoles=public`,
+`CURRENT_ROLE()=NONE`, grants diretos válidos e configuração consistente.
+A consulta `SHOW GRANTS FOR CURRENT_USER` é preservada; cada linha, coluna,
+destinatário e privilégio continuam auditados. Qualquer atribuição de role,
+inclusive `public`, agora é contradição. Somente USAGE global e SELECT no schema
+autorizado são suficientes no caminho ABSENT; SHOW VIEW adicional também é recusado,
+pois não está no atestado da conta atual. DML, DDL, privilégios administrativos,
+GRANT/ADMIN OPTION, grants globais excessivos, outros schemas e ambiguidades falham.
+
+Acrescenta-se somente a leitura
+`SELECT @@GLOBAL.activate_all_roles_on_login AS activateAllRolesOnLogin`;
+exige uma linha/coluna com zero. O inventário APPLICABLE_ROLES conserva a consulta
+da seção 29.3, sem filtro/limite; qualquer linha ou formato inesperado falha.
+Array vazio comprova apenas o formato observado, **não a completude**.
+
+Não se executa `SHOW GRANTS` sem FOR nem `USING public`: a decisão ocorre antes
+dessas consultas. PRESENT é recusado antes do SQL, sem tentar expansão. O caminho
+local-isolated sem roles mantém a auditoria direct-only e SELECT 1. Não há PASS
+para roles obrigatórias, mesmo que um mock forneça `graphVerified=true`.
+
+O caminho ABSENT para após o inventário com:
+
+```json
+{
+  "status": "FAIL",
+  "code": "ROLE_WARNINGS_UNVERIFIED",
+  "phase": "ROLE_WARNINGS",
+  "writes": false
+}
+```
+
+O launcher acrescentará o packageId verificado; não foi criado um novo pacote.
+As fases novas são `ADMIN_ROLE_ATTESTATION`, `ROLE_ATTESTATION_FINAL`,
+`SQL_ROLE_SETTINGS` e `ROLE_WARNINGS`. Mantêm-se fases históricas,
+código Prisma original e mysqlCode opcional sanitizado (decimal 1–65535).
+Erros locais sem código MySQL não inventam mysqlCode. Saída única, sem SQL,
+mensagens de servidor, stack, credenciais ou metadados brutos.
+
+O launcher recusa PASS sob autorização `oci-read-only`, inclusive se o filho omitir
+ou contradizer o mode, e recusa alegações de expansão.
+Resultados `CONFIG_VALID` de `--validate-only` atestam somente validação
+local dos inputs/CA, não conexão, inventário ou auditoria efetiva.
+
+### 30.5 Bloqueio de warnings — fundamentação e limite
+
+O [manual de prepared statements 26.7](https://dev.mysql.com/doc/refman/26.7/en/sql-prepared-statements.html)
+inclui **SHOW WARNINGS** entre comandos preparáveis. Porém exclui
+`SHOW COUNT(*) WARNINGS` e referências a `@@warning_count`. Logo,
+não basta transferir qualquer SQL do cliente administrativo para `$queryRawUnsafe`.
+
+O [manual SHOW WARNINGS](https://dev.mysql.com/doc/refman/26.7/en/show-warnings.html)
+distingue total de condições e registros armazenados: `max_error_count` pode
+limitar os registros, inclusive a zero. Um conjunto vazio não certifica zero warnings.
+A [área de diagnósticos](https://dev.mysql.com/doc/refman/26.7/en/diagnostics-area.html)
+é da sessão e pode ser substituída por comandos intermediários; SHOW WARNINGS é
+diagnóstico, mas isso não prova que todo o percurso cliente/engine preserve a área.
+
+O [conector MySQL no commit do engine Prisma 6.12.0 instalado](https://github.com/prisma/prisma-engines/blob/8047c96bbd92db98a2abc7c9323ce77c02c89dbc/quaint/src/connector/mysql/native/mod.rs)
+utiliza preparação/cache, execução e conversão do resultado. O ResultSet retornado
+nesse caminho não oferece ao script o contador nativo de warnings. A preparação
+pode envolver comandos adicionais. Isso demonstra uma lacuna de observabilidade;
+**não demonstra que toda chamada Prisma necessariamente apaga warnings**.
+
+A transação interativa fixa a conexão, mas não demonstra associação dos warnings
+à consulta anterior. Também não demonstra um snapshot das tabelas de privilégios.
+A implementação não executa SHOW WARNINGS experimentalmente, não troca conexão,
+não usa contador de outra sessão e não cria um mock de engine como prova.
+
+`requireVerifiableRoleWarnings()` falha incondicionalmente. Não existe flag,
+campo do atestado ou retorno simulado que possa habilitar PASS. Ainda faltam
+mecanismo demonstrado de contagem/associação/completude e verificações finais
+da sessão ao redor desse mecanismo. Revalidação do arquivo já existe; ela não
+substitui essas verificações SQL finais, que não foram implementadas como prova
+fictícia de um caminho que permanece bloqueado.
+
+### 30.6 Testes desta complementação
+
+Executados localmente com dependências existentes e Node 22.23.3 do Mac
+(alvo continua Node 22.23.2/ARM64). Sem MySQL, conexão Prisma, credenciais reais,
+migrations ou pacote novo. As fixtures de filesystem, Prisma, processos e
+ambiente são sintéticas; não se materializa atestado operacional.
+
+```bash
+env -i PATH=/usr/bin:/bin /opt/homebrew/opt/node@22/bin/node \
+  --experimental-vm-modules --test \
+  deploy/tests/role-attestation.test.mjs \
+  deploy/tests/heatwave-diagnostic.test.mjs \
+  deploy/tests/diagnostic-launcher.test.mjs
+```
+
+No diretório backend:
+
+```bash
+env -i PATH=/opt/homebrew/opt/node@22/bin:/usr/bin:/bin \
+  /opt/homebrew/opt/node@22/bin/node node_modules/vitest/vitest.mjs \
+  run test/unit/heatwave-connection.test.js --no-file-parallelism
+```
+
+Resultados: **257 PASS**, **0 FAIL**, **0 ignorados/cancelados**:
+93 do atestado, 86 do diagnóstico, 26 do launcher e 52 dos helpers de conexão.
+ESLint: nove arquivos, zero erros/avisos, usando o config backend e os mesmos
+globals Node/rules para os testes e launcher MJS. Prettier: dez arquivos PASS.
+Sintaxe: nove arquivos PASS. `git diff --check`: PASS.
+
+A primeira execução do ESLint identificou duas ocorrências de `no-control-regex`,
+uma no parser novo e outra no launcher já existente. Foram substituídas por
+verificação explícita dos códigos dos caracteres, sem aceitar controles adicionais;
+os testes cobrem essa preservação. A verificação final passou. A normalização
+Markdown foi conferida contra a baseline: não altera conteúdo de evidências,
+comandos ou resultados históricos.
+
+Cobertura: contrato fechado, vínculo e validade; custódia/substituição/limites;
+ABSENT/PRESENT/UNKNOWN; grants excessivos e roles explícitas; contradições;
+JSON sanitizado e códigos SQL; desconexão/falha primária; deadline; integridade
+antes da credencial; `--validate-only` sem rede. Os testes de warnings certificam
+a **recusa**, inclusive com alegações de zero, contagem positiva, erro, sessão
+errada ou operação intermediária; não certificam uma leitura real dos warnings.
+
+Não executados: MySQL real/HeatWave, semântica real do engine/prepared statements,
+custódia real Linux/SELinux, execução ARM64 ou geração/verificação de pacote novo.
+O verificador do pacote no teste do launcher é simulado: comprova a ordem e
+recusa da falha, não integridade de um artefato inexistente. O aviso experimental
+do Node refere-se ao harness `vm`, não à saída operacional do diagnóstico.
+
+### 30.7 Próxima etapa e critérios de liberação
+
+1. Revisar este contrato e o bloqueio. Não empacotar esta versão como homologável.
+2. Sob autorização separada, demonstrar um mecanismo que associe os warnings
+   completos ao inventário na mesma sessão com o engine exato. Investigar em
+   laboratório permitido; nenhuma conta/grant do HeatWave deve ser ampliada.
+3. Implementar e testar a verificação real e as releituras finais de consistência.
+   Continuar FAIL para warnings, impossibilidade de contar/associar, role presente/
+   desconhecida, alteração de ACL/configuração, expiração ou desconexão incompleta.
+4. Somente depois, autorizar a revisão da allowlist do empacotador para incluir
+   `heatwave-role-attestation.js`, novo packageId/manifesto/checksums e instalação.
+   A receita e os pacotes anteriores não foram alterados nesta entrega.
+5. Em janela de execução explicitamente autorizada, o administrador deve coletar
+   identidade/configuração/contagem/grants pela conexão TLS protegida, conservar
+   a evidência, instalar o atestado sob custódia e vincular autorização/pacote.
+   Conta runtime não recebe acesso administrativo. Não executar essa etapa agora.
+6. Para futuro PASS: todos os vínculos e controles, inventário vazio íntegro sem
+   warnings, somente grants autorizados, consistência inicial/final, SELECT 1 e
+   desconexão concluída. Verificação administrativa posterior deve confirmar
+   ausência e estabilidade de grants/configuração; divergência invalida a conclusão.
+7. Fechar a janela segundo D04, conferir bloqueio e zero sessões/processos,
+   retirar inputs temporários e arquivar evidências sanitizadas sob a retenção
+   aprovada. Não reutilizar atestado/autorização; preservar os FAIL históricos.
+
+A aprovação desta implementação local não é homologação Prisma–HeatWave.

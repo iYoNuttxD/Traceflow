@@ -9,6 +9,10 @@ import {
   isDiagnosticPhase,
   sanitizedMysqlCode,
 } from "../../backend/scripts/lib/heatwave-connection.js";
+import {
+  loadRoleAttestation,
+  requireAbsentRole,
+} from "../../backend/scripts/lib/heatwave-role-attestation.js";
 import { validateRuntime } from "./diagnostic-runtime.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -144,6 +148,32 @@ export function sanitizedResult(result, password) {
         "DIAGNOSTIC_OUTPUT_REFUSED",
       );
   }
+  if (diagnostic.status === "PASS") {
+    // No managed PASS is supported while warning association remains unproven.
+    check(diagnostic.mode !== "oci-read-only", "UNVERIFIED_ROLE_AUDIT_RESULT");
+    if (diagnostic.roleVerification !== undefined) {
+      const role = diagnostic.roleVerification;
+      check(
+        role &&
+          typeof role === "object" &&
+          !Array.isArray(role) &&
+          Object.keys(role).length === 5 &&
+          [
+            "mandatoryPublic",
+            "activePublic",
+            "expanded",
+            "graphVerified",
+            "strategy",
+          ].every((key) => Object.hasOwn(role, key)) &&
+          role.mandatoryPublic === false &&
+          role.activePublic === false &&
+          role.expanded === false &&
+          role.graphVerified === false &&
+          role.strategy === "direct-only",
+        "UNVERIFIED_ROLE_AUDIT_RESULT",
+      );
+    }
+  }
   return diagnostic;
 }
 
@@ -231,6 +261,16 @@ async function main() {
       ? "HEATWAVE_DIAGNOSTIC_DATABASE_URL"
       : "TEST_DATABASE_URL";
     connectionContract({ [variable]: url.toString() }, authorization);
+    if (managed || authorization.roleAttestation) {
+      check(
+        authorization.roleAttestation?.packageId === receipt.packageId &&
+          authorization.roleAttestation?.manifestSha256 ===
+            values["manifest-sha256"],
+        "ROLE_ATTESTATION_PACKAGE_MISMATCH",
+      );
+      const evidence = await loadRoleAttestation(authorization, root);
+      requireAbsentRole(evidence);
+    }
 
     const secret = JSON.parse(
       await protectedFile(values["credential-file"], { privateFile: true }),
@@ -240,7 +280,9 @@ async function main() {
         typeof secret.password === "string" &&
         secret.password.length > 0 &&
         secret.password.length <= 4096 &&
-        !/[\u0000-\u001f\u007f]/.test(secret.password),
+        ![...secret.password].some(
+          (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+        ),
       "CREDENTIAL_FORMAT",
     );
     url.password = encodeURIComponent(secret.password);
@@ -254,6 +296,11 @@ async function main() {
     if (values["validate-only"]) args.push("--validate-only");
     const result = await run(args, environment);
     const diagnostic = sanitizedResult(result, secret.password);
+    // Bind the blocker to the authorization, not to a mode claimed by the child.
+    check(
+      !managed || diagnostic.status !== "PASS",
+      "UNVERIFIED_ROLE_AUDIT_RESULT",
+    );
     console.log(
       JSON.stringify({ ...diagnostic, packageId: receipt.packageId }),
     );
