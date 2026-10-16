@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { validateTestDatabaseUrl } from './database-safety.js';
 
+const RECOVERY_LOCK_WAIT_SECONDS = 2;
 let client = null;
 
 const recoveryOptions = () =>
@@ -17,6 +18,15 @@ function validConnectionId(connectionId) {
   if (!Number.isSafeInteger(connectionId) || connectionId <= 0)
     throw new TypeError('Identificador de conexão inválido.');
   return connectionId;
+}
+
+export function recoveryTransaction(work) {
+  return recoveryPrisma().$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(
+      `SET SESSION innodb_lock_wait_timeout = ${RECOVERY_LOCK_WAIT_SECONDS}`
+    );
+    return work(tx);
+  });
 }
 
 export function killQuery(connectionId) {

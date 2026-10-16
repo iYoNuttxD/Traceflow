@@ -1,5 +1,5 @@
 import { prisma } from '../../database/prismaClient.js';
-import { recoveryPrisma } from '../../database/recovery-prisma.js';
+import { recoveryPrisma, recoveryTransaction } from '../../database/recovery-prisma.js';
 
 const activeStatuses = ['QUEUED', 'RUNNING'];
 
@@ -16,8 +16,6 @@ import {
   nextSyncAfterRun,
   syncSchedulePolicy
 } from './github-sync-schedule.js';
-
-const RECOVERY_LOCK_WAIT_SECONDS = 2;
 
 const leaseLost = () =>
   new ProjectServiceError('A execução não está mais ativa.', 409, 'GITHUB_SYNC_LEASE_LOST');
@@ -287,10 +285,7 @@ export const githubSyncRunRepository = {
       select: { projectId: true }
     });
     if (!found) return null;
-    const changed = await client.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(
-        `SET SESSION innodb_lock_wait_timeout = ${RECOVERY_LOCK_WAIT_SECONDS}`
-      );
+    const changed = await recoveryTransaction(async (tx) => {
       try {
         await lockActiveProject(tx, found.projectId, { nowait: true });
       } catch (error) {
