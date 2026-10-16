@@ -177,4 +177,35 @@ describe('PR26 TF-REV-001: leituras de alertas com membership ativa', () => {
       }
     }
   });
+
+  it('L-17 o serviço recusa sozinho a membership inativa e o projeto excluído, sem depender do middleware', async () => {
+    const { project, alert } = await scenario();
+    const removed = await register('MEMBER', project.id);
+    const owner = await register('OWNER', project.id);
+    await prisma.projectMembership.update({
+      where: { projectId_userId: { projectId: project.id, userId: removed.user.id } },
+      data: { isActive: false }
+    });
+    const { traceabilityAlertService: service } =
+      await import('../../src/modules/traceability/traceability-alert.service.js');
+    const calls = (actorUserId) => [
+      ['lista', () => service.list(project.id, {}, { actorUserId })],
+      ['índice', () => service.index(project.id, {}, { actorUserId })],
+      ['resumo', () => service.summary(project.id, { actorUserId })],
+      ['detalhe', () => service.get(project.id, alert.id, { actorUserId })],
+      [
+        'tarefas sem vínculo técnico',
+        () => service.listUnlinkedTasks(project.id, {}, { actorUserId })
+      ]
+    ];
+    const refused = { statusCode: 404, code: 'RESOURCE_NOT_FOUND' };
+
+    for (const [name, call] of calls(owner.user.id))
+      await expect(call(), `ativa ${name}`).resolves.toBeTruthy();
+    for (const [name, call] of calls(removed.user.id))
+      await expect(call(), `inativa ${name}`).rejects.toMatchObject(refused);
+    await prisma.project.update({ where: { id: project.id }, data: { deletedAt: new Date() } });
+    for (const [name, call] of calls(owner.user.id))
+      await expect(call(), `excluído ${name}`).rejects.toMatchObject(refused);
+  });
 });

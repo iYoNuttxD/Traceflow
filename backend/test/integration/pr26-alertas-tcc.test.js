@@ -149,4 +149,19 @@ describe('PR26 TF-REV-002: alertas de rastreabilidade literais (RF13, RF39, RF40
       limitations: ['CLOSE_TIME_UNAVAILABLE']
     });
   });
+
+  it('T-06 a reconciliação completa também cria o alerta RF13 em projeto sem integração', async () => {
+    const { project } = await scenario({ integration: false });
+    const task = await createTask(prisma, project.id, { status: 'CONCLUIDO' });
+
+    await alertService.reconcileProject(project.id, { dryRun: false });
+
+    expect(await alertsOf(project.id)).toEqual([
+      expect.objectContaining({
+        type: 'TASK_CONCLUDED_WITHOUT_COMMIT',
+        status: 'OPEN',
+        taskId: task.id
+      })
+    ]);
+  });
 });
