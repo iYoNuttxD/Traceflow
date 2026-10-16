@@ -9,8 +9,8 @@
   - executadas: Fases 0 a 7, 9, 11 e 12, mais a 16, a 17 e a parte da 18 que não depende de aval;
   - aguardam o portão G1: Fases 8, 13, 14 e 15. O João levou o ADR-023 e o ADR-024 ao revisor em
     16/10/2026;
-  - aguardam o João: migrations do zero e upgrade representativo (comandos no banco dele) e a matriz
-    visual (portão G3).
+  - aguardam o João: o upgrade representativo (comandos no banco dele) e a matriz visual (portão
+    G3). A cadeia de migrations do zero rodou com o aval dele em 16/10/2026 (seção 6).
 
 ## 1. Commits
 
@@ -170,11 +170,19 @@ Cada mutante foi aplicado sozinho, com os testes da área, e o arquivo restaurad
 - As 74 antigas não mudaram: `git diff --name-only 9c053bf HEAD -- backend/prisma/migrations` lista só
   `20261015120000_notification_decisions` e `20261015130000_traceability_inconsistency_notices`.
 - O banco de teste está com as 76 aplicadas (`db:test:status`).
-- **Pendentes de aval do João**, porque criam bancos no MySQL dele:
-  - a cadeia do zero num banco vazio (`npm run db:test:validate-empty`, que cria e apaga
-    `traceflow_test_lr2_empty_validation`; no Windows o script tem o S201-F14, e a alternativa é o
-    mesmo roteiro com `shell: true`);
-  - o upgrade representativo, numa cópia do banco de dev em `traceflow_upgrade_test`.
+- **Cadeia do zero, com o aval do João (16/10/2026).** O `npm run db:test:validate-empty` não roda no
+  Windows (S201-F14), e rodou o mesmo roteiro com o Prisma chamado pelo `node`, sem o `.cmd`. O roteiro
+  confere que o banco de origem é o `traceflow_test` e cria `traceflow_test_lr2_empty_validation`. Lá,
+  aplica as migrations com `migrate deploy`, confere a tabela `_prisma_migrations` contra as pastas e
+  apaga o banco no fim:
+
+  ```json
+  {"database":"traceflow_test_lr2_empty_validation","migrations":76,"expected":76,"missing":[],"last":"20261015130000_traceability_inconsistency_notices","notificationDecisions":0,"pendingNotices":0,"seconds":10}
+  ```
+
+  Depois, só o `traceflow_test` restava entre os bancos `traceflow_test*`.
+- **Pendente de aval do João:** o upgrade representativo, numa cópia do banco de dev em
+  `traceflow_upgrade_test`, com os dry-runs do RF59 e da reconciliação (Anexo A, itens 10 e 11).
 
 **Auditoria de trailers.** `git log --format=%(trailers) 9c053bf..HEAD` não traz nenhum trailer. As
 mensagens não citam Claude.
@@ -316,13 +324,13 @@ O aceite é do João (VISUALLY APPROVED). O inventário de UI marca as superfíc
 | Decisões abertas aprovadas antes de contrato novo | atendido: as Fases 8, 13, 14 e 15 esperam o G1 |
 | Direção visual implementada e aprovada | G2 aprovado em 16/10/2026; G3 pendente |
 | Composição com a OCI revisada | atendido (seção 7); a mudança na branch OCI fica com o dono dela |
-| Testes no SHA resultante | suítes no `b2b81a2` (seção 6); migrations do zero e upgrade aguardam o aval do João |
+| Testes no SHA resultante | suítes no `b2b81a2` e cadeia de migrations do zero (seção 6); o upgrade representativo aguarda o aval do João |
 
 ## 12. O que fica
 
 - **Portão G1** (ADR-023 e ADR-024 com o revisor): Fases 8, 13, 14 e 15, com D-01 a D-06, F-01,
   J-01 a J-04, O-01 a O-04 e os mutantes MP28 a MP30. Itens PR26-F01 e PR26-F02 do backlog.
-- **Aval do João:** migrations do zero, upgrade representativo e matriz visual (G3).
+- **Aval do João:** upgrade representativo e matriz visual (G3).
 - **Branch OCI:** item PR26-F03.
 - **Homologação:** item PR26-F04 (ARM64, HeatWave, TLS e a saída controlada).
 - **Fora do escopo (⚑18):** E2E de navegador (S104-F02), os CONF-F que não o CONF-F51, o S202-F36 e o
