@@ -7,8 +7,11 @@ import * as heatwave from "../../backend/scripts/lib/heatwave-connection.js";
 import {
   validateRoleAttestation,
   requireAbsentRole,
+  parseRoleAttestationJson,
 } from "../../backend/scripts/lib/heatwave-role-attestation.js";
+import * as auditEvidence from "../../backend/scripts/lib/heatwave-audit-evidence.js";
 import { attestationFixture } from "./helpers/role-attestation-fixture.mjs";
+import { auditFixture } from "./helpers/administrative-audit-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
@@ -358,12 +361,14 @@ async function launchScenario(options = {}) {
     },
   };
   const modules = {
+    "../../backend/scripts/lib/heatwave-audit-evidence.js": auditEvidence,
     "node:util": { parseArgs: () => ({ values }) },
     "node:child_process": childProcess,
     "node:path": nodePath,
     "node:url": nodeUrl,
     "../../backend/scripts/lib/heatwave-connection.js": connection,
     "../../backend/scripts/lib/heatwave-role-attestation.js": {
+      parseRoleAttestationJson,
       requireAbsentRole,
       loadRoleAttestation: async (authorization, root) => {
         events.push("attestation");
@@ -547,4 +552,27 @@ test("launcher preserves rejection of every ASCII control in credentials", async
     assert.equal(r.result.code, "CREDENTIAL_FORMAT");
     assert.ok(!r.events.includes("spawn"));
   }
+});
+
+test("v2 operational gate is enforced before the launcher reads any credential", async () => {
+  const a = auditFixture();
+  const r = await launchScenario({
+    mutate(f) {
+      f.authorization = a.authorization;
+      f.binding = a.binding;
+      f.root = "/opt/traceflow-diagnostics/" + a.binding.packageId;
+    },
+  });
+  assert.equal(r.result.status, "FAIL");
+  assert.equal(r.result.code, "ADMIN_COLLECTION_RUNTIME_UNVERIFIED");
+  assert.deepEqual(r.events, ["integrity", "runtime", "authorization"]);
+});
+test("launcher rejects duplicate JSON fields instead of accepting the last value", () => {
+  for (const output of [
+    '{"status":"PASS","status":"CONFIG_VALID","connected":false}',
+    '{"status":"FAIL","code":"P2010","code":"OTHER","phase":"SQL_IDENTITY","writes":false}',
+  ])
+    assert.throws(() =>
+      sanitizedResult({ code: 0, output }, "synthetic-secret"),
+    );
 });

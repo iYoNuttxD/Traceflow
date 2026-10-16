@@ -3,6 +3,10 @@ import { spawn, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  loadInitialAudit,
+  validatePrismaEvidence,
+} from "../../backend/scripts/lib/heatwave-audit-evidence.js";
+import {
   protectedFile,
   connectionContract,
   isDiagnosticCode,
@@ -12,6 +16,7 @@ import {
 import {
   loadRoleAttestation,
   requireAbsentRole,
+  parseRoleAttestationJson,
 } from "../../backend/scripts/lib/heatwave-role-attestation.js";
 import { validateRuntime } from "./diagnostic-runtime.mjs";
 
@@ -85,14 +90,25 @@ async function run(args, environment) {
   });
 }
 
-export function sanitizedResult(result, password) {
+export function sanitizedResult(result, password, auditContext) {
   check(
     !result.output.includes(password) &&
       !result.output.includes(encodeURIComponent(password)) &&
       !/mysql:\/\//i.test(result.output),
     "DIAGNOSTIC_OUTPUT_REFUSED",
   );
+  parseRoleAttestationJson(result.output);
   const diagnostic = JSON.parse(result.output);
+  if (diagnostic?.status === "PRISMA_VERIFIED") {
+    check(result.code === 0 && auditContext, "DIAGNOSTIC_OUTPUT_REFUSED");
+    validatePrismaEvidence(
+      diagnostic,
+      auditContext.authorization,
+      auditContext.binding,
+      auditContext.initial,
+    );
+    return diagnostic;
+  }
   check(
     diagnostic &&
       !Array.isArray(diagnostic) &&
@@ -261,7 +277,17 @@ async function main() {
       ? "HEATWAVE_DIAGNOSTIC_DATABASE_URL"
       : "TEST_DATABASE_URL";
     connectionContract({ [variable]: url.toString() }, authorization);
-    if (managed || authorization.roleAttestation) {
+    let initialAudit;
+    if (authorization.administrativeAudit) {
+      check(
+        authorization.administrativeAudit.package?.packageId ===
+          receipt.packageId &&
+          authorization.administrativeAudit.package?.manifestSha256 ===
+            values["manifest-sha256"],
+        "AUDIT_PACKAGE_MISMATCH",
+      );
+      initialAudit = await loadInitialAudit(authorization, root);
+    } else if (managed || authorization.roleAttestation) {
       check(
         authorization.roleAttestation?.packageId === receipt.packageId &&
           authorization.roleAttestation?.manifestSha256 ===
@@ -295,14 +321,28 @@ async function main() {
     ];
     if (values["validate-only"]) args.push("--validate-only");
     const result = await run(args, environment);
-    const diagnostic = sanitizedResult(result, secret.password);
+    const diagnostic = sanitizedResult(
+      result,
+      secret.password,
+      initialAudit
+        ? {
+            authorization,
+            initial: initialAudit,
+            binding: initialAudit.package,
+          }
+        : undefined,
+    );
     // Bind the blocker to the authorization, not to a mode claimed by the child.
     check(
       !managed || diagnostic.status !== "PASS",
       "UNVERIFIED_ROLE_AUDIT_RESULT",
     );
     console.log(
-      JSON.stringify({ ...diagnostic, packageId: receipt.packageId }),
+      JSON.stringify(
+        diagnostic.status === "PRISMA_VERIFIED"
+          ? diagnostic
+          : { ...diagnostic, packageId: receipt.packageId },
+      ),
     );
     process.exitCode = result.code === 0 ? 0 : 1;
   } catch (error) {

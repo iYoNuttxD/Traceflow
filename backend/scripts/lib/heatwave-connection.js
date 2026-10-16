@@ -38,6 +38,10 @@ export const diagnosticPhases = Object.freeze(
       'SQL_PUBLIC_GRANTS',
       'EFFECTIVE_GRANTS',
       'SQL_SELECT_ONE',
+      'SQL_SESSION_CONSISTENCY',
+      'SQL_FINAL_GRANTS',
+      'ADMIN_AUDIT_INITIAL',
+      'ADMIN_AUDIT_RECHECK',
       'DISCONNECT',
       'UNKNOWN'
     ].map((phase) => [phase, phase])

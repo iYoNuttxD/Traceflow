@@ -2,6 +2,12 @@ import { parseArgs } from 'node:util';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  loadInitialAudit,
+  envelope,
+  validatePrismaEvidence
+} from './lib/heatwave-audit-evidence.js';
+import { completeAuditedSession } from './lib/heatwave-prisma-audit.js';
+import {
   loadRoleAttestation,
   requireAbsentRole,
   validateAbsentSession,
@@ -25,6 +31,8 @@ import { requireCondition as check } from './lib/oci-compatibility-safety.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 let authorization,
+  initialAudit,
+  auditedStartedAt,
   roleEvidence,
   prisma,
   phase = phases.PREVALIDATION,
@@ -48,7 +56,11 @@ try {
   });
   authorization = JSON.parse(await protectedFile(values.authorization, { privateFile: true }));
   const contract = connectionContract(process.env, authorization);
-  if (!contract.local || authorization.roleAttestation) {
+  if (authorization.administrativeAudit) {
+    phase = phases.ADMIN_AUDIT_INITIAL;
+    auditedStartedAt = new Date().toISOString();
+    initialAudit = await loadInitialAudit(authorization, packageRoot);
+  } else if (!contract.local || authorization.roleAttestation) {
     phase = phases.ADMIN_ROLE_ATTESTATION;
     roleEvidence = await loadRoleAttestation(authorization, packageRoot);
     requireAbsentRole(roleEvidence);
@@ -102,7 +114,7 @@ try {
           const roles = diagnosticRoles(parameters);
           if (roleEvidence)
             validateAbsentSession(roleEvidence, authorization, identity, parameters);
-          else check(!roles.mandatoryPublic, 'ROLE_ATTESTATION_REQUIRED');
+          else if (!initialAudit) check(!roles.mandatoryPublic, 'ROLE_ATTESTATION_REQUIRED');
           phase = phases.SQL_DIRECT_GRANTS;
           const directRows = await sessionClient.$queryRawUnsafe('SHOW GRANTS FOR CURRENT_USER');
           phase = phases.DIRECT_GRANTS;
@@ -113,6 +125,20 @@ try {
             roles,
             identity.currentUser
           );
+          if (initialAudit) {
+            const verified = await completeAuditedSession(sessionClient, {
+              authorization,
+              initial: initialAudit,
+              identity,
+              parameters,
+              direct,
+              setPhase: (next) => {
+                phase = phases[next];
+              }
+            });
+            phase = phases.SESSION_END;
+            return verified;
+          }
           if (roleEvidence) {
             check(
               direct.privileges.length === 1 && direct.privileges[0] === 'SELECT',
@@ -202,6 +228,19 @@ try {
     phase = phases.ROLE_ATTESTATION_FINAL;
     try {
       await loadRoleAttestation(authorization, packageRoot);
+    } catch (error) {
+      failure ??= diagnosticFailure(error, phase);
+      process.exitCode = 1;
+    }
+  }
+  if (initialAudit) {
+    phase = phases.ADMIN_AUDIT_RECHECK;
+    try {
+      await loadInitialAudit(authorization, packageRoot);
+      if (!failure && result && result.status !== 'CONFIG_VALID') {
+        result = envelope(authorization, 'PRISMA', result, initialAudit, auditedStartedAt);
+        validatePrismaEvidence(result, authorization, initialAudit.package, initialAudit);
+      }
     } catch (error) {
       failure ??= diagnosticFailure(error, phase);
       process.exitCode = 1;

@@ -1156,3 +1156,296 @@ do Node refere-se ao harness `vm`, não à saída operacional do diagnóstico.
    aprovada. Não reutilizar atestado/autorização; preservar os FAIL históricos.
 
 A aprovação desta implementação local não é homologação Prisma–HeatWave.
+
+## 31. OCI-DEPLOY-06.1.5-W02-B — núcleo local da auditoria administrativa
+
+**Estado: PARTIAL. Não empacotar nem executar nova homologação.**
+
+Esta seção complementa, sem substituir, os registros anteriores. A 06.1.4
+permanece FAIL; a W01 permanece MECANISMO INADEQUADO. As cinco auditorias W02-A,
+informadas pelo operador, confirmaram acesso às nove fontes e um perfil compatível
+com SELECT/USAGE, public ausente, TLS obrigatório e conta bloqueada naquele momento.
+Não foram repetidas nesta tarefa e não autorizam uma execução futura.
+
+### 31.1 O que existe e o que continua bloqueado
+
+Implementado localmente:
+
+- Plano SQL fixo e versionado, parser de transcript textual e validação do conteúdo
+  das nove fontes; nenhuma função deste núcleo abre conexão MySQL.
+- Contratos fechados v2 para ADMIN_INITIAL, PRISMA, ADMIN_FINAL e CONSOLIDATED.
+- Vinculação de servidor, conta, autorização, execução, pacote, janela e hashes.
+- Verificador puro de consolidação, sem banco, filesystem ou efeitos colaterais.
+- Caminho Prisma que gera apenas PRISMA_VERIFIED após desconexão, exercitado por
+  injeção controlada de evidência sintética nos testes.
+- Launcher com recusa de PASS gerenciado antecipado e validação estrita do
+  resultado intermediário.
+- Reutilização do leitor de custódia existente, sem mudar permissões, limite do
+  contrato v1 ou sua proibição de execução como root.
+
+**Não implementado/disponibilizado:** coletor operacional que execute mysql,
+captura administrativa protegida do resultado Prisma, publicação dos recibos sob
+custódia, controle persistente de consumo e CLI operacional do consolidador.
+
+A revisão automática de aprovação rejeitou o supervisor proposto que invocaria
+mysql e o launcher, classificando-o como automação futura vedada nesta etapa.
+A alteração rejeitada não foi aplicada. O helper administrativo de publicação
+preparado durante o trabalho também foi retirado; não há novo componente root
+executável, leitura de senha administrativa ou comando de conexão introduzido.
+
+Por isso, `loadInitialAudit()` começa por uma recusa incondicional:
+
+```json
+{
+  "status": "FAIL",
+  "code": "ADMIN_COLLECTION_RUNTIME_UNVERIFIED",
+  "phase": "ADMIN_AUDIT_INITIAL",
+  "writes": false
+}
+```
+
+Nenhum flag, campo JSON, fixture ou produtor declarado libera esse gate. No
+launcher, a mesma recusa ocorre antes da credencial; seu envelope de erro segue
+o contrato do launcher. O caminho v1 continua com ROLE_WARNINGS_UNVERIFIED.
+O PASS calculado pelo verificador puro sobre fixtures **não é aprovação
+operacional**, prova de custódia, coleta real ou homologação.
+
+### 31.2 Arquitetura e fontes
+
+Fluxo futuro, ainda dependente de implementação/autorização operacional:
+
+1. Coleta administrativa inicial por protocolo textual.
+2. Sessão Prisma nova, autenticada como traceflow_diag, com resultado intermediário.
+3. Nova coleta administrativa final; não reutilizar a inicial.
+4. Encerramento humano da janela e consolidação offline das evidências custodiadas.
+
+O modelo `mysql-26.7-absent-v1` exige:
+
+| Fonte               | Verificação                                                                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| mysql.user          | Uma identidade exata traceflow_diag@10.20.1.184; todos os privilégios estáticos N; ssl_type ANY; account_locked Y nas duas coletas; Restrictions NULL |
+| mysql.global_grants | Nenhuma concessão dinâmica                                                                                                                            |
+| mysql.db            | Um registro traceflow/10.20.1.184; Select_priv Y e demais indicadores N                                                                               |
+| mysql.tables_priv   | Nenhuma concessão adicional por tabela                                                                                                                |
+| mysql.columns_priv  | Nenhuma concessão adicional por coluna                                                                                                                |
+| mysql.procs_priv    | Nenhuma concessão por rotina                                                                                                                          |
+| mysql.role_edges    | Nenhuma aresta envolvendo traceflow_diag ou public em qualquer ponta/host                                                                             |
+| mysql.default_roles | Nenhuma relação envolvendo essas contas/roles                                                                                                         |
+| mysql.proxies_priv  | Nenhuma delegação concedida a traceflow_diag em qualquer host                                                                                         |
+
+As consultas de concessões filtram pelo nome, sem limitar o host nem o schema.
+Um host adicional/padrão ou schema diferente não pode desaparecer do inventário.
+SELECT redundante por tabela/coluna permanece fora deste perfil estrito e é recusado.
+Não há expansor genérico de roles: PRESENT e UNKNOWN continuam FAIL.
+
+Complementos obrigatórios: inventário de todas as colunas das nove tabelas em
+INFORMATION_SCHEMA.COLUMNS, existência de public por todos os hosts, SHOW GRANTS
+da conta exata, TLS da sessão administrativa e identidade/configuração no início
+e no fim. Colunas desconhecidas, ausentes ou duplicadas recusam o modelo.
+Somente nomes de colunas de autenticação aparecem no inventário de metadados;
+seus valores não são consultados. User_attributes é projetado exclusivamente por
+JSON_EXTRACT(..., '$.Restrictions'), nunca integralmente.
+
+A identidade administrativa esperada é traceflow_admin@%. Os valores exigidos são
+26.7.0-cloud, UUID 6e94bb7f-c601-11f1-9b91-02001704771f, porta 3306,
+mandatory_roles=public, activate_all_roles_on_login=0, partial_revokes=1,
+sql_notes=1 e require_secure_transport=1. A CA precisa de seu fingerprint real
+fornecido por mecanismo protegido; esta entrega não criou um fingerprint operacional.
+
+### 31.3 Protocolo textual e completude
+
+`ADMIN_PLAN` contém as 15 consultas fixas em ordem. `PLAN_SHA256` vincula esse
+plano ao documento. `administrativeSql()` prepara, sem executar, para cada fonte:
+
+```text
+marcador BEGIN + CONNECTION_ID()
+consulta fixa
+SHOW COUNT(*) WARNINGS
+marcador END + CONNECTION_ID()
+```
+
+Não há consulta entre a instrução auditada e o contador. O parser exige todos os
+marcadores, ordem, mesma conexão, contador exatamente zero, dimensões conhecidas
+das linhas, ausência de dados adicionais e término integral do transcript.
+O validador de resultado exige exitCode=0, signal=null e stderrBytes=0.
+Limites: 64 KiB de transcript, até 512 linhas por fonte e 16 KiB por documento JSON.
+
+A W01 demonstrou contadores textuais sem dependência do armazenamento limitado por
+max_error_count. **O novo enquadramento de saída e sua integração com um processo
+mysql ainda não foram testados contra um servidor.** Fixtures não comprovam
+associação real, ausência de reconexão ou completude do cliente nativo.
+
+Uma implementação futura deverá fixar cliente/protocolo, desativar reconexão e
+carregamento implícito de opções, preservar TLS VERIFY_IDENTITY e não usar --force,
+SQL arbitrário ou credenciais em argv. Esses controles não estão representados
+como concluídos por este parser. Warnings administrativos nunca são atribuídos
+à sessão Prisma. Nenhum parâmetro de sessão/global foi alterado.
+
+SHOW GRANTS é auditado integralmente antes da serialização. No documento, cada
+linha aprovada é representada reversivelmente por privilégio, escopo, database,
+objeto, usuário, host, opções de delegação e hash dos bytes originais. A reconstrução
+precisa corresponder exatamente a uma das duas linhas autorizadas e ao hash.
+Não se substituem grants por booleanos ou marcadores sem conteúdo. SQL bruto
+não é incorporado ao resultado intermediário/consolidado.
+
+### 31.4 Contrato v2
+
+Todos os documentos possuem exatamente:
+
+`formatVersion, evidenceId, runId, authorizationId, stage, startedAt, completedAt,
+expiresAt, target, package, previous, producer, status, final, writes, payload`.
+
+- formatVersion=2; UUIDs v4 distintos para execução/autorização/documentos.
+- target contém UUID/versão/FQDN/IP/porta/CA/schema/conta completa/usuário.
+- package contém packageId e manifestSha256.
+- previous é null somente no documento inicial; depois contém evidenceId e sha256.
+- JSON com membros duplicados, extras ou malformados é recusado.
+- A serialização canônica ordena recursivamente as chaves e preserva a ordem dos
+  arrays. Hashes de evidências são SHA-256 dessa representação UTF-8 sem newline;
+  o hash do manifesto continua sobre os bytes reais do arquivo.
+
+| Etapa         | status / final          | payload                                                                                                   |
+| ------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| ADMIN_INITIAL | ADMIN_VERIFIED / false  | planSha256, collectionId, observações completas normalizadas, stateSha256, janela                         |
+| PRISMA        | PRISMA_VERIFIED / false | Prisma 6.12.0, connectionId, disconnected, verificações fechadas, stateSha256                             |
+| ADMIN_FINAL   | ADMIN_VERIFIED / false  | Nova coleta, collectionId distinto, mesmas verificações e vínculo ao Prisma                               |
+| CONSOLIDATED  | PASS / true             | Evidências técnicas, política operacional, aceitação do risco, fechamento, hashes e limitações explícitas |
+
+A autorização permanece formatVersion=1/operation=diagnose-read-only, agora com
+`administrativeAudit.formatVersion=2`. Esse objeto contém authorizationId, runId,
+package, evidenceIds das quatro etapas, initialSha256 e window. O preparador puro
+aceita initialSha256=null somente antes da coleta inicial; diagnóstico e consolidação
+exigem o hash. Não há comando para gerar autorização real ou preencher esse campo.
+
+O projeto de custódia usa arquivos fora do pacote/Git, sob
+/etc/traceflow/diagnostic-evidence, e mantém o executor incapaz de escrevê-los.
+A autorização privada passada ao launcher deve corresponder à cópia administrativa
+custodiada. O carregador prevê verificação do manifesto e da evidência inicial.
+Contudo, seu gate permanece anterior à leitura: o mecanismo operacional de origem,
+captura/publicação e uso único ainda falta. Um JSON manual não deve substituí-lo.
+
+### 31.5 Prisma e consolidação
+
+Preservadas as consultas originais de identidade, TLS e parâmetros, inclusive
+@@datadir. Preservados Prisma compartilhado, versão, pool, timeouts, TLS/CA/DNS,
+integridade do pacote, sanitização e falha primária durante desconexão.
+
+No caminho v2 simulado, depois dos grants diretos:
+
+1. Ler activate_all_roles_on_login, partial_revokes e CONNECTION_ID().
+2. Executar SELECT 1 e validar o resultado.
+3. Relê identidade completa, configuração, CURRENT_ROLE() e CONNECTION_ID().
+4. Relê e audita SHOW GRANTS FOR CURRENT_USER.
+5. Concluir transação, desconectar, revalidar evidência e emitir PRISMA_VERIFIED.
+
+Não usa APPLICABLE_ROLES, SHOW WARNINGS nem USING public nesse caminho.
+A garantia substituta projetada é a auditoria administrativa completa, não uma
+exceção para 3530/1141/1295. Sem coletor operacional validado, o caminho permanece
+bloqueado. O modo local-isolated anterior permanece independente e coberto.
+
+`consolidateEvidence()` é um verificador puro: revalida os dois inventários,
+Prisma, hashes, identidades, pacote, janela, ordem, nova collectionId, igualdade
+dos estados e desconexão. Requer declaração separada de encerramento com
+runId/authorizationId/operador/instante e confirmação do risco residual.
+Não acessa banco, escreve arquivos ou comprova sozinho a origem dos documentos.
+
+### 31.6 Janela e risco residual
+
+Máximo de dez minutos desde openedAt até expiresAt, sem renovação na coleta final.
+Cada etapa tem limite de 35 segundos e intervalos adjacentes de até 60 segundos.
+Exigem-se aceitação humana identificada, responsável e ausência de automações
+conhecidas/alterações de privilégios autorizadas. A única transição operacional
+prevista é desbloqueio/bloqueio de traceflow_diag, que exige autorização futura
+específica; não autoriza alterar credenciais, grants, roles ou outras contas.
+
+A declaração de encerramento deve ser posterior à coleta final e anterior à
+expiração. Uma exigência `continuous-required` é recusada: não foi implementada
+auditoria contínua. O resultado consolidado distingue:
+
+- Evidência técnica verificada.
+- Política operacional `operator-controlled-v1` e identificador da aceitação.
+- atomicSnapshot=false e continuousAudit=false.
+- TRANSIENT_ACL_CHANGES_NOT_AUTOMATICALLY_DETECTED.
+
+Coletas iguais não detectam necessariamente GRANT seguido de REVOKE no intervalo.
+Não há atomicidade entre sessões. Autorização/copias com IDs iguais também não
+demonstram uso único: o futuro mecanismo de consumo continua pendente.
+Nenhum risco operacional foi aceito pelo usuário por meio desta implementação.
+
+### 31.7 Validação e próxima entrega
+
+Testes locais usam exclusivamente fixtures em memória e Prisma/filesystem simulados.
+Cobrem modelo, privilégios, todas as fontes, framing/contadores, encadeamento,
+validade, permissões, sanitização, gate operacional, resultado intermediário,
+recusa de PASS antecipado, encerramento e preservação de erros. Não comprovam
+comportamento real do cliente, HeatWave ou engine ARM64.
+
+Antes de qualquer pacote:
+
+1. Obter autorização explícita para implementar o invocador manual do cliente e
+   a captura administrativa do processo Prisma, sem executá-los contra OCI.
+2. Completar publicação/custódia/consumo e o verificador operacional offline.
+3. Testar o protocolo e captura em MySQL descartável sob autorização separada,
+   sem migrations TraceFlow e sem credenciais reais.
+4. Demonstrar falhas/truncamento/reconexão, sql_notes, contador com max_error_count=0,
+   efeitos de alterações de privilégios e semântica das colunas da versão real.
+5. Revisar a política temporal com o operador. Somente depois preparar nova receita/
+   allowlist de pacote, packageId, manifesto e checksums mediante autorização.
+6. Instalação, coletas novas no HeatWave e D03 exigem autorizações próprias.
+
+Acesso às fontes confirmado pela W02-A não elimina essas pendências. Esta entrega
+não gerou pacote, atestado operacional, autorização, credencial, processo MySQL,
+migration, conexão externa de banco, commit, push ou deploy.
+
+### 31.8 Resultados locais da W02-B
+
+Baseline: branch `daniel-dev`, HEAD `4cfa1eae3961f377c452b11053395ca23569c238`,
+working tree inicialmente limpo. Execução em macOS ARM64 com Node.js **22.23.3**
+instalado; não equivale à validação de Node.js 22.23.2 no Oracle Linux ARM64.
+Prisma 6.12.0 e dependências permaneceram inalterados.
+
+Comando de regressão executado com ambiente limpo, sem carregar `.env`:
+
+```bash
+env -i PATH=/usr/bin:/bin /opt/homebrew/opt/node@22/bin/node \
+  --experimental-vm-modules --test --test-reporter=spec \
+  deploy/tests/role-attestation.test.mjs \
+  deploy/tests/heatwave-diagnostic.test.mjs \
+  deploy/tests/diagnostic-launcher.test.mjs \
+  deploy/tests/administrative-audit.test.mjs
+```
+
+Resultado: **393 PASS, 0 FAIL, 0 ignorados**: 93 de atestado/custódia,
+95 do diagnóstico, 28 do launcher e 177 da auditoria administrativa.
+
+O arquivo `backend/test/unit/heatwave-connection.test.js` foi executado pela API
+local `startVitest("test", ["test/unit/heatwave-connection.test.js"], ...)`, com
+`config:false`, `envDir:false`, `setupFiles:[]`, `globalSetup:[]`, coverage
+desabilitado e diretório temporário exclusivo. Resultado: **52 PASS**.
+A primeira tentativa foi interrompida pelo sandbox com `EPERM` ao criar cache
+temporário, antes da coleta dos testes. A nova execução, com escrita restrita
+ao diretório exclusivo autorizada, passou e removeu esse diretório.
+
+Total: **445 testes PASS**, sem testes com banco real. Os testes do caminho novo
+que ultrapassam o gate usam substituição explícita do carregador por fixture;
+não demonstram a existência de um coletor operacional validado.
+
+Verificações adicionais executadas:
+
+- ESLint pela API instalada, usando `backend/eslint.config.js` e globals Node
+  para os arquivos `.mjs`: 11 arquivos, zero erros e zero warnings.
+- Prettier instalado: `--check` nos 12 arquivos alterados, PASS.
+- Node.js `--check` nos 11 arquivos de código, PASS.
+- `git diff --check`, PASS.
+- Comparação do prefixo do runbook com `git show HEAD:...`: histórico anterior
+  preservado integralmente, sem reescrita das evidências anteriores.
+- Comparação com HEAD de aplicação, Prisma compartilhado, schema, migrations,
+  arquivos de dependências e receita de empacotamento: nenhuma alteração.
+
+Não executados: cliente MySQL/protocolo textual real, coleta administrativa real,
+captura/publicação operacional, consolidação sob custódia em Linux, teste ARM64
+na VM e nova homologação Prisma–HeatWave. Permanecem pendências, não PASS.
+
+Veredito desta implementação: **PARTIAL**. O contrato local e seus validadores
+foram testados; o coletor, a captura, a publicação/consumo e o verificador
+operacional precisam ser concluídos e demonstrados antes de retirar o gate.

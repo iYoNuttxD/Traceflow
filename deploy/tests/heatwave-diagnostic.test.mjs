@@ -5,11 +5,13 @@ import { createContext, SourceTextModule, SyntheticModule } from "node:vm";
 import * as heatwave from "../../backend/scripts/lib/heatwave-connection.js";
 import { requireCondition } from "../../backend/scripts/lib/oci-compatibility-safety.js";
 import * as roleAttestation from "../../backend/scripts/lib/heatwave-role-attestation.js";
+import * as auditEvidence from "../../backend/scripts/lib/heatwave-audit-evidence.js";
+import * as prismaAudit from "../../backend/scripts/lib/heatwave-prisma-audit.js";
 import { attestationFixture } from "./helpers/role-attestation-fixture.mjs";
+import { auditFixture } from "./helpers/administrative-audit-fixture.mjs";
 import * as nodePath from "node:path";
 import * as nodeUrl from "node:url";
 import { sanitizedResult } from "../scripts/diagnostic-launcher.mjs";
-
 const source = await readFile(
   new URL(
     "../../backend/scripts/validate-oci-heatwave-connection.js",
@@ -78,7 +80,9 @@ async function scenario(options = {}) {
   if (options.evidenceCount !== undefined)
     fixture.evidence.observations.existence.accountCount =
       options.evidenceCount;
-  const authorization = fixture.authorization;
+  const administrativeFixture = options.audited ? auditFixture() : null;
+  const authorization =
+    administrativeFixture?.authorization ?? fixture.authorization;
   const target = authorization.target;
   if (options.attested === false || (local && options.publicRole === false))
     delete authorization.roleAttestation;
@@ -139,6 +143,11 @@ async function scenario(options = {}) {
   ];
   const activePublic = options.activePublic === true;
   const responsesSql = [...currentSql];
+  if (options.audited)
+    responsesSql.push(
+      prismaAudit.AUDITED_SETTINGS_SQL,
+      prismaAudit.AUDITED_FINAL_SQL,
+    );
 
   const responses = [
     [identity],
@@ -151,6 +160,7 @@ async function scenario(options = {}) {
         mandatoryRoles: options.publicRole === false ? "" : "public",
         activeRoles: activePublic ? "`public`@`%`" : "NONE",
         maxConnections: 200n,
+        ...(options.audited ? { requireSecureTransport: 1n } : {}),
         ...options.parameters,
       },
     ],
@@ -164,6 +174,24 @@ async function scenario(options = {}) {
     Object.hasOwn(options, "roleGraph") ? options.roleGraph : [],
     [{ value: 1n }],
   ];
+  if (options.audited)
+    responses.push(
+      [{ activateAllRolesOnLogin: 0n, partialRevokes: 1n, connectionId: 201n }],
+      [
+        {
+          db: identity.db,
+          uuid: identity.uuid,
+          port: identity.port,
+          version: identity.version,
+          currentUser: identity.currentUser,
+          activeRoles: "NONE",
+          mandatoryRoles: "public",
+          activateAllRolesOnLogin: 0n,
+          partialRevokes: 1n,
+          connectionId: 201n,
+        },
+      ],
+    );
   const sessionClient = {
     async $queryRawUnsafe(sql) {
       assert.equal(events.includes("SESSION_START"), true);
@@ -258,6 +286,27 @@ async function scenario(options = {}) {
     },
   });
   const exportsBySpecifier = {
+    "./lib/heatwave-audit-evidence.js": {
+      ...auditEvidence,
+      async loadInitialAudit(auth, root) {
+        if (!options.audited || options.operationalGate)
+          return auditEvidence.loadInitialAudit(auth, root);
+        events.push("ADMIN_INITIAL_TEST_DOUBLE");
+        if (
+          events.filter((x) => x === "ADMIN_INITIAL_TEST_DOUBLE").length > 1 &&
+          options.finalEvidenceError
+        )
+          throw options.finalEvidenceError;
+        auditEvidence.validateAdministrativeEvidence(
+          administrativeFixture.initial,
+          auth,
+          "ADMIN_INITIAL",
+          administrativeFixture.binding,
+        );
+        return administrativeFixture.initial;
+      },
+    },
+    "./lib/heatwave-prisma-audit.js": prismaAudit,
     "node:path": nodePath,
     "node:url": nodeUrl,
     "./lib/heatwave-role-attestation.js": {
@@ -356,6 +405,13 @@ async function scenario(options = {}) {
     sanitizedResult(
       { code: mockProcess.exitCode ?? 0, output },
       syntheticPassword,
+      administrativeFixture
+        ? {
+            authorization,
+            initial: administrativeFixture.initial,
+            binding: administrativeFixture.binding,
+          }
+        : undefined,
     ),
     value,
   );
@@ -931,4 +987,69 @@ for (const [options, phase, code] of [
     assert.equal(result.value.phase, phase);
     assert.equal(result.value.code, code);
     assert.deepEqual(result.exits, [1]);
+  });
+
+test("v2 entrypoint emits only intermediate evidence after disconnect (simulated collector)", async () => {
+  const r = await scenario({ audited: true });
+  assert.equal(r.value.status, "PRISMA_VERIFIED");
+  assert.equal(r.value.final, false);
+  assert.equal(r.value.payload.disconnected, true);
+  assert.equal(r.events.filter((x) => x === "DISCONNECT").length, 1);
+  assert.ok(
+    !r.queries.includes(roleGraphSql) && !r.queries.includes(originalSql[4]),
+  );
+  sameQueries(r.queries, [
+    ...originalSql.slice(0, 4),
+    prismaAudit.AUDITED_SETTINGS_SQL,
+    "SELECT 1",
+    prismaAudit.AUDITED_FINAL_SQL,
+    originalSql[3],
+  ]);
+});
+test("v2 runtime gate rejects before TLS, credential connection or SQL", async () => {
+  const r = await scenario({ audited: true, operationalGate: true });
+  assert.equal(r.value.code, "ADMIN_COLLECTION_RUNTIME_UNVERIFIED");
+  assert.equal(r.value.phase, "ADMIN_AUDIT_INITIAL");
+  assert.equal(r.queries.length, 0);
+  assert.ok(!r.events.includes("TLS_PROBE"));
+});
+test("v2 validate-only with simulated custody remains disconnected and non-final", async () => {
+  const r = await scenario({ audited: true, validateOnly: true });
+  assert.equal(r.value.status, "CONFIG_VALID");
+  assert.equal(r.value.connected, false);
+  assert.equal(r.queries.length, 0);
+});
+for (const [name, options, code, phase] of [
+  ["disconnect", { disconnectError: fault("P1001") }, "P1001", "DISCONNECT"],
+  [
+    "transaction end",
+    { transactionEndError: fault("P2028") },
+    "P2028",
+    "SESSION_END",
+  ],
+  [
+    "primary survives disconnect",
+    { failSql: 7, disconnectError: fault("P1001") },
+    "P2010",
+    "SQL_ROLE_SETTINGS",
+  ],
+  [
+    "initial evidence expires",
+    { finalEvidenceError: fault("AUDIT_WINDOW_EXPIRED") },
+    "AUDIT_WINDOW_EXPIRED",
+    "ADMIN_AUDIT_RECHECK",
+  ],
+  [
+    "primary survives final evidence",
+    { failSql: 7, finalEvidenceError: fault("AUDIT_WINDOW_EXPIRED") },
+    "P2010",
+    "SQL_ROLE_SETTINGS",
+  ],
+  ["TLS", { tlsError: fault("TLS_INVALID") }, "TLS_INVALID", "TLS_PROBE"],
+])
+  test("v2 " + name + " prevents intermediate approval", async () => {
+    const r = await scenario({ audited: true, ...options });
+    assert.equal(r.value.status, "FAIL");
+    assert.equal(r.value.code, code);
+    assert.equal(r.value.phase, phase);
   });

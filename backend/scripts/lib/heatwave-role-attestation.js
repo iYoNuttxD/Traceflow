@@ -301,7 +301,7 @@ async function protectedParents(path) {
 
 // No arbitrary path comes from authorization. Root custody is an OS trust boundary,
 // not a claim authenticated by the checksum. No writes, chmod, chown or secret reads.
-async function readCustodied(path, maxBytes) {
+export async function readCustodied(path, maxBytes) {
   check(process.getuid() !== 0 && process.platform === 'linux', 'ROLE_ATTESTATION_EXECUTOR');
   check(
     path === resolve(path) && (await realpath(path)) === path,
