@@ -108,6 +108,7 @@ export async function cleanTestDatabase(prisma) {
     await tx.privacyRequest.deleteMany();
     await tx.gitHubArtifactEventTask.deleteMany();
     await tx.gitHubArtifactEvent.deleteMany();
+    await tx.notificationDecision.deleteMany();
     await tx.notification.deleteMany();
     await tx.notificationPreference.deleteMany();
     await tx.traceabilityAlertReconciliation.deleteMany();

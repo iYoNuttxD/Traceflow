@@ -77,6 +77,24 @@ const runJob = (overrides = {}) =>
 
 const ofType = (type, where = {}) => prisma.notification.findMany({ where: { type, ...where } });
 
+const today = (offset) => policy.addDays(policy.localDateOf(new Date(), TIME_ZONE), offset);
+
+async function officialMetric(projectId, { from, to, now = new Date() }) {
+  const { createNotificationMetricsService } =
+    await import('../../src/modules/notifications/notification-metrics.service.js');
+  const { notificationMetricsRepository } =
+    await import('../../src/modules/notifications/notification-metrics.repository.js');
+  const early = new Date('2026-01-01T00:00:00.000Z');
+  const service = createNotificationMetricsService({
+    repository: {
+      ...notificationMetricsRepository,
+      registryStarts: async () => ({ decisions: early, githubEvents: early })
+    },
+    log: { info() {}, warn() {}, error() {} }
+  });
+  return (await service.compute({ from, to, projectId, now, timeZone: TIME_ZONE })).requisitos;
+}
+
 describe('S2-02 RF30: mudança de status (C1, D3, D4)', () => {
   it('N1 mover a tarefa de outra pessoa notifica o responsável com origem, destino, ator e título', async () => {
     const { project, actor, responsible } = await scenario();
@@ -341,7 +359,7 @@ describe('S2-02 RF59: vencimento pelo job (C2, D5, D6)', () => {
 });
 
 describe('S2-02 métrica oficial (C7, D16)', () => {
-  it('M1 RF30: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo e a mudança do próprio responsável notificada (TF-REV-002)', async () => {
+  it('M1 RF30: cobertura total de 60% (6 de 10) e elegível de 100%, com uma exclusão de cada motivo e a mudança do próprio responsável notificada (TF-REV-002)', async () => {
     const { project, actor, responsible } = await scenario();
     const inactive = await person(project.id, { isActive: false });
     const restricted = await person(project.id);
@@ -401,13 +419,23 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
               `/projects/${project.id}/kanban?task=${eligibleTasks[index].id}`
         ).length;
 
+    const { RF30 } = await officialMetric(project.id, { from: today(-1), to: today(1) });
     process.stdout.write(
-      `M1 ${JSON.stringify({ occurred, eligible, delivered, exclusions: exclusions.map((item) => item.outcome).sort() })}\n`
+      `M1 ${JSON.stringify({ occurred, eligible, delivered, total: RF30.coberturaTotal.valor, elegivel: RF30.coberturaElegivel.valor })}\n`
     );
     expect(occurred).toBe(10);
     expect(eligible).toBe(6);
     expect(rows).toHaveLength(6);
-    expect(policy.notificationCoverage({ delivered, eligible })).toBe(100);
+    expect(delivered).toBe(6);
+    expect(RF30).toMatchObject({
+      ocorridos: 10,
+      enviadasCorretamente: 6,
+      naoEnviadas: { total: 3, PREFERENCE_OFF: 1, INACTIVE_ACCOUNT: 1, INACTIVE_MEMBER: 1 },
+      semDestinatario: { total: 1, NO_RESPONSIBLE: 1 },
+      naoObservados: 0,
+      coberturaTotal: { valor: 60, situacao: 'CALCULADA' },
+      coberturaElegivel: { valor: 100, situacao: 'CALCULADA', auxiliar: true }
+    });
     expect(exclusions.map((item) => item.outcome).sort()).toEqual([
       'INACTIVE_ACCOUNT',
       'INACTIVE_MEMBER',
@@ -416,8 +444,10 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
     ]);
   });
 
-  it('M2 RF59: cobertura de 100% sobre os elegíveis, com uma exclusão de cada motivo e o vencimento antigo notificado (TF-REV-002)', async () => {
+  it('M2 RF59: cobertura total de 50% (4 de 8) e elegível de 100%, com uma exclusão de cada motivo e o vencimento antigo notificado (TF-REV-002)', async () => {
     const { project, responsible } = await scenario();
+    const task = (data) =>
+      createTask(prisma, project.id, { createdAt: new Date('2026-09-30T12:00:00.000Z'), ...data });
     const inactive = await person(project.id, { isActive: false });
     const restricted = await person(project.id);
     await prisma.user.update({
@@ -431,30 +461,30 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
     const eligibleTasks = [];
     for (const day of ['13', '15', '19'])
       eligibleTasks.push(
-        await createTask(prisma, project.id, {
+        await task({
           responsibleUserId: responsible.id,
           deadline: new Date(`2026-10-${day}T00:00:00.000Z`)
         })
       );
-    await createTask(prisma, project.id, { deadline: IN_WINDOW });
-    await createTask(prisma, project.id, { responsibleUserId: inactive.id, deadline: IN_WINDOW });
-    await createTask(prisma, project.id, {
+    await task({ deadline: IN_WINDOW });
+    await task({ responsibleUserId: inactive.id, deadline: IN_WINDOW });
+    await task({
       responsibleUserId: restricted.id,
       deadline: IN_WINDOW
     });
-    await createTask(prisma, project.id, { responsibleUserId: optedOut.id, deadline: IN_WINDOW });
+    await task({ responsibleUserId: optedOut.id, deadline: IN_WINDOW });
     eligibleTasks.push(
-      await createTask(prisma, project.id, {
+      await task({
         responsibleUserId: responsible.id,
         deadline: LONG_OVERDUE
       })
     );
-    await createTask(prisma, project.id, {
+    await task({
       responsibleUserId: responsible.id,
       deadline: IN_WINDOW,
       status: 'CONCLUIDO'
     });
-    await createTask(prisma, project.id, {
+    await task({
       responsibleUserId: responsible.id,
       deadline: new Date('2026-10-20T00:00:00.000Z')
     });
@@ -470,8 +500,13 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
         row.dueDate.toISOString().slice(0, 10) === task.deadline.toISOString().slice(0, 10)
       );
     }).length;
+    const { RF59 } = await officialMetric(project.id, {
+      from: '2026-10-01',
+      to: '2026-10-20',
+      now: NOW
+    });
     process.stdout.write(
-      `M2 ${JSON.stringify({ eligible: report.eligible, created: report.created, delivered, excluded: report.excluded })}\n`
+      `M2 ${JSON.stringify({ eligible: report.eligible, created: report.created, delivered, excluded: report.excluded, total: RF59.coberturaTotal.valor, elegivel: RF59.coberturaElegivel.valor })}\n`
     );
     expect(report).toMatchObject({
       eligible: 4,
@@ -484,6 +519,15 @@ describe('S2-02 métrica oficial (C7, D16)', () => {
         PREFERENCE_OFF: 1
       }
     });
-    expect(policy.notificationCoverage({ delivered, eligible: report.eligible })).toBe(100);
+    expect(delivered).toBe(4);
+    expect(RF59).toMatchObject({
+      ocorridos: 8,
+      enviadasCorretamente: 4,
+      naoEnviadas: { total: 3, PREFERENCE_OFF: 1, INACTIVE_ACCOUNT: 1, INACTIVE_MEMBER: 1 },
+      semDestinatario: { total: 1, NO_RESPONSIBLE: 1 },
+      naoObservados: 0,
+      coberturaTotal: { valor: 50, situacao: 'CALCULADA' },
+      coberturaElegivel: { valor: 100, situacao: 'CALCULADA', auxiliar: true }
+    });
   });
 });

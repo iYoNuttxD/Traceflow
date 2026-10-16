@@ -176,8 +176,3 @@ export function snapshotTitle(title) {
     .slice(0, TITLE_MAX_LENGTH)
     .join('');
 }
-
-export function notificationCoverage({ delivered, eligible }) {
-  if (!eligible) return null;
-  return Math.round((delivered / eligible) * 10000) / 100;
-}

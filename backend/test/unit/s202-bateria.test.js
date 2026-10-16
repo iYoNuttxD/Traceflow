@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createEnvironment } from '../../src/config/env.js';
 import {
   latestOverdueDueDate,
-  notificationCoverage,
   overdueCutoff,
   overdueDedupeKey,
   overdueExclusion,
@@ -10,6 +9,7 @@ import {
   statusChangeDedupeKey,
   statusChangeExclusion
 } from '../../src/modules/notifications/notification.policy.js';
+import { notificationCoverages } from '../../src/modules/notifications/notification-metrics.policy.js';
 import {
   parseOverdueNotificationArguments,
   runOverdueNotifications
@@ -200,11 +200,15 @@ describe('S2-02 bateria de unidade — título, chaves e cobertura', () => {
     expect(overdueDedupeKey(2147483647, '9999-12-31').length).toBeLessThanOrEqual(96);
   });
 
-  it('a cobertura arredonda em duas casas e é nula sem elegíveis', () => {
-    expect(notificationCoverage({ delivered: 2, eligible: 3 })).toBe(66.67);
-    expect(notificationCoverage({ delivered: 1, eligible: 3 })).toBe(33.33);
-    expect(notificationCoverage({ delivered: 3, eligible: 3 })).toBe(100);
-    expect(notificationCoverage({ delivered: 0, eligible: 0 })).toBeNull();
+  it('a cobertura arredonda em duas casas e fica indisponível sem evento (TF-REV-002)', () => {
+    const total = (occurred, sent) =>
+      notificationCoverages({ occurred, sent, notSent: 0, noRecipient: 0, unobserved: 0 })
+        .coberturaTotal;
+
+    expect(total(3, 2).valor).toBe(66.67);
+    expect(total(3, 1).valor).toBe(33.33);
+    expect(total(3, 3).valor).toBe(100);
+    expect(total(0, 0)).toMatchObject({ valor: null, situacao: 'INDISPONIVEL' });
   });
 });
 

@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
 import { buildAuditEvent } from '../audit/audit.service.js';
+import { SENT, overdueDecisionInstant, overdueEventKey } from './notification-metrics.policy.js';
 import {
   toNotificationCursor,
   toNotificationDTO,
@@ -23,6 +24,7 @@ import {
 import { notificationRepository } from './notification.repository.js';
 
 const JOB_EXCLUSIONS = ['NO_RESPONSIBLE', 'INACTIVE_ACCOUNT', 'INACTIVE_MEMBER', 'PREFERENCE_OFF'];
+const keyOf = (row) => `${row.recipientUserId}|${row.dedupeKey}`;
 
 function notificationNotFound() {
   return new AppError({
@@ -84,21 +86,27 @@ export function createNotificationService({
       : new Map();
 
     const rows = [];
+    const decisions = [];
+    const pending = new Map();
     for (const task of due) {
+      const cutoff = overdueCutoff(task.dueDate, timeZone);
       const exclusion = overdueExclusion({
         responsibleUserId: task.responsibleUserId,
         accountActive: accounts.has(task.responsibleUserId),
         membershipActive: members.has(task.responsibleUserId),
-        preferenceEnabled: preferenceAllowsOverdue(
-          preferences.get(task.responsibleUserId),
-          overdueCutoff(task.dueDate, timeZone)
-        )
+        preferenceEnabled: preferenceAllowsOverdue(preferences.get(task.responsibleUserId), cutoff)
       });
+      const decision = {
+        eventKey: overdueEventKey(task.id, task.dueDate),
+        recipientUserId: task.responsibleUserId ?? null,
+        occurredAt: overdueDecisionInstant(cutoff, task.createdAt)
+      };
       if (exclusion) {
         counts.excluded[exclusion] += 1;
+        decisions.push({ ...decision, outcome: exclusion });
         continue;
       }
-      rows.push({
+      const row = {
         recipientUserId: task.responsibleUserId,
         projectId,
         taskId: task.id,
@@ -106,19 +114,59 @@ export function createNotificationService({
         dedupeKey: overdueDedupeKey(task.id, task.dueDate),
         taskTitle: snapshotTitle(task.title),
         dueDate: new Date(`${task.dueDate}T00:00:00.000Z`)
-      });
+      };
+      rows.push(row);
+      pending.set(keyOf(row), { ...decision, outcome: SENT });
     }
     counts.eligible = rows.length;
 
-    const existing = await repository.existingOverdueKeys(rows);
-    const fresh = rows.filter((row) => !existing.has(`${row.recipientUserId}|${row.dedupeKey}`));
+    const [existing, current] = await Promise.all([
+      repository.existingOverdueKeys(rows),
+      dryRun
+        ? new Map()
+        : repository.currentOverdueDecisions(
+            projectId,
+            due.map((task) => overdueEventKey(task.id, task.dueDate))
+          )
+    ]);
+    const fresh = rows.filter((row) => !existing.has(keyOf(row)));
     if (dryRun) {
       counts.alreadyNotified = rows.length - fresh.length;
       counts.wouldCreate = fresh.length;
-    } else {
-      counts.created = await repository.insertOverdue(fresh);
-      counts.alreadyNotified = rows.length - counts.created;
+      return counts;
     }
+    const [inserted, recorded] = await Promise.allSettled([
+      repository.insertOverdue(fresh),
+      repository.recordOverdueDecisions(
+        projectId,
+        [...decisions, ...pending.values()],
+        now,
+        current
+      )
+    ]);
+    const revertUnpersisted = async () => {
+      const persisted = await repository.existingOverdueKeys(fresh);
+      await repository.revertOverdueDecisions(
+        projectId,
+        fresh.filter((row) => !persisted.has(keyOf(row))).map((row) => pending.get(keyOf(row))),
+        current
+      );
+    };
+    if (inserted.status === 'rejected') {
+      if (recorded.status === 'fulfilled')
+        await revertUnpersisted().catch((error) =>
+          log.warn('Decisões de vencimentos não notificados ficaram como enviadas.', {
+            event: 'notifications_due_decision_revert_failed',
+            projectId,
+            errorCode: errorCodeOf(error)
+          })
+        );
+      throw inserted.reason;
+    }
+    if (recorded.status === 'rejected') throw recorded.reason;
+    counts.created = inserted.value;
+    counts.alreadyNotified = rows.length - inserted.value;
+    if (inserted.value < fresh.length) await revertUnpersisted();
     return counts;
   }
 

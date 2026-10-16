@@ -87,6 +87,14 @@ enum NotificationType {
   PULL_REQUEST_EVENT
 }
 
+enum NotificationDecisionOutcome {
+  SENT
+  NO_RESPONSIBLE
+  INACTIVE_ACCOUNT
+  INACTIVE_MEMBER
+  PREFERENCE_OFF
+}
+
 enum GitHubArtifactEventType {
   ISSUE_CLOSED
   ISSUE_REOPENED
@@ -241,6 +249,7 @@ model User {
   notifications                    Notification[]                    @relation("NotificationRecipient")
   actedNotifications               Notification[]                    @relation("NotificationActor")
   notificationPreferences          NotificationPreference[]
+  notificationDecisions            NotificationDecision[]            @relation("NotificationDecisionRecipient")
   githubInstallationAuthorizations GitHubInstallationAuthorization[]
   githubAppConnectionStates        GitHubAppConnectionState[]
   githubIdentity                   GitHubIdentity?
@@ -436,6 +445,7 @@ model Project {
   sprintBurnupEvents         SprintBurnupEvent[]
   traceabilityAlerts         TraceabilityAlert[]
   notifications              Notification[]
+  notificationDecisions      NotificationDecision[]
   githubEvents               GitHubArtifactEvent[]
   alertReconciliation        TraceabilityAlertReconciliation?
 
@@ -1001,6 +1011,26 @@ model NotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, type])
+}
+
+model NotificationDecision {
+  id              Int                         @id @default(autoincrement())
+  type            NotificationType
+  eventKey        String                      @db.VarChar(96)
+  projectId       Int
+  recipientUserId Int?
+  recipientKey    Int
+  outcome         NotificationDecisionOutcome
+  occurredAt      DateTime
+  decidedAt       DateTime                    @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recipient User?   @relation("NotificationDecisionRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@unique([type, eventKey, recipientKey])
+  @@index([projectId, type, occurredAt])
+  @@index([recipientUserId])
+  @@index([decidedAt])
 }
 
 model GitHubArtifactEvent {

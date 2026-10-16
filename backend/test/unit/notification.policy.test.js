@@ -6,7 +6,6 @@ import {
   isOverdue,
   latestOverdueDueDate,
   localDateOf,
-  notificationCoverage,
   notificationLink,
   overdueCutoff,
   overdueDedupeKey,
@@ -16,6 +15,7 @@ import {
   statusChangeDedupeKey,
   statusChangeExclusion
 } from '../../src/modules/notifications/notification.policy.js';
+import { notificationCoverages } from '../../src/modules/notifications/notification-metrics.policy.js';
 
 const SAO_PAULO = 'America/Sao_Paulo';
 const at = (iso) => new Date(iso);
@@ -166,9 +166,20 @@ describe('S2-02 política: contexto e métrica', () => {
     expect(snapshotTitle('  Título  ')).toBe('  Título  ');
   });
 
-  it('calcula a cobertura sobre os eventos elegíveis', () => {
-    expect(notificationCoverage({ delivered: 5, eligible: 5 })).toBe(100);
-    expect(notificationCoverage({ delivered: 4, eligible: 5 })).toBe(80);
-    expect(notificationCoverage({ delivered: 0, eligible: 0 })).toBeNull();
+  it('calcula a cobertura total sobre os eventos ocorridos e a elegível como auxiliar (TF-REV-002)', () => {
+    const coverages = (occurred, sent, notSent = 0) =>
+      notificationCoverages({ occurred, sent, notSent, noRecipient: 0, unobserved: 0 });
+
+    expect(coverages(5, 5).coberturaTotal.valor).toBe(100);
+    expect(coverages(5, 4).coberturaTotal.valor).toBe(80);
+    expect(coverages(5, 4, 1)).toMatchObject({
+      coberturaTotal: { valor: 80 },
+      coberturaElegivel: { valor: 100, auxiliar: true }
+    });
+    expect(coverages(0, 0).coberturaTotal).toMatchObject({
+      valor: null,
+      situacao: 'INDISPONIVEL',
+      motivo: 'SEM_EVENTOS'
+    });
   });
 });

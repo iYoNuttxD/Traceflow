@@ -39,7 +39,8 @@ let pullRequestRepository;
 let githubEventRepository;
 let createGithubEventNotificationService;
 let githubEventNotificationService;
-let notificationCoverage;
+let githubEventTally;
+let requirementReport;
 let githubSyncRunRepository;
 let executeGithubSyncRun;
 let sequence = 0;
@@ -54,8 +55,8 @@ beforeAll(async () => {
     await import('../../src/modules/notifications/github-event.repository.js'));
   ({ createGithubEventNotificationService, githubEventNotificationService } =
     await import('../../src/modules/notifications/github-event-notification.service.js'));
-  ({ notificationCoverage } =
-    await import('../../src/modules/notifications/notification.policy.js'));
+  ({ githubEventTally, requirementReport } =
+    await import('../../src/modules/notifications/notification-metrics.policy.js'));
   ({ githubSyncRunRepository } =
     await import('../../src/modules/github/github-sync-run.repository.js'));
   ({ executeGithubSyncRun } =
@@ -841,21 +842,23 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
   }
 
   function metric(events, report) {
-    const totals = events.reduce(
-      (sum, event) => {
-        sum.eligible += event.outcome.eligible;
-        sum.delivered += event.outcome.created + event.outcome.alreadyNotified;
-        for (const [reason, count] of Object.entries(event.outcome.excluded))
-          sum.excluded[reason] = (sum.excluded[reason] || 0) + count;
-        return sum;
-      },
-      { eligible: 0, delivered: 0, excluded: {} }
-    );
-    expect(totals.excluded).toEqual(report.excluded);
-    return { ...totals, coverage: notificationCoverage(totals) };
+    const excluded = {};
+    for (const event of events)
+      for (const [reason, count] of Object.entries(event.outcome.excluded))
+        excluded[reason] = (excluded[reason] || 0) + count;
+    expect(excluded).toEqual(report.excluded);
+    return requirementReport('PAR_EVENTO_PARTICIPANTE', githubEventTally(events), [
+      { motivo: 'FONTE_POR_COMPARACAO_DE_ESTADO' }
+    ]);
   }
 
-  it('M3 RF60: 100% sobre os elegíveis, com cada exclusão contada', async () => {
+  const bySource = {
+    valor: null,
+    situacao: 'INDISPONIVEL',
+    motivo: 'FONTE_POR_COMPARACAO_DE_ESTADO'
+  };
+
+  it('M3 RF60: todo par elegível enviado, cada exclusão contada e cobertura total indisponível pela fonte (TF-REV-002)', async () => {
     const project = await createProject(prisma);
     const first = await person(project.id);
     const commenter = await person(project.id);
@@ -896,15 +899,17 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
       [3, 'ISSUE_CLOSED'],
       [4, 'ISSUE_CLOSED']
     ]);
-    expect(result).toMatchObject({ eligible: 5, delivered: 5, coverage: 100 });
-    expect(result.excluded).toEqual(
-      excludedWith({
-        NO_PARTICIPANT: 1,
-        INACTIVE_ACCOUNT: 1,
-        INACTIVE_MEMBER: 1,
-        PREFERENCE_OFF: 1
-      })
-    );
+    expect(result).toMatchObject({
+      eventos: 4,
+      ocorridos: 9,
+      enviadasCorretamente: 5,
+      naoEnviadas: { total: 3, PREFERENCE_OFF: 1, INACTIVE_ACCOUNT: 1, INACTIVE_MEMBER: 1 },
+      semDestinatario: { total: 1, NO_PARTICIPANT: 1, NO_TASK: 0 },
+      naoEnviadasSemMotivoAutorizado: { total: 0 },
+      naoObservados: 0,
+      coberturaTotal: bySource,
+      coberturaElegivel: bySource
+    });
     const rows = await notificationsOf({ type: 'ISSUE_EVENT' });
     expect(rows).toHaveLength(5);
     expect(new Set(rows.map((row) => `${row.recipientUserId}|${row.dedupeKey}`)).size).toBe(5);
@@ -914,7 +919,7 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
     expect(report).toMatchObject({ dispatched: 4, created: 5, alreadyNotified: 0 });
   });
 
-  it('M4 RF61: 100% sobre os elegíveis; reabertura de PR não é evento', async () => {
+  it('M4 RF61: todo par elegível enviado e cobertura total indisponível pela fonte; reabertura de PR não é evento (TF-REV-002)', async () => {
     const project = await createProject(prisma);
     const first = await person(project.id);
     const worker = await person(project.id);
@@ -956,15 +961,17 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
       [13, 'PULL_REQUEST_MERGED'],
       [14, 'PULL_REQUEST_CLOSED']
     ]);
-    expect(result).toMatchObject({ eligible: 4, delivered: 4, coverage: 100 });
-    expect(result.excluded).toEqual(
-      excludedWith({
-        NO_PARTICIPANT: 1,
-        INACTIVE_ACCOUNT: 1,
-        INACTIVE_MEMBER: 1,
-        PREFERENCE_OFF: 1
-      })
-    );
+    expect(result).toMatchObject({
+      eventos: 4,
+      ocorridos: 8,
+      enviadasCorretamente: 4,
+      naoEnviadas: { total: 3, PREFERENCE_OFF: 1, INACTIVE_ACCOUNT: 1, INACTIVE_MEMBER: 1 },
+      semDestinatario: { total: 1, NO_PARTICIPANT: 1, NO_TASK: 0 },
+      naoEnviadasSemMotivoAutorizado: { total: 0 },
+      naoObservados: 0,
+      coberturaTotal: bySource,
+      coberturaElegivel: bySource
+    });
     expect(
       (await notificationsOf({ type: 'PULL_REQUEST_EVENT' })).map((row) => row.recipientUserId)
     ).toEqual([first.id, worker.id, second.id, old.id].sort((a, b) => a - b));

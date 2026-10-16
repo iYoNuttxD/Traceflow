@@ -31,7 +31,9 @@ function fakeRepository({ failingProjectId } = {}) {
     activeMemberIds: vi.fn(async () => new Set([7])),
     overduePreferences: vi.fn(async () => new Map()),
     existingOverdueKeys: vi.fn(async () => new Set()),
-    insertOverdue: vi.fn(async (rows) => rows.length)
+    insertOverdue: vi.fn(async (rows) => rows.length),
+    currentOverdueDecisions: vi.fn(async () => new Map()),
+    recordOverdueDecisions: vi.fn(async (_projectId, decisions) => decisions.length)
   };
 }
 

@@ -22,6 +22,9 @@ export async function runPrivacyRetention({
     githubArtifactEvents: {
       status: { in: ['DISPATCHED', 'FAILED'] },
       detectedAt: { lt: daysAgo(configuration.notificationRetentionDays, now) }
+    },
+    notificationDecisions: {
+      decidedAt: { lt: daysAgo(configuration.notificationRetentionDays, now) }
     }
   };
   const counts = {
@@ -33,6 +36,9 @@ export async function runPrivacyRetention({
     notifications: await client.notification.count({ where: filters.notifications }),
     githubArtifactEvents: await client.gitHubArtifactEvent.count({
       where: filters.githubArtifactEvents
+    }),
+    notificationDecisions: await client.notificationDecision.count({
+      where: filters.notificationDecisions
     })
   };
   if (apply) {
@@ -42,6 +48,7 @@ export async function runPrivacyRetention({
       await tx.personalDataExport.deleteMany({ where: filters.personalDataExports });
       await tx.notification.deleteMany({ where: filters.notifications });
       await tx.gitHubArtifactEvent.deleteMany({ where: filters.githubArtifactEvents });
+      await tx.notificationDecision.deleteMany({ where: filters.notificationDecisions });
       await tx.auditEvent.create({
         data: {
           actorType: 'SYSTEM',

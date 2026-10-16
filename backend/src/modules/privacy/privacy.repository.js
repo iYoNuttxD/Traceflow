@@ -132,6 +132,10 @@ export const privacyRepository = {
         await tx.accountReactivationToken.deleteMany({ where: { userId: request.userId } });
         await tx.notification.deleteMany({ where: { recipientUserId: request.userId } });
         await tx.notificationPreference.deleteMany({ where: { userId: request.userId } });
+        await tx.$executeRaw`
+          UPDATE NotificationDecision SET recipientUserId = NULL, recipientKey = -id
+          WHERE recipientUserId = ${request.userId}
+        `;
         await tx.projectInvitation.updateMany({
           where: {
             createdById: request.userId,

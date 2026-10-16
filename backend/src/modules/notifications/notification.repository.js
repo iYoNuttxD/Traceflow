@@ -1,6 +1,7 @@
 import { isLockBusy, lockUserNoWait } from '../../database/locks.js';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { SENT, recipientKeyOf, statusChangeEventKey } from './notification-metrics.policy.js';
 import {
   NOTIFICATION_TYPES,
   OVERDUE,
@@ -12,6 +13,8 @@ import {
 
 const unique = (values) => [...new Set(values)];
 const ACTIVE_ACCOUNT = 'ACTIVE';
+const KEY_CHUNK = 5000;
+const UPDATE_CHUNK = 1000;
 const LOCK_WAIT_LIMIT_MS = 2000;
 const LOCK_RETRY_MS = 20;
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms + Math.random() * ms));
@@ -28,35 +31,57 @@ function visibleWhere(userId) {
   };
 }
 
+function chunked(values, size) {
+  const parts = [];
+  for (let index = 0; index < values.length; index += size)
+    parts.push(values.slice(index, index + size));
+  return parts;
+}
+
+async function statusChangeExclusionOf(tx, task, actorUserId) {
+  const candidate = {
+    responsibleUserId: task.responsibleUserId,
+    actorUserId,
+    accountActive: true,
+    membershipActive: true,
+    preferenceEnabled: true
+  };
+  const early = statusChangeExclusion(candidate);
+  if (early) return early;
+
+  const responsible = await tx.user.findUnique({
+    where: { id: task.responsibleUserId },
+    select: { accountStatus: true }
+  });
+  const membership = await tx.projectMembership.findUnique({
+    where: { projectId_userId: { projectId: task.projectId, userId: task.responsibleUserId } },
+    select: { isActive: true }
+  });
+  const preference = await tx.notificationPreference.findUnique({
+    where: { userId_type: { userId: task.responsibleUserId, type: STATUS_CHANGED } },
+    select: { enabled: true }
+  });
+  return statusChangeExclusion({
+    ...candidate,
+    accountActive: responsible?.accountStatus === ACTIVE_ACCOUNT,
+    membershipActive: Boolean(membership?.isActive),
+    preferenceEnabled: preference?.enabled !== false
+  });
+}
+
 export const notificationRepository = {
   async createStatusChangeNotification(tx, { task, movement, actorUserId }) {
-    const candidate = {
-      responsibleUserId: task.responsibleUserId,
-      actorUserId,
-      accountActive: true,
-      membershipActive: true,
-      preferenceEnabled: true
-    };
-    const early = statusChangeExclusion(candidate);
-    if (early) return { outcome: early };
-
-    const responsible = await tx.user.findUnique({
-      where: { id: task.responsibleUserId },
-      select: { accountStatus: true }
-    });
-    const membership = await tx.projectMembership.findUnique({
-      where: { projectId_userId: { projectId: task.projectId, userId: task.responsibleUserId } },
-      select: { isActive: true }
-    });
-    const preference = await tx.notificationPreference.findUnique({
-      where: { userId_type: { userId: task.responsibleUserId, type: STATUS_CHANGED } },
-      select: { enabled: true }
-    });
-    const exclusion = statusChangeExclusion({
-      ...candidate,
-      accountActive: responsible?.accountStatus === ACTIVE_ACCOUNT,
-      membershipActive: Boolean(membership?.isActive),
-      preferenceEnabled: preference?.enabled !== false
+    const exclusion = await statusChangeExclusionOf(tx, task, actorUserId);
+    await tx.notificationDecision.create({
+      data: {
+        type: STATUS_CHANGED,
+        eventKey: statusChangeEventKey(movement.id),
+        projectId: task.projectId,
+        recipientUserId: task.responsibleUserId ?? null,
+        recipientKey: recipientKeyOf(task.responsibleUserId),
+        outcome: exclusion ?? SENT,
+        occurredAt: movement.movedAt
+      }
     });
     if (exclusion) return { outcome: exclusion };
 
@@ -89,7 +114,14 @@ export const notificationRepository = {
   findOverdueCandidates(projectId, { to }) {
     return prisma.task.findMany({
       where: { projectId, status: { not: 'CONCLUIDO' }, deadline: { lt: to } },
-      select: { id: true, title: true, status: true, deadline: true, responsibleUserId: true },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        deadline: true,
+        responsibleUserId: true,
+        createdAt: true
+      },
       orderBy: { id: 'asc' }
     });
   },
@@ -136,6 +168,62 @@ export const notificationRepository = {
     if (!rows.length) return 0;
     const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
     return result.count;
+  },
+
+  async currentOverdueDecisions(projectId, eventKeys) {
+    const current = new Map();
+    for (const keys of chunked(unique(eventKeys), KEY_CHUNK))
+      for (const row of await prisma.notificationDecision.findMany({
+        where: { type: OVERDUE, projectId, eventKey: { in: keys } },
+        select: { eventKey: true, recipientKey: true, outcome: true }
+      }))
+        current.set(`${row.eventKey}|${row.recipientKey}`, row.outcome);
+    return current;
+  },
+
+  async recordOverdueDecisions(projectId, decisions, decidedAt, current) {
+    const created = [];
+    const changed = new Map();
+    for (const decision of decisions) {
+      const recipientKey = recipientKeyOf(decision.recipientUserId);
+      const previous = current.get(`${decision.eventKey}|${recipientKey}`);
+      if (previous === undefined)
+        created.push({ ...decision, type: OVERDUE, projectId, recipientKey, decidedAt });
+      else if (previous !== SENT && previous !== decision.outcome) {
+        if (!changed.has(decision.outcome)) changed.set(decision.outcome, []);
+        changed.get(decision.outcome).push({ eventKey: decision.eventKey, recipientKey });
+      }
+    }
+
+    let recorded = created.length
+      ? (await prisma.notificationDecision.createMany({ data: created, skipDuplicates: true }))
+          .count
+      : 0;
+    for (const [outcome, keys] of changed)
+      for (const part of chunked(keys, UPDATE_CHUNK))
+        recorded += (
+          await prisma.notificationDecision.updateMany({
+            where: { type: OVERDUE, projectId, outcome: { not: SENT }, OR: part },
+            data: { outcome, decidedAt }
+          })
+        ).count;
+    return recorded;
+  },
+
+  async revertOverdueDecisions(projectId, decisions, current) {
+    for (const decision of decisions) {
+      const recipientKey = recipientKeyOf(decision.recipientUserId);
+      const where = {
+        type: OVERDUE,
+        projectId,
+        eventKey: decision.eventKey,
+        recipientKey,
+        outcome: SENT
+      };
+      const previous = current.get(`${decision.eventKey}|${recipientKey}`);
+      if (previous === undefined) await prisma.notificationDecision.deleteMany({ where });
+      else await prisma.notificationDecision.updateMany({ where, data: { outcome: previous } });
+    }
   },
 
   listPage(userId, { unreadOnly, types = null, skip, take, after = null }) {

@@ -258,7 +258,8 @@ retrato, participante):
 | Enviadas corretamente (E) | pares com `created` ou `alreadyNotified` no `outcome`. `alreadyNotified` é a notificação criada por uma tentativa anterior do mesmo evento, antes de uma retomada; não é duplicata |
 | Motivo autorizado (A) | `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER` e `PREFERENCE_OFF` (por par) |
 | Sem destinatário (N) | `NO_TASK` e `NO_PARTICIPANT` (por tarefa) |
-| Não observados (U) | eventos `PENDING`, `PROCESSING` ou `FAILED` |
+| Sem motivo autorizado (X) | motivos que as regras atuais não autorizam, como `OUTSIDE_WINDOW` e `PROJECT_DELETED` em eventos antigos (por par) |
+| Não observados (U) | eventos `PENDING`, `PROCESSING` ou `FAILED`, uma unidade por evento, porque os participantes só são conhecidos no despacho |
 
 **Cobertura total indisponível.** A fonte é a comparação de estado, e as transições intermediárias
 não são observadas. Por isso o total de eventos ocorridos é desconhecido, e a cobertura total sai
@@ -282,11 +283,11 @@ quando o evento fecha como `DISPATCHED`.
 | Objetivo | medir se o sistema avisa os usuários envolvidos de toda transição elegível de issue e PR vinculadas (Quadros 3-57 e 3-58) |
 | Fórmula | a de [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md), por RF, com as contagens por motivo ao lado |
 | Dados de origem | `GitHubArtifactEvent` (com `outcome`) e as notificações `ISSUE_EVENT` e `PULL_REQUEST_EVENT` (chave por evento, tarefa e pessoa) |
-| Período | intervalo de `detectedAt`, dentro da retenção de 180 dias. Na validação do Capítulo 4 (S3-01), é o período da aplicação |
+| Período | intervalo de `occurredAt` (ou de `detectedAt`, sem `occurredAt`), dentro da retenção de 180 dias. Na validação do Capítulo 4 (S3-01), é o período da aplicação |
 | Filtros | projeto e tipo. Não há filtro por pessoa na publicação |
-| Interpretação | a cobertura elegível de 100% significa que cada participante elegível recebeu exatamente uma notificação correta de cada evento observado. A cobertura total fica "indisponível" enquanto a fonte não observar todas as transições |
+| Interpretação | enquanto a fonte for a comparação de estado, as duas coberturas saem "indisponíveis" (`FONTE_POR_COMPARACAO_DE_ESTADO`). As contagens mostram se cada participante elegível recebeu exatamente uma notificação correta de cada evento observado: `E = T − A − N`, com `X = 0` e `U = 0` |
 | Limitações | (1) só transições observadas: mudanças entre duas sincronizações se fundem (proposta de correção no ADR-023); (2) o autor da ação não é excluído; (3) eventos `PENDING` ou `FAILED` ainda não têm `outcome`; (4) a criação de uma issue nunca é evento (RF12); (5) a data da reabertura é a última atualização observada, não o instante da reabertura |
-| Forma de atualização | a cada despacho, no `outcome` do evento. No repositório, os testes M3 e M4 medem um cenário reproduzível |
+| Forma de atualização | a cada despacho, no `outcome` do evento; o script `notifications:metrics` soma por período. No repositório, os testes M3 e M4 medem um cenário reproduzível |
 
 **Resultado em 12/10/2026 (banco de teste, `s203-github-event-dispatch.test.js`), só como
 histórico.** Foi medido sobre os pares elegíveis, com `OUTSIDE_WINDOW` entre as exclusões, regra que

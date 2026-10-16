@@ -148,9 +148,23 @@ O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha
 3. **Parada longa.** Não há janela: a execução seguinte notifica tudo o que venceu durante a
    parada. Rode primeiro em dry-run, para medir o volume, que pode ser grande.
 
+## Métrica oficial
+
+`npm run notifications:metrics -- --from=YYYY-MM-DD --to=YYYY-MM-DD [--project-id=<id>]`, dentro
+de `backend`.
+
+- Só leitura: não exige `--confirm-production`.
+- Meça períodos já fechados. Um período que termina depois da última execução do job pode ter
+  vencimentos ainda não avaliados e sai "indisponível" (`EVENTOS_NAO_OBSERVADOS`).
+- Cobertura `INDISPONIVEL` traz o motivo. `REGISTRO_INCOMPLETO` diz, em `completoDesde`, a partir
+  de quando o registro vale.
+- Códigos de saída: 0 (cálculo feito), 1 (argumento inválido ou falha) e 2 (`--project-id` sem
+  projeto ativo).
+- A definição completa está em [NOTIFICATION_METRICS.md](../data/NOTIFICATION_METRICS.md).
+
 ## Validação
 
-- No dry-run, conferir `timeZone` e `lookbackDays`.
+- No dry-run, conferir `timeZone` e `wouldCreate`.
 - Depois do apply, conferir que a segunda execução tem `created = 0`.
 - Validar por amostra que o destinatário vê a notificação em `/notifications` e que a tarefa
   concluída não gera aviso.

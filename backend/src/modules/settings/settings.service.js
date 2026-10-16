@@ -153,6 +153,7 @@ async function buildExportArchive(userId, now) {
     'data-exports.json': data.personalDataExports || [],
     'notifications.json': (data.notifications || []).map(toNotificationExportItem),
     'notification-preferences.json': toPreferencesDTO(data.notificationPreferences || []),
+    'notification-decisions.json': data.notificationDecisions || [],
     'email-change-history.json': data.emailChangeRequests || [],
     'audit-events.json': data.auditEvents,
     'github-identity.json': data.githubIdentity || null,

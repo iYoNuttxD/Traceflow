@@ -65,7 +65,8 @@ describe('E7 auditoria, privacidade e retenção', () => {
       privacyRequest: { deleteMany: vi.fn() },
       personalDataExport: { deleteMany: vi.fn() },
       notification: { deleteMany: vi.fn() },
-      gitHubArtifactEvent: { deleteMany: vi.fn() }
+      gitHubArtifactEvent: { deleteMany: vi.fn() },
+      notificationDecision: { deleteMany: vi.fn() }
     };
     const client = {
       auditEvent: { count: vi.fn().mockResolvedValue(2) },
@@ -73,6 +74,7 @@ describe('E7 auditoria, privacidade e retenção', () => {
       personalDataExport: { count: vi.fn().mockResolvedValue(3) },
       notification: { count: vi.fn().mockResolvedValue(4) },
       gitHubArtifactEvent: { count: vi.fn().mockResolvedValue(5) },
+      notificationDecision: { count: vi.fn().mockResolvedValue(0) },
       $transaction: vi.fn(async (callback) => callback(tx))
     };
     expect(
@@ -125,6 +127,9 @@ describe('E7 auditoria, privacidade e retenção', () => {
         status: { in: ['DISPATCHED', 'FAILED'] },
         detectedAt: { lt: expect.any(Date) }
       }
+    });
+    expect(tx.notificationDecision.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { decidedAt: { lt: new Date('2029-08-05T00:00:00.000Z') } }
     });
   });
 

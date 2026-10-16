@@ -180,12 +180,14 @@ Restrições do terreno:
 - O DTO não traz e-mail, chave de deduplicação nem destinatário. O nome do ator é lido do `User` na
   exibição, então a anonimização se reflete sem cópia.
 - **Dados pessoais:**
-  - a notificação e a preferência são dados do titular;
-  - a anonimização apaga as do titular;
+  - a notificação, a preferência e a decisão (`NotificationDecision`) são dados do titular;
+  - a anonimização apaga as notificações e as preferências do titular. Da decisão, apaga só o
+    destinatário e mantém o resultado, para a métrica dos períodos passados não mudar;
   - a exportação inclui as preferências e todas as notificações do titular, com `visible` dizendo
     se ele ainda as vê, sem o ator. As outras seções da exportação seguem a convenção "projetos
     com acesso atual";
-  - notificações com mais de 180 dias são apagadas pelo `privacy:retention`.
+  - a exportação traz também as decisões do titular;
+  - notificações e decisões com mais de 180 dias são apagadas pelo `privacy:retention`.
 - Logs do job só com contagens e códigos de erro, sem título, nome ou e-mail. Só a mudança de
   preferências é auditada, com os tipos alterados.
 

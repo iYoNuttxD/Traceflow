@@ -36,7 +36,8 @@ grupos:
 - `NO_RESPONSIBLE` é **sem destinatário**;
 - `INACTIVE_ACCOUNT`, `INACTIVE_MEMBER` e `PREFERENCE_OFF` são **não enviadas por motivo autorizado**.
 
-Cada evento avaliado grava a decisão em `NotificationDecision`: o motivo, ou `SENT`.
+Cada evento avaliado grava a decisão em `NotificationDecision`: o motivo, ou `SENT`. As regras de
+gravação estão em [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md), "Gravação das decisões".
 
 - **RF30:**
   - O responsável recebe também quando é ele quem muda o status. A notificação diz "Você moveu
@@ -168,7 +169,9 @@ A métrica segue [NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md):
 - "indisponível" quando falta observação.
 
 O instrumento é o script `notifications:metrics`, que lê `TaskMovement`, o histórico das tarefas e
-as decisões gravadas em `NotificationDecision`.
+as decisões gravadas em `NotificationDecision`. Nos cenários de M1 e M2, com uma exclusão de cada
+motivo, a cobertura total é 60% no RF30 (6 de 10) e 50% no RF59 (4 de 8); a elegível é 100% nos
+dois.
 
 **Resultados anteriores (09 e 11/10/2026), só como histórico.** Os testes M1 e M2 mediam a
 cobertura sobre os eventos elegíveis, com `SELF_CHANGE` e `OUTSIDE_WINDOW` entre as exclusões. Com
@@ -184,7 +187,7 @@ a regra de 15/10/2026, eles foram reescritos:
 | Produção | exige `--confirm-production` |
 | Escopo | todos os projetos não excluídos, ou `--project-id=<id>` |
 | Frequência | a cada 15 minutos; o agendamento proposto é uma tarefa periódica do worker do GitHub (ADR-024). Enquanto o ADR-024 não vigorar, um agendador externo chama o comando ([runbook](../runbooks/TASK_NOTIFICATIONS.md)) |
-| Escrita | por projeto, com `createMany` e `skipDuplicates`, para as notificações e para as decisões (`NotificationDecision`) |
+| Escrita | por projeto, com `createMany` e `skipDuplicates`. As decisões (`NotificationDecision`) são gravadas em paralelo com as notificações, só quando mudam; a decisão de uma notificação que não ficou gravada é desfeita ([NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md)) |
 | Falha | a falha de um projeto conta em `failed` e não impede os outros; com `failed > 0`, o processo sai com código 1. Com `--project-id` de projeto inexistente ou excluído, avisa em `stderr` e sai com código 2 |
 | Saída | JSON com `dryRun`, `timeZone`, `projects`, `scanned`, `eligible`, `created`, `alreadyNotified`, `excluded` por motivo, `failed`, `durationMs` e, em dry-run, `wouldCreate`. O job não atualiza linhas, e a saída diz isso com `updated: "NOT_APPLICABLE"`. `excluded` tem os quatro motivos do RF59. As contagens valem para a execução e não se somam entre execuções; a métrica é o script `notifications:metrics` |
 | Log | `notifications_due_started` (com o fuso), `notifications_due_project_failed` (projeto e código do erro) e `notifications_due_completed` (contagens); nunca título, nome ou e-mail |
@@ -194,9 +197,9 @@ a regra de 15/10/2026, eles foram reescritos:
 | Dado | Regra |
 | --- | --- |
 | Notificação | apagada pelo `privacy:retention` quando `createdAt` passa de `NOTIFICATION_RETENTION_DAYS` (padrão 180) |
-| Decisão (`NotificationDecision`) | apagada pelo `privacy:retention` quando `decidedAt` passa do mesmo prazo; a anonimização apaga as do titular |
+| Decisão (`NotificationDecision`) | apagada pelo `privacy:retention` quando `decidedAt` passa do mesmo prazo; a anonimização apaga o destinatário e mantém o resultado; a exclusão da tarefa não a toca |
 | Projeto purgado | as notificações do projeto saem por cascata |
 | Tarefa excluída | `taskId` vira nulo; o título copiado permanece |
 | Ator removido | `actorUserId` vira nulo; o contexto mostra ator ausente |
 | Anonimização do titular | apaga as notificações e as preferências dele; como ator, aparece com o nome pseudonimizado |
-| Exportação do titular | `notifications.json`, com todas as notificações do titular e `visible` dizendo se ele ainda as vê (as ocultas por membership inativa ou projeto excluído também entram), com tipo, projeto, tarefa, título copiado, status, data do prazo, criação e leitura, sem o ator; e `notification-preferences.json` |
+| Exportação do titular | `notifications.json`, com todas as notificações do titular e `visible` dizendo se ele ainda as vê (as ocultas por membership inativa ou projeto excluído também entram), com tipo, projeto, tarefa, título copiado, status, data do prazo, criação e leitura, sem o ator; `notification-preferences.json`; e `notification-decisions.json`, com as decisões do titular (tipo, chave do evento, projeto, resultado, ocorrência e decisão) |

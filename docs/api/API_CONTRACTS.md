@@ -45,8 +45,9 @@ Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas co
 
 A autenticação recente de uma conta com senha é a confirmação da senha local. Para conta GitHub-only (`passwordHash=null`), o backend exige identidade vinculada e OAuth GitHub recente na mesma sessão; o token de usuário permanece somente em memória. O callback aceita `ACTIVE` e `DELETION_PENDING` apenas nesse purpose, valida state/sessão/GitHub ID e atualiza os timestamps da sessão e da identidade.
 
-A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arquivo. Conteúdo de projetos, requisitos, tarefas atribuídas e integrações entra somente para memberships atualmente ativas. Membership histórica/inativa não autoriza exportar conteúdo atual. Dados próprios incluem as notificações recebidas (todas, com `visible`) e as preferências de
-notificação (S2-02), perfil, identidade GitHub, sessões sanitizadas, solicitações, histórico de e-mail sem token, metadata de exportações e auditoria permitida. IDs de sessão internos, senhas, cookies, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
+A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arquivo. Conteúdo de projetos, requisitos, tarefas atribuídas e integrações entra somente para memberships atualmente ativas. Membership histórica/inativa não autoriza exportar conteúdo atual. Dados próprios incluem as notificações recebidas (todas, com `visible`), as preferências de
+notificação (S2-02) e as decisões de notificação do titular (`notification-decisions.json`: tipo,
+chave do evento, projeto, resultado, ocorrência e decisão), perfil, identidade GitHub, sessões sanitizadas, solicitações, histórico de e-mail sem token, metadata de exportações e auditoria permitida. IDs de sessão internos, senhas, cookies, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
 
 Ao vencer a carência, o processor faz claim e revalida ownership dentro da transação. Sem impedimento, anonimiza. Se o titular ainda for o único OWNER de projeto não excluído, encerra a solicitação como `REJECTED`, registra `SOLE_PROJECT_OWNER`, retorna a conta para `ACTIVE`, revoga sessões e preserva projeto/membership; uma nova solicitação será necessária após a regularização.
 

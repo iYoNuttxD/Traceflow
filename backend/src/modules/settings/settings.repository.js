@@ -692,6 +692,17 @@ export const settingsRepository = {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
         },
         notificationPreferences: { select: { type: true, enabled: true } },
+        notificationDecisions: {
+          select: {
+            type: true,
+            eventKey: true,
+            projectId: true,
+            outcome: true,
+            occurredAt: true,
+            decidedAt: true
+          },
+          orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }]
+        },
         personalDataExports: {
           select: {
             id: true,

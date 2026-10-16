@@ -151,7 +151,8 @@ describe('maintenance retention against real persisted rows', () => {
       privacyRequests: 3,
       personalDataExports: 1,
       notifications: 0,
-      githubArtifactEvents: 0
+      githubArtifactEvents: 0,
+      notificationDecisions: 0
     };
     expect(await runPrivacyRetention(options)).toEqual({ mode: 'dry-run', counts });
     expect(await ids(prisma.privacyRequest)).toEqual(requests.map(({ id }) => id));
@@ -191,7 +192,8 @@ describe('maintenance retention against real persisted rows', () => {
         privacyRequests: 0,
         personalDataExports: 0,
         notifications: 0,
-        githubArtifactEvents: 0
+        githubArtifactEvents: 0,
+        notificationDecisions: 0
       }
     });
     expect(await ids(prisma.privacyRequest)).toEqual(retainedRequests);
