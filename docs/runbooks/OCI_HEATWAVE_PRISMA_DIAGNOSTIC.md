@@ -1449,3 +1449,238 @@ na VM e nova homologação Prisma–HeatWave. Permanecem pendências, não PASS.
 Veredito desta implementação: **PARTIAL**. O contrato local e seus validadores
 foram testados; o coletor, a captura, a publicação/consumo e o verificador
 operacional precisam ser concluídos e demonstrados antes de retirar o gate.
+
+## 32. W02-B — continuação autorizada: comandos administrativos manuais
+
+Esta seção complementa o histórico da seção 31. A continuação foi autorizada
+expressamente para implementar, sem executar conexões, o coletor manual, a captura
+protegida e o verificador offline. Baseline: `daniel-dev`, HEAD
+`f05a297c627b3659309e8519b2ca46428bf810cd`, working tree inicialmente limpo.
+O commit contém os 12 arquivos da entrega anterior; eles foram preservados.
+
+**Estado: PARTIAL. Nenhum pacote ou homologação está autorizado por esta entrega.**
+
+### 32.1 Quatro invocações independentes
+
+`deploy/scripts/heatwave-admin-manual.mjs` aceita exatamente três argumentos:
+`--operation`, `--run-id`, `--manifest-sha256`. As únicas operações são:
+
+| Operação        | Processo de coleta/captura               | Documento     | Aprovação final                                      |
+| --------------- | ---------------------------------------- | ------------- | ---------------------------------------------------- |
+| collect-initial | Um cliente MySQL, consultas fixas        | ADMIN_INITIAL | Não                                                  |
+| capture-prisma  | Um launcher existente, como traceflow    | PRISMA        | Não                                                  |
+| collect-final   | Um novo cliente MySQL, consultas fixas   | ADMIN_FINAL   | Não                                                  |
+| verify-offline  | Nenhuma conexão ou processo Prisma/MySQL | CONSOLIDATED  | Bloqueada enquanto a validação real estiver pendente |
+
+Não existe operação all/auto, agendamento, supervisor de sequência, desbloqueio,
+mudança de grants ou retry automático. O programa valida Linux/root para a
+custódia administrativa; o launcher e o Prisma continuam executando sem root.
+Cada operação verifica o pacote instalado e o SHA-256 independente do manifesto.
+A ferramenta exige o caminho `/opt/traceflow-diagnostics/<packageId>`.
+
+O contrato do diagnóstico permanece intermediário. `capture-prisma` aceita
+somente PRISMA_VERIFIED válido, com final=false, vínculos corretos e desconexão
+concluída. PASS antecipado, stderr, exit code incompatível e documentos incompletos
+são recusados. Uma falha Prisma conserva código, fase e código MySQL sanitizado.
+
+O guard `ADMIN_COLLECTION_RUNTIME_UNVERIFIED` foi **preservado** no diagnóstico
+e também é obrigatório antes de qualquer PASS do verificador operacional.
+Não há flag, campo de autorização ou variável de ambiente que o desabilite.
+Consequentemente, a captura do caminho v2 ainda recebe FAIL do launcher real;
+as cadeias completas dos testes utilizam doubles explícitos. Não se deve executar
+este procedimento na OCI para tentar ultrapassar essa pendência.
+
+### 32.2 Cliente textual e credenciais
+
+O coletor usa exclusivamente o cliente MySQL instalado. O código executa o plano
+ADMIN_PLAN existente, sem modificá-lo, por stdin. Não há SQL fornecido em argv nem
+SQL configurável. Para cada fonte continua havendo o contador imediato
+`SHOW COUNT(*) WARNINGS`, sem consulta intermediária.
+
+As opções fixam TCP, FQDN/porta autorizados, `VERIFY_IDENTITY`, CA pública validada
+e TLS 1.2/1.3. Desabilitam reconexão, login paths, auto-rehash e LOCAL INFILE;
+fixam batch/raw/sem cabeçalhos e ambiente mínimo. Não usam --force, --execute,
+init-command ou shell. A documentação relevante é
+[MySQL 26.7 — opções do cliente](https://dev.mysql.com/doc/refman/26.7/en/mysql-command-options.html)
+e [SHOW WARNINGS/contagem](https://dev.mysql.com/doc/refman/26.7/en/show-warnings.html).
+
+O arquivo administrativo de opções deve existir previamente, sob custódia root,
+com apenas o grupo `[client]`, usuário fixo traceflow_admin e senha entre aspas
+duplas. Ordem exata: cabeçalho, user, password, cada qual terminado por LF.
+Somente escapes de barra invertida e aspas duplas são aceitos; controles ASCII,
+includes, opções adicionais e credenciais vazias são recusados. O programa não
+cria, transforma, imprime nem persiste esse segredo.
+
+O arquivo regular é aberto com O_NOFOLLOW, conferido por descritor e mantido
+aberto. O cliente recebe o descritor 3, com `--defaults-file=/proc/self/fd/3` como
+primeira opção. O caminho protegido e o descritor são revalidados após o processo.
+A compatibilidade desse mecanismo com o cliente instalado precisa de teste real
+isolado; falhas não têm fallback para argv, ambiente ou arquivo temporário.
+
+Na captura Prisma, o launcher existente recebe caminhos protegidos para sua
+autorização privada e password.json. O coletor não copia a senha nem interpreta
+seu conteúdo; fixa e revalida o arquivo, e conserva o comportamento do launcher.
+Buffers de credencial lidos pelo componente administrativo são zerados ao sair.
+Isso não constitui garantia de apagamento de toda cópia interna do runtime.
+
+stdout/stderr dos filhos são capturados, limitados e não retransmitidos. stderr
+é contado, sem armazenar sua mensagem nas evidências. Falha, sinal, timeout,
+truncamento, UTF-8 inválido ou limites excedidos impedem aprovação. O grupo do
+processo é encerrado em timeout/interrupção; o encerramento é aguardado. Esses
+controles foram exercitados com processos simulados, não com MySQL real.
+
+### 32.3 Custódia, recibos e uso único
+
+Diretórios a provisionar manualmente, apenas em etapa futura autorizada:
+
+- `/etc/traceflow/diagnostic-inputs`: root:traceflow, 0750.
+- `/etc/traceflow/diagnostic-evidence`: root:traceflow, 0750.
+- `/etc/traceflow/diagnostic-evidence/control`: root:root, 0700.
+- Todos os ancestrais: root, sem escrita por grupo/outros, sem symlink.
+
+Entradas por execução:
+
+| Arquivo em diagnostic-inputs   | Dono / modo         | Conteúdo                                                     |
+| ------------------------------ | ------------------- | ------------------------------------------------------------ |
+| `<runId>.authorization.json`   | root / 0400 ou 0600 | Autorização v2, initialSha256=null, janela e risco aprovados |
+| `<runId>.admin.cnf`            | root / 0400 ou 0600 | Opções privadas do cliente administrativo                    |
+| `<runId>.prisma-password.json` | traceflow / 0600    | Contrato privado já existente do launcher                    |
+| `<runId>.closure.json`         | root / 0400 ou 0600 | Confirmação operacional posterior à auditoria final          |
+
+Nenhuma dessas entradas reais foi gerada ou lida nesta entrega. O mecanismo de
+provisionamento de segredos deve permanecer protegido, fora do Git, sem comandos
+contendo senhas no histórico ou em argumentos. Também deve impedir core dumps
+e encaminhamento de memória/saídas privadas a logs externos durante a operação.
+
+O primeiro comando reserva authorizationId e runId antes de executar o cliente.
+Cada etapa cria exclusivamente `<operation>.attempt.json` no diretório de controle
+da execução. A criação usa O_EXCL/O_NOFOLLOW; existência prévia resulta em FAIL.
+Não existe limpeza automática ou substituição para liberar uma tentativa.
+
+Após validação, publica-se `<evidenceId>.json` root:traceflow/0440 e, por último,
+um recibo root:root/0400. O recibo vincula hash canônico do documento, hash da
+tentativa, hash do recibo anterior, operação, pacote, runId e authorizationId.
+Documentos/recibos são sincronizados em disco e o diretório é sincronizado.
+Falha parcial deixa a tentativa consumida; ausência de recibo impede a próxima
+etapa. O registro de falha contém apenas o erro sanitizado e os identificadores.
+
+Na coleta inicial são publicadas uma autorização root vinculada ao hash da
+evidência inicial e uma cópia privada traceflow/0600 para o launcher. A cópia do
+executor deve corresponder à autorização administrativa. Nenhuma credencial é
+publicada. O leitor v1 não foi alterado nem passou a aceitar execução como root.
+
+Arquivos precisam ser regulares, de proprietário/modo esperados, com um único
+link, tamanho limitado e caminhos absolutos canônicos. Metadados e ancestrais
+são revalidados; substituições durante leitura/publicação são recusadas.
+Symlinks de evidências/credenciais são proibidos. Apenas programas do sistema
+podem ter symlinks administrativamente controlados, com origem e destino
+verificados e execução pelo destino canônico.
+
+O verificador offline exige os documentos **e** seus recibos/tentativas sob
+custódia. Não aceita um arquivo arbitrário importado como evidência administrativa.
+Isso impede substituição pelo executor; não autentica um administrador root
+malicioso. Root e o procedimento administrativo continuam sendo a fronteira de
+confiança. Não há assinatura remota, hardware de atestação ou log externo imutável.
+
+### 32.4 Procedimento manual futuro — não executar nesta entrega
+
+Antes destes comandos: validar o cliente/protocolo/custódia em laboratório,
+revisar a liberação do guard, autorizar novo pacote e sua composição, verificar
+checksums, preparar a janela e as entradas privadas. Os placeholders abaixo
+precisam ser substituídos por identificadores reais aprovados; não são artefatos
+ou autorizações emitidos por esta entrega. Cada bloco exige decisão manual própria.
+
+1. Com a conta de diagnóstico bloqueada, coletar a auditoria inicial:
+
+```text
+sudo env -i PATH=/usr/bin:/bin <NODE22_ABSOLUTO> /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation collect-initial --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+2. Conferir a evidência/recibo inicial e, somente em janela autorizada, preparar
+   externamente a conta/credencial temporária. Invocar apenas a captura Prisma:
+
+```text
+sudo env -i PATH=/usr/bin:/bin <NODE22_ABSOLUTO> /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation capture-prisma --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+3. Conferir desconexão, bloquear novamente a conta pelo procedimento administrativo
+   separado e confirmar ausência de sessões. Invocar a nova coleta final:
+
+```text
+sudo env -i PATH=/usr/bin:/bin <NODE22_ABSOLUTO> /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation collect-final --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+4. Preparar a confirmação operacional de encerramento e executar a consolidação:
+
+```text
+sudo env -i PATH=/usr/bin:/bin <NODE22_ABSOLUTO> /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation verify-offline --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+O verificador não conecta ao banco; usa somente arquivos protegidos e verificação
+local do pacote. PASS exige toda a cadeia e política satisfeitas, além da retirada
+do guard em uma revisão futura fundamentada por evidências reais.
+
+Em qualquer falha: não repetir a tentativa, não editar recibos, não reaproveitar
+IDs e não executar a próxima etapa como se houvesse sucesso. Preservar evidências
+sanitizadas e fazer a limpeza operacional de conta/processos/credenciais conforme
+D04. Qualquer nova tentativa requer autorização e identificadores novos. A
+ferramenta não altera conta, grants, configurações ou schema em nenhum caminho.
+
+### 32.5 Validação e limites desta continuação
+
+Testes novos usam filesystem, processos, DNS, CA e saídas do cliente simulados;
+não executam MySQL. O teste de entrada do CLI executa apenas a rejeição sem
+operação selecionada, antes de qualquer acesso administrativo.
+
+Continuam pendentes: cliente textual real e descritor de opções em /proc,
+contadores/completude, ausência de reconexão silenciosa, encerramento do grupo
+real de processos, permissões/ACL/SELinux em Linux, sincronização durável e
+recuperação após interrupção real, composição do futuro pacote ARM64.
+Nenhum teste sintético substitui essas evidências.
+
+As coletas não são atômicas. Dois estados iguais não excluem alterações
+transitórias. O contrato mantém a aceitação operacional humana e a limitação
+TRANSIENT_ACL_CHANGES_NOT_AUTOMATICALLY_DETECTED; não anuncia auditoria contínua.
+As evidências W02-A permanecem históricas, a 06.1.4 permanece FAIL e não há
+homologação Prisma–HeatWave nesta entrega.
+
+### 32.6 Resultados locais da continuação
+
+Node.js 22.23.3 em macOS ARM64, dependências previamente instaladas. Nenhum
+arquivo da implementação anterior foi alterado, exceto o acréscimo desta seção
+ao runbook. Prisma, schema, migrations e empacotador permaneceram intactos.
+
+Regressão executada com ambiente limpo:
+
+```bash
+env -i PATH=/usr/bin:/bin /opt/homebrew/opt/node@22/bin/node \
+  --experimental-vm-modules --test --test-reporter=spec \
+  deploy/tests/role-attestation.test.mjs \
+  deploy/tests/heatwave-diagnostic.test.mjs \
+  deploy/tests/diagnostic-launcher.test.mjs \
+  deploy/tests/administrative-audit.test.mjs \
+  deploy/tests/heatwave-admin-manual.test.mjs
+```
+
+Resultado: **463 PASS, 0 FAIL, 0 ignorados**, incluindo os 70 testes novos.
+Executados também os 52 testes de `backend/test/unit/heatwave-connection.test.js`
+pela API `startVitest`, com config/envDir/setup/globalSetup desabilitados e cache
+em diretório temporário exclusivo, removido ao final: **52 PASS**.
+Total desta continuação: **515 PASS**, sem banco ou cliente MySQL real.
+
+ESLint nos quatro arquivos de código: PASS, zero erros/warnings. A primeira
+verificação apontou `no-control-regex`; a validação foi ajustada para conferir
+os códigos dos caracteres explicitamente, mantendo a recusa de controles.
+Prettier nos cinco arquivos, Node.js --check nos quatro arquivos de código e
+git diff --check completaram a validação estática.
+
+Os testes demonstram recusa de replay, vínculo dos recibos, permissões simuladas,
+substituição de arquivos/ancestrais, interrupção/timeout, limites de saída,
+sanitização, expiração entre verificações, deadline limitado pela autorização,
+captura intermediária, ausência de encadeamento automático e bloqueio do PASS
+operacional. Casos de sucesso completo usam double explícito do guard somente
+no teste; a interface CLI não oferece tal opção.
+
+Veredito: **PARTIAL**, pelos limites reais enumerados na seção 32.5. Esta
+continuação não produziu atestado real, autorização operacional, credencial,
+conexão MySQL/OCI, migration, pacote, commit, push, PR ou deploy.
