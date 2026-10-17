@@ -150,6 +150,11 @@
   align-items: center;
   gap: var(--space-2);
 }
+.kanban-task__traceability > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .kanban-task__topline {
   justify-content: space-between;
 }

@@ -41,11 +41,33 @@ A migration L1 cria integração `RECONNECT_REQUIRED` para projetos com metadado
 - `POST /api/projects/:projectId/github/sync` exige MANAGER+, e-mail verificado e integração/instalação `ACTIVE`.
 - Duas solicitações concorrentes para o mesmo projeto retornam `202` e o mesmo `run.id`; somente a criadora informa `alreadyRunning=false` e agenda o worker.
 - O token de instalação é gerado sob demanda; sync pagina, deduplica/upserta e preserva artifacts ausentes em execuções posteriores.
+- Cada página de PRs ou issues e a etapa de branches gravam só o que mudou (ADR-021): uma sincronização sem novidade praticamente não grava, e o resumo conta como atualizados só os itens que mudaram.
+- Orçamento de latência até o banco: a pior página (100 itens, todos mudados) precisa caber no prazo de 5 s da transação (ADR-020). Medido: cabe até cerca de 45 ms e cai a 61 ms (ADR-021, "Validação"); mantenha o banco abaixo de 40 ms. Acima do limite, a página falha com `GITHUB_SYNC_STORAGE_FAILED` (`causeCode: TRANSACTION_DEADLINE`).
 - Falha parcial preserva lotes confirmados e último sucesso; `GitHubSyncRun.activeProjectId` garante um claim ativo por projeto no banco e stale detection permite recuperação controlada.
 - O polling de status é read-first: runs com `heartbeatAt` recente não geram escrita. Apenas um run realmente stale é expirado condicionalmente pelo próprio `run.id`; para `QUEUED` sem heartbeat, `updatedAt` é o fallback de liveness.
 - Webhooks de instalação/repositório apenas atualizam estado. Não disparam sync automático.
 - `installation_repositories.added` atualiza metadados e o novo repositório aparece na listagem ao vivo, sem alterar projetos existentes.
 - `installation_repositories.removed` bloqueia somente integrações dos IDs removidos e preserva as demais integrações e todos os artifacts já importados.
+
+## Limites dos campos importados
+
+Todo texto que vem do GitHub cabe na coluna correspondente; um sync nunca falha por tamanho
+(S201-A03, correção de 09/10/2026).
+
+| Campo | Coluna | Limite no GitHub | Gravado | Tratamento |
+|---|---|---|---|---|
+| título de PR | `PullRequest.title` | 256 caracteres | `VARCHAR(256)` | cabe inteiro; acima disso, cortado por caractere |
+| título de issue | `Issue.title` | 256 caracteres | `VARCHAR(256)` | idem |
+| branch de origem e destino da PR | `PullRequest.sourceBranch`, `targetBranch` | sem limite total (255 bytes por trecho do nome) | `VARCHAR(512)` | cabe inteiro; acima de 512, cortado por caractere |
+| nome de branch | `GitBranch.name` | idem | `VARCHAR(512)`, `utf8mb4_bin` preservada | cabe inteiro; é identidade e não é cortado |
+| branch em andamento do sync | `GitHubSyncRun.currentBranch` | idem | `VARCHAR(512)` | cabe inteiro |
+| branch padrão | `ProjectGitHubIntegration.defaultBranch` | idem | `VARCHAR(512)` | cabe inteiro |
+| milestone | `Issue.milestone` | sem limite documentado | `VARCHAR(255)` | cortado por caractere em 255 |
+| URL do item | `githubUrl` de PR, issue e commit | sem limite formal | `VARCHAR(512)` | só `https://github.com/…` de até 512; outro valor vira `null` |
+| autor do commit | `Commit.authorName`, `authorEmail` | sem limite (texto livre do git) | `VARCHAR(255)` | cortado por caractere, sem partir par substituto |
+| snapshot do alerta | `TraceabilityAlert.subjectTitle` | — | `VARCHAR(256)` | título inteiro |
+
+Migrations: `20261009010000_github_field_limits` e `20261009010100_github_sync_run_branch_limit`.
 
 ## Webhook
 
@@ -58,6 +80,9 @@ GitHub deve enviar `Content-Type: application/json`, `X-Hub-Signature-256`, `X-G
 3. `SUSPENDED`/`REMOVED`: confirme no GitHub; não force sync.
 4. `GITHUB_AUTH_FAILED`: verifique App ID/private key/permissões, Callback URL e a opção de autorização durante a instalação, sem imprimir valores.
 5. Rate limit/5xx: respeite retry limitado e aguarde recuperação.
-6. Após correção, execute um sync manual e confira contagens/vínculos.
+6. `GITHUB_SYNC_PROJECT_BUSY`: outra alteração segurou o projeto por mais de 5 s durante a gravação de uma página. Nada da página foi gravado; sincronize de novo. Se repetir, procure transações longas no projeto (exclusão, Rastreabilidade).
+7. `GITHUB_SYNC_STORAGE_FAILED`: o banco recusou a gravação. O código interno está no log `github_sync_run_failed` (`causeCode`). Corrija a causa (conexão, deadlock, migration pendente) e sincronize de novo.
+8. `github_sync_run_failure_unrecorded` no log: a falha não pôde ser gravada nem depois de três tentativas. A execução expira por inatividade em 30 minutos, e então a próxima sincronização é aceita.
+9. Após correção, execute um sync manual e confira contagens/vínculos.
 
 GITHUB-04 acrescenta agenda/worker persistente e coordenação distribuída no mesmo SyncRun. Consulte o [runbook automático](GITHUB_AUTOMATIC_SYNC.md). Store de rate limit HTTP, secret manager e monitoramento permanecem operacionais.

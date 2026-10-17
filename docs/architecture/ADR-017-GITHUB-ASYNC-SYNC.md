@@ -114,3 +114,43 @@ O runbook detalha startup, diagnóstico e shutdown; nenhuma infraestrutura foi p
 - [MySQL: locking reads/NOWAIT](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html).
 - ADR-017 livre em `daniel-dev@ae9a265` e `origin/joao-dev-v2@14e00be5`; esta última utiliza
   ADR-015/016. A próxima integração deve reconferir IDs e preservar os campos de ambas as branches.
+
+## Emenda de 15/10/2026 — falha gravada pela conexão de recuperação (TF-REV-003)
+
+### Contexto
+
+A gravação da falha da execução tem até três tentativas (S203-A01, ADR-018 D1):
+- a primeira usa o `fail` normal;
+- as duas seguintes, depois de erro de conexão, usavam um `update` por `id` no cliente de
+  recuperação (ADR-020).
+
+Esse `update` não conferia a lease nem o estado e não reagendava. O `retryAt` e a falha permanente se
+perdiam, e o `nextSyncAt` ficava nulo, o que a agenda trata como vencido. Uma execução que já tinha
+terminado podia ser regravada como `FAILED`. A revisão independente da PR #26 apontou isso
+(TF-REV-003).
+
+### Decisão
+
+A gravação pela conexão de recuperação segue as mesmas invariantes do `fail`, numa transação curta
+do cliente de recuperação, com espera de trava de no máximo 2 s:
+1. trava do projeto ativo com `NOWAIT`;
+2. trava da execução com `NOWAIT`;
+3. conferência da lease (`RUNNING`, dona do projeto, heartbeat dentro da lease);
+4. reagendamento:
+   - falhas consecutivas;
+   - cooldown da instalação pelo `retryAt`;
+   - `RECONNECT_REQUIRED` na falha permanente;
+   - `nextSyncAt` com recuo;
+5. atualização da execução.
+
+Exceções:
+- Lease perdida, execução terminal ou projeto inativo não gravam nada.
+- Projeto ou execução ocupados contam como tentativa. Esgotadas as tentativas, o log
+  `github_sync_run_failure_unrecorded` registra o caso, e a expiração pela lease fecha a execução.
+
+### Consequências
+
+- Um escritor atrasado não sobrescreve execução terminal.
+- O projeto não volta à agenda sem recuo nem cooldown depois de uma falha gravada pela recuperação.
+- A gravação pela recuperação custa uma transação curta, no lugar de uma instrução.
+

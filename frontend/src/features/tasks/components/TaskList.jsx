@@ -4,6 +4,7 @@ import { formatDate, formatEffortHours, priorityLabels, statusLabels } from './k
 import '../styles/task-cards.css';
 import './TaskList.css';
 import { isTaskOverdue } from './kanban-view.js';
+import { TaskInconsistencyMarker, TaskTraceabilityLine } from './TaskIndications.jsx';
 
 function initials(value) {
   const words = String(value || '')
@@ -29,7 +30,17 @@ function deadlineView(task) {
   return { label: formatDate(task.deadline), tone: '' };
 }
 
-function TaskListItem({ task, sprintName, deleting, canWrite, onOpen, onEdit, onDelete }) {
+function TaskListItem({
+  task,
+  sprintName,
+  deleting,
+  canWrite,
+  inconsistent,
+  onOpen,
+  onOpenInconsistency,
+  onEdit,
+  onDelete
+}) {
   const responsible = task.responsibleUser?.name || task.responsible || 'Sem responsável';
   const deadline = deadlineView(task);
   const openFromCard = (event) => {
@@ -50,6 +61,7 @@ function TaskListItem({ task, sprintName, deleting, canWrite, onOpen, onEdit, on
         }
       }}
     >
+      {inconsistent && <TaskInconsistencyMarker task={task} onOpen={onOpenInconsistency} />}
       <header className="task-catalog-card__header">
         <div>
           <span className="eyebrow">TASK-{task.id}</span>
@@ -84,6 +96,12 @@ function TaskListItem({ task, sprintName, deleting, canWrite, onOpen, onEdit, on
             <dt>Prazo</dt>
             <dd className={deadline.tone ? `task-deadline--${deadline.tone}` : undefined}>
               {deadline.label}
+            </dd>
+          </div>
+          <div>
+            <dt>Rastreabilidade</dt>
+            <dd>
+              <TaskTraceabilityLine task={task} />
             </dd>
           </div>
         </dl>
@@ -145,8 +163,10 @@ export function TaskList({
   deletingTaskId,
   canWrite = true,
   filtered = false,
+  openAlertTasks = new Map(),
   onCreate,
   onOpen,
+  onOpenInconsistency,
   onEdit,
   onDelete
 }) {
@@ -171,7 +191,9 @@ export function TaskList({
                 sprintName={sprintNames[task.sprintId]}
                 deleting={deletingTaskId === task.id}
                 canWrite={canWrite}
+                inconsistent={openAlertTasks.has(task.id)}
                 onOpen={onOpen}
+                onOpenInconsistency={onOpenInconsistency}
                 onEdit={onEdit}
                 onDelete={onDelete}
               />

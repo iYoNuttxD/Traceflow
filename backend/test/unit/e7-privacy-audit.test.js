@@ -63,12 +63,18 @@ describe('E7 auditoria, privacidade e retenção', () => {
     const tx = {
       auditEvent: { deleteMany: vi.fn(), create: vi.fn() },
       privacyRequest: { deleteMany: vi.fn() },
-      personalDataExport: { deleteMany: vi.fn() }
+      personalDataExport: { deleteMany: vi.fn() },
+      notification: { deleteMany: vi.fn() },
+      gitHubArtifactEvent: { deleteMany: vi.fn() },
+      notificationDecision: { deleteMany: vi.fn() }
     };
     const client = {
       auditEvent: { count: vi.fn().mockResolvedValue(2) },
       privacyRequest: { count: vi.fn().mockResolvedValue(1) },
       personalDataExport: { count: vi.fn().mockResolvedValue(3) },
+      notification: { count: vi.fn().mockResolvedValue(4) },
+      gitHubArtifactEvent: { count: vi.fn().mockResolvedValue(5) },
+      notificationDecision: { count: vi.fn().mockResolvedValue(0) },
       $transaction: vi.fn(async (callback) => callback(tx))
     };
     expect(
@@ -76,16 +82,24 @@ describe('E7 auditoria, privacidade e retenção', () => {
         client,
         now,
         apply: false,
-        configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
+        configuration: {
+          auditRetentionDays: 30,
+          privacyRequestRetentionDays: 30,
+          notificationRetentionDays: 180
+        }
       })
-    ).toMatchObject({ mode: 'dry-run', counts: { auditEvents: 2 } });
+    ).toMatchObject({ mode: 'dry-run', counts: { auditEvents: 2, githubArtifactEvents: 5 } });
     expect(client.$transaction).not.toHaveBeenCalled();
     expect(
       await runPrivacyRetention({
         client,
         now,
         apply: true,
-        configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
+        configuration: {
+          auditRetentionDays: 30,
+          privacyRequestRetentionDays: 30,
+          notificationRetentionDays: 180
+        }
       })
     ).toMatchObject({ mode: 'apply' });
     expect(tx.privacyRequest.deleteMany).toHaveBeenCalledExactlyOnceWith({
@@ -102,9 +116,21 @@ describe('E7 auditoria, privacidade e retenção', () => {
     });
     expect(tx.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ action: 'RETENTION_CLEANUP_EXECUTED' })
+        data: expect.objectContaining({
+          action: 'RETENTION_CLEANUP_EXECUTED',
+          metadataJson: { count: 15 }
+        })
       })
     );
+    expect(tx.gitHubArtifactEvent.deleteMany).toHaveBeenCalledWith({
+      where: {
+        status: { in: ['DISPATCHED', 'FAILED'] },
+        detectedAt: { lt: expect.any(Date) }
+      }
+    });
+    expect(tx.notificationDecision.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { decidedAt: { lt: new Date('2029-08-05T00:00:00.000Z') } }
+    });
   });
 
   it('processa anonimização vencida e contabiliza impedimento de governança', async () => {

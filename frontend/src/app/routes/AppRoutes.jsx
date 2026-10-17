@@ -1,10 +1,15 @@
 import { Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate, useParams } from 'react-router';
 import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
 import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
 import { AuthenticatedLayout } from '../layout/AuthenticatedLayout.jsx';
 import { lazyNamed } from './lazy-route.js';
 import { ProjectEventsRoute } from './ProjectEventsRoute.jsx';
+
+function ProjectRedirect({ to }) {
+  const { projectId } = useParams();
+  return <Navigate to={to(projectId)} replace />;
+}
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
 const RegisterPage = lazyNamed(() => import('../../pages/RegisterPage.jsx'), 'RegisterPage');
@@ -64,6 +69,10 @@ const TraceabilityPage = lazyNamed(
 const ProjectAuditPage = lazyNamed(
   () => import('../../pages/ProjectAuditPage.jsx'),
   'ProjectAuditPage'
+);
+const NotificationPreferencesPage = lazyNamed(
+  () => import('../../features/notifications/pages/NotificationPreferencesPage.jsx'),
+  'NotificationPreferencesPage'
 );
 const SettingsLayout = lazyNamed(
   () => import('../../features/settings/SettingsLayout.jsx'),
@@ -174,13 +183,28 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/schedule" element={<SchedulePage />} />
           <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
           <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
+          <Route
+            path="/projects/:projectId/traceability/alerts"
+            element={<ProjectRedirect to={(id) => `/projects/${id}/traceability`} />}
+          />
+          <Route
+            path="/projects/:projectId/traceability/unlinked-tasks"
+            element={
+              <ProjectRedirect to={(id) => `/projects/${id}/tasks?rastreabilidade=SEM_VINCULO`} />
+            }
+          />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="account" replace />} />
             <Route path="account" element={<AccountSettingsPage />} />
             <Route path="security" element={<SecuritySettingsPage />} />
             <Route path="privacy" element={<PrivacySettingsPage />} />
             <Route path="integrations" element={<IntegrationsSettingsPage />} />
+            <Route path="notifications" element={<NotificationPreferencesPage />} />
           </Route>
+          <Route
+            path="/notifications"
+            element={<Navigate to="/projects" replace state={{ openNotifications: true }} />}
+          />
           <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />
         </Route>
         <Route

@@ -45,7 +45,9 @@ Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas co
 
 A autenticação recente de uma conta com senha é a confirmação da senha local. Para conta GitHub-only (`passwordHash=null`), o backend exige identidade vinculada e OAuth GitHub recente na mesma sessão; o token de usuário permanece somente em memória. O callback aceita `ACTIVE` e `DELETION_PENDING` apenas nesse purpose, valida state/sessão/GitHub ID e atualiza os timestamps da sessão e da identidade.
 
-A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arquivo. Conteúdo de projetos, requisitos, tarefas atribuídas e integrações entra somente para memberships atualmente ativas. Membership histórica/inativa não autoriza exportar conteúdo atual. Dados próprios incluem perfil, identidade GitHub, sessões sanitizadas, solicitações, histórico de e-mail sem token, metadata de exportações e auditoria permitida. IDs de sessão internos, senhas, cookies, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
+A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arquivo. Conteúdo de projetos, requisitos, tarefas atribuídas e integrações entra somente para memberships atualmente ativas. Membership histórica/inativa não autoriza exportar conteúdo atual. Dados próprios incluem as notificações recebidas (todas, com `visible`), as preferências de
+notificação (S2-02) e as decisões de notificação do titular (`notification-decisions.json`: tipo,
+chave do evento, projeto, resultado, ocorrência e decisão), perfil, identidade GitHub, sessões sanitizadas, solicitações, histórico de e-mail sem token, metadata de exportações e auditoria permitida. IDs de sessão internos, senhas, cookies, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
 
 Ao vencer a carência, o processor faz claim e revalida ownership dentro da transação. Sem impedimento, anonimiza. Se o titular ainda for o único OWNER de projeto não excluído, encerra a solicitação como `REJECTED`, registra `SOLE_PROJECT_OWNER`, retorna a conta para `ACTIVE`, revoga sessões e preserva projeto/membership; uma nova solicitação será necessária após a regularização.
 
@@ -162,7 +164,8 @@ Todas as respostas incluem o header `X-Request-Id`. Erros de domínio preservam 
 }
 ```
 
-`details` nunca contém o valor recebido. Bodies mutáveis são estritos e rejeitam campos desconhecidos. Params numéricos aceitam somente inteiro decimal positivo e são convertidos para `number`. Datas de filtro usam `YYYY-MM-DD`; `deadline` aceita esse formato ou datetime ISO-8601 completo. Query `search` é opcional e limitada a 255 caracteres.
+`details` nunca contém o valor recebido. Bodies mutáveis são estritos e rejeitam campos desconhecidos. Params numéricos aceitam somente inteiro decimal positivo e são convertidos para `number`. Datas de filtro usam `YYYY-MM-DD`; `deadline` aceita esse formato ou datetime ISO-8601 completo
+(com hora e fuso, a data do prazo do RF59 é a data UTC do instante; ver S2-02). Query `search` é opcional e limitada a 255 caracteres.
 
 A API exige JSON para bodies, aplica limite padrão de 100kb, CORS por allowlist e rate limiting.
 Erros de infraestrutura usam o formato seguro `{message,code,requestId}`: origem proibida
@@ -172,13 +175,31 @@ Erros de infraestrutura usam o formato seguro `{message,code,requestId}`: origem
 `RateLimit` e `Retry-After` e o corpo `{message,code,requestId,retryAfterSeconds,scope}`; `scope`
 identifica apenas a categoria pública da quota, sem expor sua chave, usuário ou IP.
 
+**Recurso ocupado (desde 13/10/2026, ADR-019).** Qualquer rota que grava pode responder
+`409 RESOURCE_BUSY` quando outra alteração segura o recurso por mais que o limite de espera da
+transação: 2 s nas operações de prazo padrão e 5 s nas de prazo de 15 s (tarefas, requisitos,
+defeitos, casos de teste e alertas).
+- O corpo é `{message,code,requestId}`, com "Outra alteração está em andamento. Tente de novo em
+  instantes.", e o header `Retry-After: 2`.
+- Nada da operação é gravado, e o cliente pode repetir a requisição.
+- O `PUT` de preferências mantém o próprio `409 NOTIFICATION_PREFERENCES_BUSY`.
+
+**Operação além do prazo (desde 13/10/2026, ADR-020).** Qualquer rota que usa transação pode
+responder `503 OPERATION_TIMEOUT` quando o trabalho no banco passa do prazo da transação (5 s no
+padrão; 15 s em tarefas, requisitos, defeitos, casos de teste e alertas).
+- O corpo é `{message,code,requestId}`, com "A operação demorou mais que o permitido e foi
+  desfeita. Tente de novo em instantes.", e o header `Retry-After: 5`.
+- A transação é desfeita por inteiro: nada da operação é gravado, e o cliente pode repetir a
+  requisição.
+- A mesma resposta vale quando não há conexão livre para iniciar a transação a tempo.
+
 ## Infraestrutura
 
 | Método   | Caminho           | Entrada | Sucesso                             | Erros principais               |
 | -------- | ----------------- | ------- | ----------------------------------- | ------------------------------ |
 | GET      | `/health`         | Nenhuma | `200`, `{status,message}` histórico | `500` inesperado               |
-| GET      | `/health/live`    | Nenhuma | `200`, `{status:"ok"}`              | `500` inesperado               |
-| GET      | `/health/ready`   | Nenhuma | `200`, `{status:"ready"}`           | `503` dependência indisponível |
+| GET      | `/health/live`    | Nenhuma | `200`, `{status:"ok"}`              | `503`, `{status:"not_live"}` depois de pânico do motor do banco (ADR-020); `500` inesperado |
+| GET      | `/health/ready`   | Nenhuma | `200`, `{status:"ready"}`           | `503` dependência indisponível ou pânico do motor do banco |
 | qualquer | rota desconhecida | —       | —                                   | `404`, `ROUTE_NOT_FOUND`       |
 
 ## Projects e memberships
@@ -497,10 +518,37 @@ worker no ambiente de implantação. Não há evidência de deploy ou homologaç
 | GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                               |
 | GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                          |
 | GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                |
-| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos                      |
+| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `branch?`, `startDate?`, `endDate?`, `inconsistency?` | `200`, projeto, filtros, resumo e artefatos                      |
 
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação ocorre somente na leitura externa
 do GitHub; os contratos públicos de listagem permanecem inalterados.
+
+**Inconsistência nos artefatos (PR #26, TF-REV-008).** Cada PR e issue traz `inconsistency`, com o
+alerta atual do RF39 ou do RF40: `{alertId,status,detectedAt,resolvedAt,dismissedAt}`, ou `null`
+quando nunca houve alerta. "Atual" é o alerta aberto, se houver; senão, o detectado por último.
+Commit vem sempre com `inconsistency: null`. O filtro `inconsistency` aceita `OPEN`, `DISMISSED` ou
+`RESOLVED` (outro valor responde 400), é aplicado no servidor e volta em `filters.inconsistency`.
+`summary.inconsistencies{open,dismissed,resolved}` conta os artefatos listados antes desse filtro,
+e os demais campos do `summary` contam o conjunto filtrado. A tela do Repositório usa os dois, com
+os links `?inconsistencia=OPEN`, `?tipo=` e `?alerta=<id>`.
+
+**Resumo da execução** (`run.summary`). Em `pullRequests` e `issues`, `found` é o total lido do
+GitHub, `created` o de itens novos e `updated` o de itens que já existiam e mudaram. Desde
+13/10/2026 (ADR-021), item sem mudança não conta em `updated` e não é regravado.
+
+**Erro da execução** (`run.error`, ou `null`): `{code, message}`, com código estável e mensagem
+segura, sem resposta bruta do GitHub nem código interno do banco.
+- Falhas do GitHub usam os códigos da integração (`GITHUB_RATE_LIMITED`, `GITHUB_AUTH_FAILED`,
+  `RESOURCE_NOT_FOUND`, `EXTERNAL_SERVICE_ERROR`).
+- A execução que parou sem concluir expira por inatividade com `GITHUB_SYNC_STALE`.
+- Desde 13/10/2026, as falhas de gravação têm código próprio:
+
+| Código | Quando | Mensagem |
+| --- | --- | --- |
+| `GITHUB_SYNC_PROJECT_BUSY` | outra alteração segurou o projeto por mais de 5 s na gravação de uma página | "O projeto está com outra alteração em andamento. Tente sincronizar de novo em instantes." |
+| `GITHUB_SYNC_STORAGE_FAILED` | o banco recusou a gravação da sincronização | "Não foi possível gravar os dados da sincronização. Tente de novo em instantes." |
+
+A página que falha não grava nada dela, e a sincronização seguinte é aceita.
 
 Nomes de branch preservam exatamente a caixa recebida do Git. `Feature/Login`, `feature/login`
 e `FEATURE/LOGIN` são identidades distintas na persistência, nos filtros e nos vínculos de
@@ -1039,6 +1087,10 @@ ativa; o histórico completo vive em `SprintTask` e é exposto por `/sprints/:id
 - Datas: datas civis reais, sem correção automática.
 - Campos desconhecidos em bodies/query validados: `400 VALIDATION_ERROR`.
 - Erros de recurso e conflito permanecem `404` e `409` com mensagens atuais.
+- Recurso ocupado por outra alteração além do limite de espera: `409 RESOURCE_BUSY` com
+  `Retry-After` (ADR-019).
+- Trabalho no banco além do prazo da transação: `503 OPERATION_TIMEOUT` com `Retry-After`
+  (ADR-020).
 - Erros inesperados permanecem seguros e carregam `INTERNAL_ERROR` e request ID.
 
 ## S1-07 — Casos de teste, versões, execução e evidências
@@ -1939,3 +1991,259 @@ Matriz completa e decisões: [Painel pessoal v1](../indicators/PERSONALIZED_DASH
   ou default sem SHA continua interrompendo explicitamente o estágio, sem confirmar uma varredura incompleta.
 - Velocity exige fechamento conhecido (cutoff, status e estimativas); ausência de baseline
   planejada, isoladamente, não invalida esse fechamento. Estimativas desconhecidas continuam excluídas.
+
+## S2-01 — Alertas de rastreabilidade (RF13, RF39, RF40, RF58)
+
+Rotas sob `/api/projects/:projectId/traceability`. Decisão em
+[ADR-015](../architecture/ADR-015-TRACEABILITY-ALERTS.md). A regra executável (tipos, corte,
+gatilhos e motivos) está em [Traceability Alerts](../data/TRACEABILITY_ALERTS.md). Não há rota que
+crie ou resolva alerta manualmente: detecção e resolução são do servidor.
+
+| Método | Sufixo                              | Entrada                                                                                     | Resposta                                                                                         |
+| ------ | ----------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| GET    | `/alerts`                           | `status?` = OPEN (padrão)/DISMISSED/RESOLVED/ALL; `type?`; no máximo um de `taskId?`, `pullRequestId?`, `issueId?`; `page?`, `limit?` (máx. 100) | `200`, `{projectId,status,type,alerts,pagination,permissions}`                                   |
+| GET    | `/alerts/index`                     | `status?` = OPEN (padrão)/DISMISSED/RESOLVED                                                | `200`, `{projectId,status,tasks,pullRequests,issues}`, cada lista com `[{subjectId,alertId}]`    |
+| GET    | `/alerts/summary`                   | —                                                                                           | `200`, `{projectId,open{total,byType},dismissed{total},rules{taskWithoutCommitActive},reconciliation,permissions}` |
+| GET    | `/alerts/:alertId`                  | IDs positivos                                                                               | `200`, `{alert,permissions}`; `alert.context` conforme o tipo                                    |
+| POST   | `/alerts/:alertId/dismiss`          | `{reason}`, de 10 a 500 caracteres Unicode (code points) depois do `trim`                   | `200`, `{alert,changed}`                                                                         |
+| POST   | `/alerts/reconcile`                 | body vazio                                                                                  | `200`, `{projectId,result{created,resolved,kept}}`                                               |
+| GET    | `/tasks-without-technical-links`    | `status?` = A_FAZER/EM_ANDAMENTO/CONCLUIDO; `page?`, `limit?` (máx. 100)                    | `200`, `{projectId,status,tasks,pagination}`                                                     |
+
+**Índice e histórico por sujeito (PR #26, TF-REV-008).** O `/alerts/index` é a leitura compacta
+que o Kanban e a lista de tarefas usam para o marcador e o filtro do RF13: devolve, por tipo de
+sujeito, o `subjectId` e o `alertId` dos alertas na situação pedida, sem paginação e sem DTO. A rota
+é registrada antes de `/alerts/:alertId`. Em `/alerts`, `status=ALL` não filtra a situação, e
+`taskId`, `pullRequestId` ou `issueId` restringem a um sujeito; os detalhes da tarefa e o diálogo do
+Repositório usam `status=ALL` com o sujeito para o "Histórico". Dois sujeitos na mesma consulta
+respondem 400 (`Filtre por um sujeito de cada vez.`).
+
+**Autorização.** Leituras exigem VIEWER+. Dispensa e reprocessamento exigem MANAGER+, CSRF e
+revalidação do papel no serviço. Sem sessão, a resposta é 401. Quem não é membro, e quem acessa
+um alerta de outro projeto, recebe 404 opaco. O reprocessamento tem limitador próprio
+(`traceability-alerts-reconcile`), com a mesma janela e o mesmo teto do sync manual. Parâmetro
+desconhecido responde 400.
+- **Desde 15/10/2026 (TF-REV-001)**, as quatro leituras conferem a membership ativa também no
+  serviço, com o mesmo corpo do 404 opaco do middleware. As `permissions` saem do papel lido pelo
+  serviço.
+- Caminho com `%` responde 404 antes de qualquer consulta (ADR-003, emenda de 15/10/2026).
+
+**Listagem.** Ordem `detectedAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
+`totalPages`. O resumo conta o projeto inteiro, nunca a página.
+`rules.taskWithoutCommitActive` é sempre `true` desde 15/10/2026, porque o RF13 não depende mais
+de integração. `rules.integrationConnected` diz se o projeto tem `ProjectGitHubIntegration`. A tela
+usa esse campo para explicar o alerta e mostrar o atalho de conexão ao OWNER.
+`reconciliation` é `null` sem registro, ou
+`{lastSucceededAt,lastFailedAt,lastTrigger,stale}`, com o resultado da última reconciliação do
+projeto inteiro (sync, conexão do repositório, reprocessamento manual ou script). `stale` é
+`true` quando a última falha é mais recente que o último sucesso. Conectar o repositório
+(`PUT /projects/:projectId/github/integration`) também reconcilia o projeto, sem desfazer a
+conexão se a reconciliação falhar.
+`permissions` traz `canLink` (MEMBER+) e `canManage` (MANAGER+).
+
+**`AlertDTO`.** Campos:
+
+- `id`, `type`, `status`, `occurredAt`, `detectedAt`, `resolvedAt`, `resolutionReason`;
+- `dismissal{at,reason,by{id,name}|null}|null`;
+- `limitations[]`;
+- `subject{type,id,code,title,available,githubUrl}`.
+
+O sujeito excluído vem com `available=false` e `id=null`, e `code`/`title` saem do snapshot
+gravado na detecção. `limitations` pode trazer:
+- `COMPLETION_TIME_UNAVAILABLE`, quando a tarefa foi concluída antes do histórico de status;
+- `CLOSE_TIME_UNAVAILABLE`, quando a issue fechada não tem `closedAtGithub` (desde 15/10/2026). O DTO nunca expõe e-mail, `dedupeKey`, `activeKey` nem campos crus do
+GitHub.
+
+**`context` do detalhe.** Depende do tipo:
+
+- **Tarefa:** `status`, `requirement{id,code}`, `responsible{id,name}`,
+  `pullRequest{id,number,title,githubUrl}`, `issueCount`, `pendingCommitSuggestions` e
+  `integrationConnected` (desde 15/10/2026).
+- **PR:** `number`, `title`, `sourceBranch`, `targetBranch`, `mergedAt` e `githubUrl`.
+- **Issue:** `number`, `title`, `state`, `closedAt` e `githubUrl`.
+
+**Dispensa.** Repetir a dispensa de um alerta `DISMISSED` responde 200 com `changed=false` e mantém
+a justificativa original. A justificativa conta caracteres Unicode (code points): um emoji simples
+conta 1. A auditoria `TRACEABILITY_ALERT_DISMISSED` guarda só `alertType`.
+
+**Reprocessamento.** É idempotente: repetido sem mudança de dado, devolve `created=0`. A auditoria
+`TRACEABILITY_ALERTS_RECONCILED` guarda `created` e `resolved`.
+
+**RF58.** Lista tarefas sem `TaskCommit`, sem `pullRequestId` e sem `TaskIssue`, em ordem
+`updatedAt DESC, id DESC`. DTO:
+`{id,code,title,status,responsible{id,name}|null,requirement{id,code}|null,updatedAt}`.
+
+### Códigos de erro do S2-01
+
+| Código                         | Status | Quando                                                        |
+| ------------------------------ | ------ | ------------------------------------------------------------- |
+| `VALIDATION_ERROR`             | 400    | parâmetro, query ou corpo inválido, ou parâmetro desconhecido |
+| `AUTHENTICATION_REQUIRED`      | 401    | requisição sem sessão                                         |
+| `CSRF_INVALID`                 | 403    | dispensa ou reprocessamento sem token CSRF válido             |
+| `FORBIDDEN`                    | 403    | dispensa ou reprocessamento por papel abaixo de MANAGER       |
+| `RESOURCE_NOT_FOUND`           | 404    | usuário sem membership no projeto                             |
+| `TRACEABILITY_ALERT_NOT_FOUND` | 404    | alerta inexistente ou de outro projeto                        |
+| `TRACEABILITY_ALERT_NOT_OPEN`  | 409    | dispensa de alerta já resolvido                               |
+| `RATE_LIMITED`                 | 429    | limitador do reprocessamento                                  |
+
+## S2-02 — Notificações de tarefa (RF30, RF59)
+
+Rotas do próprio usuário, fora do escopo de projeto. Decisão em
+[ADR-016](../architecture/ADR-016-TASK-NOTIFICATIONS.md); regra executável (destinatário, corte,
+deduplicação, visibilidade e métrica) em [Task Notifications](../data/TASK_NOTIFICATIONS.md). Não
+há rota que crie notificação: a de status nasce na transação da mudança de status, e a de
+vencimento, no job `notifications:due`.
+
+| Método | Rota                                 | Entrada                                                                                           | Resposta                                                 |
+| ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| GET    | `/api/notifications`                 | `status?` = UNREAD (padrão)/ALL; `group?` = ALL (padrão)/TASKS/GITHUB/INCONSISTENCIES; `cursor?` ou `page?` (exclusivos), `limit?` (máx. 100) | `200`, `{notifications,pagination,unreadCount,nextCursor}` |
+| GET    | `/api/notifications/unread-count`    | —                                                                                                 | `200`, `{unreadCount}`                                   |
+| PATCH  | `/api/notifications/:notificationId` | `{read: boolean}` estrito                                                                         | `200`, `{notification}`                                  |
+| POST   | `/api/notifications/read-all`        | body vazio                                                                                        | `200`, `{updated}`                                       |
+| GET    | `/api/settings/notifications`        | —                                                                                                 | `200`, `{preferences{TASK_STATUS_CHANGED,TASK_OVERDUE,ISSUE_EVENT,PULL_REQUEST_EVENT,TRACEABILITY_INCONSISTENCY}}` |
+| PUT    | `/api/settings/notifications`        | `{preferences{TASK_STATUS_CHANGED, TASK_OVERDUE, ISSUE_EVENT, PULL_REQUEST_EVENT, TRACEABILITY_INCONSISTENCY}}`, booleanos, as cinco chaves obrigatórias desde 15/10/2026 (antes, quatro; até 12/10/2026, duas) | `200`, `{preferences}`                                   |
+
+**Autorização.** Toda rota exige sessão; sem ela, 401. O destinatário vem da sessão: nenhum
+`userId` é aceito em query ou corpo (parâmetro desconhecido responde 400). A notificação só é
+visível ao destinatário enquanto ele tiver membership ativa num projeto não excluído. Id de outra
+pessoa, ou oculto, responde 404 com o mesmo código e a mesma mensagem do inexistente. As mutações
+exigem CSRF. As três leituras entram no limitador de leitura autenticada (`authenticatedReadBurst`
+e `authenticatedReadSustained`).
+
+**Listagem.** Ordem `createdAt DESC, id DESC`. `pagination` traz `page`, `limit`, `total` e
+`totalPages`. `unreadCount` conta todas as não lidas visíveis, não só a página. Listar não marca
+nada como lido.
+
+**Origem** (desde 13/10/2026). `group` filtra a lista por origem:
+- `TASKS`: `TASK_STATUS_CHANGED` e `TASK_OVERDUE`;
+- `GITHUB`: `ISSUE_EVENT` e `PULL_REQUEST_EVENT`;
+- `INCONSISTENCIES`: `TRACEABILITY_INCONSISTENCY` (desde 15/10/2026);
+- `ALL`: o padrão, sem filtro.
+
+O `group` vale com `status`, `cursor` e `page`, e `total` e `totalPages` contam só a origem pedida.
+Valor fora da lista responde 400. `unreadCount` não depende do `group`: conta todas as não lidas
+visíveis, como o contador do menu. O filtro não muda a visibilidade nem dá acesso a notificação de
+outra pessoa.
+
+**Cursor.** `nextCursor` é um texto opaco (base64url, até 128 caracteres) que aponta para o último
+item da página; `null` quando não há mais. Com `cursor`, a página seguinte começa depois desse
+item, na mesma ordem, e marcar notificações como lidas no caminho não desloca nada. `cursor` e
+`page` juntos, ou cursor malformado, respondem 400. O cursor só vale na forma canônica, a que o
+servidor devolve: outra codificação base64url do mesmo conteúdo responde 400. Item desmarcado acima
+do cursor só reaparece numa leitura do início. O cursor só posiciona: não dá acesso a
+notificação de outra pessoa. Com `cursor`, `pagination.page` vem `null`; `total`, `totalPages` e
+`unreadCount` continuam. A central usa o cursor; `page` continua aceito, e a resposta com `page`
+também traz `nextCursor`.
+
+**Data do prazo (RF59).** `deadline` aceita `YYYY-MM-DD` ou datetime ISO-8601 completo. A data do
+prazo é a data UTC do instante gravado: `2026-10-10T22:30:00-03:00` é gravado como
+`2026-10-11T01:30:00.000Z`, e a notificação traz `dueDate` `2026-10-11`. A tela envia só a data.
+
+**`NotificationDTO`.** Campos:
+
+- `id`, `type`, `createdAt`, `readAt`;
+- `project{id,name}`;
+- `task{id,code,title,available}|null`: o título é o copiado na criação; tarefa excluída vem com
+  `id=null`, `code=null` e `available=false`; o aviso de inconsistência vem com `task=null`;
+- `context` depende do tipo:
+  - `TASK_STATUS_CHANGED`: `{fromStatus,toStatus,actor{id,name}|null,selfAction}`. `selfAction` é
+    `true` quando o destinatário fez a mudança (desde 15/10/2026);
+  - `TASK_OVERDUE`: `{dueDate}` (`YYYY-MM-DD`);
+  - `ISSUE_EVENT` e `PULL_REQUEST_EVENT`: `{event,occurredAt,artifact{kind,number,title,url}}`
+    (seção S2-03);
+  - `TRACEABILITY_INCONSISTENCY`: `{occurredAt,artifact{kind,number,title,url}|null,
+    alert{id,type,status,resolvedAt,dismissedAt}|null,batch{total,pullRequests,issues}|null}`.
+    `batch` vem só no aviso-resumo, que não tem `artifact` nem `alert`. `alert` traz o estado
+    atual do alerta, e não o da detecção;
+- `link` depende do tipo:
+  - tipos de tarefa e do GitHub: `/projects/:projectId/kanban?task=:taskId`, ou `null` sem tarefa;
+  - aviso de inconsistência: `/projects/:projectId/repository?alerta=:alertId`;
+  - aviso-resumo: `/projects/:projectId/repository?inconsistencia=OPEN`.
+
+O DTO nunca expõe e-mail, `dedupeKey` nem o destinatário. O nome do ator é lido na exibição.
+
+**Leitura.** `{read: true}` grava o primeiro instante de leitura e não o sobrescreve; `{read:
+false}` volta a nulo. `read-all` é um único `UPDATE` sobre as não lidas visíveis do usuário, tudo
+ou nada: `updated` é a contagem, e não há item que falhe ou seja ignorado isoladamente.
+
+**Preferências.** Sem registro, o tipo está ligado. O `PUT` é estrito: as cinco chaves, só
+booleanos (desde 15/10/2026; antes, quatro; até 12/10/2026, duas); chave fora do enum, `__proto__`
+ou `constructor` respondem 400.
+- Chave ausente responde 400 com "As opções de notificação mudaram. Recarregue a página e salve de
+  novo.", na mensagem e no detalhe de cada chave ausente.
+- Valor não booleano responde "Cada preferência deve ser verdadeira ou falsa.".
+
+A auditoria
+`NOTIFICATION_PREFERENCES_UPDATED` só é gravada quando algo muda e guarda apenas `changedTypes`. O
+`PUT` é serializado por usuário e espera o bloqueio da conta por no máximo 2 s; com outra alteração
+em andamento, responde 409 `NOTIFICATION_PREFERENCES_BUSY` sem gravar nada, e o cliente tenta de
+novo.
+
+**Divergência declarada com o contexto de arquitetura (§12, classe DR).** As rotas seguem a
+convenção deste documento, não a do anexo: base `/api` em vez de `/api/v1`; objeto nomeado em vez
+do envelope `{data, meta}`; `limit` em vez de `pageSize`; erro `{message, code, requestId}` em vez
+de `{error: {...}}`. A §20 do contexto exige ADR para versão e contrato da API; esse ADR é da
+campanha de conformidade, não do S2-02.
+
+### Códigos de erro do S2-02
+
+| Código                    | Status | Quando                                                                |
+| ------------------------- | ------ | --------------------------------------------------------------------- |
+| `VALIDATION_ERROR`        | 400    | query, parâmetro ou corpo inválido, chave desconhecida ou `__proto__` |
+| `AUTHENTICATION_REQUIRED` | 401    | requisição sem sessão                                                 |
+| `CSRF_INVALID`            | 403    | `PATCH`, `POST` ou `PUT` sem token CSRF válido                        |
+| `ACCOUNT_DEACTIVATED`     | 403    | conta desativada; só a reativação é permitida                         |
+| `ACCOUNT_DELETION_PENDING` | 403   | conta com exclusão pendente                                           |
+| `NOTIFICATION_NOT_FOUND`  | 404    | notificação inexistente, de outra pessoa ou oculta                    |
+| `NOTIFICATION_PREFERENCES_BUSY` | 409 | `PUT` de preferências com outra alteração da mesma conta em andamento por mais de 2 s |
+| `RATE_LIMITED`            | 429    | limitador de leitura autenticada ou global                            |
+
+## S2-03 — Notificações de eventos de issues e pull requests (RF60, RF61)
+
+Decisão em [ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md); regra executável
+(transições, retrato dos vínculos, participantes, fila, métrica) em
+[GitHub Event Notifications](../data/GITHUB_EVENT_NOTIFICATIONS.md).
+
+**Sem rota nova.** As notificações dos tipos `ISSUE_EVENT` (RF60) e `PULL_REQUEST_EVENT` (RF61)
+usam as rotas do S2-02. A transição nasce na sincronização (`POST
+/api/projects/:projectId/github/sync`, sem mudança de contrato) e é despachada logo depois dela ou
+pelo job `notifications:github-events`, que não tem superfície HTTP. A fila de eventos não é exposta
+por API.
+
+**Contexto no `NotificationDTO`:**
+
+| Campo | Conteúdo |
+| --- | --- |
+| `context.event` | `ISSUE_CLOSED`, `ISSUE_REOPENED`, `PULL_REQUEST_MERGED` ou `PULL_REQUEST_CLOSED` |
+| `context.occurredAt` | instante da ocorrência no GitHub (ISO-8601 UTC), ou `null` |
+| `context.artifact.kind` | `ISSUE` ou `PULL_REQUEST` |
+| `context.artifact.number`, `context.artifact.title` | número e título copiados na detecção (título com até 256 caracteres) |
+| `context.artifact.url` | URL do artefato no GitHub, só com o prefixo `https://github.com/`; fora disso, `null` |
+
+`task` e `link` seguem o S2-02 (link do Kanban; tarefa excluída sem link). O DTO não traz chave de
+deduplicação, id do evento, chave da ocorrência, resultado do despacho, destinatário, login, corpo
+nem rótulos do GitHub.
+
+**Mudança de contrato das preferências (§6.4 do contexto de arquitetura), em 12/10/2026
+(`5341a1c`).** `GET /api/settings/notifications` passou a responder quatro chaves, e o `PUT`
+passou a exigir as quatro.
+- O corpo com só `TASK_STATUS_CHANGED` e `TASK_OVERDUE` responde 400, com a mensagem para
+  recarregar a página (seção S2-02, "Preferências"). Assim, a aba aberta antes da mudança sabe o
+  que fazer.
+- A tela e a API mudam juntas, e não há cliente de terceiros.
+- A auditoria `NOTIFICATION_PREFERENCES_UPDATED` continua com só os tipos alterados.
+
+**Filtro por origem.** A lista do S2-02 aceita `group` (`ALL`, `TASKS` ou `GITHUB`), para que os
+avisos de tarefa não fiquem soterrados pelos do GitHub (seção S2-02, "Origem").
+
+**Exportação do titular.** Em `notifications.json`, os itens dos tipos novos trazem também
+`githubEvent`, `artifactNumber`, `artifactTitle`, `artifactUrl` e `githubOccurredAt`. Os avisos
+`TRACEABILITY_INCONSISTENCY` (desde 15/10/2026) trazem esses campos e mais `traceabilityAlertId` e
+`batchSummary`, com `taskId` e `taskTitle` nulos. Os itens dos
+tipos do S2-02 não mudam. `artifactUrl` é conferida de novo na exportação: fora do prefixo
+`https://github.com/` ou acima de 512 caracteres, sai `null`, como no DTO.
+
+**Erros.** Nenhum código novo nas rotas de notificação: são as do S2-02, e a tabela de erros do
+S2-02 vale. A divergência com o §12 do contexto de arquitetura continua declarada como DR (seção
+S2-02). Na sincronização, a execução ganhou `GITHUB_SYNC_PROJECT_BUSY` e
+`GITHUB_SYNC_STORAGE_FAILED` (seção da integração GitHub, "Erro da execução").
+

@@ -142,12 +142,18 @@ describe('githubSyncService com client e persistência substituídos', () => {
     mocks.commitSuggestionService.detectForCommits.mockResolvedValue({ createdSuggestions: 0 });
     mocks.pullRequestRepository.upsertMany.mockImplementation(async (items) => ({
       created: items.length,
-      updated: 0
+      updated: 0,
+      transitions: 0,
+      linkedTasks: 0,
+      anomalies: 0
     }));
     mocks.pullRequestRepository.appendLifecycleEvents.mockResolvedValue({ count: 0 });
     mocks.issueRepository.upsertMany.mockImplementation(async (items) => ({
       created: 0,
-      updated: items.length
+      updated: items.length,
+      transitions: 0,
+      linkedTasks: 0,
+      anomalies: 0
     }));
   });
 
@@ -196,10 +202,11 @@ describe('githubSyncService com client e persistência substituídos', () => {
         found: 1,
         created: 1,
         updated: 0,
+        transitions: 0,
         lifecycleEventsObserved: 0,
         lifecycleEventsCreated: 0
       },
-      issues: { found: 1, created: 0, updated: 1 }
+      issues: { found: 1, created: 0, updated: 1, transitions: 0 }
     });
     expect(mocks.projectRepository.markGithubSyncSucceeded).toHaveBeenCalledOnce();
   });

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router';
 import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
-import { CollapsibleFilterPanel } from '../../schedule/index.js';
+import { CollapsibleFilterPanel, SprintDialog } from '../../schedule/index.js';
 import {
   compactParams,
   ContextualErrorPage,
@@ -11,6 +11,7 @@ import {
   GithubExternalAction,
   LoadingState,
   SelectControl,
+  TraceFlowIcon,
   classifyPageError,
   getErrorRequestId,
   githubStateLabel,
@@ -19,12 +20,58 @@ import {
 } from '../../../shared/index.js';
 import './RepositoryInfoScreen.css';
 
+const AlertDetails = lazy(() =>
+  import('../../traceability/index.js').then((module) => ({ default: module.AlertDetails }))
+);
+
 const emptyFilters = {
   type: '',
   branch: '',
   startDate: '',
-  endDate: ''
+  endDate: '',
+  inconsistency: ''
 };
+
+const inconsistencyOptions = [
+  ['', 'Todas'],
+  ['OPEN', 'Sem tarefa vinculada (aberta)'],
+  ['DISMISSED', 'Dispensadas'],
+  ['RESOLVED', 'Resolvidas']
+];
+
+function filtersFromParams(params) {
+  const type = params.get('tipo');
+  const inconsistency = params.get('inconsistencia');
+  return {
+    ...emptyFilters,
+    type: typeLabels[type] ? type : '',
+    inconsistency: inconsistencyOptions.some(([value]) => value && value === inconsistency)
+      ? inconsistency
+      : ''
+  };
+}
+
+function alertIdFromParams(params) {
+  const value = params.get('alerta');
+  return value && /^[1-9]\d{0,9}$/.test(value) ? Number(value) : null;
+}
+
+function formatDay(value) {
+  return value ? new Intl.DateTimeFormat('pt-BR').format(new Date(value)) : '';
+}
+
+function inconsistencyText(inconsistency) {
+  if (inconsistency.status === 'OPEN') return 'sem tarefa vinculada';
+  if (inconsistency.status === 'DISMISSED')
+    return `sem tarefa · dispensada em ${formatDay(inconsistency.dismissedAt)}`;
+  return `inconsistência resolvida em ${formatDay(inconsistency.resolvedAt)}`;
+}
+
+function artifactReference(artifact, { capitalized = false } = {}) {
+  const number = artifact.metadata?.number ? ` #${artifact.metadata.number}` : '';
+  if (artifact.type !== 'issue') return `PR${number}`;
+  return `${capitalized ? 'Issue' : 'issue'}${number}`;
+}
 
 const typeLabels = {
   commit: 'Commit',
@@ -87,7 +134,9 @@ function artifactCountLabel(total) {
 }
 
 function hasActiveFilters(filters) {
-  return Boolean(filters.type || filters.branch || filters.startDate || filters.endDate);
+  return Boolean(
+    filters.type || filters.branch || filters.startDate || filters.endDate || filters.inconsistency
+  );
 }
 
 function isValidDate(value) {
@@ -120,14 +169,22 @@ export function RepositoryInfoScreen() {
 }
 
 function RepositoryInfoContent({ projectId }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { run: runArtifactsRequest, cancel: cancelArtifactsRequest } = useAbortableRequest();
   const { run: runProjectRequest } = useAbortableRequest();
   const projectRequest = useRef(null);
-  const filtersRef = useRef(emptyFilters);
+  const [initialFilters] = useState(() => filtersFromParams(searchParams));
+  const filtersRef = useRef(initialFilters);
   const requestSequenceRef = useRef(0);
+  const dialogReturnFocusRef = useRef(null);
+  const catalogTitleRef = useRef(null);
   const [repositoryData, setRepositoryData] = useState(null);
-  const [filters, setFilters] = useState(emptyFilters);
+  const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
+  const [dialog, setDialog] = useState(() => {
+    const alertId = alertIdFromParams(searchParams);
+    return alertId ? { alertId, title: 'Inconsistência' } : null;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pageError, setPageError] = useState(null);
@@ -207,8 +264,73 @@ function RepositoryInfoContent({ projectId }) {
   );
 
   useEffect(() => {
-    loadArtifacts(emptyFilters);
+    loadArtifacts(filtersRef.current);
   }, [loadArtifacts]);
+
+  const typeParam = searchParams.get('tipo');
+  const inconsistencyParam = searchParams.get('inconsistencia');
+  const alertParam = searchParams.get('alerta');
+  const paramsRef = useRef({ typeParam, inconsistencyParam, alertParam });
+  useEffect(() => {
+    const previous = paramsRef.current;
+    paramsRef.current = { typeParam, inconsistencyParam, alertParam };
+    if (previous.typeParam !== typeParam || previous.inconsistencyParam !== inconsistencyParam) {
+      const fromParams = filtersFromParams(searchParams);
+      const next = {
+        ...filtersRef.current,
+        type: fromParams.type,
+        inconsistency: fromParams.inconsistency
+      };
+      filtersRef.current = next;
+      setFilters(next);
+      void loadArtifacts(next);
+    }
+    if (previous.alertParam !== alertParam) {
+      const alertId = alertIdFromParams(searchParams);
+      if (alertId) {
+        dialogReturnFocusRef.current = null;
+        setDialog({ alertId, title: 'Inconsistência' });
+      }
+    }
+  }, [alertParam, inconsistencyParam, loadArtifacts, searchParams, typeParam]);
+
+  function openInconsistency(artifact, trigger) {
+    dialogReturnFocusRef.current = trigger;
+    setDialog({
+      alertId: artifact.inconsistency.alertId,
+      title: `Inconsistência · ${artifactReference(artifact, { capitalized: true })}`
+    });
+  }
+
+  function closeInconsistency() {
+    setDialog(null);
+    if (!dialogReturnFocusRef.current) catalogTitleRef.current?.focus();
+    if (searchParams.has('alerta')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('alerta');
+      setSearchParams(next, { replace: true });
+    }
+  }
+
+  function forgetStaleParams(nextFilters) {
+    const params = new URLSearchParams(searchParams);
+    for (const [param, field] of [
+      ['tipo', 'type'],
+      ['inconsistencia', 'inconsistency']
+    ]) {
+      if (params.has(param) && params.get(param) !== nextFilters[field]) {
+        if (nextFilters[field]) params.set(param, nextFilters[field]);
+        else params.delete(param);
+      }
+    }
+    if (params.toString() === searchParams.toString()) return;
+    paramsRef.current = {
+      ...paramsRef.current,
+      typeParam: params.get('tipo'),
+      inconsistencyParam: params.get('inconsistencia')
+    };
+    setSearchParams(params, { replace: true });
+  }
 
   function handleFilterChange(name, value) {
     const nextFilters = {
@@ -217,12 +339,14 @@ function RepositoryInfoContent({ projectId }) {
     };
     filtersRef.current = nextFilters;
     setFilters(nextFilters);
+    forgetStaleParams(nextFilters);
     void loadArtifacts(nextFilters);
   }
 
   function clearFilters() {
     filtersRef.current = emptyFilters;
     setFilters(emptyFilters);
+    forgetStaleParams(emptyFilters);
     void loadArtifacts(emptyFilters);
   }
 
@@ -318,6 +442,20 @@ function RepositoryInfoContent({ projectId }) {
               <fieldset className="repository-filter-form" disabled={!project.githubIntegration}>
                 <div className="repository-filter-grid">
                   <label className="repository-filter-field">
+                    <span>Inconsistência</span>
+                    <SelectControl
+                      value={filters.inconsistency}
+                      onChange={(event) => handleFilterChange('inconsistency', event.target.value)}
+                    >
+                      {inconsistencyOptions.map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </SelectControl>
+                  </label>
+
+                  <label className="repository-filter-field">
                     <span>Tipo de artefato</span>
                     <SelectControl
                       value={filters.type}
@@ -382,7 +520,9 @@ function RepositoryInfoContent({ projectId }) {
             ) : (
               <section className="repository-catalog" aria-labelledby="repository-catalog-title">
                 <header>
-                  <h2 id="repository-catalog-title">Artefatos do repositório</h2>
+                  <h2 id="repository-catalog-title" ref={catalogTitleRef} tabIndex={-1}>
+                    Artefatos do repositório
+                  </h2>
                   <span aria-live="polite">
                     {project.githubIntegration
                       ? artifactCountLabel(summary.total ?? artifacts.length)
@@ -402,9 +542,11 @@ function RepositoryInfoContent({ projectId }) {
                 ) : artifacts.length === 0 ? (
                   <div className="repository-empty-state">
                     <h3>
-                      {showFilteredEmptyState
-                        ? 'Nenhum artefato encontrado para estes filtros.'
-                        : 'Nenhum artefato importado.'}
+                      {appliedFilters.inconsistency === 'OPEN'
+                        ? 'Nenhuma PR ou issue sem tarefa vinculada.'
+                        : showFilteredEmptyState
+                          ? 'Nenhum artefato encontrado para estes filtros.'
+                          : 'Nenhum artefato importado.'}
                     </h3>
                     <p>
                       {showFilteredEmptyState
@@ -470,14 +612,42 @@ function RepositoryInfoContent({ projectId }) {
                                 >
                                   <strong>{status.primary}</strong>
                                   {status.secondary && <small>{status.secondary}</small>}
+                                  {artifact.inconsistency && (
+                                    <small
+                                      className={
+                                        artifact.inconsistency.status === 'OPEN'
+                                          ? 'repository-artifact-gap'
+                                          : 'repository-artifact-gap repository-artifact-gap--past'
+                                      }
+                                    >
+                                      {artifact.inconsistency.status === 'OPEN' && (
+                                        <TraceFlowIcon name="alert" />
+                                      )}
+                                      {inconsistencyText(artifact.inconsistency)}
+                                    </small>
+                                  )}
                                 </span>
                               </td>
                               <td>
-                                {artifact.githubUrl ? (
-                                  <GithubExternalAction href={artifact.githubUrl} />
-                                ) : (
-                                  <span className="repository-artifact-unavailable">—</span>
-                                )}
+                                <div className="repository-artifact-actions">
+                                  {artifact.inconsistency && (
+                                    <button
+                                      type="button"
+                                      className="button button-secondary button-compact"
+                                      aria-label={`Ver inconsistência da ${artifactReference(artifact)}`}
+                                      onClick={(event) =>
+                                        openInconsistency(artifact, event.currentTarget)
+                                      }
+                                    >
+                                      Ver inconsistência
+                                    </button>
+                                  )}
+                                  {artifact.githubUrl ? (
+                                    <GithubExternalAction href={artifact.githubUrl} />
+                                  ) : (
+                                    <span className="repository-artifact-unavailable">—</span>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -491,6 +661,24 @@ function RepositoryInfoContent({ projectId }) {
           </>
         ) : null}
       </div>
+      <SprintDialog
+        open={Boolean(dialog)}
+        title={dialog?.title || 'Inconsistência'}
+        size="wide"
+        onClose={closeInconsistency}
+        returnFocusRef={dialogReturnFocusRef}
+      >
+        {dialog && (
+          <Suspense fallback={<LoadingState message="Carregando inconsistência..." />}>
+            <AlertDetails
+              key={dialog.alertId}
+              projectId={projectId}
+              alertId={dialog.alertId}
+              onChanged={() => void loadArtifacts(filtersRef.current)}
+            />
+          </Suspense>
+        )}
+      </SprintDialog>
     </main>
   );
 }

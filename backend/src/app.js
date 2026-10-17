@@ -1,5 +1,6 @@
 import express from 'express';
 import { env } from './config/env.js';
+import { createCanonicalPathMiddleware } from './middlewares/canonical-path.middleware.js';
 import { createErrorHandler } from './middlewares/error-handler.middleware.js';
 import { notFoundMiddleware } from './middlewares/not-found.middleware.js';
 import { createRequestContextMiddleware } from './middlewares/request-context.middleware.js';
@@ -39,6 +40,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use(createCorsMiddleware(securityConfig));
   app.use('/api', noStoreApiResponses);
   app.use('/api', rateLimiters.globalAbuse);
+  app.use('/api', createCanonicalPathMiddleware({ logger }));
   app.use('/api/github-app/callback', githubAppCallbackRoutes);
   app.use('/api/settings/account/email-change/confirm', rateLimiters.authentication);
   app.use('/api/account/reactivation/confirm', rateLimiters.authentication);
@@ -100,7 +102,10 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
       '/api/projects/:projectId/members',
       '/api/projects/:projectId/invitations',
       '/api/projects/:projectId/access-code',
-      '/api/projects/invitations/mine'
+      '/api/projects/invitations/mine',
+      '/api/notifications',
+      '/api/notifications/unread-count',
+      '/api/settings/notifications'
     ],
     rateLimiters.authenticatedReadBurst,
     rateLimiters.authenticatedReadSustained
@@ -184,6 +189,11 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     '/api/projects/:projectId/github/sync',
     createSensitiveAttemptLogger({ logger, event: 'github_sync' }),
     rateLimiters.sync
+  );
+  app.post(
+    '/api/projects/:projectId/traceability/alerts/reconcile',
+    createSensitiveAttemptLogger({ logger, event: 'traceability_alerts_reconcile' }),
+    rateLimiters.alertReconcile
   );
   app.use('/api', csrf);
   app.use('/api', requireAccountState);

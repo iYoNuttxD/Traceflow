@@ -1,5 +1,5 @@
 import { githubInstallationClientFactory } from '../github.client.js';
-import { normalizeGithubError } from '../github-error.js';
+import { githubSyncFailure } from '../github-error.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import {
   buildGithubRepositoryMetadata,
@@ -30,8 +30,7 @@ function linkedRepositoryCoordinates(integration) {
 }
 
 export function normalizeGithubSyncError(error) {
-  if (error instanceof ProjectServiceError) return error.message;
-  return normalizeGithubError(error).message;
+  return githubSyncFailure(error).message;
 }
 
 function logStep(event, projectId, step, startedAt, details = {}) {
@@ -168,7 +167,8 @@ export async function syncProjectGithubData(
       pullRequestsUpdated: pullRequestSummary.updated
     });
     logStep('completed', parsedProjectId, 'pull_requests', stepStartedAt, {
-      items: pullRequestSummary.found
+      items: pullRequestSummary.found,
+      transitions: pullRequestSummary.transitions
     });
 
     stepStartedAt = Date.now();
@@ -186,7 +186,8 @@ export async function syncProjectGithubData(
       issuesUpdated: issueSummary.updated
     });
     logStep('completed', parsedProjectId, 'issues', stepStartedAt, {
-      items: issueSummary.found
+      items: issueSummary.found,
+      transitions: issueSummary.transitions
     });
 
     stepStartedAt = Date.now();
@@ -214,11 +215,19 @@ export async function syncProjectGithubData(
       // A delayed provider failure must not overwrite the integration after
       // another request has expired this worker and claimed a replacement.
       await onProgress({});
-      await projectRepository.markGithubSyncFailed(
-        parsedProjectId,
-        attemptedAt,
-        normalizeGithubSyncError(error).slice(0, 255)
-      );
+      await projectRepository
+        .markGithubSyncFailed(
+          parsedProjectId,
+          attemptedAt,
+          normalizeGithubSyncError(error).slice(0, 255)
+        )
+        .catch((markError) =>
+          logger.warn('Não foi possível registrar a falha da sincronização no projeto.', {
+            event: 'github_sync_project_failure_unrecorded',
+            projectId: parsedProjectId,
+            errorCode: String(markError?.code || 'UNKNOWN').slice(0, 64)
+          })
+        );
     }
     throw error;
   } finally {

@@ -9,6 +9,9 @@ vi.mock('@prisma/client', () => ({
   }
 }));
 vi.mock('dotenv', () => ({ default: { config: loadEnv } }));
+vi.mock('../../src/shared/logger/index.js', () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+}));
 
 const testUrl = 'mysql://fixture:fixture@localhost/traceflow_test';
 const developmentUrl = 'mysql://fixture:fixture@localhost/traceflow';
@@ -40,6 +43,14 @@ describe('Prisma test datasource isolation without connecting to a database', ()
     vi.stubEnv('TEST_DATABASE_URL', target);
     await expect(loadClient()).rejects.toThrow();
     expect(construct).not.toHaveBeenCalled();
+  });
+
+  it('pins the recovery client to the same test datasource', async () => {
+    await loadClient();
+    const { recoveryPrisma } = await import('../../src/database/recovery-prisma.js');
+    recoveryPrisma();
+    expect(construct).toHaveBeenCalledTimes(2);
+    expect(construct).toHaveBeenLastCalledWith({ datasourceUrl: testUrl });
   });
 
   it('keeps the chosen datasource when DATABASE_URL later changes', async () => {

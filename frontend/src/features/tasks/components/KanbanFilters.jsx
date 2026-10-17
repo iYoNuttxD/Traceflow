@@ -1,6 +1,7 @@
 import { ResponsibleCombobox, SelectControl } from '../../../shared/index.js';
 import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import { priorityLabels } from './kanban-display.js';
+import { TRACEABILITY_FILTERS } from './kanban-view.js';
 
 export function KanbanFilters({
   filters,
@@ -8,6 +9,7 @@ export function KanbanFilters({
   activeCount,
   visibleCount,
   scopedCount,
+  frozen = false,
   onChange,
   onClear
 }) {
@@ -70,6 +72,21 @@ export function KanbanFilters({
             value={filters.endDate}
             onChange={(event) => onChange('endDate', event.target.value)}
           />
+        </label>
+        <label className="kanban-filter">
+          <span>Rastreabilidade</span>
+          <SelectControl
+            value={filters.traceability}
+            onChange={(event) => onChange('traceability', event.target.value)}
+          >
+            {TRACEABILITY_FILTERS.filter((option) => !frozen || option.value !== 'SEM_COMMIT').map(
+              (option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              )
+            )}
+          </SelectControl>
         </label>
       </div>
     </CollapsibleFilterPanel>
