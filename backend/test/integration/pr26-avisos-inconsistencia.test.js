@@ -76,12 +76,13 @@ async function person(projectId, { role = 'MEMBER', isActive = true, joinedAt } 
 
 async function scenario() {
   const project = await createProject(prisma);
+  const joinedAt = new Date(Date.now() - 60_000);
   return {
     project,
-    owner: await person(project.id, { role: 'OWNER' }),
-    manager: await person(project.id, { role: 'MANAGER' }),
-    member: await person(project.id, { role: 'MEMBER' }),
-    viewer: await person(project.id, { role: 'VIEWER' })
+    owner: await person(project.id, { role: 'OWNER', joinedAt }),
+    manager: await person(project.id, { role: 'MANAGER', joinedAt }),
+    member: await person(project.id, { role: 'MEMBER', joinedAt }),
+    viewer: await person(project.id, { role: 'VIEWER', joinedAt })
   };
 }
 
