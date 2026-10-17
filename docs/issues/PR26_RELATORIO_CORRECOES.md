@@ -34,7 +34,10 @@ Todos locais, na `joao-dev-v2`, sem push e sem coautoria.
 | 12 | `574f247` | índice de alertas, histórico por sujeito e inconsistência nos artefatos (backend) |
 | 12 | `0f9358c` | indicações nas tarefas, no Repositório e na Rastreabilidade; saem as páginas de alertas e de tarefas sem vínculo (UX-D02) |
 | 18 | `b2b81a2` | L-17 e T-06, que matam os dois mutantes sobreviventes da primeira rodada |
-| 17 | commit de registro | este relatório, o backlog, a matriz ASVS e as matrizes |
+| 17 | `faf1c1e` | este relatório, o backlog, a matriz ASVS e as matrizes |
+| 18 | `4fa9c84` | registro da cadeia de migrations aplicada do zero |
+| 18 | `d07747d` | cenário dos avisos com a entrada no projeto antes da detecção (I-08 instável sob cobertura) |
+| 18 | commit de registro | cobertura e correção do I-08 neste relatório |
 
 ## 2. Achados
 
@@ -166,6 +169,28 @@ Cada mutante foi aplicado sozinho, com os testes da área, e o arquivo restaurad
 | frontend | 1.678 passaram e 10 falharam: 9 timeouts de 5 s (S201-F06) em `TraceabilityWorkspace`, `PersonalizedDashboard`, `KanbanPage`, `RequirementsPage` e `TestCases`, que passam isolados (171 de 171), e o teste de imports dinâmicos, que falha no Windows pelo separador de caminho |
 | `asvs-matrix.test.js`, depois da atualização da matriz | 5 de 5 |
 
+**Cobertura (17/10/2026, no `d07747d`).** No Windows, o relatório só sai com
+`--coverage.reportOnFailure`, por causa das falhas de ambiente conhecidas:
+
+| Projeto | Statements | Branches | Functions | Lines | Em 14/10/2026 | Limiares |
+|---|---:|---:|---:|---:|---|---|
+| backend | 93,57 | 88,44 | 96,24 | 95,66 | 93,27 / 88,16 / 95,82 / 95,39 | 85 / 70 / 85 / 87 |
+| frontend | 86,37 | 81,13 | 82,09 | 88,68 | 86,15 / 80,96 / 81,74 / 88,57 | 50 / 45 / 40 / 53 |
+
+- **Backend.** Na rodada com cobertura, falharam as duas de ambiente e também o I-08, que passava
+  nas rodadas sem cobertura. A causa estava no teste:
+  - a última pessoa do cenário entrava no projeto 0 a 1 ms antes da detecção;
+  - o `joinedAt` vem do `CURRENT_TIMESTAMP(3)` do MySQL, e o `detectedAt`, do relógio do Node;
+  - quando o MySQL ficava 1 ms à frente, ela contava como quem entrou depois.
+
+  A regra do produto está certa. O `d07747d` cria as quatro pessoas do cenário um minuto antes, e o
+  arquivo passou em 11 rodadas seguidas, 8 delas com cobertura. Os mutantes MP23 a MP27 continuam
+  morrendo.
+- **Frontend.** Com a cobertura, as falhas por timeout (S201-F06) subiram para 18, nos mesmos cinco
+  arquivos (algumas em cascata, depois de um timeout no mesmo arquivo), mais o teste do separador de
+  caminho. Os cinco arquivos passam sozinhos com a cobertura ligada (171 de 171). A CI roda o
+  frontend com cobertura, então esse é o ponto a observar no primeiro push.
+
 **Migrations.**
 - As 74 antigas não mudaram: `git diff --name-only 9c053bf HEAD -- backend/prisma/migrations` lista só
   `20261015120000_notification_decisions` e `20261015130000_traceability_inconsistency_notices`.
@@ -285,7 +310,11 @@ arquivos de `/etc/traceflow` as definem, elas passam a ser ignoradas.
 - **Fase 16.** A leitura usou o `cf15522` já buscado em 15/10, sem `fetch` novo.
 - **Fase 17.** A matriz ASVS também passa o V8.4.1 a atendido, além dos três do prompt (V8.2.1,
   V8.2.2 e V8.3.1): a causa do "não atendido" era a mesma sonda H09.
-- **Fase 18.** Os testes L-17 e T-06 entraram para matar o MP05 e o MP15 (`b2b81a2`).
+- **Fase 18.**
+  - Os testes L-17 e T-06 entraram para matar o MP05 e o MP15 (`b2b81a2`).
+  - O cenário do `pr26-avisos-inconsistencia.test.js` passou a fixar a entrada no projeto, depois que
+    o I-08 falhou sob cobertura por um empate de milissegundo entre os relógios do MySQL e do Node
+    (`d07747d`).
 
 ## 9. Divergência do PDF (⚑1)
 
