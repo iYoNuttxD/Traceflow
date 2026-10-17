@@ -7,6 +7,11 @@ import {
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
+import {
+  backdateGithubLinks,
+  lifecycleEventsFor,
+  openLinkPeriod
+} from '../helpers/github-lifecycle.js';
 
 const boundary = vi.hoisted(() => ({ client: null }));
 vi.mock('../../src/modules/github/github.client.js', () => ({
@@ -291,7 +296,7 @@ describe('S2-03 API: de ponta a ponta pela sincronização (UC04, C1, C3, C4)', 
       listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
       listCommitPages: vi.fn(() => pages([])),
       listPullRequestPages: vi.fn(() => pages([])),
-      listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+      listRepositoryEventPages: vi.fn(() => pages(lifecycleEventsFor({ issues }))),
       listIssuePages: vi.fn(() => pages(issues))
     };
   }
@@ -351,12 +356,10 @@ describe('S2-03 API: de ponta a ponta pela sincronização (UC04, C1, C3, C4)', 
     });
     await syncWith(manager, project, '95001', [issue('open')]);
     const task = await createTask(prisma, project.id, { responsibleUserId: participant.user.id });
-    await prisma.taskIssue.create({
-      data: {
-        taskId: task.id,
-        issueId: (await prisma.issue.findFirst({ where: { projectId: project.id } })).id
-      }
-    });
+    const imported = await prisma.issue.findFirst({ where: { projectId: project.id } });
+    await prisma.taskIssue.create({ data: { taskId: task.id, issueId: imported.id } });
+    await openLinkPeriod(prisma, { projectId: project.id, taskId: task.id, issueId: imported.id });
+    await backdateGithubLinks(prisma, project.id);
 
     await syncWith(manager, project, '95001', [issue('closed')]);
     await syncWith(manager, project, '95001', [issue('closed')]);

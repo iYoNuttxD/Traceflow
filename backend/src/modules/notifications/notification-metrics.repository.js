@@ -80,6 +80,14 @@ export const notificationMetricsRepository = {
     return tasks.map((task) => ({ task, entries: entries.get(task.id) }));
   },
 
+  githubEventCoverage(projectIds) {
+    return prisma.gitHubEventCoverage.findMany({
+      where: { projectId: { in: projectIds } },
+      select: { projectId: true, coverageFrom: true, comparedBefore: true, completeThrough: true },
+      orderBy: { projectId: 'asc' }
+    });
+  },
+
   githubEventsInPeriod(projectIds, period) {
     return prisma.gitHubArtifactEvent.findMany({
       where: {

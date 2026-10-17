@@ -70,6 +70,34 @@ export function mapGithubPullRequestLifecycleEvent(item) {
   };
 }
 
+const ISSUE_LIFECYCLE_EVENTS = new Set(['closed', 'reopened']);
+
+export function mapGithubIssueLifecycleEvent(item) {
+  if (!item.issue || item.issue.pull_request || !ISSUE_LIFECYCLE_EVENTS.has(item.event)) {
+    return null;
+  }
+  if (item.id == null || !Number.isInteger(item.issue.number) || !item.created_at) {
+    throw new Error('Evento de lifecycle de issue sem identidade ou data do GitHub.');
+  }
+  const occurredAt = new Date(item.created_at);
+  if (Number.isNaN(occurredAt.getTime())) {
+    throw new Error('Evento de lifecycle de issue com data inválida.');
+  }
+  return {
+    providerEventId: String(item.id),
+    number: item.issue.number,
+    eventType: item.event.toUpperCase(),
+    occurredAt
+  };
+}
+
+export function mapGithubRepositoryEvent(item) {
+  const pullRequest = mapGithubPullRequestLifecycleEvent(item);
+  if (pullRequest) return { kind: 'PULL_REQUEST', ...pullRequest };
+  const issue = mapGithubIssueLifecycleEvent(item);
+  return issue ? { kind: 'ISSUE', ...issue } : null;
+}
+
 export function mapGithubPullRequest(item) {
   return {
     githubId: String(item.id),

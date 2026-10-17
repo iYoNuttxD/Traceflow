@@ -7,6 +7,7 @@ import {
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
+import { openLinkPeriod, recordGithubEvent } from '../helpers/github-lifecycle.js';
 
 const password = 'SenhaSegura123';
 const PROJECT_CREATED_AT = new Date('2026-08-01T12:00:00.000Z');
@@ -22,6 +23,7 @@ const GITHUB_EXCLUSIONS = [
 let app;
 let prisma;
 let issueRepository;
+let githubRepositoryEventsRepository;
 let createGithubEventNotificationService;
 let createProjectDeletionService;
 let storage;
@@ -31,6 +33,8 @@ beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
+  ({ githubRepositoryEventsRepository } =
+    await import('../../src/modules/github/github-repository-events.repository.js'));
   ({ createGithubEventNotificationService } =
     await import('../../src/modules/notifications/github-event-notification.service.js'));
   ({ createProjectDeletionService } =
@@ -98,23 +102,28 @@ async function closedLinkedIssue(project, responsible) {
     }
   });
   await prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
+  await openLinkPeriod(prisma, { projectId: project.id, taskId: task.id, issueId: issue.id });
   const closedAt = new Date(Date.now() - 60 * 60 * 1000);
-  await issueRepository.upsertMany(
-    [
-      {
-        projectId: project.id,
-        githubId: issue.githubId,
-        number: issue.number,
-        title: issue.title,
-        githubUrl: issue.githubUrl,
-        labels: [],
-        state: 'closed',
-        closedAtGithub: closedAt,
-        updatedAtGithub: closedAt
-      }
-    ],
-    { detectedAt: new Date() }
-  );
+  await issueRepository.upsertMany([
+    {
+      projectId: project.id,
+      githubId: issue.githubId,
+      number: issue.number,
+      title: issue.title,
+      githubUrl: issue.githubUrl,
+      labels: [],
+      state: 'closed',
+      closedAtGithub: closedAt,
+      updatedAtGithub: closedAt
+    }
+  ]);
+  await recordGithubEvent(githubRepositoryEventsRepository, prisma, {
+    projectId: project.id,
+    kind: 'ISSUE',
+    number: issue.number,
+    eventType: 'CLOSED',
+    occurredAt: closedAt
+  });
   return { task, issue };
 }
 

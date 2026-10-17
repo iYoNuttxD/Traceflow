@@ -25,6 +25,8 @@ export const RETRY_DELAYS_MINUTES = Object.freeze([1, 5, 30, 120]);
 export const CLAIM_LEASE_MS = 120_000;
 export const DISPATCH_BATCH_SIZE = 100;
 export const JOB_MAX_BATCHES = 10;
+export const MERGE_CLOSE_WINDOW_MS = 5000;
+export const COVERAGE_MARGIN_MS = 300_000;
 
 const MINUTE_MS = 60_000;
 const GITHUB_URL_PREFIX = 'https://github.com/';
@@ -59,34 +61,52 @@ export function normalizePullRequestState(pullRequest) {
   return state;
 }
 
-function closedAgain(previous, incoming) {
-  const before = asDate(previous.closedAtGithub);
-  const after = asDate(incoming.closedAtGithub);
-  return Boolean(before && after && before.getTime() !== after.getTime());
+const ISSUE_EVENT_TYPES = new Map([
+  ['CLOSED', 'ISSUE_CLOSED'],
+  ['REOPENED', 'ISSUE_REOPENED']
+]);
+
+export function issueEventTypeOf(eventType) {
+  return ISSUE_EVENT_TYPES.get(eventType) ?? null;
 }
 
-export function issueTransition(previous, incoming) {
-  if (!previous || !incoming) return null;
-  const from = normalizeIssueState(previous.state);
-  const to = normalizeIssueState(incoming.state);
-  if (!from || !to) return null;
-  if (to === 'CLOSED' && (from === 'OPEN' || closedAgain(previous, incoming)))
-    return { type: 'ISSUE_CLOSED', occurredAt: asDate(incoming.closedAtGithub) };
-  if (from === 'CLOSED' && to === 'OPEN')
-    return { type: 'ISSUE_REOPENED', occurredAt: asDate(incoming.updatedAtGithub) };
-  return null;
+export function pullRequestEventTypeOf({ eventType, occurredAt }, mergedInstants = []) {
+  if (eventType === 'MERGED') return 'PULL_REQUEST_MERGED';
+  if (eventType !== 'CLOSED') return null;
+  const instant = asDate(occurredAt).getTime();
+  return mergedInstants.some((merged) => Math.abs(merged - instant) <= MERGE_CLOSE_WINDOW_MS)
+    ? null
+    : 'PULL_REQUEST_CLOSED';
 }
 
-export function pullRequestTransition(previous, incoming) {
-  if (!previous || !incoming) return null;
-  const from = normalizePullRequestState(previous);
-  const to = normalizePullRequestState(incoming);
-  if (!from || !to || from === 'MERGED') return null;
-  if (to === 'MERGED')
-    return { type: 'PULL_REQUEST_MERGED', occurredAt: asDate(incoming.mergedAtGithub) };
-  if (to === 'CLOSED' && (from === 'OPEN' || closedAgain(previous, incoming)))
-    return { type: 'PULL_REQUEST_CLOSED', occurredAt: asDate(incoming.closedAtGithub) };
-  return null;
+export function linkedTasksAt(periods, occurredAt) {
+  const instant = asDate(occurredAt).getTime();
+  const covering = periods.filter(
+    (period) =>
+      asDate(period.linkedAt).getTime() <= instant &&
+      (period.unlinkedAt
+        ? instant < asDate(period.unlinkedAt).getTime()
+        : Number.isInteger(period.taskId))
+  );
+  const taskIds = [
+    ...new Set(covering.map((period) => period.taskId).filter(Number.isInteger))
+  ].sort((left, right) => left - right);
+  return {
+    count: taskIds.length + covering.filter((period) => period.taskId === null).length,
+    taskIds
+  };
+}
+
+export function lifecycleOccurrenceKey(providerEventId) {
+  return `gh:${providerEventId}`;
+}
+
+export function openedOccurrenceKey(issueId, taskId) {
+  return `opened:${issueId}:task:${taskId}`;
+}
+
+export function completeThroughOf(readStartedAt) {
+  return new Date(asDate(readStartedAt).getTime() - COVERAGE_MARGIN_MS);
 }
 
 export function pullRequestStateAnomaly(previous, incoming) {
@@ -101,10 +121,6 @@ export function notificationTypeOf(eventType) {
 
 export function artifactKindOf(notificationType) {
   return ARTIFACT_KIND_BY_TYPE.get(notificationType) ?? null;
-}
-
-export function occurrenceKey({ type, artifactId, occurredAt, detectedAt }) {
-  return `${type}:${artifactId}:${(occurredAt ?? detectedAt).toISOString()}`;
 }
 
 export function githubEventDedupeKey(notificationType, eventId, taskId) {

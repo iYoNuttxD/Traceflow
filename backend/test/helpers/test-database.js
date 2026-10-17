@@ -118,6 +118,7 @@ export async function cleanTestDatabase(prisma) {
     await tx.taskComment.deleteMany();
     await tx.taskCommit.deleteMany();
     await tx.taskArtifactLinkPeriod.deleteMany();
+    await tx.gitHubEventCoverage.deleteMany();
     await tx.taskIssue.deleteMany();
     await tx.taskHistoryEntry.deleteMany();
     await tx.taskMovement.deleteMany();
@@ -131,6 +132,7 @@ export async function cleanTestDatabase(prisma) {
     await tx.gitBranch.deleteMany();
     await tx.commit.deleteMany();
     await tx.pullRequestLifecycleEvent.deleteMany();
+    await tx.issueLifecycleEvent.deleteMany();
     await tx.pullRequest.deleteMany();
     await tx.issue.deleteMany();
     await tx.project.deleteMany();

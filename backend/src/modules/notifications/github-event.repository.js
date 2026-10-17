@@ -1,22 +1,17 @@
 import { prisma } from '../../database/prismaClient.js';
 import {
   MAX_DISPATCH_ATTEMPTS,
-  issueTransition,
+  completeThroughOf,
+  issueEventTypeOf,
+  lifecycleOccurrenceKey,
+  linkedTasksAt,
   nextAttemptAfterFailure,
-  occurrenceKey,
-  pullRequestStateAnomaly,
-  pullRequestTransition,
+  pullRequestEventTypeOf,
   safeGithubUrl,
   snapshotArtifactTitle,
   taskParticipants
 } from './github-event.policy.js';
 
-const ISSUE = 'ISSUE';
-const PULL_REQUEST = 'PULL_REQUEST';
-const transitionOf = new Map([
-  [ISSUE, issueTransition],
-  [PULL_REQUEST, pullRequestTransition]
-]);
 const unique = (values) => [...new Set(values)];
 const released = { claimToken: null, claimedUntil: null };
 const eventSelect = {
@@ -31,6 +26,13 @@ const eventSelect = {
   linkedTaskCount: true,
   attempts: true,
   targets: { select: { taskId: true }, orderBy: { taskId: 'asc' } }
+};
+const periodSelect = {
+  taskId: true,
+  issueId: true,
+  pullRequestId: true,
+  linkedAt: true,
+  unlinkedAt: true
 };
 
 const scopeOf = (projectId) => (projectId ? { projectId } : {});
@@ -57,108 +59,135 @@ function idsByTask(rows, userField) {
   return grouped;
 }
 
-function groupTaskIds(pairs) {
-  const grouped = new Map();
-  for (const [artifactId, taskId] of pairs) {
-    if (!grouped.has(artifactId)) grouped.set(artifactId, new Set());
-    grouped.get(artifactId).add(taskId);
-  }
-  return new Map(
-    [...grouped].map(([artifactId, taskIds]) => [
-      artifactId,
-      [...taskIds].sort((left, right) => left - right)
-    ])
+async function mergedInstants(tx, projectId, pullRequests) {
+  const closedIds = unique(
+    pullRequests.filter((event) => event.eventType === 'CLOSED').map((event) => event.artifact.id)
   );
-}
-
-async function linkedTaskIds(tx, projectId, kind, artifactIds) {
-  if (kind === ISSUE) {
-    const rows = await tx.taskIssue.findMany({
-      where: { issueId: { in: artifactIds }, task: { projectId } },
-      select: { issueId: true, taskId: true }
-    });
-    return groupTaskIds(rows.map((row) => [row.issueId, row.taskId]));
-  }
-  const rows = await tx.task.findMany({
-    where: { projectId, pullRequestId: { in: artifactIds } },
-    select: { id: true, pullRequestId: true }
+  const instants = new Map(closedIds.map((id) => [id, []]));
+  if (!closedIds.length) return instants;
+  for (const event of pullRequests)
+    if (instants.has(event.artifact.id) && event.artifact.mergedAtGithub)
+      instants.get(event.artifact.id).push(new Date(event.artifact.mergedAtGithub).getTime());
+  const merged = await tx.pullRequestLifecycleEvent.findMany({
+    where: { projectId, pullRequestId: { in: closedIds }, eventType: 'MERGED' },
+    select: { pullRequestId: true, occurredAt: true }
   });
-  return groupTaskIds(rows.map((row) => [row.pullRequestId, row.id]));
+  for (const row of merged) instants.get(row.pullRequestId).push(row.occurredAt.getTime());
+  return instants;
 }
 
-function transitionsOf(kind, previous, incoming) {
-  const detect = transitionOf.get(kind);
-  const latest = new Map(incoming.map((item) => [item.githubId, item]));
-  const candidates = [];
-  let anomalies = 0;
-  for (const [githubId, item] of latest) {
-    const before = previous.get(githubId);
-    if (!before) continue;
-    if (kind === PULL_REQUEST && pullRequestStateAnomaly(before, item)) anomalies += 1;
-    const transition = detect(before, item);
-    if (transition) candidates.push({ artifactId: before.id, item, ...transition });
-  }
-  return { candidates, anomalies };
+function candidatesOf({ issues, pullRequests, merged, from }) {
+  return [
+    ...issues.map((event) => ({
+      event,
+      type: issueEventTypeOf(event.eventType),
+      issueId: event.artifact.id,
+      pullRequestId: null
+    })),
+    ...pullRequests.map((event) => ({
+      event,
+      type: pullRequestEventTypeOf(event, merged.get(event.artifact.id) ?? []),
+      issueId: null,
+      pullRequestId: event.artifact.id
+    }))
+  ].filter((candidate) => candidate.type && candidate.event.occurredAt.getTime() >= from);
+}
+
+function linkPeriodsWhere(projectId, candidates) {
+  const issueIds = unique(candidates.map((candidate) => candidate.issueId).filter(Boolean));
+  const pullRequestIds = unique(
+    candidates.map((candidate) => candidate.pullRequestId).filter(Boolean)
+  );
+  return {
+    projectId,
+    AND: [
+      {
+        OR: [
+          ...(issueIds.length ? [{ issueId: { in: issueIds } }] : []),
+          ...(pullRequestIds.length ? [{ pullRequestId: { in: pullRequestIds } }] : [])
+        ]
+      },
+      { OR: [{ taskId: null }, { task: { projectId } }] }
+    ]
+  };
 }
 
 export const githubEventRepository = {
-  async recordTransitions(tx, { projectId, kind, previous, incoming, detectedAt }) {
-    const { candidates, anomalies } = transitionsOf(kind, previous, incoming);
-    const empty = { transitions: 0, linkedTasks: 0, anomalies };
-    if (!candidates.length) return empty;
-
-    const tasksByArtifact = await linkedTaskIds(
-      tx,
-      projectId,
-      kind,
-      candidates.map((candidate) => candidate.artifactId)
-    );
-    const linked = candidates
-      .filter((candidate) => tasksByArtifact.has(candidate.artifactId))
-      .map((candidate) => ({ ...candidate, key: occurrenceKey({ ...candidate, detectedAt }) }));
-    if (!linked.length) return empty;
-
-    const recorded = await tx.gitHubArtifactEvent.findMany({
-      where: { projectId, occurrenceKey: { in: linked.map((candidate) => candidate.key) } },
-      select: { occurrenceKey: true }
+  ensureCoverage(projectId, readStartedAt) {
+    return prisma.gitHubEventCoverage.upsert({
+      where: { projectId },
+      create: { projectId, coverageFrom: readStartedAt },
+      update: {}
     });
-    const known = new Set(recorded.map((row) => row.occurrenceKey));
-    const fresh = [];
-    for (const candidate of linked)
-      if (!known.has(candidate.key)) {
-        known.add(candidate.key);
-        fresh.push(candidate);
-      }
-    if (!fresh.length) return empty;
+  },
+
+  async advanceCoverage(tx, projectId, readStartedAt) {
+    const through = completeThroughOf(readStartedAt);
+    await tx.gitHubEventCoverage.updateMany({
+      where: { projectId, OR: [{ completeThrough: null }, { completeThrough: { lt: through } }] },
+      data: { completeThrough: through }
+    });
+  },
+
+  async recordFromLifecycle(tx, { projectId, issues = [], pullRequests = [], detectedAt }) {
+    if (!issues.length && !pullRequests.length) return 0;
+    const coverage = await tx.gitHubEventCoverage.findUnique({
+      where: { projectId },
+      select: { coverageFrom: true }
+    });
+    const from = (coverage?.coverageFrom ?? detectedAt).getTime();
+    const merged = await mergedInstants(tx, projectId, pullRequests);
+    const candidates = candidatesOf({ issues, pullRequests, merged, from });
+    if (!candidates.length) return 0;
+
+    const periods = await tx.taskArtifactLinkPeriod.findMany({
+      where: linkPeriodsWhere(projectId, candidates),
+      select: periodSelect
+    });
+    const linked = candidates
+      .map((candidate) => ({
+        ...candidate,
+        link: linkedTasksAt(
+          periods.filter((period) =>
+            candidate.issueId
+              ? period.issueId === candidate.issueId
+              : period.pullRequestId === candidate.pullRequestId
+          ),
+          candidate.event.occurredAt
+        ),
+        key: lifecycleOccurrenceKey(candidate.event.providerEventId)
+      }))
+      .filter((candidate) => candidate.link.count > 0);
+    if (!linked.length) return 0;
 
     await tx.gitHubArtifactEvent.createMany({
-      data: fresh.map((candidate) => ({
+      data: linked.map((candidate) => ({
         projectId,
         type: candidate.type,
-        issueId: kind === ISSUE ? candidate.artifactId : null,
-        pullRequestId: kind === PULL_REQUEST ? candidate.artifactId : null,
-        artifactNumber: candidate.item.number,
-        artifactTitle: snapshotArtifactTitle(candidate.item.title),
-        artifactUrl: safeGithubUrl(candidate.item.githubUrl),
-        occurredAt: candidate.occurredAt,
+        issueId: candidate.issueId,
+        pullRequestId: candidate.pullRequestId,
+        artifactNumber: candidate.event.artifact.number,
+        artifactTitle: snapshotArtifactTitle(candidate.event.artifact.title),
+        artifactUrl: safeGithubUrl(candidate.event.artifact.githubUrl),
+        occurredAt: candidate.event.occurredAt,
         detectedAt,
         nextAttemptAt: detectedAt,
-        linkedTaskCount: tasksByArtifact.get(candidate.artifactId).length,
+        linkedTaskCount: candidate.link.count,
         occurrenceKey: candidate.key
-      }))
+      })),
+      skipDuplicates: true
     });
     const created = await tx.gitHubArtifactEvent.findMany({
-      where: { projectId, occurrenceKey: { in: fresh.map((candidate) => candidate.key) } },
+      where: { projectId, occurrenceKey: { in: linked.map((candidate) => candidate.key) } },
       select: { id: true, occurrenceKey: true }
     });
     const eventIdOf = new Map(created.map((row) => [row.occurrenceKey, row.id]));
-    const targets = fresh.flatMap((candidate) =>
-      tasksByArtifact
-        .get(candidate.artifactId)
-        .map((taskId) => ({ eventId: eventIdOf.get(candidate.key), taskId }))
+    const targets = linked.flatMap((candidate) =>
+      candidate.link.taskIds.map((taskId) => ({ eventId: eventIdOf.get(candidate.key), taskId }))
     );
-    await tx.gitHubArtifactEventTask.createMany({ data: targets });
-    return { transitions: fresh.length, linkedTasks: targets.length, anomalies };
+    if (targets.length)
+      await tx.gitHubArtifactEventTask.createMany({ data: targets, skipDuplicates: true });
+    return linked.length;
   },
 
   findDueEventIds({ projectId = null, now, limit, exclude = [] }) {

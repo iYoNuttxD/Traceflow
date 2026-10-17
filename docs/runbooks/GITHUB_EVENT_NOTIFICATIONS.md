@@ -92,8 +92,10 @@ O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha
     com ela, sai 1 mesmo que o `--project-id` não exista.
   - O estoque de `FAILED` não muda o código de saída; ele aparece em `failedStock`.
 - **Logs (JSON, em `stderr`), sem título, URL, login, nome ou e-mail:**
-  - `github_artifact_transitions_recorded` (sincronização: projeto, tipo de artefato, transições,
-    tarefas no retrato);
+  - `github_artifact_events_recorded` (sincronização: projeto e eventos de notificação gravados a
+    partir do histórico do repositório);
+  - `github_pr_lifecycle_orphan` e `github_issue_lifecycle_orphan` (eventos do GitHub de artefato
+    que não está no TraceFlow, só com a contagem);
   - `github_pull_request_state_anomaly` (PR mesclada que voltou a outro estado no GitHub);
   - `github_event_notifications_dispatch_completed` (contagens da execução; em `warn` quando há
     falha ou `failedStock > 0`);

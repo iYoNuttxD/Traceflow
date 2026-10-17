@@ -5,6 +5,11 @@ import {
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
+import {
+  lifecycleEventsFor,
+  openLinkPeriod,
+  recordGithubEvent
+} from '../helpers/github-lifecycle.js';
 
 const boundary = vi.hoisted(() => ({ client: null, calls: 0 }));
 const loggerMock = vi.hoisted(() => ({
@@ -37,6 +42,7 @@ let prisma;
 let issueRepository;
 let pullRequestRepository;
 let githubEventRepository;
+let githubRepositoryEventsRepository;
 let createGithubEventNotificationService;
 let githubEventNotificationService;
 let githubEventTally;
@@ -48,6 +54,8 @@ let sequence = 0;
 beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
   ({ prisma } = await import('../../src/database/prismaClient.js'));
+  ({ githubRepositoryEventsRepository } =
+    await import('../../src/modules/github/github-repository-events.repository.js'));
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
   ({ pullRequestRepository } =
     await import('../../src/modules/pullRequests/pullRequest.repository.js'));
@@ -126,10 +134,24 @@ const issueItem = (issue, state, at) => ({
   labels: []
 });
 
-const closeIssue = (issue, { at = OCCURRED, detectedAt = NOW } = {}) =>
-  issueRepository.upsertMany([issueItem(issue, 'closed', at)], { detectedAt });
-const reopenIssue = (issue, { at = OCCURRED, detectedAt = NOW } = {}) =>
-  issueRepository.upsertMany([issueItem(issue, 'open', at)], { detectedAt });
+const githubEvent = (artifact, kind, eventType, occurredAt, detectedAt) =>
+  recordGithubEvent(githubRepositoryEventsRepository, prisma, {
+    projectId: artifact.projectId,
+    kind,
+    number: artifact.number,
+    eventType,
+    occurredAt,
+    detectedAt
+  });
+
+async function closeIssue(issue, { at = OCCURRED, detectedAt = NOW } = {}) {
+  await issueRepository.upsertMany([issueItem(issue, 'closed', at)]);
+  return githubEvent(issue, 'ISSUE', 'CLOSED', at, detectedAt);
+}
+async function reopenIssue(issue, { at = OCCURRED, detectedAt = NOW } = {}) {
+  await issueRepository.upsertMany([issueItem(issue, 'open', at)]);
+  return githubEvent(issue, 'ISSUE', 'REOPENED', at, detectedAt);
+}
 
 async function openPullRequest(project, number, title = `PR ${number}`) {
   return prisma.pullRequest.create({
@@ -156,22 +178,40 @@ const pullRequestItem = (pullRequest, state, { closedAt = null, mergedAt = null 
   githubUrl: pullRequest.githubUrl
 });
 
-const mergePullRequest = (pullRequest, { at = OCCURRED, detectedAt = NOW } = {}) =>
-  pullRequestRepository.upsertMany(
-    [pullRequestItem(pullRequest, 'closed', { closedAt: at, mergedAt: at })],
-    { detectedAt }
-  );
-const closePullRequest = (pullRequest, { at = OCCURRED, detectedAt = NOW } = {}) =>
-  pullRequestRepository.upsertMany([pullRequestItem(pullRequest, 'closed', { closedAt: at })], {
-    detectedAt
-  });
-const reopenPullRequest = (pullRequest, { detectedAt = NOW } = {}) =>
-  pullRequestRepository.upsertMany([pullRequestItem(pullRequest, 'open')], { detectedAt });
+async function mergePullRequest(pullRequest, { at = OCCURRED, detectedAt = NOW } = {}) {
+  await pullRequestRepository.upsertMany([
+    pullRequestItem(pullRequest, 'closed', { closedAt: at, mergedAt: at })
+  ]);
+  return githubEvent(pullRequest, 'PULL_REQUEST', 'MERGED', at, detectedAt);
+}
+async function closePullRequest(pullRequest, { at = OCCURRED, detectedAt = NOW } = {}) {
+  await pullRequestRepository.upsertMany([
+    pullRequestItem(pullRequest, 'closed', { closedAt: at })
+  ]);
+  return githubEvent(pullRequest, 'PULL_REQUEST', 'CLOSED', at, detectedAt);
+}
+async function reopenPullRequest(pullRequest, { detectedAt = NOW } = {}) {
+  await pullRequestRepository.upsertMany([pullRequestItem(pullRequest, 'open')]);
+  return githubEvent(pullRequest, 'PULL_REQUEST', 'REOPENED', detectedAt, detectedAt);
+}
 
-const linkIssue = (task, issue) =>
-  prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
-const linkPullRequest = (task, pullRequest) =>
-  prisma.task.update({ where: { id: task.id }, data: { pullRequestId: pullRequest.id } });
+async function linkIssue(task, issue) {
+  const link = await prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
+  await openLinkPeriod(prisma, { projectId: task.projectId, taskId: task.id, issueId: issue.id });
+  return link;
+}
+async function linkPullRequest(task, pullRequest) {
+  const updated = await prisma.task.update({
+    where: { id: task.id },
+    data: { pullRequestId: pullRequest.id }
+  });
+  await openLinkPeriod(prisma, {
+    projectId: task.projectId,
+    taskId: task.id,
+    pullRequestId: pullRequest.id
+  });
+  return updated;
+}
 const comment = (task, user, { deleted = false } = {}) =>
   prisma.taskComment.create({
     data: {
@@ -657,7 +697,7 @@ describe('S2-03 despacho: gancho na sincronização (D9, V16.5.3)', () => {
       listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
       listCommitPages: vi.fn(() => pages([])),
       listPullRequestPages: vi.fn(() => pages(pullRequests)),
-      listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+      listRepositoryEventPages: vi.fn(() => pages(lifecycleEventsFor({ pullRequests, issues }))),
       listIssuePages: vi.fn(() => {
         if (issuesFail)
           return (async function* failing() {
@@ -712,7 +752,7 @@ describe('S2-03 despacho: gancho na sincronização (D9, V16.5.3)', () => {
     expect((await eventsOf(project.id))[0].status).toBe('DISPATCHED');
   });
 
-  it('G9 a execução que falha depois de gravar a página de PRs também despacha o evento dela', async () => {
+  it('G9 a execução que falha antes da leitura dos eventos mantém o erro; o evento vem na seguinte, sem perda', async () => {
     const { project, owner, repositoryId, responsible } = await syncedPullRequest();
     boundary.client = githubDouble(repositoryId, {
       pullRequests: [prItem(7, 'closed', OCCURRED)],
@@ -722,6 +762,10 @@ describe('S2-03 despacho: gancho na sincronização (D9, V16.5.3)', () => {
     const run = await runSync(project, owner);
 
     expect(run.status).toBe('FAILED');
+    expect(await notificationsOf()).toEqual([]);
+
+    boundary.client = githubDouble(repositoryId, { pullRequests: [prItem(7, 'closed', OCCURRED)] });
+    expect((await runSync(project, owner)).status).toBe('SUCCEEDED');
     expect((await notificationsOf()).map((row) => row.recipientUserId)).toEqual([responsible.id]);
   });
 

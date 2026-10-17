@@ -60,7 +60,7 @@ beforeEach(async () => {
     listBranchPages: () => pages([{ name: 'main', headSha: 'head' }]),
     listCommitPages: () => pages([{ hash: 'commit', message: 'Fixture', date: new Date() }]),
     listPullRequestPages: () => pages(),
-    listPullRequestLifecycleEventPages: () => pages(),
+    listRepositoryEventPages: () => pages(),
     listIssuePages: () => pages()
   };
 });

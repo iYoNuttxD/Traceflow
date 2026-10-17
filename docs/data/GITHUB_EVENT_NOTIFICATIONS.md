@@ -56,7 +56,7 @@ completa e a deduplicação é pelo id do GitHub.
 - **Identidade.** O `providerEventId` (o `id` do evento no GitHub) é único por projeto nas duas
   tabelas. Reler a lista não duplica nada.
 - **Evento sem artefato.** Evento de issue ou PR que não está gravada (transferida ou apagada) é
-  ignorado, com o log `github_artifact_event_orphan`. Ele não trava a cobertura, porque nenhuma
+  ignorado, com os logs `github_issue_lifecycle_orphan` e `github_pr_lifecycle_orphan`. Ele não trava a cobertura, porque nenhuma
   tarefa pode estar vinculada a um artefato que não existe no TraceFlow.
 - **Corte.** Só gera notificação o evento com `occurredAt` a partir do `coverageFrom` do projeto
   (`GitHubEventCoverage`):
@@ -67,6 +67,9 @@ completa e a deduplicação é pelo id do GitHub.
   antes do corte não se duplicam.
 - **Leitura incompleta.** Se uma página falha, nada daquela leitura é gravado e `completeThrough`
   não anda. A sincronização seguinte relê tudo.
+- **Sincronização que falha antes.** A leitura dos eventos roda depois das issues, dentro da etapa
+  `ISSUES` do progresso. Se uma etapa anterior falha, os eventos daquela sincronização vêm na
+  seguinte, sem perda.
 - **Leitura completa.** Os registros, os eventos de notificação e os alvos gravam numa transação,
   com a trava do projeto. `completeThrough` passa a ser o início da leitura menos 5 minutos.
 - **Abertura.** `ISSUE_OPENED` nasce na transação do vínculo, com `occurredAt` igual à criação da

@@ -1,8 +1,8 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../shared/logger/index.js';
 import {
-  STATE_COMPARISON_SOURCE,
   decisionsByEvent,
+  githubCoverageGaps,
   githubEventTally,
   incompleteRecordGaps,
   overdueEventKey,
@@ -78,7 +78,7 @@ export function createNotificationMetricsService({
       const decisionGaps = incompleteRecordGaps(registry.decisions, horizon, period.start);
       const githubGaps = [
         ...incompleteRecordGaps(registry.githubEvents, horizon, period.start),
-        { motivo: STATE_COMPARISON_SOURCE }
+        ...githubCoverageGaps(await repository.githubEventCoverage(projectIds), period)
       ];
       const githubEvents = await repository.githubEventsInPeriod(projectIds, period);
       const githubReport = (types) =>

@@ -7,6 +7,13 @@ import {
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
+import {
+  LINKED_SINCE,
+  coverGithubEvents,
+  lifecycleEventsFor,
+  openLinkPeriod,
+  recordGithubEvent
+} from '../helpers/github-lifecycle.js';
 import { slowQuery } from '../helpers/slow-statement.js';
 
 const boundary = vi.hoisted(() => ({ client: null }));
@@ -23,6 +30,21 @@ vi.mock('../../src/shared/logger/index.js', async (importOriginal) => ({
 vi.mock('../../src/modules/github/github.client.js', () => ({
   githubInstallationClientFactory: { forInstallation: () => boundary.client }
 }));
+const writeTimeout = vi.hoisted(() => ({ value: null }));
+vi.mock('../../src/modules/projects/active-project-write.js', async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    withActiveProjectWrite: (projectId, write, options = {}) =>
+      original.withActiveProjectWrite(
+        projectId,
+        write,
+        writeTimeout.value && options.timeout
+          ? { ...options, timeout: writeTimeout.value }
+          : options
+      )
+  };
+});
 const queries = vi.hoisted(() => ({ enabled: false, texts: [] }));
 vi.mock('../../src/database/prismaClient.js', async () => {
   const { PrismaClient } = await import('@prisma/client');
@@ -49,6 +71,7 @@ let prisma;
 let issueRepository;
 let pullRequestRepository;
 let githubEventRepository;
+let githubRepositoryEventsRepository;
 let createGithubEventNotificationService;
 let githubEventNotificationService;
 let githubSyncRunRepository;
@@ -64,6 +87,8 @@ beforeAll(async () => {
   testDatabaseUrl = configureTestDatabaseEnvironment();
   deployTestMigrations(testDatabaseUrl);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
+  ({ githubRepositoryEventsRepository } =
+    await import('../../src/modules/github/github-repository-events.repository.js'));
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
   ({ pullRequestRepository } =
     await import('../../src/modules/pullRequests/pullRequest.repository.js'));
@@ -83,6 +108,7 @@ beforeAll(async () => {
 }, 60000);
 
 afterEach(async () => {
+  writeTimeout.value = null;
   vi.restoreAllMocks();
   boundary.client = null;
   queries.enabled = false;
@@ -150,10 +176,20 @@ const issueItem = (issue, received) => ({
   ...received
 });
 
-const closeIssue = (issue, { when = OCCURRED, detectedAt = NOW } = {}) =>
-  issueRepository.upsertMany([issueItem(issue, { state: 'closed', closedAtGithub: when })], {
+const githubEvent = (artifact, kind, eventType, occurredAt, detectedAt = NOW) =>
+  recordGithubEvent(githubRepositoryEventsRepository, prisma, {
+    projectId: artifact.projectId,
+    kind,
+    number: artifact.number,
+    eventType,
+    occurredAt,
     detectedAt
   });
+
+async function closeIssue(issue, { when = OCCURRED, detectedAt = NOW } = {}) {
+  await issueRepository.upsertMany([issueItem(issue, { state: 'closed', closedAtGithub: when })]);
+  return githubEvent(issue, 'ISSUE', 'CLOSED', when, detectedAt);
+}
 
 const eventsOf = (projectId) =>
   prisma.gitHubArtifactEvent.findMany({
@@ -173,6 +209,7 @@ async function linkedIssueScenario() {
   sequence += 1;
   const issue = await issueRow(project, sequence);
   await prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
+  await openLinkPeriod(prisma, { projectId: project.id, taskId: task.id, issueId: issue.id });
   return { project, responsible, task, issue };
 }
 
@@ -228,7 +265,7 @@ function githubDouble(repositoryId, { pullRequests = [] } = {}) {
     listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
     listCommitPages: vi.fn(() => pages([])),
     listPullRequestPages: vi.fn(() => pages(pullRequests)),
-    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+    listRepositoryEventPages: vi.fn(() => pages(lifecycleEventsFor({ pullRequests }))),
     listIssuePages: vi.fn(() => pages([]))
   };
 }
@@ -263,6 +300,11 @@ async function syncedPullRequests(numbers) {
       where: { projectId: context.project.id, number }
     });
     await prisma.task.update({ where: { id: task.id }, data: { pullRequestId: pullRequest.id } });
+    await openLinkPeriod(prisma, {
+      projectId: context.project.id,
+      taskId: task.id,
+      pullRequestId: pullRequest.id
+    });
   }
   return { ...context, responsible };
 }
@@ -273,24 +315,12 @@ const deadlock = () =>
   });
 
 describe('S2-03 correções — Fase 0: comportamento descrito na regra (S203-A13 a, c)', () => {
-  it('C0-01 a primeira sincronização depois da implantação gera evento para a transição desde a anterior; a primeira observação não gera', async () => {
+  it('C0-01 o evento lido do GitHub avisa só a issue vinculada; a issue nova, sem vínculo, não gera evento', async () => {
     const { project, responsible, issue } = await linkedIssueScenario();
-    const firstSeen = {
-      projectId: project.id,
-      githubId: `s203-cor-issue-nova-${project.id}`,
-      number: 9000,
-      title: 'Issue vista pela primeira vez',
-      githubUrl: 'https://github.com/usuario-s203/repositorio-s203/issues/9000',
-      labels: [],
-      state: 'closed',
-      closedAtGithub: OCCURRED,
-      updatedAtGithub: OCCURRED
-    };
+    const firstSeen = await issueRow(project, 9000);
 
-    await issueRepository.upsertMany(
-      [issueItem(issue, { state: 'closed', closedAtGithub: OCCURRED }), firstSeen],
-      { detectedAt: NOW }
-    );
+    await closeIssue(issue);
+    await closeIssue(firstSeen);
 
     const events = await eventsOf(project.id);
     expect(events.map((event) => [event.type, event.artifactNumber])).toEqual([
@@ -329,7 +359,7 @@ describe('S2-03 correções — Fase 1: código estável na falha de gravação 
     boundary.client = githubDouble(context.repositoryId, {
       pullRequests: [prItem(1, 'closed', OCCURRED)]
     });
-    vi.spyOn(githubEventRepository, 'recordTransitions').mockRejectedValueOnce(deadlock());
+    vi.spyOn(githubEventRepository, 'recordFromLifecycle').mockRejectedValueOnce(deadlock());
     loggerMock.warn.mockClear();
     return { context, run: await runSync(context) };
   }
@@ -395,6 +425,9 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
         await locked;
         yield [prItem(1, 'closed', OCCURRED)];
       })()
+    );
+    double.listRepositoryEventPages = vi.fn(() =>
+      pages(lifecycleEventsFor({ pullRequests: [prItem(1, 'closed', OCCURRED)] }))
     );
     return { double, holder };
   }
@@ -466,7 +499,7 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
       boundary.client = githubDouble(context.repositoryId, {
         pullRequests: [prItem(1, 'closed', OCCURRED)]
       });
-      vi.spyOn(githubEventRepository, 'recordTransitions').mockRejectedValueOnce(deadlock());
+      vi.spyOn(githubEventRepository, 'recordFromLifecycle').mockRejectedValueOnce(deadlock());
       const fail = vi.spyOn(githubSyncRunRepository, 'fail').mockRejectedValueOnce(error);
       const recovery = vi.spyOn(githubSyncRunRepository, 'failOnRecoveryConnection');
       const { reconcile, dispatch } = hooks();
@@ -487,7 +520,7 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
     boundary.client = githubDouble(context.repositoryId, {
       pullRequests: [prItem(1, 'closed', OCCURRED)]
     });
-    vi.spyOn(githubEventRepository, 'recordTransitions').mockRejectedValueOnce(deadlock());
+    vi.spyOn(githubEventRepository, 'recordFromLifecycle').mockRejectedValueOnce(deadlock());
     const fail = vi.spyOn(githubSyncRunRepository, 'fail').mockRejectedValue(closed);
     const recovery = vi
       .spyOn(githubSyncRunRepository, 'failOnRecoveryConnection')
@@ -513,13 +546,14 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
     expect(dispatch).toHaveBeenCalledWith(context.project.id);
   });
 
-  it('C2-04 F2-04 página que passa do prazo com uma consulta em andamento: FAILED pelo prazo próprio, sem RUNNING preso, sem contaminar a conexão, e a próxima é aceita', async () => {
+  it('C2-04 F2-04 gravação que passa do prazo com uma consulta em andamento: FAILED pelo prazo próprio, sem RUNNING preso, sem contaminar a conexão, e a próxima é aceita', async () => {
     const context = await syncedPullRequests([1]);
+    writeTimeout.value = 5000;
     boundary.client = githubDouble(context.repositoryId, {
       pullRequests: [prItem(1, 'closed', OCCURRED)]
     });
-    const original = githubEventRepository.recordTransitions;
-    vi.spyOn(githubEventRepository, 'recordTransitions').mockImplementationOnce(
+    const original = githubEventRepository.recordFromLifecycle;
+    vi.spyOn(githubEventRepository, 'recordFromLifecycle').mockImplementationOnce(
       async (tx, input) => {
         await slowQuery(tx);
         return original.call(githubEventRepository, tx, input);
@@ -552,6 +586,7 @@ describe('S2-03 correções — Fase 2: falha da página registrada e trava limi
       })
     ).toEqual({ id: context.owner.id });
 
+    writeTimeout.value = null;
     boundary.client = githubDouble(context.repositoryId, {
       pullRequests: [prItem(1, 'closed', OCCURRED)]
     });
@@ -613,27 +648,74 @@ describe('S2-03 correções — Fase 3: fila gravada em lote (S203-A03, S203-A13
     ...overrides
   });
 
-  async function pullRequestPage(linked, fanOut) {
+  const mergedEvent = (row, occurredAt = OCCURRED) => ({
+    providerEventId: `merged-${row.id}-${occurredAt.toISOString()}`,
+    number: row.number,
+    eventType: 'MERGED',
+    occurredAt
+  });
+
+  const recordEvents = (project, { pullRequestEvents = [], issueEvents = [] }) =>
+    githubRepositoryEventsRepository.record(
+      project.id,
+      { pullRequestEvents, issueEvents, readStartedAt: NOW },
+      NOW
+    );
+
+  async function linkTasks(project, row, count, responsibleUserId) {
+    const tasks = [];
+    for (let copy = 0; copy < count; copy += 1) {
+      const task = await createTask(prisma, project.id, {
+        responsibleUserId,
+        pullRequestId: row.id
+      });
+      await openLinkPeriod(prisma, {
+        projectId: project.id,
+        taskId: task.id,
+        pullRequestId: row.id
+      });
+      tasks.push(task);
+    }
+    return tasks;
+  }
+
+  async function pullRequestEvents(linked, fanOut) {
     const project = await newProject();
     const owner = await person(project.id);
     const rows = await openPullRequests(project, 100);
-    const tasks = rows.slice(0, linked).flatMap((row) =>
-      Array.from({ length: fanOut }, (_, copy) => ({
-        projectId: project.id,
-        title: `Tarefa ${row.number}-${copy}`,
-        priority: 'MEDIA',
-        status: 'A_FAZER',
-        responsibleUserId: owner.id,
-        pullRequestId: row.id
-      }))
-    );
-    if (tasks.length) await prisma.task.createMany({ data: tasks });
+    await coverGithubEvents(prisma, project.id, LINKED_SINCE);
+    const linkedRows = rows.slice(0, linked);
+    if (linkedRows.length) {
+      await prisma.task.createMany({
+        data: linkedRows.flatMap((row) =>
+          Array.from({ length: fanOut }, (_, copy) => ({
+            projectId: project.id,
+            title: `Tarefa ${row.number}-${copy}`,
+            priority: 'MEDIA',
+            status: 'A_FAZER',
+            responsibleUserId: owner.id,
+            pullRequestId: row.id
+          }))
+        )
+      });
+      const tasks = await prisma.task.findMany({
+        where: { projectId: project.id, pullRequestId: { not: null } },
+        select: { id: true, pullRequestId: true }
+      });
+      await prisma.taskArtifactLinkPeriod.createMany({
+        data: tasks.map((task) => ({
+          projectId: project.id,
+          taskId: task.id,
+          pullRequestId: task.pullRequestId,
+          linkedAt: LINKED_SINCE
+        }))
+      });
+    }
     queries.texts = [];
     queries.enabled = true;
-    const result = await pullRequestRepository.upsertMany(
-      rows.map((row) => mergedItem(row)),
-      { detectedAt: NOW }
-    );
+    const result = await recordEvents(project, {
+      pullRequestEvents: rows.map((row) => mergedEvent(row))
+    });
     queries.enabled = false;
     return { result, statements: queries.texts.length };
   }
@@ -648,51 +730,49 @@ describe('S2-03 correções — Fase 3: fila gravada em lote (S203-A03, S203-A13
     });
   }
 
-  it('C3-01 o custo da página com transição é constante: 100 transições custam o mesmo que 1, até 5 instruções a mais que nenhuma (R-Q01)', async () => {
-    const base = await pullRequestPage(0, 1);
-    expect(base.result.transitions).toBe(0);
+  it('C3-01 o custo da gravação dos eventos é constante: 100 eventos custam o mesmo que 1, até 5 instruções a mais que nenhum vinculado (R-Q01)', async () => {
+    const base = await pullRequestEvents(0, 1);
+    expect(base.result.recorded).toBe(0);
 
     for (const fanOut of [1, 5, 20]) {
-      const one = await pullRequestPage(1, fanOut);
-      const hundred = await pullRequestPage(100, fanOut);
+      const one = await pullRequestEvents(1, fanOut);
+      const hundred = await pullRequestEvents(100, fanOut);
 
-      expect(one.result.transitions).toBe(1);
-      expect(hundred.result.transitions).toBe(100);
-      expect(hundred.result.linkedTasks).toBe(100 * fanOut);
+      expect(one.result.recorded).toBe(1);
+      expect(hundred.result.recorded).toBe(100);
       expect(hundred.statements).toBe(one.statements);
       expect(one.statements - base.statements).toBeLessThanOrEqual(5);
     }
   }, 180000);
 
-  it('C3-02 falha no lote dos retratos desfaz a página inteira; a sincronização seguinte detecta a transição uma vez', async () => {
+  it('C3-02 falha no lote dos alvos desfaz a gravação inteira; a leitura seguinte grava o evento uma vez', async () => {
     const project = await newProject();
     const owner = await person(project.id);
     const [row] = await openPullRequests(project, 1);
-    for (let copy = 0; copy < 2; copy += 1)
-      await createTask(prisma, project.id, {
-        responsibleUserId: owner.id,
-        pullRequestId: row.id
-      });
-    const original = githubEventRepository.recordTransitions;
-    vi.spyOn(githubEventRepository, 'recordTransitions').mockImplementationOnce((tx, input) =>
+    await coverGithubEvents(prisma, project.id, LINKED_SINCE);
+    await linkTasks(project, row, 2, owner.id);
+    const original = githubEventRepository.recordFromLifecycle;
+    vi.spyOn(githubEventRepository, 'recordFromLifecycle').mockImplementationOnce((tx, input) =>
       original.call(githubEventRepository, failingTargets(tx), input)
     );
 
     await expect(
-      pullRequestRepository.upsertMany([mergedItem(row)], { detectedAt: NOW })
+      recordEvents(project, { pullRequestEvents: [mergedEvent(row)] })
     ).rejects.toMatchObject({ code: 'P2034' });
 
     expect(await eventsOf(project.id)).toEqual([]);
-    expect((await prisma.pullRequest.findUnique({ where: { id: row.id } })).state).toBe('open');
+    expect(await prisma.pullRequestLifecycleEvent.count({ where: { projectId: project.id } })).toBe(
+      0
+    );
     vi.restoreAllMocks();
-    await pullRequestRepository.upsertMany([mergedItem(row)], { detectedAt: NOW });
-    await pullRequestRepository.upsertMany([mergedItem(row)], { detectedAt: at(MINUTE) });
+    await recordEvents(project, { pullRequestEvents: [mergedEvent(row)] });
+    await recordEvents(project, { pullRequestEvents: [mergedEvent(row)] });
     const events = await eventsOf(project.id);
     expect(events).toHaveLength(1);
     expect(events[0].targets).toHaveLength(2);
   });
 
-  it('C3-03 cada evento leva só as tarefas do próprio artefato, com contagem, snapshot e anomalia como antes', async () => {
+  it('C3-03 cada evento leva só as tarefas do próprio artefato, com contagem e snapshot; a anomalia continua na página', async () => {
     const project = await newProject();
     const owner = await person(project.id);
     const [first, second, third, fourth] = await openPullRequests(project, 4);
@@ -700,42 +780,33 @@ describe('S2-03 correções — Fase 3: fila gravada em lote (S203-A03, S203-A13
       where: { id: fourth.id },
       data: { state: 'closed', closedAtGithub: OCCURRED, mergedAtGithub: OCCURRED }
     });
-    const firstTasks = [
-      await createTask(prisma, project.id, {
-        responsibleUserId: owner.id,
-        pullRequestId: first.id
-      }),
-      await createTask(prisma, project.id, {
-        responsibleUserId: owner.id,
-        pullRequestId: first.id
-      })
-    ];
-    const secondTask = await createTask(prisma, project.id, {
-      responsibleUserId: owner.id,
-      pullRequestId: second.id
-    });
-    const fourthTask = await createTask(prisma, project.id, {
-      responsibleUserId: owner.id,
-      pullRequestId: fourth.id
-    });
-    const otherProject = await newProject();
-    const forged = await createTask(prisma, otherProject.id, {
-      responsibleUserId: owner.id
-    });
-    await prisma.task.update({ where: { id: forged.id }, data: { pullRequestId: first.id } });
+    await coverGithubEvents(prisma, project.id, LINKED_SINCE);
+    const firstTasks = await linkTasks(project, first, 2, owner.id);
+    const [secondTask] = await linkTasks(project, second, 1, owner.id);
+    const [fourthTask] = await linkTasks(project, fourth, 1, owner.id);
 
-    const result = await pullRequestRepository.upsertMany(
-      [
-        mergedItem(first),
-        mergedItem(second, { mergedAtGithub: null, title: 'PR 2 antes' }),
-        mergedItem(third),
-        { ...mergedItem(fourth), state: 'open', closedAtGithub: null, mergedAtGithub: null },
-        mergedItem(second, { mergedAtGithub: null, title: 'PR 2 depois' })
-      ],
-      { detectedAt: NOW }
-    );
+    const page = await pullRequestRepository.upsertMany([
+      mergedItem(first),
+      mergedItem(second, { mergedAtGithub: null, title: 'PR 2 antes' }),
+      mergedItem(third),
+      { ...mergedItem(fourth), state: 'open', closedAtGithub: null, mergedAtGithub: null },
+      mergedItem(second, { mergedAtGithub: null, title: 'PR 2 depois' })
+    ]);
+    const result = await recordEvents(project, {
+      pullRequestEvents: [
+        mergedEvent(first),
+        {
+          providerEventId: `closed-${second.id}`,
+          number: second.number,
+          eventType: 'CLOSED',
+          occurredAt: OCCURRED
+        },
+        mergedEvent(third)
+      ]
+    });
 
-    expect(result).toMatchObject({ transitions: 2, linkedTasks: 3, anomalies: 1 });
+    expect(page.anomalies).toBe(1);
+    expect(result.recorded).toBe(2);
     const events = await eventsOf(project.id);
     expect(
       events.map((event) => ({
@@ -773,9 +844,7 @@ describe('S2-03 correções — Fase 3: fila gravada em lote (S203-A03, S203-A13
     expect(events.flatMap((event) => event.targets.map((target) => target.taskId))).not.toContain(
       fourthTask.id
     );
-    expect(events[0].occurrenceKey).toBe(
-      `PULL_REQUEST_MERGED:${first.id}:${OCCURRED.toISOString()}`
-    );
+    expect(events[0].occurrenceKey).toBe(`gh:merged-${first.id}-${OCCURRED.toISOString()}`);
   });
 });
 

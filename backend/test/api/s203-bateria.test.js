@@ -8,6 +8,7 @@ import {
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
+import { backdateGithubLinks, lifecycleEventsFor } from '../helpers/github-lifecycle.js';
 import { mapGithubIssue, mapGithubPullRequest } from '../../src/modules/github/github.mapper.js';
 
 const boundary = vi.hoisted(() => ({ client: null }));
@@ -23,7 +24,6 @@ const UPDATED_AT = '2026-10-12T11:00:00Z';
 const CLOSED_AT = '2026-10-12T13:00:00Z';
 const MERGED_AT = '2026-10-12T14:00:00Z';
 const REOPENED_AT = '2026-10-12T15:00:00Z';
-const CLOSED_AGAIN_AT = '2026-10-12T16:00:00Z';
 const ALL_ON = {
   TASK_STATUS_CHANGED: true,
   TASK_OVERDUE: true,
@@ -180,7 +180,17 @@ function githubDouble(
     ),
     listCommitPages: vi.fn(() => pagesOf([[]], (item) => item)),
     listPullRequestPages: vi.fn(() => pagesOf(pullRequestPages, mapGithubPullRequest)),
-    listPullRequestLifecycleEventPages: vi.fn(() => pagesOf([[]], (item) => item)),
+    listRepositoryEventPages: vi.fn(() =>
+      pagesOf(
+        [
+          lifecycleEventsFor({
+            issues: issuePages.filter(Array.isArray).flat(),
+            pullRequests: pullRequestPages.filter(Array.isArray).flat()
+          })
+        ],
+        (item) => item
+      )
+    ),
     listIssuePages: vi.fn(async function* () {
       await issueGate;
       yield* pagesOf(issuePages, mapGithubIssue);
@@ -233,21 +243,23 @@ const issueOf = (project, number) =>
 const pullRequestOf = (project, number) =>
   prisma.pullRequest.findUnique({ where: { projectId_number: { projectId: project.id, number } } });
 
-async function linkIssue(actor, task, project, number) {
+async function linkIssue(actor, task, project, number, { backdate = true } = {}) {
   const issue = await issueOf(project, number);
   const linked = await actor
     .mutate('post', `/api/tasks/${task.id}/issues`)
     .send({ issueId: issue.id });
   expect(linked.status, JSON.stringify(linked.body)).toBe(201);
+  if (backdate) await backdateGithubLinks(prisma, project.id);
   return issue;
 }
 
-async function linkPullRequest(actor, task, project, number) {
+async function linkPullRequest(actor, task, project, number, { backdate = true } = {}) {
   const pullRequest = await pullRequestOf(project, number);
   const linked = await actor
     .mutate('patch', `/api/tasks/${task.id}/pull-request`)
     .send({ pullRequestId: pullRequest.id });
   expect(linked.status, JSON.stringify(linked.body)).toBe(200);
+  if (backdate) await backdateGithubLinks(prisma, project.id);
   return pullRequest;
 }
 
@@ -317,7 +329,7 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
     expect(detail.body.alert.context.number).toBe(2);
   });
 
-  it('EV-C-02 UC04 E2: falha na segunda página de issues é informada; o já gravado avisa e o resto vem na seguinte', async () => {
+  it('EV-C-02 UC04 E2: falha na segunda página de issues é informada; os eventos vêm na sincronização seguinte, sem perda', async () => {
     const project = await integratedProject();
     const manager = await register(project.id, 'OWNER');
     const participant = await register(project.id);
@@ -344,8 +356,7 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
     expect(failed.error?.message).toEqual(expect.any(String));
     expect(JSON.stringify(failed)).not.toContain('upstream bruto');
     observe('EV-C-02 erro da execução', failed.error);
-    const afterFailure = await githubNotificationsOf(participant);
-    expect(afterFailure.map((item) => item.context.artifact.number).sort()).toEqual([10, 20]);
+    expect(await githubNotificationsOf(participant)).toEqual([]);
 
     await syncVia(manager, project, {
       pullRequests: [merged(10)],
@@ -429,7 +440,10 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
 
     await syncVia(manager, project, { issues: [rawIssue(41, 'closed'), rawIssue(42, 'open')] });
     await syncVia(manager, project, {
-      issues: [rawIssue(41, 'open', { updated_at: REOPENED_AT }), rawIssue(42, 'open')]
+      issues: [
+        rawIssue(41, 'open', { updated_at: REOPENED_AT, reopened_at: REOPENED_AT }),
+        rawIssue(42, 'open')
+      ]
     });
 
     const events = (await githubNotificationsOf(participant)).map((item) => item.context.event);
@@ -505,41 +519,6 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
 });
 
 describe('S2-03 bateria — bloco T pela rota', () => {
-  it('EV-T-04 o exemplo da issue #45 da regra, em cinco sincronizações', async () => {
-    const project = await integratedProject();
-    const manager = await register(project.id, 'OWNER');
-    const participant = await register(project.id);
-    await syncVia(manager, project, { issues: [rawIssue(45, 'open')] });
-    await linkIssue(
-      manager,
-      await createTask(prisma, project.id, { responsibleUserId: participant.user.id }),
-      project,
-      45
-    );
-
-    await syncVia(manager, project, {
-      issues: [rawIssue(45, 'closed', { closed_at: '2026-10-12T13:00:00Z' })]
-    });
-    await syncVia(manager, project, {
-      issues: [rawIssue(45, 'closed', { closed_at: '2026-10-12T13:00:00Z' })]
-    });
-    await syncVia(manager, project, {
-      issues: [rawIssue(45, 'open', { updated_at: '2026-10-12T15:00:00Z' })]
-    });
-    await syncVia(manager, project, {
-      issues: [rawIssue(45, 'closed', { closed_at: CLOSED_AGAIN_AT })]
-    });
-
-    const received = (await githubNotificationsOf(participant))
-      .map((item) => [item.context.event, item.context.occurredAt])
-      .sort((left, right) => left[1].localeCompare(right[1]));
-    expect(received).toEqual([
-      ['ISSUE_CLOSED', '2026-10-12T13:00:00.000Z'],
-      ['ISSUE_REOPENED', '2026-10-12T15:00:00.000Z'],
-      ['ISSUE_CLOSED', '2026-10-12T16:00:00.000Z']
-    ]);
-  });
-
   it('EV-T-06 mudar só título, corpo, rótulo ou autor não avisa', async () => {
     const project = await integratedProject();
     const manager = await register(project.id, 'OWNER');
@@ -549,8 +528,8 @@ describe('S2-03 bateria — bloco T pela rota', () => {
       pullRequests: [merged(47)]
     });
     const task = await createTask(prisma, project.id, { responsibleUserId: participant.user.id });
-    await linkIssue(manager, task, project, 46);
-    await linkPullRequest(manager, task, project, 47);
+    await linkIssue(manager, task, project, 46, { backdate: false });
+    await linkPullRequest(manager, task, project, 47, { backdate: false });
 
     await syncVia(manager, project, {
       issues: [
@@ -590,7 +569,10 @@ describe('S2-03 bateria — bloco L: leitura e DTO', () => {
     await linkPullRequest(manager, secondTask, project, 63);
 
     await syncVia(manager, project, {
-      issues: [rawIssue(60, 'closed'), rawIssue(61, 'open', { updated_at: REOPENED_AT })],
+      issues: [
+        rawIssue(60, 'closed'),
+        rawIssue(61, 'open', { updated_at: REOPENED_AT, reopened_at: REOPENED_AT })
+      ],
       pullRequests: [merged(62), rawPullRequest(63, 'closed')]
     });
 
@@ -1057,7 +1039,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
       expect(await githubNotificationsOf(person), person.user.username).toHaveLength(30);
   });
 
-  it('EV-S-02 execução que falha depois da página de PRs avisa o que foi gravado e mantém o erro dela', async () => {
+  it('EV-S-02 execução que falha depois da página de PRs mantém o erro dela; o evento vem na seguinte, sem perda', async () => {
     const project = await integratedProject();
     const manager = await register(project.id, 'OWNER');
     const participant = await register(project.id);
@@ -1077,6 +1059,10 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
     expect(run.status).toBe('FAILED');
     expect(run.error).toEqual({ code: expect.any(String), message: expect.any(String) });
     observe('EV-S-02 erro da execução', run.error);
+    expect(await githubNotificationsOf(participant)).toEqual([]);
+
+    const recovered = await syncVia(manager, project, { pullRequests: [merged(70)] });
+    expect(recovered.status).toBe('SUCCEEDED');
     const [notification] = await githubNotificationsOf(participant);
     expect(notification.context).toMatchObject({
       event: 'PULL_REQUEST_MERGED',

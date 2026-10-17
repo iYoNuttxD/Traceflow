@@ -97,7 +97,7 @@ describe('H23 — exclusão do projeto durante a sincronização', () => {
       listBranchPages: vi.fn(() => pages([{ name: 'main', headSha: 'main-head' }])),
       listCommitPages: vi.fn(() => pages([])),
       listPullRequestPages: vi.fn(() => gatedPullRequests()),
-      listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+      listRepositoryEventPages: vi.fn(() => pages([])),
       listIssuePages: vi.fn(() => pages([]))
     };
     const agent = request.agent(app);

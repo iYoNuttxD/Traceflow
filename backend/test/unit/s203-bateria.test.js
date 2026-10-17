@@ -4,15 +4,13 @@ import {
   ARTIFACT_URL_MAX_LENGTH,
   GITHUB_EVENT_EXCLUSIONS,
   githubEventDedupeKey,
-  issueTransition,
+  lifecycleOccurrenceKey,
   nextAttemptAfterFailure,
   normalizeIssueState,
   normalizePullRequestState,
-  occurrenceKey,
+  openedOccurrenceKey,
   participantExclusion,
   preferenceAllowsEvent,
-  pullRequestStateAnomaly,
-  pullRequestTransition,
   safeGithubUrl,
   snapshotArtifactTitle,
   taskParticipants
@@ -26,8 +24,6 @@ import { createEnvironment } from '../../src/config/env.js';
 const DAY = 86_400_000;
 const MINUTE = 60_000;
 const D1 = new Date('2026-10-20T09:00:00.000Z');
-const D2 = new Date('2026-10-20T10:00:00.000Z');
-const U = new Date('2026-10-20T11:00:00.000Z');
 const NOW = new Date('2026-10-20T12:00:00.000Z');
 
 function observe(name, value) {
@@ -67,134 +63,20 @@ describe('S2-03 bateria — política: estados e transições (D2)', () => {
 
   it('EV-T-10 carga incoerente: merged_at preenchido com state open fica OPEN, como diz a tabela de estados', () => {
     expect(normalizePullRequestState({ state: 'open', mergedAtGithub: D1 })).toBe('OPEN');
-    expect(
-      pullRequestTransition({ state: 'open' }, { state: 'open', mergedAtGithub: D1 })
-    ).toBeNull();
-  });
-
-  it('EV-T-01 issue: as 30 combinações de anterior e recebido', () => {
-    const previous = {
-      semLinha: null,
-      aberta: { state: 'open', closedAtGithub: null },
-      fechadaComData: { state: 'closed', closedAtGithub: D1 },
-      fechadaSemData: { state: 'closed', closedAtGithub: null },
-      estranho: { state: 'triaged', closedAtGithub: null },
-      nulo: { state: null, closedAtGithub: null }
-    };
-    const received = {
-      aberta: { state: 'open', closedAtGithub: null, updatedAtGithub: U },
-      fechadaMesmaData: { state: 'closed', closedAtGithub: D1, updatedAtGithub: U },
-      fechadaDataNova: { state: 'closed', closedAtGithub: D2, updatedAtGithub: U },
-      fechadaSemData: { state: 'closed', closedAtGithub: null, updatedAtGithub: U },
-      estranho: { state: 'triaged', closedAtGithub: null, updatedAtGithub: U }
-    };
-    const expected = {
-      'aberta|fechadaMesmaData': { type: 'ISSUE_CLOSED', occurredAt: D1 },
-      'aberta|fechadaDataNova': { type: 'ISSUE_CLOSED', occurredAt: D2 },
-      'aberta|fechadaSemData': { type: 'ISSUE_CLOSED', occurredAt: null },
-      'fechadaComData|aberta': { type: 'ISSUE_REOPENED', occurredAt: U },
-      'fechadaComData|fechadaDataNova': { type: 'ISSUE_CLOSED', occurredAt: D2 },
-      'fechadaSemData|aberta': { type: 'ISSUE_REOPENED', occurredAt: U }
-    };
-    let combinations = 0;
-    for (const [before, state] of Object.entries(previous))
-      for (const [after, incoming] of Object.entries(received)) {
-        combinations += 1;
-        const label = `${before}|${after}`;
-        expect(issueTransition(state, incoming), label).toEqual(expected[label] ?? null);
-      }
-    expect(combinations).toBe(30);
-  });
-
-  it('EV-T-01 datas como texto ISO e datas inválidas', () => {
-    expect(
-      issueTransition(
-        { state: 'closed', closedAtGithub: D1.toISOString() },
-        { state: 'closed', closedAtGithub: D2.toISOString() }
-      )
-    ).toEqual({ type: 'ISSUE_CLOSED', occurredAt: D2 });
-    expect(
-      issueTransition(
-        { state: 'closed', closedAtGithub: D1.toISOString() },
-        { state: 'closed', closedAtGithub: D1.toISOString() }
-      )
-    ).toBeNull();
-    expect(
-      issueTransition(
-        { state: 'closed', closedAtGithub: D1 },
-        { state: 'closed', closedAtGithub: 'não é data' }
-      )
-    ).toBeNull();
-    expect(
-      issueTransition({ state: 'open' }, { state: 'closed', closedAtGithub: 'não é data' })
-    ).toEqual({ type: 'ISSUE_CLOSED', occurredAt: null });
-  });
-
-  it('EV-T-02 PR: as 36 combinações de anterior e recebido, e a anomalia só depois do merge', () => {
-    const C1 = new Date('2026-10-20T08:00:00.000Z');
-    const C2 = new Date('2026-10-20T09:30:00.000Z');
-    const M1 = new Date('2026-10-20T07:00:00.000Z');
-    const M2 = new Date('2026-10-20T10:30:00.000Z');
-    const previous = {
-      semLinha: null,
-      aberta: { state: 'open' },
-      fechadaComData: { state: 'closed', closedAtGithub: C1 },
-      fechadaSemData: { state: 'closed' },
-      mesclada: { state: 'closed', closedAtGithub: M1, mergedAtGithub: M1 },
-      estranho: { state: 'draft' }
-    };
-    const received = {
-      aberta: { state: 'open' },
-      fechadaMesmaData: { state: 'closed', closedAtGithub: C1 },
-      fechadaDataNova: { state: 'closed', closedAtGithub: C2 },
-      fechadaSemData: { state: 'closed' },
-      mesclada: { state: 'closed', closedAtGithub: M2, mergedAtGithub: M2 },
-      estranho: { state: 'draft' }
-    };
-    const expected = {
-      'aberta|fechadaMesmaData': { type: 'PULL_REQUEST_CLOSED', occurredAt: C1 },
-      'aberta|fechadaDataNova': { type: 'PULL_REQUEST_CLOSED', occurredAt: C2 },
-      'aberta|fechadaSemData': { type: 'PULL_REQUEST_CLOSED', occurredAt: null },
-      'aberta|mesclada': { type: 'PULL_REQUEST_MERGED', occurredAt: M2 },
-      'fechadaComData|fechadaDataNova': { type: 'PULL_REQUEST_CLOSED', occurredAt: C2 },
-      'fechadaComData|mesclada': { type: 'PULL_REQUEST_MERGED', occurredAt: M2 },
-      'fechadaSemData|mesclada': { type: 'PULL_REQUEST_MERGED', occurredAt: M2 }
-    };
-    const anomalies = new Set([
-      'mesclada|aberta',
-      'mesclada|fechadaMesmaData',
-      'mesclada|fechadaDataNova',
-      'mesclada|fechadaSemData'
-    ]);
-    let combinations = 0;
-    for (const [before, state] of Object.entries(previous))
-      for (const [after, incoming] of Object.entries(received)) {
-        combinations += 1;
-        const label = `${before}|${after}`;
-        expect(pullRequestTransition(state, incoming), label).toEqual(expected[label] ?? null);
-        expect(pullRequestStateAnomaly(state, incoming), label).toBe(anomalies.has(label));
-      }
-    expect(combinations).toBe(36);
   });
 });
 
 describe('S2-03 bateria — política: chaves, janela, participantes e exclusões (D5–D8)', () => {
   it('chave da ocorrência e da notificação cabem em 96 caracteres com os maiores ids', () => {
-    const longestType = 'PULL_REQUEST_MERGED';
-    const key = occurrenceKey({
-      type: longestType,
-      artifactId: 2147483647,
-      occurredAt: null,
-      detectedAt: new Date('9999-12-31T23:59:59.999Z')
-    });
-    expect(key).toBe(`${longestType}:2147483647:9999-12-31T23:59:59.999Z`);
+    const key = lifecycleOccurrenceKey('18446744073709551615');
+    expect(key).toBe('gh:18446744073709551615');
     expect(key.length).toBeLessThanOrEqual(96);
+    const opened = openedOccurrenceKey(2147483647, 2147483647);
+    expect(opened).toBe('opened:2147483647:task:2147483647');
+    expect(opened.length).toBeLessThanOrEqual(96);
     const dedupe = githubEventDedupeKey('PULL_REQUEST_EVENT', 2147483647, 2147483647);
     expect(dedupe).toBe('PULL_REQUEST_EVENT:event:2147483647:task:2147483647');
     expect(dedupe.length).toBeLessThanOrEqual(96);
-    expect(
-      occurrenceKey({ type: 'ISSUE_CLOSED', artifactId: 7, occurredAt: D1, detectedAt: NOW })
-    ).toBe(`ISSUE_CLOSED:7:${D1.toISOString()}`);
   });
 
   it('EV-E-07 sem janela: nenhuma exclusão depende da idade do evento (TF-REV-002)', () => {

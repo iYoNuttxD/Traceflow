@@ -15,6 +15,7 @@ export const NO_EVENTS = 'SEM_EVENTOS';
 export const UNOBSERVED_EVENTS = 'EVENTOS_NAO_OBSERVADOS';
 export const INCOMPLETE_RECORD = 'REGISTRO_INCOMPLETO';
 export const STATE_COMPARISON_SOURCE = 'FONTE_POR_COMPARACAO_DE_ESTADO';
+export const ACQUISITION_GAP = 'LACUNA_DE_AQUISICAO';
 
 export const TOTAL_FORMULA = 'enviadasCorretamente / ocorridos × 100';
 export const ELIGIBLE_FORMULA =
@@ -175,6 +176,29 @@ export function requirementReport(unit, tally, gaps) {
       gaps: gaps.map((gap) => gap.motivo)
     })
   };
+}
+
+export function githubCoverageGaps(coverages, period) {
+  const start = period.start.getTime();
+  const end = period.end.getTime();
+  const before = [];
+  const after = [];
+  for (const { projectId, coverageFrom, comparedBefore, completeThrough } of coverages) {
+    if (!comparedBefore && end <= coverageFrom.getTime()) continue;
+    if (comparedBefore && start < coverageFrom.getTime())
+      before.push({
+        motivo: STATE_COMPARISON_SOURCE,
+        projeto: projectId,
+        coberturaDesde: coverageFrom.toISOString()
+      });
+    if (!completeThrough || end > completeThrough.getTime())
+      after.push({
+        motivo: ACQUISITION_GAP,
+        projeto: projectId,
+        completoAte: completeThrough ? completeThrough.toISOString() : null
+      });
+  }
+  return [...before, ...after];
 }
 
 export function incompleteRecordGaps(registryStart, retentionHorizon, periodStart) {

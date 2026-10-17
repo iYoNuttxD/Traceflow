@@ -91,7 +91,7 @@ function githubDouble({ branches, commitsByHead = {}, pullRequests = [], issues 
     listBranchPages: vi.fn(() => pages(branches)),
     listCommitPages: vi.fn(({ branch }) => pages(commitsByHead[branch] || [])),
     listPullRequestPages: vi.fn(() => pages(pullRequests)),
-    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+    listRepositoryEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(issues))
   };
 }

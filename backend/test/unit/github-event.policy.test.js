@@ -12,16 +12,14 @@ import {
   RETRY_DELAYS_MINUTES,
   artifactKindOf,
   githubEventDedupeKey,
-  issueTransition,
+  lifecycleOccurrenceKey,
   nextAttemptAfterFailure,
   normalizeIssueState,
   normalizePullRequestState,
   notificationTypeOf,
-  occurrenceKey,
   participantExclusion,
   preferenceAllowsEvent,
   pullRequestStateAnomaly,
-  pullRequestTransition,
   safeGithubUrl,
   snapshotArtifactTitle,
   taskParticipants
@@ -29,16 +27,9 @@ import {
 
 const at = (iso) => new Date(iso);
 const CLOSED_AT = at('2026-10-12T13:00:00.000Z');
-const LATER_CLOSED_AT = at('2026-10-12T16:00:00.000Z');
 const UPDATED_AT = at('2026-10-12T15:00:00.000Z');
 const MERGED_AT = at('2026-10-12T14:00:00.000Z');
 
-const issue = (state, overrides = {}) => ({
-  state,
-  closedAtGithub: state === 'closed' ? CLOSED_AT : null,
-  updatedAtGithub: UPDATED_AT,
-  ...overrides
-});
 const pullRequest = (state, overrides = {}) => ({
   state,
   closedAtGithub: state === 'closed' ? CLOSED_AT : null,
@@ -74,71 +65,7 @@ describe('S2-03 P1: normalização de estado (D2)', () => {
   });
 });
 
-describe('S2-03 P2: tabela de transições (D2)', () => {
-  it.each([
-    ['open → closed', issue('open'), issue('closed'), 'ISSUE_CLOSED'],
-    ['closed → open', issue('closed'), issue('open'), 'ISSUE_REOPENED'],
-    [
-      'closed → closed com outra data',
-      issue('closed'),
-      issue('closed', { closedAtGithub: LATER_CLOSED_AT }),
-      'ISSUE_CLOSED'
-    ],
-    ['closed → closed com a mesma data', issue('closed'), issue('closed'), null],
-    [
-      'closed sem data anterior → closed',
-      issue('closed', { closedAtGithub: null }),
-      issue('closed'),
-      null
-    ],
-    [
-      'closed → closed sem data recebida',
-      issue('closed'),
-      issue('closed', { closedAtGithub: null }),
-      null
-    ],
-    ['open → open', issue('open'), issue('open'), null],
-    ['estado anterior desconhecido', issue(null), issue('closed'), null],
-    ['estado recebido desconhecido', issue('open'), issue('unknown'), null],
-    ['primeira observação', null, issue('closed'), null],
-    [
-      'mudança só de título, corpo, rótulo ou autor',
-      issue('open', { title: 'A' }),
-      issue('open', { title: 'B', description: 'novo', labels: ['x'], authorUsername: 'y' }),
-      null
-    ]
-  ])('issue %s', (_name, previous, incoming, expected) => {
-    expect(issueTransition(previous, incoming)?.type ?? null).toBe(expected);
-  });
-
-  it.each([
-    ['open → merged', pullRequest('open'), merged(), 'PULL_REQUEST_MERGED'],
-    ['open → closed sem merge', pullRequest('open'), pullRequest('closed'), 'PULL_REQUEST_CLOSED'],
-    ['closed → merged', pullRequest('closed'), merged(), 'PULL_REQUEST_MERGED'],
-    [
-      'closed → closed com outra data',
-      pullRequest('closed'),
-      pullRequest('closed', { closedAtGithub: LATER_CLOSED_AT }),
-      'PULL_REQUEST_CLOSED'
-    ],
-    ['closed → closed com a mesma data', pullRequest('closed'), pullRequest('closed'), null],
-    ['closed → open (reabertura de PR)', pullRequest('closed'), pullRequest('open'), null],
-    ['merged → open', merged(), pullRequest('open'), null],
-    ['merged → closed', merged(), pullRequest('closed'), null],
-    ['merged → merged', merged(), merged(), null],
-    ['open → open', pullRequest('open'), pullRequest('open'), null],
-    ['estado anterior desconhecido', pullRequest(null), merged(), null],
-    ['primeira observação', null, merged(), null],
-    [
-      'mudança só de título ou branch',
-      pullRequest('open', { title: 'A' }),
-      pullRequest('open', { title: 'B', sourceBranch: 'feature/x' }),
-      null
-    ]
-  ])('PR %s', (_name, previous, incoming, expected) => {
-    expect(pullRequestTransition(previous, incoming)?.type ?? null).toBe(expected);
-  });
-
+describe('S2-03 P2: anomalia e vocabulário (D2)', () => {
   it('merge seguido de outro estado é anomalia; as demais combinações não são', () => {
     expect(pullRequestStateAnomaly(merged(), pullRequest('open'))).toBe(true);
     expect(pullRequestStateAnomaly(merged(), pullRequest('closed'))).toBe(true);
@@ -166,45 +93,13 @@ describe('S2-03 P2: tabela de transições (D2)', () => {
   });
 });
 
-describe('S2-03 P3: instante da ocorrência (D2)', () => {
-  it('fechamento usa closedAtGithub, reabertura usa updatedAtGithub e merge usa mergedAtGithub', () => {
-    expect(issueTransition(issue('open'), issue('closed')).occurredAt).toEqual(CLOSED_AT);
-    expect(issueTransition(issue('closed'), issue('open')).occurredAt).toEqual(UPDATED_AT);
-    expect(
-      issueTransition(issue('closed'), issue('closed', { closedAtGithub: LATER_CLOSED_AT }))
-        .occurredAt
-    ).toEqual(LATER_CLOSED_AT);
-    expect(pullRequestTransition(pullRequest('open'), merged()).occurredAt).toEqual(MERGED_AT);
-    expect(pullRequestTransition(pullRequest('open'), pullRequest('closed')).occurredAt).toEqual(
-      CLOSED_AT
-    );
-  });
-
-  it('sem data do GitHub, a ocorrência fica nula e a chave usa a detecção', () => {
-    const transition = issueTransition(issue('open'), issue('closed', { closedAtGithub: null }));
-    expect(transition).toEqual({ type: 'ISSUE_CLOSED', occurredAt: null });
-    const detectedAt = at('2026-10-20T12:00:00.000Z');
-    expect(occurrenceKey({ ...transition, artifactId: 7, detectedAt })).toBe(
-      'ISSUE_CLOSED:7:2026-10-20T12:00:00.000Z'
-    );
-  });
-});
-
 describe('S2-03 P4: chave da ocorrência (D5)', () => {
-  it('é determinística, separa os eventos e cabe em 96 caracteres', () => {
-    const base = {
-      type: 'PULL_REQUEST_MERGED',
-      artifactId: 2147483647,
-      occurredAt: MERGED_AT,
-      detectedAt: at('2026-10-20T12:00:00.000Z')
-    };
-    const key = occurrenceKey(base);
-    expect(key).toBe('PULL_REQUEST_MERGED:2147483647:2026-10-12T14:00:00.000Z');
-    expect(key.length).toBeLessThanOrEqual(96);
-    expect(occurrenceKey({ ...base })).toBe(key);
-    expect(occurrenceKey({ ...base, type: 'PULL_REQUEST_CLOSED' })).not.toBe(key);
-    expect(occurrenceKey({ ...base, artifactId: 1 })).not.toBe(key);
-    expect(occurrenceKey({ ...base, occurredAt: LATER_CLOSED_AT })).not.toBe(key);
+  it('é o id do evento no GitHub, determinística e com até 96 caracteres (ADR-023 D2)', () => {
+    const key = lifecycleOccurrenceKey('98765432101');
+    expect(key).toBe('gh:98765432101');
+    expect(lifecycleOccurrenceKey('98765432101')).toBe(key);
+    expect(lifecycleOccurrenceKey('98765432102')).not.toBe(key);
+    expect(lifecycleOccurrenceKey('9'.repeat(93)).length).toBeLessThanOrEqual(96);
   });
 
   it('a chave da notificação junta tipo, evento e tarefa', () => {

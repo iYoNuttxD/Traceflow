@@ -455,6 +455,8 @@ model Project {
   notificationDecisions      NotificationDecision[]
   githubEvents               GitHubArtifactEvent[]
   taskArtifactLinkPeriods    TaskArtifactLinkPeriod[]
+  issueLifecycleEvents       IssueLifecycleEvent[]
+  githubEventCoverage        GitHubEventCoverage?
   alertReconciliation        TraceabilityAlertReconciliation?
 
   @@index([status])
@@ -1414,6 +1416,33 @@ model PullRequestLifecycleEvent {
   @@index([pullRequestId, projectId])
 }
 
+model IssueLifecycleEvent {
+  id              Int      @id @default(autoincrement())
+  projectId       Int
+  issueId         Int
+  eventType       String   @db.VarChar(16)
+  occurredAt      DateTime
+  providerEventId String   @db.VarChar(191)
+  createdAt       DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issue   Issue   @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, providerEventId])
+  @@index([issueId, occurredAt])
+  @@index([projectId, occurredAt])
+}
+
+model GitHubEventCoverage {
+  projectId       Int       @id
+  coverageFrom    DateTime
+  comparedBefore  Boolean   @default(false)
+  completeThrough DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
 // Issue importada do repositorio GitHub vinculado ao projeto.
 model Issue {
   id               Int       @id @default(autoincrement())
@@ -1439,6 +1468,7 @@ model Issue {
   traceabilityAlerts TraceabilityAlert[]
   githubEvents       GitHubArtifactEvent[]
   taskLinkPeriods    TaskArtifactLinkPeriod[]
+  lifecycleEvents    IssueLifecycleEvent[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])

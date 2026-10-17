@@ -2,8 +2,13 @@ import { logger } from '../../shared/logger/index.js';
 // Repository de Pull Requests importados do GitHub.
 import { prisma } from '../../database/prismaClient.js';
 import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
-import { githubEventRepository } from '../notifications/github-event.repository.js';
+import { pullRequestStateAnomaly } from '../notifications/github-event.policy.js';
 import { changedFields, lastByKey, selectFields } from '../../shared/persistence/changed-fields.js';
+import {
+  artifactsByNumber,
+  insertInChunks,
+  unseenProviderEvents
+} from '../../shared/persistence/provider-events.js';
 
 const PULL_REQUEST_FIELDS = [
   'number',
@@ -44,10 +49,8 @@ export const pullRequestRepository = {
     return pullRequests.map((pullRequest) => pullRequest.githubId);
   },
 
-  async upsertMany(data, { detectedAt } = {}) {
-    if (data.length === 0) {
-      return { created: 0, updated: 0, transitions: 0, linkedTasks: 0, anomalies: 0 };
-    }
+  async upsertMany(data) {
+    if (data.length === 0) return { created: 0, updated: 0, anomalies: 0 };
 
     const page = lastByKey(data, 'githubId');
     const projectId = page[0].projectId;
@@ -70,68 +73,54 @@ export const pullRequestRepository = {
           updated += 1;
           await tx.pullRequest.updateMany({ where: { id: row.id }, data: changes });
         }
-        const recorded = await githubEventRepository.recordTransitions(tx, {
-          projectId,
-          kind: 'PULL_REQUEST',
-          previous,
-          incoming: page,
-          detectedAt: detectedAt ?? new Date()
-        });
-        return { created: created.length, updated, ...recorded };
+        const anomalies = page.filter((pullRequest) =>
+          pullRequestStateAnomaly(previous.get(pullRequest.githubId), pullRequest)
+        ).length;
+        return { created: created.length, updated, anomalies };
       },
       SYNC_WRITE
     );
   },
 
-  async appendLifecycleEvents(projectId, events, completedAt = new Date()) {
-    return withActiveProjectWrite(
+  async insertLifecycleEvents(tx, projectId, events, completedAt = new Date()) {
+    const byNumber = await artifactsByNumber(
+      tx.pullRequest,
       projectId,
-      async (tx) => {
-        const numbers = [...new Set(events.map(({ number }) => number))];
-        const byNumber = new Map();
-        for (let offset = 0; offset < numbers.length; offset += 500) {
-          const pullRequests = await tx.pullRequest.findMany({
-            where: { projectId, number: { in: numbers.slice(offset, offset + 500) } },
-            select: { id: true, number: true }
-          });
-          pullRequests.forEach((pullRequest) => byNumber.set(pullRequest.number, pullRequest.id));
-        }
-        const associated = events.filter(({ number }) => byNumber.has(number));
-        const ignoredCount = events.length - associated.length;
-        if (ignoredCount)
-          logger.warn('Eventos de PR sem associação foram ignorados.', {
-            event: 'github_pr_lifecycle_orphan',
-            projectId,
-            ignoredCount
-          });
-        let count = 0;
-        for (let offset = 0; offset < associated.length; offset += 500) {
-          const batch = associated.slice(offset, offset + 500);
-          const result = await tx.pullRequestLifecycleEvent.createMany({
-            data: batch.map(({ number, ...event }) => ({
-              ...event,
-              projectId,
-              pullRequestId: byNumber.get(number)
-            })),
-            skipDuplicates: true
-          });
-          count += result.count;
-        }
-        // A skipped event cannot establish complete lifecycle coverage.
-        if (!ignoredCount) {
-          await tx.projectGitHubIntegration.updateMany({
-            where: { projectId },
-            data: { pullRequestLifecycleSyncedAt: completedAt }
-          });
-          await tx.projectGitHubIntegration.updateMany({
-            where: { projectId, pullRequestLifecycleCoverageFrom: null },
-            data: { pullRequestLifecycleCoverageFrom: completedAt }
-          });
-        }
-        return { count, ignoredCount };
-      },
-      { timeout: 120000 }
+      events.map(({ number }) => number),
+      { id: true, title: true, githubUrl: true, mergedAtGithub: true }
     );
+    const associated = events.filter(({ number }) => byNumber.has(number));
+    const ignoredCount = events.length - associated.length;
+    if (ignoredCount)
+      logger.warn('Eventos de PR sem associação foram ignorados.', {
+        event: 'github_pr_lifecycle_orphan',
+        projectId,
+        ignoredCount
+      });
+    const fresh = await unseenProviderEvents(tx.pullRequestLifecycleEvent, projectId, associated);
+    const count = await insertInChunks(
+      tx.pullRequestLifecycleEvent,
+      fresh.map(({ number, ...event }) => ({
+        ...event,
+        projectId,
+        pullRequestId: byNumber.get(number).id
+      }))
+    );
+    if (!ignoredCount) {
+      await tx.projectGitHubIntegration.updateMany({
+        where: { projectId },
+        data: { pullRequestLifecycleSyncedAt: completedAt }
+      });
+      await tx.projectGitHubIntegration.updateMany({
+        where: { projectId, pullRequestLifecycleCoverageFrom: null },
+        data: { pullRequestLifecycleCoverageFrom: completedAt }
+      });
+    }
+    return {
+      count,
+      ignoredCount,
+      inserted: fresh.map(({ number, ...event }) => ({ ...event, artifact: byNumber.get(number) }))
+    };
   },
 
   async listByProjectId(projectId, filters = {}) {

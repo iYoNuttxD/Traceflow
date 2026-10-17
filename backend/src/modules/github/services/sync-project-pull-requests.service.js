@@ -8,14 +8,7 @@ export async function syncProjectPullRequests({
   onProgress = async () => {},
   assertActive = async () => {}
 }) {
-  const summary = {
-    found: 0,
-    created: 0,
-    updated: 0,
-    transitions: 0,
-    lifecycleEventsObserved: 0,
-    lifecycleEventsCreated: 0
-  };
+  const summary = { found: 0, created: 0, updated: 0 };
 
   for await (const page of githubClient.listPullRequestPages({
     owner: repository.owner,
@@ -27,15 +20,6 @@ export async function syncProjectPullRequests({
     summary.found += pullRequests.length;
     summary.created += result.created;
     summary.updated += result.updated;
-    summary.transitions += result.transitions;
-    if (result.transitions)
-      logger.info('Transições de pull requests vinculadas registradas.', {
-        event: 'github_artifact_transitions_recorded',
-        projectId: project.id,
-        artifact: 'PULL_REQUEST',
-        transitions: result.transitions,
-        linkedTasks: result.linkedTasks
-      });
     if (result.anomalies)
       logger.warn('Pull request mesclada voltou a outro estado no GitHub.', {
         event: 'github_pull_request_state_anomaly',
@@ -48,22 +32,6 @@ export async function syncProjectPullRequests({
       pullRequestsUpdated: summary.updated
     });
   }
-
-  // Repository-wide pagination avoids one external request per PR. Nothing is
-  // marked complete if any page fails; existing append-only events remain.
-  const events = [];
-  for await (const page of githubClient.listPullRequestLifecycleEventPages({
-    owner: repository.owner,
-    repo: repository.name
-  })) {
-    await assertActive();
-    events.push(...page);
-    await onProgress({});
-  }
-  await assertActive();
-  const persisted = await pullRequestRepository.appendLifecycleEvents(project.id, events);
-  summary.lifecycleEventsObserved = events.length;
-  summary.lifecycleEventsCreated = persisted.count;
 
   return summary;
 }

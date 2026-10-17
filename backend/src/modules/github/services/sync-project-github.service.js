@@ -10,6 +10,7 @@ import { syncProjectCommits } from './sync-project-commits.service.js';
 import { syncProjectBranches } from './sync-project-branches.service.js';
 import { syncProjectIssues } from './sync-project-issues.service.js';
 import { syncProjectPullRequests } from './sync-project-pull-requests.service.js';
+import { syncProjectRepositoryEvents } from './sync-project-repository-events.service.js';
 import { logger } from '../../../shared/logger/index.js';
 
 const projectsInSync = new Set();
@@ -167,8 +168,7 @@ export async function syncProjectGithubData(
       pullRequestsUpdated: pullRequestSummary.updated
     });
     logStep('completed', parsedProjectId, 'pull_requests', stepStartedAt, {
-      items: pullRequestSummary.found,
-      transitions: pullRequestSummary.transitions
+      items: pullRequestSummary.found
     });
 
     stepStartedAt = Date.now();
@@ -186,8 +186,21 @@ export async function syncProjectGithubData(
       issuesUpdated: issueSummary.updated
     });
     logStep('completed', parsedProjectId, 'issues', stepStartedAt, {
-      items: issueSummary.found,
-      transitions: issueSummary.transitions
+      items: issueSummary.found
+    });
+
+    stepStartedAt = Date.now();
+    logStep('started', parsedProjectId, 'events', stepStartedAt);
+    const eventSummary = await syncProjectRepositoryEvents({
+      project,
+      repository,
+      githubClient,
+      onProgress,
+      assertActive
+    });
+    logStep('completed', parsedProjectId, 'events', stepStartedAt, {
+      items: eventSummary.lifecycleEventsObserved + eventSummary.issueEventsObserved,
+      events: eventSummary.githubEventsRecorded
     });
 
     stepStartedAt = Date.now();
@@ -206,7 +219,8 @@ export async function syncProjectGithubData(
         branches: branchResult.summary,
         commits: commitSummary,
         pullRequests: pullRequestSummary,
-        issues: issueSummary
+        issues: issueSummary,
+        events: eventSummary
       },
       project: updatedProject
     };

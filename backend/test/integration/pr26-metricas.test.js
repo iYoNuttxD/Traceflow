@@ -383,7 +383,7 @@ describe('PR #26 métrica oficial do RF59 (TF-REV-002)', () => {
 });
 
 describe('PR #26 métrica oficial do RF60 e do RF61 (TF-REV-002)', () => {
-  it('M-05 pares do outcome por requisito; a cobertura fica indisponível enquanto a fonte for a comparação de estado', async () => {
+  it('M-05 pares do outcome por requisito; antes do corte a cobertura sai indisponível pela comparação de estado, e no trecho coberto é calculada (ADR-023)', async () => {
     const { project } = await scenario();
     const elsewhere = await createProject(prisma);
     const zero = {
@@ -474,9 +474,24 @@ describe('PR #26 métrica oficial do RF60 e do RF61 (TF-REV-002)', () => {
       }
     });
     await event(elsewhere.id, { type: 'PULL_REQUEST_MERGED' });
+    const cutover = new Date(`${day(-3)}T15:00:00.000Z`);
+    await prisma.gitHubEventCoverage.create({
+      data: {
+        projectId: project.id,
+        coverageFrom: cutover,
+        comparedBefore: true,
+        completeThrough: new Date(`${day(3)}T00:00:00.000Z`)
+      }
+    });
 
     const { RF60, RF61 } = (await measure(project.id)).requisitos;
-    const source = [{ motivo: 'FONTE_POR_COMPARACAO_DE_ESTADO' }];
+    const source = [
+      {
+        motivo: 'FONTE_POR_COMPARACAO_DE_ESTADO',
+        projeto: project.id,
+        coberturaDesde: cutover.toISOString()
+      }
+    ];
 
     expect(RF60).toEqual({
       unidade: 'PAR_EVENTO_PARTICIPANTE',
@@ -508,6 +523,15 @@ describe('PR #26 métrica oficial do RF60 e do RF61 (TF-REV-002)', () => {
       coberturaTotal: unavailable('FONTE_POR_COMPARACAO_DE_ESTADO'),
       coberturaElegivel: unavailable('FONTE_POR_COMPARACAO_DE_ESTADO')
     });
+
+    await prisma.gitHubEventCoverage.update({
+      where: { projectId: project.id },
+      data: { coverageFrom: new Date(`${day(-30)}T00:00:00.000Z`) }
+    });
+    const covered = (await measure(project.id)).requisitos.RF61;
+    expect(covered.lacunas).toEqual([]);
+    expect(covered.coberturaTotal).toMatchObject({ valor: 66.67, situacao: 'CALCULADA' });
+    expect(covered.coberturaElegivel).toMatchObject({ valor: 100, situacao: 'CALCULADA' });
   });
 });
 
@@ -536,9 +560,7 @@ describe('PR #26 métrica oficial: períodos sem evento e lacunas (TF-REV-002)',
       });
     }
     for (const rf of ['RF60', 'RF61'])
-      expect(report.requisitos[rf].coberturaTotal, rf).toMatchObject(
-        unavailable('FONTE_POR_COMPARACAO_DE_ESTADO')
-      );
+      expect(report.requisitos[rf].coberturaTotal, rf).toMatchObject(unavailable('SEM_EVENTOS'));
     expect((await measure(2147483000)).projetos).toBe(0);
   });
 
@@ -552,6 +574,14 @@ describe('PR #26 métrica oficial: períodos sem evento e lacunas (TF-REV-002)',
     const [{ finishedAt }] = await prisma.$queryRaw`
       SELECT finished_at AS finishedAt FROM _prisma_migrations
       WHERE migration_name = ${DECISIONS_MIGRATION}`;
+    await prisma.gitHubEventCoverage.create({
+      data: {
+        projectId: project.id,
+        coverageFrom: new Date(),
+        comparedBefore: true,
+        completeThrough: new Date()
+      }
+    });
 
     const before = await measure(project.id, {
       from: day(-400),

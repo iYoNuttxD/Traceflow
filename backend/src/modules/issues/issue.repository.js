@@ -1,8 +1,13 @@
 // Repository de Issues importadas do GitHub.
 import { prisma } from '../../database/prismaClient.js';
+import { logger } from '../../shared/logger/index.js';
 import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
-import { githubEventRepository } from '../notifications/github-event.repository.js';
 import { changedFields, lastByKey, selectFields } from '../../shared/persistence/changed-fields.js';
+import {
+  artifactsByNumber,
+  insertInChunks,
+  unseenProviderEvents
+} from '../../shared/persistence/provider-events.js';
 
 const ISSUE_FIELDS = [
   'number',
@@ -32,10 +37,8 @@ export const issueRepository = {
     return issues.map((issue) => issue.githubId);
   },
 
-  async upsertMany(data, { detectedAt } = {}) {
-    if (data.length === 0) {
-      return { created: 0, updated: 0, transitions: 0, linkedTasks: 0, anomalies: 0 };
-    }
+  async upsertMany(data) {
+    if (data.length === 0) return { created: 0, updated: 0 };
 
     const page = lastByKey(data, 'githubId');
     const projectId = page[0].projectId;
@@ -58,17 +61,41 @@ export const issueRepository = {
           updated += 1;
           await tx.issue.updateMany({ where: { id: row.id }, data: changes });
         }
-        const recorded = await githubEventRepository.recordTransitions(tx, {
-          projectId,
-          kind: 'ISSUE',
-          previous,
-          incoming: page,
-          detectedAt: detectedAt ?? new Date()
-        });
-        return { created: created.length, updated, ...recorded };
+        return { created: created.length, updated };
       },
       SYNC_WRITE
     );
+  },
+
+  async insertLifecycleEvents(tx, projectId, events) {
+    const byNumber = await artifactsByNumber(
+      tx.issue,
+      projectId,
+      events.map(({ number }) => number),
+      { id: true, title: true, githubUrl: true }
+    );
+    const associated = events.filter(({ number }) => byNumber.has(number));
+    const ignoredCount = events.length - associated.length;
+    if (ignoredCount)
+      logger.warn('Eventos de issue sem associação foram ignorados.', {
+        event: 'github_issue_lifecycle_orphan',
+        projectId,
+        ignoredCount
+      });
+    const fresh = await unseenProviderEvents(tx.issueLifecycleEvent, projectId, associated);
+    const count = await insertInChunks(
+      tx.issueLifecycleEvent,
+      fresh.map(({ number, ...event }) => ({
+        ...event,
+        projectId,
+        issueId: byNumber.get(number).id
+      }))
+    );
+    return {
+      count,
+      ignoredCount,
+      inserted: fresh.map(({ number, ...event }) => ({ ...event, artifact: byNumber.get(number) }))
+    };
   },
 
   async listByProjectId(projectId, filters = {}) {

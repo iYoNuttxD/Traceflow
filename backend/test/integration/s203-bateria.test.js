@@ -8,6 +8,12 @@ import {
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
+import {
+  backdateGithubLinks,
+  lifecycleEventsFor,
+  openLinkPeriod,
+  recordGithubEvent
+} from '../helpers/github-lifecycle.js';
 
 const boundary = vi.hoisted(() => ({ client: null }));
 const queries = vi.hoisted(() => ({ enabled: false, count: 0 }));
@@ -46,6 +52,7 @@ let env;
 let issueRepository;
 let pullRequestRepository;
 let githubEventRepository;
+let githubRepositoryEventsRepository;
 let createGithubEventNotificationService;
 let notificationService;
 let traceabilityAlertService;
@@ -62,6 +69,8 @@ beforeAll(async () => {
   testDatabaseUrl = configureTestDatabaseEnvironment();
   deployTestMigrations(testDatabaseUrl);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
+  ({ githubRepositoryEventsRepository } =
+    await import('../../src/modules/github/github-repository-events.repository.js'));
   ({ env } = await import('../../src/config/env.js'));
   ({ issueRepository } = await import('../../src/modules/issues/issue.repository.js'));
   ({ pullRequestRepository } =
@@ -183,25 +192,50 @@ const pullRequestItem = (pullRequest, received) => ({
   ...received
 });
 
-const closeIssue = (issue, { when = OCCURRED, detectedAt = NOW, ...extra } = {}) =>
-  issueRepository.upsertMany(
-    [issueItem(issue, { state: 'closed', closedAtGithub: when, ...extra })],
-    { detectedAt }
-  );
-const reopenIssue = (issue, { when = OCCURRED, detectedAt = NOW } = {}) =>
-  issueRepository.upsertMany([issueItem(issue, { state: 'open', updatedAtGithub: when })], {
+const githubEvent = (artifact, kind, eventType, occurredAt, detectedAt = NOW) =>
+  recordGithubEvent(githubRepositoryEventsRepository, prisma, {
+    projectId: artifact.projectId,
+    kind,
+    number: artifact.number,
+    eventType,
+    occurredAt,
     detectedAt
   });
-const mergePullRequest = (pullRequest, { when = OCCURRED, detectedAt = NOW } = {}) =>
-  pullRequestRepository.upsertMany(
-    [pullRequestItem(pullRequest, { state: 'closed', closedAtGithub: when, mergedAtGithub: when })],
-    { detectedAt }
-  );
 
-const linkIssue = (task, issue) =>
-  prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
-const linkPullRequest = (task, pullRequest) =>
-  prisma.task.update({ where: { id: task.id }, data: { pullRequestId: pullRequest.id } });
+async function closeIssue(issue, { when = OCCURRED, detectedAt = NOW, ...extra } = {}) {
+  await issueRepository.upsertMany([
+    issueItem(issue, { state: 'closed', closedAtGithub: when, ...extra })
+  ]);
+  return githubEvent(issue, 'ISSUE', 'CLOSED', when ?? detectedAt, detectedAt);
+}
+async function reopenIssue(issue, { when = OCCURRED, detectedAt = NOW } = {}) {
+  await issueRepository.upsertMany([issueItem(issue, { state: 'open', updatedAtGithub: when })]);
+  return githubEvent(issue, 'ISSUE', 'REOPENED', when, detectedAt);
+}
+async function mergePullRequest(pullRequest, { when = OCCURRED, detectedAt = NOW } = {}) {
+  await pullRequestRepository.upsertMany([
+    pullRequestItem(pullRequest, { state: 'closed', closedAtGithub: when, mergedAtGithub: when })
+  ]);
+  return githubEvent(pullRequest, 'PULL_REQUEST', 'MERGED', when, detectedAt);
+}
+
+async function linkIssue(task, issue) {
+  const link = await prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
+  await openLinkPeriod(prisma, { projectId: task.projectId, taskId: task.id, issueId: issue.id });
+  return link;
+}
+async function linkPullRequest(task, pullRequest) {
+  const updated = await prisma.task.update({
+    where: { id: task.id },
+    data: { pullRequestId: pullRequest.id }
+  });
+  await openLinkPeriod(prisma, {
+    projectId: task.projectId,
+    taskId: task.id,
+    pullRequestId: pullRequest.id
+  });
+  return updated;
+}
 const comment = (task, user, { deleted = false } = {}) =>
   prisma.taskComment.create({
     data: {
@@ -309,153 +343,7 @@ async function pendingEvents(
   return events.map((event) => event.id);
 }
 
-describe('S2-03 bateria — bloco T pelo upsertMany (D2)', () => {
-  const D1 = new Date('2026-10-20T09:00:00.000Z');
-  const D2 = new Date('2026-10-20T10:00:00.000Z');
-  const U = new Date('2026-10-20T11:00:00.000Z');
-
-  it('EV-T-01 as 30 combinações de issue dão exatamente os eventos da tabela', async () => {
-    const project = await newProject();
-    const responsible = await person(project.id);
-    const previous = {
-      semLinha: null,
-      aberta: { state: 'open', closedAtGithub: null },
-      fechadaComData: { state: 'closed', closedAtGithub: D1 },
-      fechadaSemData: { state: 'closed', closedAtGithub: null },
-      estranho: { state: 'triaged', closedAtGithub: null },
-      nulo: { state: null, closedAtGithub: null }
-    };
-    const received = {
-      aberta: { state: 'open', closedAtGithub: null, updatedAtGithub: U },
-      fechadaMesmaData: { state: 'closed', closedAtGithub: D1, updatedAtGithub: U },
-      fechadaDataNova: { state: 'closed', closedAtGithub: D2, updatedAtGithub: U },
-      fechadaSemData: { state: 'closed', closedAtGithub: null, updatedAtGithub: U },
-      estranho: { state: 'triaged', closedAtGithub: null, updatedAtGithub: U }
-    };
-    const expected = {
-      'aberta|fechadaMesmaData': ['ISSUE_CLOSED', D1],
-      'aberta|fechadaDataNova': ['ISSUE_CLOSED', D2],
-      'aberta|fechadaSemData': ['ISSUE_CLOSED', null],
-      'fechadaComData|aberta': ['ISSUE_REOPENED', U],
-      'fechadaComData|fechadaDataNova': ['ISSUE_CLOSED', D2],
-      'fechadaSemData|aberta': ['ISSUE_REOPENED', U]
-    };
-    let number = 0;
-    const observed = {};
-    for (const [before, state] of Object.entries(previous))
-      for (const [after, incoming] of Object.entries(received)) {
-        number += 1;
-        const label = `${before}|${after}`;
-        const githubId = `s203-int-issue-${project.id}-${number}`;
-        if (state) {
-          const issue = await issueRow(project, number, state);
-          const task = await createTask(prisma, project.id, {
-            responsibleUserId: responsible.id
-          });
-          await linkIssue(task, issue);
-        }
-        await issueRepository.upsertMany(
-          [
-            {
-              projectId: project.id,
-              githubId,
-              number,
-              title: `Issue ${number}`,
-              githubUrl: `https://github.com/usuario-s203/repositorio-s203/issues/${number}`,
-              labels: [],
-              ...incoming
-            }
-          ],
-          { detectedAt: NOW }
-        );
-        const row = await prisma.issue.findUnique({
-          where: { projectId_githubId: { projectId: project.id, githubId } }
-        });
-        const events = await prisma.gitHubArtifactEvent.findMany({ where: { issueId: row.id } });
-        observed[label] = events.map((event) => [event.type, event.occurredAt]);
-      }
-
-    for (const [label, events] of Object.entries(observed))
-      expect(events, label).toEqual(expected[label] ? [expected[label]] : []);
-  });
-
-  it('EV-T-02 as 36 combinações de PR dão os eventos da tabela, e o merge terminal conta anomalia', async () => {
-    const project = await newProject();
-    const responsible = await person(project.id);
-    const C1 = new Date('2026-10-20T08:00:00.000Z');
-    const C2 = new Date('2026-10-20T09:30:00.000Z');
-    const M1 = new Date('2026-10-20T07:00:00.000Z');
-    const M2 = new Date('2026-10-20T10:30:00.000Z');
-    const previous = {
-      semLinha: null,
-      aberta: { state: 'open' },
-      fechadaComData: { state: 'closed', closedAtGithub: C1 },
-      fechadaSemData: { state: 'closed' },
-      mesclada: { state: 'closed', closedAtGithub: M1, mergedAtGithub: M1 },
-      estranho: { state: 'draft' }
-    };
-    const received = {
-      aberta: { state: 'open' },
-      fechadaMesmaData: { state: 'closed', closedAtGithub: C1 },
-      fechadaDataNova: { state: 'closed', closedAtGithub: C2 },
-      fechadaSemData: { state: 'closed' },
-      mesclada: { state: 'closed', closedAtGithub: M2, mergedAtGithub: M2 },
-      estranho: { state: 'draft' }
-    };
-    const expected = {
-      'aberta|fechadaMesmaData': ['PULL_REQUEST_CLOSED', C1],
-      'aberta|fechadaDataNova': ['PULL_REQUEST_CLOSED', C2],
-      'aberta|fechadaSemData': ['PULL_REQUEST_CLOSED', null],
-      'aberta|mesclada': ['PULL_REQUEST_MERGED', M2],
-      'fechadaComData|fechadaDataNova': ['PULL_REQUEST_CLOSED', C2],
-      'fechadaComData|mesclada': ['PULL_REQUEST_MERGED', M2],
-      'fechadaSemData|mesclada': ['PULL_REQUEST_MERGED', M2]
-    };
-    let number = 0;
-    let anomalies = 0;
-    const observed = {};
-    for (const [before, state] of Object.entries(previous))
-      for (const [after, incoming] of Object.entries(received)) {
-        number += 1;
-        const label = `${before}|${after}`;
-        const githubId = `s203-int-pr-${project.id}-${number}`;
-        if (state) {
-          const pullRequest = await pullRequestRow(project, number, state);
-          const task = await createTask(prisma, project.id, {
-            responsibleUserId: responsible.id
-          });
-          await linkPullRequest(task, pullRequest);
-        }
-        const result = await pullRequestRepository.upsertMany(
-          [
-            {
-              projectId: project.id,
-              githubId,
-              number,
-              title: `PR ${number}`,
-              githubUrl: `https://github.com/usuario-s203/repositorio-s203/pull/${number}`,
-              closedAtGithub: null,
-              mergedAtGithub: null,
-              ...incoming
-            }
-          ],
-          { detectedAt: NOW }
-        );
-        anomalies += result.anomalies;
-        const row = await prisma.pullRequest.findUnique({
-          where: { projectId_githubId: { projectId: project.id, githubId } }
-        });
-        const events = await prisma.gitHubArtifactEvent.findMany({
-          where: { pullRequestId: row.id }
-        });
-        observed[label] = events.map((event) => [event.type, event.occurredAt]);
-      }
-
-    for (const [label, events] of Object.entries(observed))
-      expect(events, label).toEqual(expected[label] ? [expected[label]] : []);
-    expect(anomalies).toBe(4);
-  });
-
+describe('S2-03 bateria — bloco T (D2)', () => {
   it('EV-T-06 título mudado junto com a transição vai para o snapshot com o valor novo', async () => {
     const { project, issue } = await linkedIssueScenario();
 
@@ -463,75 +351,6 @@ describe('S2-03 bateria — bloco T pelo upsertMany (D2)', () => {
 
     const [event] = await eventsOf(project.id);
     expect(event.artifactTitle).toBe('Título novo no fechamento');
-  });
-
-  it('EV-T-07 item repetido: vale o último da página, e a repetição em outra página não duplica', async () => {
-    const { project, issue } = await linkedIssueScenario();
-    const first = new Date('2026-10-20T09:00:00.000Z');
-    const last = new Date('2026-10-20T09:45:00.000Z');
-
-    await issueRepository.upsertMany(
-      [
-        issueItem(issue, { state: 'closed', closedAtGithub: first }),
-        issueItem(issue, { state: 'closed', closedAtGithub: last })
-      ],
-      { detectedAt: NOW }
-    );
-    await issueRepository.upsertMany(
-      [issueItem(issue, { state: 'closed', closedAtGithub: last })],
-      {
-        detectedAt: at(MINUTE)
-      }
-    );
-
-    const events = await eventsOf(project.id);
-    expect(events.map((event) => [event.type, event.occurredAt])).toEqual([['ISSUE_CLOSED', last]]);
-    expect((await prisma.issue.findUnique({ where: { id: issue.id } })).closedAtGithub).toEqual(
-      last
-    );
-  });
-
-  it('EV-T-08 a reabertura usa a última atualização da issue como data (hipótese H3)', async () => {
-    const project = await newProject();
-    const responsible = await person(project.id);
-    const task = await createTask(prisma, project.id, { responsibleUserId: responsible.id });
-    const issue = await issueRow(project, 1, {
-      state: 'closed',
-      closedAtGithub: new Date('2026-10-01T10:00:00.000Z')
-    });
-    await linkIssue(task, issue);
-    const reopenedAt = new Date('2026-10-09T10:00:00.000Z');
-    const commentedAt = new Date('2026-10-19T10:00:00.000Z');
-
-    await issueRepository.upsertMany(
-      [issueItem(issue, { state: 'open', updatedAtGithub: commentedAt })],
-      { detectedAt: NOW }
-    );
-    await runJob();
-
-    const [event] = await eventsOf(project.id);
-    const [notification] = await prisma.notification.findMany();
-    observe('EV-T-08 reabertura', {
-      reabertaDeFatoEm: reopenedAt,
-      occurredAtGravado: event.occurredAt,
-      githubOccurredAtDaNotificacao: notification?.githubOccurredAt ?? null,
-      notificada: Boolean(notification)
-    });
-    expect(event.occurredAt).toEqual(commentedAt);
-    expect(notification.githubOccurredAt).toEqual(commentedAt);
-  });
-
-  it('EV-T-09 sem data recebida, a chave usa a detecção, e não há janela (TF-REV-002)', async () => {
-    const { project, issue, responsible } = await linkedIssueScenario();
-
-    await closeIssue(issue, { when: null, detectedAt: NOW });
-    const report = await runJob(at(30 * DAY));
-
-    const [event] = await eventsOf(project.id);
-    expect(event.occurredAt).toBeNull();
-    expect(event.occurrenceKey).toBe(`ISSUE_CLOSED:${issue.id}:${NOW.toISOString()}`);
-    expect(report.excluded).not.toHaveProperty('OUTSIDE_WINDOW');
-    expect(await recipientsOf()).toEqual([responsible.id]);
   });
 
   it('EV-T-11 fechar, reabrir e fechar em três sincronizações dá três eventos e três avisos', async () => {
@@ -565,7 +384,7 @@ describe('S2-03 bateria — bloco T pelo upsertMany (D2)', () => {
     const result = await closeIssue(issue, { when: new Date('2026-10-20T09:00:00.000Z') });
     await traceabilityAlertService.reconcileAfterSync(project.id);
 
-    expect(result.transitions).toBe(0);
+    expect(result.recorded).toBe(0);
     expect(await eventsOf(project.id)).toEqual([]);
     expect(
       await prisma.traceabilityAlert.count({
@@ -850,6 +669,7 @@ describe('S2-03 bateria — bloco E: destinatários e exclusões (D6)', () => {
   it('EV-E-07 sem janela: eventos de 7 dias, 7 dias e 1 ms e 400 dias notificam; retentativa 3 h depois (TF-REV-002)', async () => {
     for (const age of [7 * DAY, 7 * DAY + 1, 400 * DAY]) {
       const context = await linkedIssueScenario();
+      await backdateGithubLinks(prisma, context.project.id, new Date('2024-01-01T00:00:00.000Z'));
       await closeIssue(context.issue, { when: new Date(NOW.getTime() - age) });
       await runJob(at(MINUTE), { projectId: context.project.id });
       expect(await recipientsOf({ projectId: context.project.id }), String(age)).toEqual([
@@ -1280,7 +1100,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho (UC04)', () => {
       listBranchPages: vi.fn(() => pages([{ name: 'trunk', headSha: 'trunk-head' }])),
       listCommitPages: vi.fn(() => pages([])),
       listPullRequestPages: vi.fn(() => pages(pullRequests)),
-      listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+      listRepositoryEventPages: vi.fn(() => pages(lifecycleEventsFor({ pullRequests, issues }))),
       listIssuePages: vi.fn(() => pages(issues))
     };
   }
@@ -1317,7 +1137,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho (UC04)', () => {
     return { ...context, responsible: owner };
   }
 
-  it('EV-S-08 os logs das etapas trazem transitions; o de transições só aparece com transição', async () => {
+  it('EV-S-08 os logs das etapas trazem os eventos gravados; o de eventos só aparece com evento novo', async () => {
     const context = await syncedPullRequests([1, 2]);
     loggerMock.info.mockClear();
     loggerMock.warn.mockClear();
@@ -1327,7 +1147,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho (UC04)', () => {
 
     await runSync(context);
     const firstRecorded = loggerMock.info.mock.calls.filter(
-      ([, data]) => data?.event === 'github_artifact_transitions_recorded'
+      ([, data]) => data?.event === 'github_artifact_events_recorded'
     );
     const steps = loggerMock.info.mock.calls
       .filter(([, data]) => data?.event === 'github_sync_step_completed')
@@ -1339,13 +1159,13 @@ describe('S2-03 bateria — bloco S: sincronização e gancho (UC04)', () => {
     await runSync(context);
 
     expect(firstRecorded.map(([, data]) => data)).toEqual([
-      expect.objectContaining({ artifact: 'PULL_REQUEST', transitions: 1, linkedTasks: 1 })
+      expect.objectContaining({ projectId: context.project.id, events: 1 })
     ]);
-    expect(steps.find((step) => step.step === 'pull_requests')).toMatchObject({ transitions: 1 });
-    expect(steps.find((step) => step.step === 'issues')).toMatchObject({ transitions: 0 });
+    expect(steps.find((step) => step.step === 'events')).toMatchObject({ events: 1 });
+    expect(steps.find((step) => step.step === 'issues')).not.toHaveProperty('transitions');
     expect(
       loggerMock.info.mock.calls.filter(
-        ([, data]) => data?.event === 'github_artifact_transitions_recorded'
+        ([, data]) => data?.event === 'github_artifact_events_recorded'
       )
     ).toEqual([]);
     const anomaly = loggerMock.warn.mock.calls.find(
@@ -1359,30 +1179,6 @@ describe('S2-03 bateria — bloco S: sincronização e gancho (UC04)', () => {
 });
 
 describe('S2-03 bateria — bloco K: concorrência e idempotência (V2.3.4)', () => {
-  it('EV-K-01 duas gravações simultâneas da mesma transição geram um evento, com e sem data', async () => {
-    const withDate = await linkedIssueScenario();
-    const withoutDate = await linkedIssueScenario();
-    const merged = await newProject();
-    const owner = await person(merged.id);
-    const pullRequest = await pullRequestRow(merged, 1);
-    await linkPullRequest(
-      await createTask(prisma, merged.id, { responsibleUserId: owner.id }),
-      pullRequest
-    );
-
-    await Promise.all([
-      closeIssue(withDate.issue, { detectedAt: NOW }),
-      closeIssue(withDate.issue, { detectedAt: at(5) }),
-      closeIssue(withoutDate.issue, { when: null, detectedAt: NOW }),
-      closeIssue(withoutDate.issue, { when: null, detectedAt: at(7) }),
-      mergePullRequest(pullRequest, { detectedAt: NOW }),
-      mergePullRequest(pullRequest, { detectedAt: at(3) })
-    ]);
-
-    for (const project of [withDate.project, withoutDate.project, merged])
-      expect(await prisma.gitHubArtifactEvent.count({ where: { projectId: project.id } })).toBe(1);
-  });
-
   it('EV-K-02 gancho e job ao mesmo tempo: cada evento é despachado uma vez', async () => {
     const project = await newProject();
     const participant = await person(project.id);
@@ -1467,7 +1263,7 @@ describe('S2-03 bateria — bloco K: concorrência e idempotência (V2.3.4)', ()
     expect(event.dispatchedAt).toEqual(at(3 * MINUTE));
   });
 
-  it('EV-K-04 vínculo criado durante a página da sincronização: retrato coerente e sem deadlock (hipótese H18)', async () => {
+  it('EV-K-04 vínculo criado durante a gravação dos eventos: alvos coerentes e sem deadlock (hipótese H18)', async () => {
     const project = await newProject();
     const owner = await person(project.id);
     const issues = [];
@@ -1476,18 +1272,27 @@ describe('S2-03 bateria — bloco K: concorrência e idempotência (V2.3.4)', ()
       await linkIssue(await createTask(prisma, project.id, { responsibleUserId: owner.id }), issue);
       issues.push(issue);
     }
+    await prisma.gitHubEventCoverage.create({
+      data: { projectId: project.id, coverageFrom: new Date('2026-01-01T00:00:00.000Z') }
+    });
     const late = await createTask(prisma, project.id, { responsibleUserId: owner.id });
 
     const started = Date.now();
     const timings = {};
     await Promise.all([
-      issueRepository
-        .upsertMany(
-          issues.map((issue) => issueItem(issue, { state: 'closed', closedAtGithub: OCCURRED })),
-          { detectedAt: NOW }
-        )
+      githubRepositoryEventsRepository
+        .record(project.id, {
+          pullRequestEvents: [],
+          issueEvents: issues.map((issue) => ({
+            providerEventId: `k04-${issue.id}`,
+            number: issue.number,
+            eventType: 'CLOSED',
+            occurredAt: OCCURRED
+          })),
+          readStartedAt: NOW
+        })
         .then(() => {
-          timings.pagina = Date.now() - started;
+          timings.gravacao = Date.now() - started;
         }),
       taskLinkRepository.createIssue(late.id, issues[49].id).then(() => {
         timings.vinculo = Date.now() - started;
@@ -1496,7 +1301,7 @@ describe('S2-03 bateria — bloco K: concorrência e idempotência (V2.3.4)', ()
 
     const event = (await eventsOf(project.id)).find((row) => row.issueId === issues[49].id);
     const targets = event.targets.map((target) => target.taskId);
-    observe('EV-K-04 tempos', { ...timings, tarefaNovaNoRetrato: targets.includes(late.id) });
+    observe('EV-K-04 tempos', { ...timings, tarefaNovaNosAlvos: targets.includes(late.id) });
     expect(targets.length === 1 || targets.length === 2).toBe(true);
     expect(event.linkedTaskCount).toBe(targets.length);
   });
@@ -1808,66 +1613,6 @@ describe('S2-03 bateria — bloco M: métrica oficial (C7, D14)', () => {
 });
 
 describe('S2-03 bateria — bloco Q: custo local (V15.1.3, V15.2.2)', () => {
-  async function page(transitions, fanOut) {
-    const project = await newProject();
-    const owner = await person(project.id);
-    await prisma.pullRequest.createMany({
-      data: Array.from({ length: 100 }, (_, index) => ({
-        projectId: project.id,
-        githubId: `s203-custo-${project.id}-${index}`,
-        number: index + 1,
-        title: `PR ${index + 1}`,
-        state: 'open',
-        githubUrl: `https://github.com/usuario-s203/repositorio-s203/pull/${index + 1}`
-      }))
-    });
-    const rows = await prisma.pullRequest.findMany({
-      where: { projectId: project.id },
-      orderBy: { number: 'asc' }
-    });
-    const tasks = [];
-    for (const row of rows.slice(0, transitions))
-      for (let copy = 0; copy < fanOut; copy += 1)
-        tasks.push({
-          projectId: project.id,
-          title: `Tarefa ${row.number}-${copy}`,
-          priority: 'MEDIA',
-          status: 'A_FAZER',
-          responsibleUserId: owner.id,
-          pullRequestId: row.id
-        });
-    if (tasks.length) await prisma.task.createMany({ data: tasks });
-    const items = rows.map((row) => ({
-      projectId: project.id,
-      githubId: row.githubId,
-      number: row.number,
-      title: row.title,
-      state: 'closed',
-      closedAtGithub: OCCURRED,
-      mergedAtGithub: OCCURRED,
-      updatedAtGithub: OCCURRED,
-      githubUrl: row.githubUrl
-    }));
-    queries.count = 0;
-    queries.enabled = true;
-    const started = performance.now();
-    const result = await pullRequestRepository.upsertMany(items, { detectedAt: NOW });
-    const durationMs = Math.round(performance.now() - started);
-    queries.enabled = false;
-    return { transitions: result.transitions, statements: queries.count, durationMs };
-  }
-
-  it('EV-Q-01 EV-Q-02 instruções e duração da página por transições e tarefas por artefato', async () => {
-    const grid = [];
-    for (const transitions of [0, 1, 10, 100])
-      for (const fanOut of transitions ? [1, 5, 20] : [1]) {
-        const measured = await page(transitions, fanOut);
-        grid.push({ T: transitions, F: fanOut, ...measured });
-        expect(measured.transitions).toBe(transitions);
-      }
-    observe('EV-Q-01 grade', grid);
-  }, 180000);
-
   it('EV-Q-05 custo do despacho por evento conforme participantes e tarefas', async () => {
     const results = [];
     for (const [participants, tasksPerEvent] of [
@@ -1885,6 +1630,11 @@ describe('S2-03 bateria — bloco Q: custo local (V15.1.3, V15.2.2)', () => {
       for (let index = 0; index < tasksPerEvent; index += 1) {
         const task = await createTask(prisma, project.id, {
           responsibleUserId: owner.id,
+          pullRequestId: pullRequest.id
+        });
+        await openLinkPeriod(prisma, {
+          projectId: project.id,
+          taskId: task.id,
           pullRequestId: pullRequest.id
         });
         for (const user of others) await comment(task, user);
