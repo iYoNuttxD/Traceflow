@@ -257,130 +257,107 @@ describe('PR #26 métrica oficial — decisões e reconstrução (TF-REV-002)', 
 });
 
 describe('PR #26 métrica oficial — decisões do job do RF59', () => {
-  it('M-P07 o job desfaz o envio registrado da notificação que não ficou gravada, e o dry-run não registra nada', async () => {
-    const NOW = at('2026-10-20T12:00:00.000Z');
-    const candidate = (id, responsibleUserId) => ({
-      id,
-      title: `Tarefa ${id}`,
-      status: 'A_FAZER',
-      deadline: at('2026-10-10T00:00:00.000Z'),
-      responsibleUserId,
-      createdAt: at('2026-10-01T12:00:00.000Z')
-    });
-    const repository = {
-      listActiveProjectIds: vi.fn(async () => [1]),
-      findOverdueCandidates: vi.fn(async () => [
-        candidate(10, 7),
-        candidate(11, 7),
-        candidate(12, null)
-      ]),
-      activeAccountIds: vi.fn(async (userIds) => new Set(userIds)),
-      activeMemberIds: vi.fn(async () => new Set([7])),
-      overduePreferences: vi.fn(async () => new Map()),
-      existingOverdueKeys: vi.fn(async () => new Set()),
-      insertOverdue: vi.fn(async () => 1),
-      currentOverdueDecisions: vi.fn(async () => new Map([['11:2026-10-10|7', 'INACTIVE_MEMBER']])),
-      recordOverdueDecisions: vi.fn(async (_projectId, decisions) => decisions.length),
-      revertOverdueDecisions: vi.fn(async () => undefined)
-    };
-    const silent = { info() {}, warn() {}, error() {} };
+  const NOW = at('2026-10-20T12:00:00.000Z');
+  const candidate = (id, responsibleUserId) => ({
+    id,
+    title: `Tarefa ${id}`,
+    status: 'A_FAZER',
+    deadline: at('2026-10-10T00:00:00.000Z'),
+    responsibleUserId,
+    createdAt: at('2026-10-01T12:00:00.000Z')
+  });
+  const fakeRepository = (candidates) => ({
+    listActiveProjectIds: vi.fn(async () => [1]),
+    findOverdueCandidates: vi.fn(async () => candidates),
+    activeAccountIds: vi.fn(async (userIds) => new Set(userIds)),
+    activeMemberIds: vi.fn(async () => new Set([7])),
+    overduePreferences: vi.fn(async () => new Map()),
+    existingOverdueKeys: vi.fn(async () => new Set()),
+    currentOverdueDecisions: vi.fn(async () => new Map()),
+    persistOverdueUnit: vi.fn(async (_projectId, unit) => unit.rows.length)
+  });
+  const silent = { info() {}, warn() {}, error() {} };
+
+  it('M-P07 o lote leva as notificações novas e todas as decisões, e o dry-run não grava nada', async () => {
+    const repository = fakeRepository([candidate(10, 7), candidate(11, 7), candidate(12, null)]);
+    repository.currentOverdueDecisions.mockResolvedValue(
+      new Map([['11:2026-10-10|7', 'INACTIVE_MEMBER']])
+    );
     const job = createNotificationService({ repository, log: silent, clock: () => NOW });
 
     await job.notifyOverdueTasks({ now: NOW, timeZone: TZ, dryRun: true });
     expect(repository.currentOverdueDecisions).not.toHaveBeenCalled();
-    expect(repository.recordOverdueDecisions).not.toHaveBeenCalled();
+    expect(repository.persistOverdueUnit).not.toHaveBeenCalled();
 
-    repository.existingOverdueKeys
-      .mockResolvedValueOnce(new Set())
-      .mockResolvedValueOnce(new Set(['7|TASK_OVERDUE:10:2026-10-10']));
+    repository.existingOverdueKeys.mockResolvedValueOnce(new Set(['7|TASK_OVERDUE:10:2026-10-10']));
     const report = await job.notifyOverdueTasks({ now: NOW, timeZone: TZ, dryRun: false });
 
-    expect(report).toMatchObject({ eligible: 2, created: 1 });
-    const [projectId, decisions, decidedAt] = repository.recordOverdueDecisions.mock.calls[0];
-    expect(projectId).toBe(1);
-    expect(decidedAt).toEqual(NOW);
+    expect(report).toMatchObject({ eligible: 2, created: 1, alreadyNotified: 1 });
     expect(repository.currentOverdueDecisions).toHaveBeenCalledWith(1, [
       '10:2026-10-10',
       '11:2026-10-10',
       '12:2026-10-10'
     ]);
+    expect(repository.persistOverdueUnit).toHaveBeenCalledTimes(1);
+    const [projectId, unit] = repository.persistOverdueUnit.mock.calls[0];
+    expect(projectId).toBe(1);
+    expect(unit.decidedAt).toEqual(NOW);
+    expect(unit.current.get('11:2026-10-10|7')).toBe('INACTIVE_MEMBER');
+    expect(unit.rows.map((row) => row.dedupeKey)).toEqual(['TASK_OVERDUE:11:2026-10-10']);
     expect(
-      decisions.map((decision) => [
+      unit.decisions.map((decision) => [
         decision.eventKey,
         decision.recipientUserId,
         decision.outcome,
         decision.occurredAt.toISOString()
       ])
     ).toEqual([
-      ['12:2026-10-10', null, 'NO_RESPONSIBLE', '2026-10-11T03:00:00.000Z'],
       ['10:2026-10-10', 7, 'SENT', '2026-10-11T03:00:00.000Z'],
-      ['11:2026-10-10', 7, 'SENT', '2026-10-11T03:00:00.000Z']
+      ['11:2026-10-10', 7, 'SENT', '2026-10-11T03:00:00.000Z'],
+      ['12:2026-10-10', null, 'NO_RESPONSIBLE', '2026-10-11T03:00:00.000Z']
     ]);
-    expect(repository.existingOverdueKeys).toHaveBeenCalledTimes(3);
-    const [revertedProject, reverted, current] = repository.revertOverdueDecisions.mock.calls[0];
-    expect(revertedProject).toBe(1);
-    expect(reverted.map((decision) => [decision.eventKey, decision.outcome])).toEqual([
-      ['11:2026-10-10', 'SENT']
-    ]);
-    expect(current.get('11:2026-10-10|7')).toBe('INACTIVE_MEMBER');
   });
-});
 
-describe('PR #26 métrica oficial — falha na gravação das notificações', () => {
-  it('M-P08 a falha da inserção desfaz as decisões de envio gravadas em paralelo e conta o projeto como falho', async () => {
-    const NOW = at('2026-10-20T12:00:00.000Z');
+  it('M-P08 a falha de um lote conta o projeto como falho, sem desfazer nada à parte', async () => {
     const failure = Object.assign(new Error('Deadlock found when trying to get lock'), {
       code: 'P2034'
     });
-    const repository = {
-      listActiveProjectIds: vi.fn(async () => [1]),
-      findOverdueCandidates: vi.fn(async () => [
-        {
-          id: 10,
-          title: 'Tarefa 10',
-          status: 'A_FAZER',
-          deadline: at('2026-10-10T00:00:00.000Z'),
-          responsibleUserId: 7,
-          createdAt: at('2026-10-01T12:00:00.000Z')
-        }
-      ]),
-      activeAccountIds: vi.fn(async (userIds) => new Set(userIds)),
-      activeMemberIds: vi.fn(async () => new Set([7])),
-      overduePreferences: vi.fn(async () => new Map()),
-      existingOverdueKeys: vi.fn(async () => new Set()),
-      insertOverdue: vi.fn().mockRejectedValue(failure),
-      currentOverdueDecisions: vi.fn(async () => new Map()),
-      recordOverdueDecisions: vi.fn(async (_projectId, decisions) => decisions.length),
-      revertOverdueDecisions: vi.fn(async () => undefined)
-    };
+    const repository = fakeRepository([candidate(10, 7)]);
+    repository.persistOverdueUnit.mockRejectedValue(failure);
     const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const job = createNotificationService({ repository, log, clock: () => NOW });
 
     const report = await job.notifyOverdueTasks({ now: NOW, timeZone: TZ, dryRun: false });
 
     expect(report).toMatchObject({ projects: 1, failed: 1, created: 0 });
-    const [, reverted] = repository.revertOverdueDecisions.mock.calls[0];
-    expect(reverted.map((decision) => [decision.eventKey, decision.outcome])).toEqual([
-      ['10:2026-10-10', 'SENT']
-    ]);
     expect(log.error).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ event: 'notifications_due_project_failed', errorCode: 'P2034' })
     );
+    expect(Object.keys(repository)).not.toContain('revertOverdueDecisions');
+  });
 
-    repository.revertOverdueDecisions.mockRejectedValueOnce(
-      Object.assign(new Error('Lost connection'), { code: 'P1017' })
+  it('M-P09 os lotes têm até 1.000 tarefas e rodam no máximo 4 ao mesmo tempo', async () => {
+    const repository = fakeRepository(
+      Array.from({ length: 9500 }, (_, index) => candidate(index + 1, 7))
     );
-    await job.notifyOverdueTasks({ now: NOW, timeZone: TZ, dryRun: false });
+    let running = 0;
+    let peak = 0;
+    repository.persistOverdueUnit.mockImplementation(async (_projectId, unit) => {
+      running += 1;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running -= 1;
+      return unit.rows.length;
+    });
+    const job = createNotificationService({ repository, log: silent, clock: () => NOW });
 
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        event: 'notifications_due_decision_revert_failed',
-        projectId: 1,
-        errorCode: 'P1017'
-      })
-    );
+    const report = await job.notifyOverdueTasks({ now: NOW, timeZone: TZ, dryRun: false });
+
+    const sizes = repository.persistOverdueUnit.mock.calls.map(([, unit]) => unit.decisions.length);
+    expect(sizes).toEqual([1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 500]);
+    expect(peak).toBe(4);
+    expect(report.created).toBe(9500);
   });
 });
 

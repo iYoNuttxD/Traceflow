@@ -16,6 +16,7 @@ const ACTIVE_ACCOUNT = 'ACTIVE';
 const KEY_CHUNK = 5000;
 const UPDATE_CHUNK = 1000;
 const LOCK_WAIT_LIMIT_MS = 2000;
+const OVERDUE_UNIT_TIMEOUT_MS = 15000;
 const LOCK_RETRY_MS = 20;
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms + Math.random() * ms));
 const dtoInclude = {
@@ -39,6 +40,29 @@ function chunked(values, size) {
   for (let index = 0; index < values.length; index += size)
     parts.push(values.slice(index, index + size));
   return parts;
+}
+
+async function writeOverdueDecisions(tx, projectId, decisions, decidedAt, current) {
+  const created = [];
+  const changed = new Map();
+  for (const decision of decisions) {
+    const recipientKey = recipientKeyOf(decision.recipientUserId);
+    const previous = current.get(`${decision.eventKey}|${recipientKey}`);
+    if (previous === undefined)
+      created.push({ ...decision, type: OVERDUE, projectId, recipientKey, decidedAt });
+    else if (previous !== SENT && previous !== decision.outcome) {
+      if (!changed.has(decision.outcome)) changed.set(decision.outcome, []);
+      changed.get(decision.outcome).push({ eventKey: decision.eventKey, recipientKey });
+    }
+  }
+  if (created.length)
+    await tx.notificationDecision.createMany({ data: created, skipDuplicates: true });
+  for (const [outcome, keys] of changed)
+    for (const part of chunked(keys, UPDATE_CHUNK))
+      await tx.notificationDecision.updateMany({
+        where: { type: OVERDUE, projectId, outcome: { not: SENT }, OR: part },
+        data: { outcome, decidedAt }
+      });
 }
 
 async function statusChangeExclusionOf(tx, task, actorUserId) {
@@ -167,12 +191,6 @@ export const notificationRepository = {
     return new Set(found.map((row) => `${row.recipientUserId}|${row.dedupeKey}`));
   },
 
-  async insertOverdue(rows) {
-    if (!rows.length) return 0;
-    const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
-    return result.count;
-  },
-
   async currentOverdueDecisions(projectId, eventKeys) {
     const current = new Map();
     for (const keys of chunked(unique(eventKeys), KEY_CHUNK))
@@ -184,49 +202,17 @@ export const notificationRepository = {
     return current;
   },
 
-  async recordOverdueDecisions(projectId, decisions, decidedAt, current) {
-    const created = [];
-    const changed = new Map();
-    for (const decision of decisions) {
-      const recipientKey = recipientKeyOf(decision.recipientUserId);
-      const previous = current.get(`${decision.eventKey}|${recipientKey}`);
-      if (previous === undefined)
-        created.push({ ...decision, type: OVERDUE, projectId, recipientKey, decidedAt });
-      else if (previous !== SENT && previous !== decision.outcome) {
-        if (!changed.has(decision.outcome)) changed.set(decision.outcome, []);
-        changed.get(decision.outcome).push({ eventKey: decision.eventKey, recipientKey });
-      }
-    }
-
-    let recorded = created.length
-      ? (await prisma.notificationDecision.createMany({ data: created, skipDuplicates: true }))
-          .count
-      : 0;
-    for (const [outcome, keys] of changed)
-      for (const part of chunked(keys, UPDATE_CHUNK))
-        recorded += (
-          await prisma.notificationDecision.updateMany({
-            where: { type: OVERDUE, projectId, outcome: { not: SENT }, OR: part },
-            data: { outcome, decidedAt }
-          })
-        ).count;
-    return recorded;
-  },
-
-  async revertOverdueDecisions(projectId, decisions, current) {
-    for (const decision of decisions) {
-      const recipientKey = recipientKeyOf(decision.recipientUserId);
-      const where = {
-        type: OVERDUE,
-        projectId,
-        eventKey: decision.eventKey,
-        recipientKey,
-        outcome: SENT
-      };
-      const previous = current.get(`${decision.eventKey}|${recipientKey}`);
-      if (previous === undefined) await prisma.notificationDecision.deleteMany({ where });
-      else await prisma.notificationDecision.updateMany({ where, data: { outcome: previous } });
-    }
+  persistOverdueUnit(projectId, { rows, decisions, decidedAt, current }) {
+    return prisma.$transaction(
+      async (tx) => {
+        const created = rows.length
+          ? (await tx.notification.createMany({ data: rows, skipDuplicates: true })).count
+          : 0;
+        await writeOverdueDecisions(tx, projectId, decisions, decidedAt, current);
+        return created;
+      },
+      { timeout: OVERDUE_UNIT_TIMEOUT_MS }
+    );
   },
 
   listPage(userId, { unreadOnly, types = null, skip, take, after = null }) {

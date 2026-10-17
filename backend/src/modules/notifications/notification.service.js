@@ -25,6 +25,15 @@ import { notificationRepository } from './notification.repository.js';
 
 const JOB_EXCLUSIONS = ['NO_RESPONSIBLE', 'INACTIVE_ACCOUNT', 'INACTIVE_MEMBER', 'PREFERENCE_OFF'];
 const keyOf = (row) => `${row.recipientUserId}|${row.dedupeKey}`;
+const OVERDUE_UNIT_SIZE = 1000;
+const OVERDUE_UNIT_CONCURRENCY = 4;
+
+function chunked(values, size) {
+  const parts = [];
+  for (let index = 0; index < values.length; index += size)
+    parts.push(values.slice(index, index + size));
+  return parts;
+}
 
 function notificationNotFound() {
   return new AppError({
@@ -85,9 +94,7 @@ export function createNotificationService({
       ? await repository.overduePreferences(responsibleIds)
       : new Map();
 
-    const rows = [];
-    const decisions = [];
-    const pending = new Map();
+    const entries = [];
     for (const task of due) {
       const cutoff = overdueCutoff(task.dueDate, timeZone);
       const exclusion = overdueExclusion({
@@ -103,21 +110,23 @@ export function createNotificationService({
       };
       if (exclusion) {
         counts.excluded[exclusion] += 1;
-        decisions.push({ ...decision, outcome: exclusion });
+        entries.push({ row: null, decision: { ...decision, outcome: exclusion } });
         continue;
       }
-      const row = {
-        recipientUserId: task.responsibleUserId,
-        projectId,
-        taskId: task.id,
-        type: OVERDUE,
-        dedupeKey: overdueDedupeKey(task.id, task.dueDate),
-        taskTitle: snapshotTitle(task.title),
-        dueDate: new Date(`${task.dueDate}T00:00:00.000Z`)
-      };
-      rows.push(row);
-      pending.set(keyOf(row), { ...decision, outcome: SENT });
+      entries.push({
+        row: {
+          recipientUserId: task.responsibleUserId,
+          projectId,
+          taskId: task.id,
+          type: OVERDUE,
+          dedupeKey: overdueDedupeKey(task.id, task.dueDate),
+          taskTitle: snapshotTitle(task.title),
+          dueDate: new Date(`${task.dueDate}T00:00:00.000Z`)
+        },
+        decision: { ...decision, outcome: SENT }
+      });
     }
+    const rows = entries.map((entry) => entry.row).filter(Boolean);
     counts.eligible = rows.length;
 
     const [existing, current] = await Promise.all([
@@ -129,44 +138,29 @@ export function createNotificationService({
             due.map((task) => overdueEventKey(task.id, task.dueDate))
           )
     ]);
-    const fresh = rows.filter((row) => !existing.has(keyOf(row)));
+    const isFresh = (row) => row && !existing.has(keyOf(row));
     if (dryRun) {
-      counts.alreadyNotified = rows.length - fresh.length;
-      counts.wouldCreate = fresh.length;
+      counts.wouldCreate = rows.filter(isFresh).length;
+      counts.alreadyNotified = rows.length - counts.wouldCreate;
       return counts;
     }
-    const [inserted, recorded] = await Promise.allSettled([
-      repository.insertOverdue(fresh),
-      repository.recordOverdueDecisions(
-        projectId,
-        [...decisions, ...pending.values()],
-        now,
-        current
-      )
-    ]);
-    const revertUnpersisted = async () => {
-      const persisted = await repository.existingOverdueKeys(fresh);
-      await repository.revertOverdueDecisions(
-        projectId,
-        fresh.filter((row) => !persisted.has(keyOf(row))).map((row) => pending.get(keyOf(row))),
-        current
-      );
-    };
-    if (inserted.status === 'rejected') {
-      if (recorded.status === 'fulfilled')
-        await revertUnpersisted().catch((error) =>
-          log.warn('Decisões de vencimentos não notificados ficaram como enviadas.', {
-            event: 'notifications_due_decision_revert_failed',
-            projectId,
-            errorCode: errorCodeOf(error)
-          })
-        );
-      throw inserted.reason;
-    }
-    if (recorded.status === 'rejected') throw recorded.reason;
-    counts.created = inserted.value;
-    counts.alreadyNotified = rows.length - inserted.value;
-    if (inserted.value < fresh.length) await revertUnpersisted();
+    const units = chunked(entries, OVERDUE_UNIT_SIZE).map((part) => ({
+      rows: part.map((entry) => entry.row).filter(isFresh),
+      decisions: part.map((entry) => entry.decision)
+    }));
+    let created = 0;
+    let failure = null;
+    for (const wave of chunked(units, OVERDUE_UNIT_CONCURRENCY))
+      for (const result of await Promise.allSettled(
+        wave.map((unit) =>
+          repository.persistOverdueUnit(projectId, { ...unit, decidedAt: now, current })
+        )
+      ))
+        if (result.status === 'fulfilled') created += result.value;
+        else failure ??= result.reason;
+    if (failure) throw failure;
+    counts.created = created;
+    counts.alreadyNotified = rows.length - created;
     return counts;
   }
 

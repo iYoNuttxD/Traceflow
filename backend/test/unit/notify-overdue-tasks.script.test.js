@@ -31,9 +31,8 @@ function fakeRepository({ failingProjectId } = {}) {
     activeMemberIds: vi.fn(async () => new Set([7])),
     overduePreferences: vi.fn(async () => new Map()),
     existingOverdueKeys: vi.fn(async () => new Set()),
-    insertOverdue: vi.fn(async (rows) => rows.length),
     currentOverdueDecisions: vi.fn(async () => new Map()),
-    recordOverdueDecisions: vi.fn(async (_projectId, decisions) => decisions.length)
+    persistOverdueUnit: vi.fn(async (_projectId, unit) => unit.rows.length)
   };
 }
 
@@ -66,7 +65,7 @@ describe('S2-02 job de vencimento: falhas e contagens (N15, §13.10)', () => {
       timeZone: 'America/Sao_Paulo'
     });
     expect(report).not.toHaveProperty('lookbackDays');
-    expect(repository.insertOverdue).toHaveBeenCalledTimes(1);
+    expect(repository.persistOverdueUnit).toHaveBeenCalledTimes(1);
     expect(log.error).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
@@ -102,7 +101,7 @@ describe('S2-02 job de vencimento: falhas e contagens (N15, §13.10)', () => {
 
     const report = await job(repository, fakeLog()).notifyOverdueTasks({ dryRun: true });
 
-    expect(repository.insertOverdue).not.toHaveBeenCalled();
+    expect(repository.persistOverdueUnit).not.toHaveBeenCalled();
     expect(report).toMatchObject({
       dryRun: true,
       eligible: 2,

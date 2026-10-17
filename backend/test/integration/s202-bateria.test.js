@@ -404,9 +404,8 @@ describe('S2-02 bateria de integração — corte, fuso e janela pelo job (bloco
         activeMemberIds: async () => new Set([7]),
         overduePreferences: async () => new Map(),
         existingOverdueKeys: async () => new Set(),
-        insertOverdue: async (rows) => { inserted.push(...rows.map((r) => [r.dedupeKey, r.dueDate.toISOString()])); return rows.length; },
         currentOverdueDecisions: async () => new Map(),
-        recordOverdueDecisions: async (_projectId, decisions) => decisions.length
+        persistOverdueUnit: async (_projectId, { rows }) => { inserted.push(...rows.map((r) => [r.dedupeKey, r.dueDate.toISOString()])); return rows.length; }
       };
       const silent = { info() {}, warn() {}, error() {} };
       const job = createNotificationService({ repository, log: silent, configuration: {} });
