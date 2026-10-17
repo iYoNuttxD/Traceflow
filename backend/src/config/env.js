@@ -416,6 +416,7 @@ export function createEnvironment(source = {}) {
       'GITHUB_SCHEDULER_ENABLED',
       false
     ),
+    jobsEnabled: parseBoolean(source.JOBS_ENABLED, 'JOBS_ENABLED', true),
     githubSyncIntervalMs: parseInteger(source.GITHUB_SYNC_INTERVAL_MS, 'GITHUB_SYNC_INTERVAL_MS', {
       defaultValue: 30 * 60 * 1000,
       min: 60000,

@@ -231,7 +231,8 @@ export function createNotificationService({
       now = clock(),
       timeZone = configuration.appTimeZone,
       projectId = null,
-      dryRun = true
+      dryRun = true,
+      signal = null
     } = {}) {
       const startedAt = Date.now();
       const range = {
@@ -247,7 +248,10 @@ export function createNotificationService({
       const totals = emptyCounts();
       const projectIds = await repository.listActiveProjectIds(projectId);
       let failed = 0;
+      let processed = 0;
       for (const id of projectIds) {
+        if (signal?.aborted) break;
+        processed += 1;
         try {
           const counts = await overdueForProject(id, { now, timeZone, range, dryRun });
           for (const key of ['scanned', 'eligible', 'created', 'alreadyNotified', 'wouldCreate'])
@@ -272,6 +276,9 @@ export function createNotificationService({
         ...(dryRun ? { wouldCreate } : {}),
         updated: 'NOT_APPLICABLE',
         failed,
+        ...(processed < projectIds.length
+          ? { interrupted: true, pendingProjects: projectIds.length - processed }
+          : {}),
         durationMs: Date.now() - startedAt
       };
       log[failed ? 'warn' : 'info']('Varredura de vencimentos concluída.', {
@@ -287,6 +294,7 @@ export function createNotificationService({
           JOB_EXCLUSIONS.map((reason) => [`excluded${reason}`, report.excluded[reason]])
         ),
         failed,
+        ...(report.interrupted ? { pendingProjects: report.pendingProjects } : {}),
         durationMs: report.durationMs
       });
       return report;

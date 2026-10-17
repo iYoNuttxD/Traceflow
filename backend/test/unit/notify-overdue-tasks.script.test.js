@@ -3,7 +3,7 @@ import { createNotificationService } from '../../src/modules/notifications/notif
 import {
   parseOverdueNotificationArguments,
   runOverdueNotifications
-} from '../../scripts/notify-overdue-tasks.js';
+} from '../../src/jobs/cli/notify-overdue-tasks.js';
 
 const NOW = new Date('2026-10-20T12:00:00.000Z');
 const SECRET_TITLE = 'Título sigiloso\r\n{"level":"error","forjado":true}';
@@ -137,11 +137,28 @@ describe('S2-02 script notify-overdue-tasks', () => {
     const passing = { notifyOverdueTasks: vi.fn(async () => ({ failed: 0, created: 2 })) };
     const databaseUrl = 'mysql://user:password@localhost:3306/traceflow';
 
+    const lease = async (_name, work) => ({
+      acquired: true,
+      result: await work(new AbortController().signal)
+    });
+
     expect(
-      await runOverdueNotifications({ args: ['--apply'], service: failing, databaseUrl, write })
+      await runOverdueNotifications({
+        args: ['--apply'],
+        service: failing,
+        databaseUrl,
+        write,
+        lease
+      })
     ).toBe(1);
     expect(
-      await runOverdueNotifications({ args: ['--apply'], service: passing, databaseUrl, write })
+      await runOverdueNotifications({
+        args: ['--apply'],
+        service: passing,
+        databaseUrl,
+        write,
+        lease
+      })
     ).toBe(0);
     expect(JSON.parse(write.mock.calls[1][0])).toMatchObject({
       created: 2,

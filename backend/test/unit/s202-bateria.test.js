@@ -13,7 +13,7 @@ import { notificationCoverages } from '../../src/modules/notifications/notificat
 import {
   parseOverdueNotificationArguments,
   runOverdueNotifications
-} from '../../scripts/notify-overdue-tasks.js';
+} from '../../src/jobs/cli/notify-overdue-tasks.js';
 
 const DAY = 86_400_000;
 const ZONES = [

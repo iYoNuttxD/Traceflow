@@ -1,9 +1,11 @@
 import { pathToFileURL } from 'node:url';
-import { env } from '../src/config/env.js';
-import { disconnectDatabase } from '../src/database/prismaClient.js';
-import { createNotificationService } from '../src/modules/notifications/notification.service.js';
-import { createLogger } from '../src/shared/logger/index.js';
-import { isProductionDatabase, sanitizedDatabaseTarget } from './lib/database-safety.js';
+import { env } from '../../config/env.js';
+import { disconnectDatabase } from '../../database/prismaClient.js';
+import { createNotificationService } from '../../modules/notifications/notification.service.js';
+import { createLogger } from '../../shared/logger/index.js';
+import { isProductionDatabase, sanitizedDatabaseTarget } from '../../database/database-safety.js';
+import { withJobLease } from '../job-lease.js';
+import { JOB_NAMES } from '../job-names.js';
 
 const flags = ['--apply', '--dry-run', '--confirm-production'];
 
@@ -32,13 +34,25 @@ export async function runOverdueNotifications({
   service,
   databaseUrl,
   write = (text) => process.stdout.write(text),
-  writeError = (text) => process.stderr.write(text)
+  writeError = (text) => process.stderr.write(text),
+  lease = withJobLease
 }) {
   try {
     const { projectId, dryRun, confirmProduction } = parseOverdueNotificationArguments(args);
     if (!dryRun && isProductionDatabase(databaseUrl) && !confirmProduction)
       throw new Error('Execução em produção exige --confirm-production.');
-    const report = await service.notifyOverdueTasks({ projectId, dryRun });
+    const outcome = dryRun
+      ? { acquired: true, result: await service.notifyOverdueTasks({ projectId, dryRun }) }
+      : await lease(JOB_NAMES.NOTIFICATIONS_DUE, (signal) =>
+          service.notifyOverdueTasks({ projectId, dryRun, signal })
+        );
+    if (!outcome.acquired) {
+      writeError(
+        `Outra execução do job ${JOB_NAMES.NOTIFICATIONS_DUE} está em andamento; tente de novo depois.\n`
+      );
+      return 1;
+    }
+    const report = outcome.result;
     write(
       `${JSON.stringify({ ...report, database: sanitizedDatabaseTarget(databaseUrl) }, null, 2)}\n`
     );

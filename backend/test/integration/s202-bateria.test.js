@@ -44,7 +44,7 @@ beforeAll(async () => {
   ({ auditRepository: audit } = await import('../../src/modules/audit/audit.repository.js'));
   ({ privacyService } = await import('../../src/modules/privacy/privacy.service.js'));
   ({ runPrivacyRetention } = await import('../../src/shared/maintenance/privacy-retention.js'));
-  ({ runOverdueNotifications } = await import('../../scripts/notify-overdue-tasks.js'));
+  ({ runOverdueNotifications } = await import('../../src/jobs/cli/notify-overdue-tasks.js'));
   await cleanTestDatabase(prisma);
 }, 60000);
 
@@ -671,7 +671,7 @@ describe('S2-02 bateria de integração — job (bloco J)', () => {
   it('NT-J-10 o comando do runbook roda como processo: dry-run no banco de teste e uso inválido com código 1', () => {
     const backend = resolve(fileURLToPath(new URL('../..', import.meta.url)));
     const run = (args) =>
-      spawnSync(process.execPath, ['scripts/notify-overdue-tasks.js', ...args], {
+      spawnSync(process.execPath, ['src/jobs/cli/notify-overdue-tasks.js', ...args], {
         cwd: backend,
         env: { ...process.env, NODE_ENV: 'test' },
         encoding: 'utf8'

@@ -1,9 +1,11 @@
 import { pathToFileURL } from 'node:url';
-import { env } from '../src/config/env.js';
-import { disconnectDatabase } from '../src/database/prismaClient.js';
-import { createGithubEventNotificationService } from '../src/modules/notifications/github-event-notification.service.js';
-import { createLogger } from '../src/shared/logger/index.js';
-import { isProductionDatabase, sanitizedDatabaseTarget } from './lib/database-safety.js';
+import { env } from '../../config/env.js';
+import { disconnectDatabase } from '../../database/prismaClient.js';
+import { createGithubEventNotificationService } from '../../modules/notifications/github-event-notification.service.js';
+import { createLogger } from '../../shared/logger/index.js';
+import { isProductionDatabase, sanitizedDatabaseTarget } from '../../database/database-safety.js';
+import { withJobLease } from '../job-lease.js';
+import { JOB_NAMES } from '../job-names.js';
 
 const flags = ['--apply', '--dry-run', '--confirm-production', '--retry-failed'];
 const usage =
@@ -32,7 +34,8 @@ export async function runGithubEventNotifications({
   service,
   databaseUrl,
   write = (text) => process.stdout.write(text),
-  writeError = (text) => process.stderr.write(text)
+  writeError = (text) => process.stderr.write(text),
+  lease = withJobLease
 }) {
   try {
     const { projectId, dryRun, confirmProduction, retryFailed } =
@@ -43,7 +46,18 @@ export async function runGithubEventNotifications({
       writeError(`Nenhum projeto ativo com --project-id=${projectId}; nada foi despachado.\n`);
       return 2;
     }
-    const report = await service.runJob({ projectId, dryRun, retryFailed });
+    const outcome = dryRun
+      ? { acquired: true, result: await service.runJob({ projectId, dryRun, retryFailed }) }
+      : await lease(JOB_NAMES.GITHUB_EVENT_DISPATCH, (signal) =>
+          service.runJob({ projectId, dryRun, retryFailed, signal })
+        );
+    if (!outcome.acquired) {
+      writeError(
+        `Outra execução do job ${JOB_NAMES.GITHUB_EVENT_DISPATCH} está em andamento; tente de novo depois.\n`
+      );
+      return 1;
+    }
+    const report = outcome.result;
     write(
       `${JSON.stringify({ ...report, database: sanitizedDatabaseTarget(databaseUrl) }, null, 2)}\n`
     );

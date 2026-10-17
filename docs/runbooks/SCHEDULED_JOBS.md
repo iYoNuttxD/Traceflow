@@ -13,9 +13,15 @@ D7, D8 e D9). Desde 17/10/2026, o processo do worker (`backend/src/github-worker
 | Avisos de inconsistência | `traceability-notice-dispatch` | 5 min | retomada dos avisos do ADR-022 | ADR-022 D7 |
 | Reconciliação atrasada | `traceability-alerts` | 60 min | reconcilia os projetos cuja última reconciliação falhou depois do último sucesso (RF13, RF39 e RF40) | [Traceability Alerts](../data/TRACEABILITY_ALERTS.md) |
 
+- A primeira execução de cada job acontece 10 s depois da partida do worker; as seguintes, um
+  intervalo depois do fim da anterior.
 - Cada job tem limite por execução. O vencimento para em 5 minutos; os outros usam o limite de
   lotes dos comandos. O que sobrar fica para a próxima execução.
 - A falha de um job é registrada (`scheduled_job_failed`) e não para os outros nem a sincronização.
+  O fim registra `scheduled_job_completed`, com as contagens do job e `interrupted` quando ele
+  parou antes de terminar.
+- A reconciliação atrasada registra o gatilho `SCRIPT` em `TraceabilityAlertReconciliation`, o
+  mesmo do comando manual.
 
 ## Exclusão entre instâncias
 
@@ -61,7 +67,8 @@ processo com código 1, depois da drenagem. O `Restart=on-failure` reinicia o se
 
 1. Pare o worker: `systemctl stop traceflow-github-worker`. Os jobs param junto.
 2. Confira que nenhuma lease está válida:
-   `SELECT name, ownerId, leaseUntil FROM ScheduledJobLease WHERE leaseUntil > NOW(3);`
+   `SELECT name, ownerId, leaseUntil FROM ScheduledJobLease WHERE leaseUntil > UTC_TIMESTAMP(3);`
+   (o Prisma grava as datas em UTC).
 3. Faça o backup, a migration ou o rollback, seguindo o runbook próprio
    ([Backup e restauração](BACKUP_RESTORE.md), [Migrations](DATABASE_MIGRATIONS.md)).
 4. Suba o worker: `systemctl start traceflow-github-worker`.

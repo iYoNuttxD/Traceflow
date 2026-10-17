@@ -92,7 +92,7 @@ beforeAll(async () => {
   ({ runPrivacyRetention } = await import('../../src/shared/maintenance/privacy-retention.js'));
   ({ privacyService } = await import('../../src/modules/privacy/privacy.service.js'));
   ({ runGithubEventNotifications } =
-    await import('../../scripts/dispatch-github-event-notifications.js'));
+    await import('../../src/jobs/cli/dispatch-github-event-notifications.js'));
   await cleanTestDatabase(prisma);
 }, 60000);
 
@@ -994,7 +994,13 @@ describe('S2-03 bateria — bloco J: despacho, retentativas e job (D9, D15)', ()
     const project = await newProject();
     const participant = await person(project.id);
     await pendingEvents(project, 2, { participant, detectedAt: new Date() });
-    const script = resolve(process.cwd(), 'scripts', 'dispatch-github-event-notifications.js');
+    const script = resolve(
+      process.cwd(),
+      'src',
+      'jobs',
+      'cli',
+      'dispatch-github-event-notifications.js'
+    );
     const run = (args) =>
       spawnSync(process.execPath, [script, ...args], {
         cwd: process.cwd(),
@@ -1017,10 +1023,10 @@ describe('S2-03 bateria — bloco J: despacho, retentativas e job (D9, D15)', ()
     expect(JSON.parse(retry.stdout)).toMatchObject({ dryRun: true, wouldRequeue: 0 });
     const { scripts } = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
     expect(scripts['notifications:github-events:dry-run']).toBe(
-      'node scripts/dispatch-github-event-notifications.js'
+      'node src/jobs/cli/dispatch-github-event-notifications.js'
     );
     expect(scripts['notifications:github-events']).toBe(
-      'node scripts/dispatch-github-event-notifications.js --apply'
+      'node src/jobs/cli/dispatch-github-event-notifications.js --apply'
     );
   }, 60000);
 

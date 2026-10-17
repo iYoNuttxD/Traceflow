@@ -462,5 +462,18 @@ export const traceabilityAlertRepository = {
       orderBy: { id: 'asc' }
     });
     return rows.map((row) => row.id);
+  },
+
+  async findStaleProjectIds() {
+    const rows = await prisma.traceabilityAlertReconciliation.findMany({
+      where: { lastFailedAt: { not: null }, project: { deletedAt: null } },
+      select: { projectId: true, lastFailedAt: true, lastSucceededAt: true },
+      orderBy: { projectId: 'asc' }
+    });
+    return rows
+      .filter(
+        ({ lastFailedAt, lastSucceededAt }) => !lastSucceededAt || lastFailedAt > lastSucceededAt
+      )
+      .map(({ projectId }) => projectId);
   }
 };

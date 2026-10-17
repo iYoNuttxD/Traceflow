@@ -123,7 +123,7 @@ O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha
 2. As tentativas seguem sozinhas: 1, 5, 30 e 120 minutos depois de cada falha. Na quinta, o evento
    vira `FAILED`.
 3. Corrigida a causa, reprocessar: `npm run notifications:github-events -- --retry-failed` (ou
-   `node scripts/dispatch-github-event-notifications.js --apply --retry-failed`), primeiro em
+   `node src/jobs/cli/dispatch-github-event-notifications.js --apply --retry-failed`), primeiro em
    dry-run para ver `wouldRequeue`. Repetir é seguro: o que já foi notificado conta em
    `alreadyNotified`. O alerta de estoque acaba quando `failedStock` volta a 0.
 4. **Projeto parado por muito tempo.** Não há janela: as transições detectadas na retomada

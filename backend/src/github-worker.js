@@ -1,10 +1,11 @@
 import { createGithubSyncScheduler } from './modules/github/services/github-sync-scheduler.service.js';
 import { disconnectDatabase } from './database/prismaClient.js';
+import { createJobRunner } from './jobs/job-runner.js';
 import { logger } from './shared/logger/index.js';
 import { createWorkerRuntime } from './shared/runtime/worker-runtime.js';
 
 const runtime = createWorkerRuntime({
-  services: [createGithubSyncScheduler()],
+  services: [createGithubSyncScheduler(), createJobRunner()],
   disconnect: disconnectDatabase,
   logger
 });

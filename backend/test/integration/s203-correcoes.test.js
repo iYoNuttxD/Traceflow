@@ -1033,7 +1033,7 @@ describe('S2-03 correções — Fase 6: stdout dos jobs só com o relatório (S2
     const runScript = (name) =>
       spawnSync(
         process.execPath,
-        [resolve(process.cwd(), 'scripts', name), `--project-id=${project.id}`],
+        [resolve(process.cwd(), 'src', 'jobs', 'cli', name), `--project-id=${project.id}`],
         {
           cwd: process.cwd(),
           env: { ...process.env, DATABASE_URL: testDatabaseUrl, NODE_ENV: 'development' },

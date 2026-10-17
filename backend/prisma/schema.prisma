@@ -1302,6 +1302,13 @@ model GitBranch {
 }
 
 // Ephemeral liveness only; scheduling and mutual exclusion remain on SyncRun.
+model ScheduledJobLease {
+  name       String   @id @db.VarChar(64)
+  ownerId    String   @db.VarChar(64)
+  acquiredAt DateTime
+  leaseUntil DateTime
+}
+
 model GitHubSchedulerWorker {
   id          String   @id @db.Char(36)
   heartbeatAt DateTime

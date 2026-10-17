@@ -5,10 +5,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { configureTestDatabaseEnvironment } from '../helpers/test-database.js';
 
 const COMMANDS = [
-  'scripts/notify-overdue-tasks.js',
-  'scripts/dispatch-github-event-notifications.js',
-  'scripts/reconcile-traceability-alerts.js',
-  'scripts/notification-metrics.js'
+  'src/jobs/cli/notify-overdue-tasks.js',
+  'src/jobs/cli/dispatch-github-event-notifications.js',
+  'src/jobs/cli/reconcile-traceability-alerts.js',
+  'src/jobs/cli/notification-metrics.js'
 ];
 
 beforeAll(() => {

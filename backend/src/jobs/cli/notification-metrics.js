@@ -1,10 +1,10 @@
 import { pathToFileURL } from 'node:url';
-import { env } from '../src/config/env.js';
-import { disconnectDatabase } from '../src/database/prismaClient.js';
-import { createNotificationMetricsService } from '../src/modules/notifications/notification-metrics.service.js';
-import { addDays } from '../src/modules/notifications/notification.policy.js';
-import { createLogger } from '../src/shared/logger/index.js';
-import { sanitizedDatabaseTarget } from './lib/database-safety.js';
+import { env } from '../../config/env.js';
+import { disconnectDatabase } from '../../database/prismaClient.js';
+import { createNotificationMetricsService } from '../../modules/notifications/notification-metrics.service.js';
+import { addDays } from '../../modules/notifications/notification.policy.js';
+import { createLogger } from '../../shared/logger/index.js';
+import { sanitizedDatabaseTarget } from '../../database/database-safety.js';
 
 const USAGE = 'Uso: --from=YYYY-MM-DD --to=YYYY-MM-DD [--project-id=<id>]. Só leitura.';
 const OPTIONS = ['--from=', '--to=', '--project-id='];

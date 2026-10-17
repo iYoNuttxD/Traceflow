@@ -11,7 +11,7 @@ import { createNotificationService } from '../../src/modules/notifications/notif
 import {
   parseNotificationMetricsArguments,
   runNotificationMetrics
-} from '../../scripts/notification-metrics.js';
+} from '../../src/jobs/cli/notification-metrics.js';
 
 const TZ = 'America/Sao_Paulo';
 const at = (iso) => new Date(iso);

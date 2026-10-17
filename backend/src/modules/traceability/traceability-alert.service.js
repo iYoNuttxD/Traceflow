@@ -116,7 +116,8 @@ export function createTraceabilityAlertService(
   const failureMessages = {
     GITHUB_SYNC: 'Falha ao reconciliar alertas de rastreabilidade após a sincronização.',
     GITHUB_INTEGRATION:
-      'Falha ao reconciliar alertas de rastreabilidade após conectar o repositório.'
+      'Falha ao reconciliar alertas de rastreabilidade após conectar o repositório.',
+    SCRIPT: 'Falha ao reconciliar os alertas de rastreabilidade de um projeto atrasado.'
   };
 
   async function reconcileSafely(projectId, trigger) {
@@ -160,9 +161,10 @@ export function createTraceabilityAlertService(
       return reconcileSafely(projectId, 'GITHUB_INTEGRATION');
     },
 
-    async reconcileAllProjects({ dryRun = true, trigger = 'SCRIPT' } = {}) {
+    async reconcileAllProjects({ dryRun = true, trigger = 'SCRIPT', signal = null } = {}) {
       const projects = [];
       for (const projectId of await repository.findActiveProjectIds()) {
+        if (signal?.aborted) break;
         try {
           projects.push({ projectId, ...(await reconcile(projectId, { dryRun, trigger })) });
         } catch (error) {
@@ -170,6 +172,17 @@ export function createTraceabilityAlertService(
         }
       }
       return projects;
+    },
+
+    async reconcileStaleProjects({ signal = null } = {}) {
+      const projectIds = await repository.findStaleProjectIds();
+      const report = { projects: projectIds.length, reconciled: 0, failed: 0 };
+      for (const projectId of projectIds) {
+        if (signal?.aborted) break;
+        if (await reconcileSafely(projectId, 'SCRIPT')) report.reconciled += 1;
+        else report.failed += 1;
+      }
+      return report;
     },
 
     async reconcileManually(projectId, context) {

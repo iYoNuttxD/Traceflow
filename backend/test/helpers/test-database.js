@@ -81,6 +81,7 @@ export async function cleanTestDatabase(prisma) {
     // Environment variables alone cannot identify an already initialized client.
     await assertConnectedTestDatabase(tx);
     await tx.gitHubSchedulerWorker.deleteMany();
+    await tx.scheduledJobLease.deleteMany();
     await tx.projectPurgeStorageCleanup.deleteMany();
     await tx.defectHistoryEntry.deleteMany();
     await tx.defectRetest.deleteMany();

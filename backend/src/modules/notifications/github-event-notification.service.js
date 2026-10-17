@@ -257,7 +257,7 @@ export function createGithubEventNotificationService({
       );
   }
 
-  async function run({ projectId = null, dryRun, retryFailed = false, maxBatches }) {
+  async function run({ projectId = null, dryRun, retryFailed = false, maxBatches, signal = null }) {
     const startedAt = Date.now();
     const report = emptyReport(dryRun);
     if (dryRun) report.wouldCreate = 0;
@@ -268,6 +268,7 @@ export function createGithubEventNotificationService({
     const seen = [];
     const batches = dryRun ? 1 : maxBatches;
     for (let batch = 0; batch < batches; batch += 1) {
+      if (signal?.aborted) break;
       const due = await repository.findDueEventIds({
         projectId,
         now: clock(),
@@ -328,8 +329,8 @@ export function createGithubEventNotificationService({
   }
 
   return {
-    runJob({ projectId = null, dryRun = true, retryFailed = false } = {}) {
-      return run({ projectId, dryRun, retryFailed, maxBatches: JOB_MAX_BATCHES });
+    runJob({ projectId = null, dryRun = true, retryFailed = false, signal = null } = {}) {
+      return run({ projectId, dryRun, retryFailed, maxBatches: JOB_MAX_BATCHES, signal });
     },
 
     async dispatchAfterSync(projectId) {

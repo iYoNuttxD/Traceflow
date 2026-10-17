@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAlertReconciliationArguments } from '../../scripts/reconcile-traceability-alerts.js';
+import { parseAlertReconciliationArguments } from '../../src/jobs/cli/reconcile-traceability-alerts.js';
 
 describe('S2-01 script de reconciliação de alertas', () => {
   it('assume dry-run em todos os projetos ativos por padrão', () => {

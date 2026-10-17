@@ -32,7 +32,7 @@ beforeAll(async () => {
     await import('../../src/modules/tasks/services/task-kanban.service.js'));
   ({ privacyService } = await import('../../src/modules/privacy/privacy.service.js'));
   ({ settingsRepository } = await import('../../src/modules/settings/settings.repository.js'));
-  ({ runOverdueNotifications } = await import('../../scripts/notify-overdue-tasks.js'));
+  ({ runOverdueNotifications } = await import('../../src/jobs/cli/notify-overdue-tasks.js'));
   const { default: application } = await import('../../src/app.js');
   app = await startTestServer(application);
   await cleanTestDatabase(prisma);

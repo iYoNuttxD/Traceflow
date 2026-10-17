@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   parseGithubEventNotificationArguments,
   runGithubEventNotifications
-} from '../../scripts/dispatch-github-event-notifications.js';
+} from '../../src/jobs/cli/dispatch-github-event-notifications.js';
 
 const LOCAL = 'mysql://user:password@localhost:3306/traceflow';
 const PRODUCTION = 'mysql://user:password@db.traceflow.example:3306/traceflow_prod';
@@ -14,10 +14,15 @@ function fakeService(report = {}, { activeProject = true } = {}) {
   };
 }
 
+const lease = async (_name, work) => ({
+  acquired: true,
+  result: await work(new AbortController().signal)
+});
+
 const run = (args, service, databaseUrl = LOCAL) => {
   const write = vi.fn();
   const writeError = vi.fn();
-  return runGithubEventNotifications({ args, service, databaseUrl, write, writeError }).then(
+  return runGithubEventNotifications({ args, service, databaseUrl, write, writeError, lease }).then(
     (code) => ({ code, write, writeError })
   );
 };
@@ -73,7 +78,12 @@ describe('S2-03 script dispatch-github-event-notifications', () => {
     await run(['--apply', '--project-id=7', '--retry-failed'], service);
 
     expect(service.isActiveProject).toHaveBeenCalledWith(7);
-    expect(service.runJob).toHaveBeenCalledWith({ projectId: 7, dryRun: false, retryFailed: true });
+    expect(service.runJob).toHaveBeenCalledWith({
+      projectId: 7,
+      dryRun: false,
+      retryFailed: true,
+      signal: expect.any(AbortSignal)
+    });
   });
 
   it('sai com 2 quando o --project-id não existe ou foi excluído, sem rodar o job', async () => {

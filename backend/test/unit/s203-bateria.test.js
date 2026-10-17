@@ -18,7 +18,7 @@ import {
 import {
   parseGithubEventNotificationArguments,
   runGithubEventNotifications
-} from '../../scripts/dispatch-github-event-notifications.js';
+} from '../../src/jobs/cli/dispatch-github-event-notifications.js';
 import { createEnvironment } from '../../src/config/env.js';
 
 const DAY = 86_400_000;
@@ -237,7 +237,11 @@ describe('S2-03 bateria — script e configuração (D15)', () => {
         service,
         databaseUrl,
         write: () => {},
-        writeError: () => {}
+        writeError: () => {},
+        lease: async (_name, work) => ({
+          acquired: true,
+          result: await work(new AbortController().signal)
+        })
       });
 
     expect(await run([], fake())).toBe(0);

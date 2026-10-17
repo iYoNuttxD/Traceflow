@@ -61,10 +61,11 @@ export function createTraceabilityNoticeService({
     dispatchProject,
     dispatchSafely,
 
-    async dispatchAll({ projectId = null, trigger = 'JOB' } = {}) {
+    async dispatchAll({ projectId = null, trigger = 'JOB', signal = null } = {}) {
       const projects = await repository.projectsWithPendingNotices(projectId);
       const report = { projects: projects.length, alerts: 0, created: 0, failed: 0 };
       for (const id of projects) {
+        if (signal?.aborted) break;
         const result = await dispatchSafely(id, trigger);
         if (!result) {
           report.failed += 1;

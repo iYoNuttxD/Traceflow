@@ -683,7 +683,7 @@ describe('Bateria S2-01 integração — ciclo de vida (bloco V) e script', () =
   it('AT-R-06 o script recusa aplicar em banco de produção sem --confirm-production', () => {
     const result = spawnSync(
       process.execPath,
-      ['scripts/reconcile-traceability-alerts.js', '--apply'],
+      ['src/jobs/cli/reconcile-traceability-alerts.js', '--apply'],
       {
         encoding: 'utf8',
         env: {
