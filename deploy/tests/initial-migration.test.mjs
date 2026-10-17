@@ -542,3 +542,294 @@ test("MySQL binary JSON role encoding is not accepted as a textual role", () => 
       .includes("CAST(CURRENT_ROLE() AS CHAR CHARACTER SET utf8mb4)"),
   );
 });
+
+// Exact non-secret SHOW GRANTS lines supplied by the operator for OCI-07.4.
+// Other evidence values remain synthetic; these tests never open a connection.
+const HEATWAVE_PROXY =
+  "GRANT PROXY ON ``@`` TO `traceflow_admin`@`%` WITH GRANT OPTION";
+const HEATWAVE_ROLE =
+  "GRANT `administrator`@`%` TO `traceflow_admin`@`%` WITH ADMIN OPTION";
+const HEATWAVE_METADATA =
+  "GRANT SELECT, EVENT, TRIGGER ON *.* TO `traceflow_admin`@`%` WITH GRANT OPTION";
+function heatwaveInspector() {
+  const f = fixture(),
+    spec = f.auth.initialization.inspection;
+  spec.inspectorAccount = "traceflow_admin@%";
+  spec.inspectorRoles = [{ user: "administrator", host: "%" }];
+  f.auth.target.schema = f.row[9] = "traceflow";
+  f.row[10] = spec.inspectorAccount;
+  f.row[32] = "`administrator`@`%`";
+  const validate = (grants) =>
+    contract.validateMetadataVisibility(grants, spec, "traceflow", f.row[32]);
+  const transcript = (grants) => {
+    const bytes = Buffer.from(
+      JSON.stringify(f.row) + "\n0\n" + grants.join("\n") + "\n0\n",
+    );
+    spec.sha256 = contract.sha256(bytes);
+    return bytes;
+  };
+  return { ...f, spec, validate, transcript };
+}
+
+test("HeatWave proxy and ADMIN OPTION preserve the initial inspection contract", () => {
+  const f = heatwaveInspector();
+  const bytes = f.transcript([
+    HEATWAVE_METADATA,
+    HEATWAVE_PROXY,
+    HEATWAVE_ROLE,
+    "REVOKE INSERT, UPDATE, DELETE ON `mysql`.* FROM `traceflow_admin`@`%`",
+  ]);
+  contract.validateMigrationPolicy(f.auth, f.manifest);
+  const proof = contract.validateInitialTranscript(
+    bytes,
+    f.auth,
+    f.manifest,
+    clock,
+  );
+  assert.equal(proof.sha256, f.spec.sha256);
+  const sql = contract.initialInspectionSql(f.auth, f.manifest);
+  assert.match(
+    sql,
+    /SHOW GRANTS FOR CURRENT_USER USING `administrator`@`%`;\nSHOW COUNT\(\*\) WARNINGS;\n$/,
+  );
+  assert.equal(sql.split(";").length, 5);
+});
+
+for (const grants of [
+  [HEATWAVE_PROXY],
+  [HEATWAVE_ROLE],
+  [HEATWAVE_PROXY, HEATWAVE_ROLE],
+  [
+    "GRANT USAGE ON *.* TO `traceflow_admin`@`%`",
+    HEATWAVE_PROXY,
+    HEATWAVE_ROLE,
+  ],
+])
+  test(
+    "delegation never proves metadata visibility: " +
+      grants.length +
+      " lines " +
+      grants[0],
+    () => {
+      fails(
+        () => heatwaveInspector().validate(grants),
+        "INITIAL_METADATA_VISIBILITY",
+      );
+    },
+  );
+
+for (const absent of ["SELECT", "EVENT", "TRIGGER"])
+  test("authorized HeatWave delegations do not replace " + absent, () => {
+    const rights = ["SELECT", "EVENT", "TRIGGER", "SHOW_ROUTINE"].filter(
+      (p) => p !== absent,
+    );
+    fails(
+      () =>
+        heatwaveInspector().validate([
+          "GRANT " + rights.join(", ") + " ON *.* TO `traceflow_admin`@`%`",
+          HEATWAVE_PROXY,
+          HEATWAVE_ROLE,
+        ]),
+      "INITIAL_METADATA_VISIBILITY",
+    );
+  });
+
+test("delegation does not replace routine visibility; compact dynamic lists are parsed", () => {
+  const f = heatwaveInspector();
+  const grants = [
+    "GRANT SELECT, EVENT, TRIGGER ON `traceflow`.* TO `traceflow_admin`@`%`",
+    HEATWAVE_PROXY,
+    HEATWAVE_ROLE,
+  ];
+  fails(() => f.validate(grants), "INITIAL_METADATA_VISIBILITY");
+  f.validate([
+    ...grants,
+    "GRANT ROLE_ADMIN,SHOW_ROUTINE ON *.* TO `traceflow_admin`@`%` WITH GRANT OPTION",
+  ]);
+});
+
+test("documented HeatWave administrative grant lists remain compatible", () => {
+  const f = heatwaveInspector();
+  // Documented profile, not a claim that these other lines were collected here.
+  const staticRights =
+    "SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, PROCESS, REFERENCES, INDEX, ALTER, SHOW DATABASES, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, REPLICATION CLIENT, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE ROLE, DROP ROLE";
+  const dynamicRights =
+    "APPLICATION_PASSWORD_ADMIN,AUDIT_ADMIN,BACKUP_ADMIN,CONNECTION_ADMIN,EXPORT_QUERY_RESULTS,FLUSH_OPTIMIZER_COSTS,FLUSH_PRIVILEGES,FLUSH_STATUS,FLUSH_TABLES,FLUSH_USER_RESOURCES,OPTION_TRACKER_OBSERVER,REPLICATION_APPLIER,ROLE_ADMIN,SET_ANY_DEFINER,SHOW_ROUTINE,TRANSACTION_GTID_TAG,VECTOR_STORE_LOAD_EXEC,XA_RECOVER_ADMIN";
+  f.validate([
+    "GRANT " +
+      staticRights +
+      " ON *.* TO `traceflow_admin`@`%` WITH GRANT OPTION",
+    "GRANT " +
+      dynamicRights +
+      " ON *.* TO `traceflow_admin`@`%` WITH GRANT OPTION",
+    "GRANT CREATE TEMPORARY TABLES ON `sys`.* TO `traceflow_admin`@`%` WITH GRANT OPTION",
+    "REVOKE INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER ON `mysql`.* FROM `traceflow_admin`@`%`",
+    "REVOKE CREATE, DROP, REFERENCES, INDEX, ALTER, LOCK TABLES, CREATE VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER ON `sys`.* FROM `traceflow_admin`@`%`",
+    HEATWAVE_PROXY,
+    HEATWAVE_ROLE,
+  ]);
+  f.validate([
+    HEATWAVE_METADATA,
+    HEATWAVE_PROXY,
+    HEATWAVE_ROLE.replace(" WITH ADMIN OPTION", ""),
+  ]);
+});
+
+for (const right of ["CREATE ROUTINE", "ALTER ROUTINE", "EXECUTE"])
+  test(
+    "routine visibility through schema privilege remains supported: " + right,
+    () => {
+      heatwaveInspector().validate([
+        "GRANT SELECT, EVENT, TRIGGER, " +
+          right +
+          " ON `traceflow`.* TO `traceflow_admin`@`%`",
+        HEATWAVE_PROXY,
+        HEATWAVE_ROLE,
+      ]);
+    },
+  );
+
+for (const [name, grant] of [
+  ["proxy account", HEATWAVE_PROXY.replace("``@``", "`other`@`%`")],
+  ["proxy host", HEATWAVE_PROXY.replace("``@``", "``@`%`")],
+  ["proxy recipient", HEATWAVE_PROXY.replace("`traceflow_admin`", "`other`")],
+  [
+    "proxy recipient host",
+    HEATWAVE_PROXY.replace(
+      "TO `traceflow_admin`@`%`",
+      "TO `traceflow_admin`@`localhost`",
+    ),
+  ],
+  [
+    "proxy without approved option",
+    HEATWAVE_PROXY.replace(" WITH GRANT OPTION", ""),
+  ],
+  [
+    "proxy ADMIN OPTION",
+    HEATWAVE_PROXY.replace("GRANT OPTION", "ADMIN OPTION"),
+  ],
+  ["role name", HEATWAVE_ROLE.replace("`administrator`", "`other`")],
+  [
+    "role host",
+    HEATWAVE_ROLE.replace("`administrator`@`%`", "`administrator`@`localhost`"),
+  ],
+  ["role recipient", HEATWAVE_ROLE.replace("`traceflow_admin`", "`other`")],
+  [
+    "role recipient host",
+    HEATWAVE_ROLE.replace(
+      "TO `traceflow_admin`@`%`",
+      "TO `traceflow_admin`@`localhost`",
+    ),
+  ],
+  [
+    "additional role",
+    HEATWAVE_ROLE.replace(
+      "`administrator`@`%`",
+      "`administrator`@`%`,`other`@`%`",
+    ),
+  ],
+  ["role GRANT OPTION", HEATWAVE_ROLE.replace("ADMIN OPTION", "GRANT OPTION")],
+  [
+    "privilege ADMIN OPTION",
+    HEATWAVE_METADATA.replace("GRANT OPTION", "ADMIN OPTION"),
+  ],
+  ["trailing SQL", HEATWAVE_PROXY + "; SELECT 1"],
+  ["trailing delimiter", HEATWAVE_ROLE + ";"],
+  ["newline", HEATWAVE_PROXY + "\n"],
+  ["comment", HEATWAVE_ROLE + " /* synthetic */"],
+  ["unknown concession", "GRANT SOMETHING TO `traceflow_admin`@`%`"],
+  [
+    "unknown privilege",
+    "GRANT UNKNOWN_PRIVILEGE ON *.* TO `traceflow_admin`@`%`",
+  ],
+  [
+    "unknown revoked privilege",
+    "REVOKE UNKNOWN_PRIVILEGE ON `mysql`.* FROM `traceflow_admin`@`%`",
+  ],
+  ["empty privilege", "GRANT SELECT,, EVENT ON *.* TO `traceflow_admin`@`%`"],
+  [
+    "duplicate privilege",
+    "GRANT SELECT,SELECT ON *.* TO `traceflow_admin`@`%`",
+  ],
+  ["mixed ALL", "GRANT ALL PRIVILEGES, SELECT ON *.* TO `traceflow_admin`@`%`"],
+  [
+    "dynamic privilege on schema",
+    "GRANT SHOW_ROUTINE ON `traceflow`.* TO `traceflow_admin`@`%`",
+  ],
+  [
+    "revoked target",
+    "REVOKE SELECT ON `traceflow`.* FROM `traceflow_admin`@`%`",
+  ],
+  ["revoke recipient", "REVOKE SELECT ON `mysql`.* FROM `other`@`%`"],
+])
+  test(
+    "metadata parser refuses " + name + " despite sufficient other grants",
+    () => {
+      fails(
+        () => heatwaveInspector().validate([HEATWAVE_METADATA, grant]),
+        "INITIAL_METADATA_VISIBILITY",
+      );
+    },
+  );
+
+test("HeatWave proxy requires the exact authorized and active administrator role", () => {
+  const f = heatwaveInspector();
+  for (const roles of [[], [{ user: "other", host: "%" }]]) {
+    f.spec.inspectorRoles = roles;
+    f.row[32] = roles.length ? "`other`@`%`" : "NONE";
+    fails(
+      () => f.validate([HEATWAVE_METADATA, HEATWAVE_PROXY]),
+      "INITIAL_METADATA_VISIBILITY",
+    );
+  }
+  f.spec.inspectorRoles = [{ user: "administrator", host: "%" }];
+  for (const active of [
+    "NONE",
+    "`administrator`@`localhost`",
+    "`administrator`@`%`,`other`@`%`",
+  ]) {
+    f.row[32] = active;
+    fails(
+      () => f.validate([HEATWAVE_METADATA, HEATWAVE_PROXY, HEATWAVE_ROLE]),
+      "INITIAL_INSPECTOR_ROLES",
+    );
+  }
+});
+
+test("duplicate delegations and malformed types are refused", () => {
+  for (const grant of [HEATWAVE_PROXY, HEATWAVE_ROLE, null, {}, 1]) {
+    fails(
+      () => heatwaveInspector().validate([HEATWAVE_METADATA, grant, grant]),
+      "INITIAL_METADATA_VISIBILITY",
+    );
+  }
+});
+
+test("HeatWave metadata exceptions never apply to migration or runtime account grants", () => {
+  const target = fixture().auth.target;
+  for (const mode of ["migrate", "read"]) {
+    const account =
+      mode === "migrate" ? target.migrationAccount : target.runtimeAccount;
+    const recipient = "`" + account.replace("@", "`@`") + "`";
+    for (const grant of [HEATWAVE_PROXY, HEATWAVE_ROLE]) {
+      fails(
+        () =>
+          contract.validateReleaseGrants(
+            [
+              {
+                f0: grant.replace(
+                  "TO `traceflow_admin`@`%`",
+                  "TO " + recipient,
+                ),
+              },
+            ],
+            target,
+            mode,
+            account,
+            true,
+          ),
+        "EXCESSIVE_DATABASE_PRIVILEGES",
+      );
+    }
+  }
+});

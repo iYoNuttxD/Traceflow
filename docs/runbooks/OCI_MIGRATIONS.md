@@ -560,3 +560,222 @@ backup consistente e restore comprovado; a exceção inicial não pode ser reapr
 - O teste em Community/macOS não demonstra DDL em HeatWave, runtime Oracle Linux da nova release,
   observabilidade operacional ou recuperação de produção. Os gates de ativação e o build aprovado
   continuam pendentes. Esta entrega não autoriza commit, empacotamento, transferência ou execução remota.
+
+## OCI-DEPLOY-07.4 — grants administrativos e procedimento consolidado
+
+Esta seção complementa a implementação anterior; não altera suas evidências históricas. O operador
+informou `OCI_07_3_STAGING_PASS` e forneceu estas duas linhas, sem credenciais:
+
+```sql
+GRANT PROXY ON ``@`` TO `traceflow_admin`@`%` WITH GRANT OPTION
+GRANT `administrator`@`%` TO `traceflow_admin`@`%` WITH ADMIN OPTION
+```
+
+Os formatos são documentados pela Oracle em [Default MySQL Privileges](https://docs.oracle.com/en-us/iaas/mysql-database/doc/default-mysql-privileges.html).
+O MySQL distingue [GRANT de privilégios, PROXY e roles](https://dev.mysql.com/doc/refman/26.7/en/grant.html);
+`WITH ADMIN OPTION` pertence à atribuição de roles. A expansão continua sendo solicitada explicitamente
+por [SHOW GRANTS USING](https://dev.mysql.com/doc/refman/26.7/en/show-grants.html).
+
+### Correção e limites
+
+`validateMetadataVisibility()` reconhece os dois formatos sem acrescentá-los aos conjuntos de
+privilégios que demonstram visibilidade. Toda linha continua exigindo o destinatário completo exato
+de `inspectorAccount`. O PROXY aceito é exclusivamente sobre usuário e host vazios, com `WITH GRANT OPTION`, no perfil
+que autoriza e observa somente a role ativa `administrator@%`. Outros alvos PROXY, outro host ou role,
+ou ausência dessa configuração são recusados. Nenhuma configuração nova permite delegações arbitrárias.
+
+A atribuição de role pode ter `WITH ADMIN OPTION` ou não ter opção; exige correspondência exata à única
+role configurada. `WITH GRANT OPTION` numa role e `WITH ADMIN OPTION` num privilégio comum são recusados.
+As concessões comuns e revogações usam vocabulário fechado do perfil administrativo revisado: privilégios
+estáticos MySQL e dinâmicos documentados para o administrador HeatWave. Privilégio desconhecido exige
+revisão, mesmo que outra linha já demonstre SELECT. Listas com vírgulas sem espaço, usadas nos privilégios
+dinâmicos, são reconhecidas; entradas vazias, duplicadas ou combinações inválidas com USAGE/ALL são recusadas.
+
+SELECT, EVENT, TRIGGER e visibilidade de routines continuam obrigatórios. Uma revogação em `traceflow.*`
+invalida a prova. Grants em outro schema não demonstram cobertura de traceflow. A alteração não alcança
+`validateReleaseGrants()`: migrator/API continuam recusando PROXY, roles e opções de delegação.
+
+O contrato v1 de autorização e o transcript de 33 campos permanecem iguais. Não foi alterado o SQL da
+inspeção, sua ordem, os contadores imediatos de warnings, o TTL, TLS, UUID, UTC, locks ou fingerprints.
+Para o perfil informado, preencher explicitamente no documento aprovado:
+
+```json
+{
+  "inspectorAccount": "traceflow_admin@%",
+  "inspectorRoles": [{ "user": "administrator", "host": "%" }]
+}
+```
+
+Esse fragmento é parte de `initialization.inspection`, não uma autorização completa. CURRENT_ROLE deve
+ser exatamente `` `administrator`@`%` ``. Não executar SET ROLE, conceder privilégios ou editar o transcript
+para contornar uma divergência. As outras identidades públicas do exemplo OCI-07.1 devem ser revalidadas.
+
+Validação desta correção: 154 testes Node do contrato passaram no Mac e os mesmos 154 passaram no
+builder local Oracle Linux 9.8 ARM64, Node 22.23.2, SELinux Enforcing; 56 testes Python de releases e
+primeira migration passaram no Mac. Zero falhas/skips nessas execuções finais. ESLint, Prettier,
+sintaxe e scanner de segredos passaram nos arquivos de código alterados. Testes usam fixtures; as duas
+linhas acima são as únicas concessões reais fornecidas nesta tarefa. Não houve SQL, migration ou acesso
+à OCI; não foram repetidas as suítes extensas de aplicação ou a cadeia de migrations já aprovada.
+O build da correção exige novo commit autorizado e nova validação dos artefatos, antes de staging.
+
+### 1. Nova release committed e staging sem ativação
+
+Todos os comandos operacionais abaixo são **preparação para execução humana futura autorizada**.
+Não foram executados na OCI nesta entrega. Não editar a release instalada para aplicar o parser.
+
+1. Revisar e versionar a correção com autorização específica de commit. Exportar o novo SHA pela receita
+   oficial, sem `--candidate`. Enquanto o helper difere do commit, a recusa
+   `UNCOMMITTED_RECIPE_REQUIRES_CANDIDATE` é esperada; não alterar `sourceState` manualmente.
+2. No builder local Lima `tf072c`, Oracle Linux 9.8 ARM64, reutilizar o transporte auditado
+   `build/oci-deploy-07-2-committed-ecb3f346-recovery/native_transport.py`: TarInfo explícito, apenas
+   inventário + source.json, sem xattrs/AppleDouble/PAX. Revalidar hashes e extração antes do build oficial.
+   Não executar o launcher antigo com baseline/IDs antigos. Usar nova exportação, diretório e build ID.
+3. Aprovar o novo par runtime/admin, descritor e SHA-256, sourceState committed, Client/CLI 6.12.0,
+   engine ARM64, smoke nativo e os mesmos 68 arquivos/checksums de migration. Preservar todos os pacotes
+   anteriores. Não reutilizar o digest antigo para autorizar a correção.
+4. Transferir somente os artefatos públicos aprovados para um diretório de entrada **novo e exclusivo**,
+   usando SSH/SCP com a chave existente e StrictHostKeyChecking=yes. Na VM, preparar cópia root:root
+   em diretório 0700; arquivos 0600. A conta opc e a conta traceflow não devem poder substituir essa cópia.
+   Conferir o SHA-256 esperado por canal independente antes de qualquer extração/execução.
+5. Definir `OLD_RELEASE_ID` pelo catálogo instalado revisado, `NEW_RELEASE_ID` pelo novo descritor,
+   `PACKAGE` pelo diretório root de entrada e `NEW_DESCRIPTOR_SHA256` pelo digest aprovado. IDs devem ser
+   diferentes. Usar o verificador já confiável da release anterior, com o layout existente da OCI-07.3:
+
+```bash
+OLD_RELEASE="/opt/traceflow/releases/$OLD_RELEASE_ID"
+NEW_RELEASE="/opt/traceflow/releases/$NEW_RELEASE_ID"
+/usr/bin/python3 "$OLD_RELEASE/deploy/scripts/release.py" status
+/usr/bin/python3 "$OLD_RELEASE/deploy/scripts/release.py" verify \
+  --descriptor "$PACKAGE/release.json" --digest "$NEW_DESCRIPTOR_SHA256"
+/usr/bin/python3 "$OLD_RELEASE/deploy/scripts/release.py" stage \
+  --descriptor "$PACKAGE/release.json" --digest "$NEW_DESCRIPTOR_SHA256"
+/usr/bin/python3 "$NEW_RELEASE/deploy/scripts/release.py" status
+```
+
+Executar cada comando separadamente, conferindo exit code. Não repetir `init`, sobrescrever IDs,
+apagar catálogo/journal nem executar activate/rollback/recover. Stage adiciona o novo par lado a lado;
+não troca current, não inicia serviços e não altera o banco. Exigir `release_staged` com
+`activeUnchanged=true`, manifests committed e catálogo/digests correspondentes. Comparar estado,
+symlinks e MainPID antes/depois; API/worker permanecem parados. SELinux permanece Enforcing.
+Reversão do staging: parar o procedimento e manter ambos os IDs preservados; não há troca de symlink
+ou rollback de banco a fazer. Uma extração parcial exige inspeção, sem limpeza automática.
+
+### 2. Primeira migration — janela e autorizações novas
+
+Com a nova release staged, o operador deve autorizar separadamente inspeção, acesso temporário do
+migrator e DDL. Staging PASS não concede essa autorização. Nenhum transcript ou autorização da tentativa
+anterior pode ser reaproveitado.
+
+- Confirmar schema ainda vazio, sem `_prisma_migrations`, por nova coleta. Qualquer objeto/histórico
+  implica parar; não usar este fluxo inicial para um estado parcial ou para uma atualização.
+- Confirmar ausência de writers, API/worker parados com MainPID=0 e demais contas bloqueadas. Suspender
+  alterações administrativas concorrentes durante a janela; locks cooperativos não impedem terceiros.
+- Usar o modelo completo da seção **Autorização inicial** deste runbook, com novo UUID-v4, o novo ID e
+  digest, cadeia/schema do manifesto e o perfil administrativo acima. Criar AUTH_INSPECT e, depois da
+  inspeção, AUTH_MIGRATE_INITIAL, root:root 0600, fora das releases, com ancestrais root protegidos.
+- Gates somente com evidências/aprovação reais. Não preencher backupVerified, backupReference ou
+  restoreRehearsed: são proibidos na inicialização. O plano aprovado deve ser
+  `stop-and-review-empty-initialization`, com responsável e referência reais, sem reset automático.
+- Usar janela de até dez minutos, relógios UTC corretos e prazo suficiente para inspecionar e executar.
+  Expiração ou mudança de estado exige parar e autorizar nova coleta. UTC efetivo aceita UTC ou +00:00,
+  com offset medido zero. Não alterar configuração do banco para contornar a validação.
+
+Definir `RELEASE_ID="$NEW_RELEASE_ID"`, `RELEASE="$NEW_RELEASE"` e
+`DIGEST_APROVADO="$NEW_DESCRIPTOR_SHA256"`. Seguir os comandos completos da seção **Sequência manual
+futura**, passos 5–6: gerar `initialInspectionSql()` da nova release; revisar as quatro instruções;
+coletar no mesmo cliente MySQL textual, TLS VERIFY_IDENTITY, CA pública já aprovada, sem reconnect,
+sem cabeçalhos, com credencial administrativa pelo FD 3. Não inserir comandos entre consulta e contador.
+Exigir exit zero, stderr vazio, dois contadores zero e arquivo completo. Proteger o transcript e vincular
+seu SHA-256/path à autorização. Não publicar grants brutos, stderr privado ou qualquer credencial.
+
+Antes de desbloquear o migrator, validar o transcript **offline**, como root, sem URL de banco:
+
+```bash
+/usr/bin/node --input-type=module - "$RELEASE" "$AUTH_INSPECT" <<'NODE'
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+const [release, file] = process.argv.slice(2);
+const { loadInitialEvidence } = await import(pathToFileURL(release + '/deploy/scripts/lib/migration-contract.mjs'));
+try {
+  const proof = loadInitialEvidence(JSON.parse(readFileSync(file, 'utf8')),
+    JSON.parse(readFileSync(release + '/manifest.json', 'utf8')));
+  console.log(JSON.stringify({ status: 'INITIAL_EVIDENCE_VALID', sha256: proof.sha256 }));
+} catch (failure) {
+  const code = /^[A-Z][A-Z0-9_]{2,70}$/.test(failure.code || '')
+    ? failure.code : 'INITIAL_EVIDENCE_INVALID';
+  console.log(JSON.stringify({ status: 'FAIL', code }));
+  process.exitCode = 1;
+}
+NODE
+```
+
+Esse resultado valida a evidência; não autoriza DDL nem comprova o estado atual do servidor.
+
+### 3. Acesso temporário do migrator, fingerprint e execução única
+
+Somente na janela especificamente aprovada, pelo cliente administrativo TLS protegido, conferir a conta
+exata e sessões existentes (sem consultar authentication_string nem texto de consultas):
+
+```sql
+SELECT User, Host, account_locked, ssl_type
+FROM mysql.user WHERE User = 'traceflow_migrator';
+SELECT ID, USER, HOST, COMMAND
+FROM information_schema.PROCESSLIST WHERE USER = 'traceflow_migrator';
+```
+
+Exigir uma única identidade `traceflow_migrator@10.20.1.184`, TLS obrigatório, conta inicialmente bloqueada
+e zero sessões. Confirmar separadamente que API/worker/diag permanecem bloqueados. Somente então, após
+autorização humana explícita para esta conta e janela:
+
+```sql
+ALTER USER 'traceflow_migrator'@'10.20.1.184' ACCOUNT UNLOCK;
+```
+
+Não executar GRANT, criar usuários, alterar roles ou mandatory_roles. Não utilizar root/admin como
+credencial da CLI. Em shell root sem tracing, obter **somente MIGRATION_DATABASE_URL** por canal protegido,
+sem valor em argv, histórico ou logs. Não carregar .env de DEV. Exigir sslaccept=strict, sslcert absoluto
+para a CA aprovada e limites de conexão/timeouts revisados; DATABASE_URL deve estar ausente.
+
+```bash
+/usr/bin/python3 "$RELEASE/deploy/scripts/release.py" inspect-initial-schema \
+  --release-id "$RELEASE_ID" --digest "$DIGEST_APROVADO" --authorization "$AUTH_INSPECT"
+```
+
+Conferir exit zero e desconexão, `schema_snapshot`, historyTablePresent=false, applied=[], tableCount=0 e
+todos os objectCounts=0. Copiar **somente o fingerprint dessa execução revisada** para beforeFingerprint
+de AUTH_MIGRATE_INITIAL; manter mesmo authorizationId, target, release/digest, inspeção e plano válidos,
+alterando operation para migrate-initial. Não transformar o resultado de inspeção em aprovação automática.
+
+```bash
+/usr/bin/python3 "$RELEASE/deploy/scripts/release.py" migrate-initial \
+  --release-id "$RELEASE_ID" --digest "$DIGEST_APROVADO" --authorization "$AUTH_MIGRATE_INITIAL"
+```
+
+Invocar uma única vez. O wrapper revalida evidência, vazio, identidade/UUID, TLS, grants, UTC, fingerprint,
+integridade runtime/admin e locks antes de aplicar a cadeia. Exigir exit zero, migration_complete,
+68 migrations concluídas com checksums exatos, diff zero, recibo e desconexão. Não iniciar aplicação.
+
+### 4. Encerramento obrigatório, inclusive após erro
+
+Parar a sequência na primeira falha. Conferir que somente os processos desta execução terminaram;
+não enviar KILL amplo nem apagar locks/journal. Pelo canal administrativo protegido, encerrar o acesso:
+
+```sql
+ALTER USER 'traceflow_migrator'@'10.20.1.184' ACCOUNT LOCK;
+SELECT User, Host, account_locked, ssl_type
+FROM mysql.user WHERE User = 'traceflow_migrator';
+SELECT ID, USER, HOST, COMMAND
+FROM information_schema.PROCESSLIST WHERE USER = 'traceflow_migrator';
+```
+
+ACCOUNT LOCK impede novas conexões; não encerra sessões já abertas. Exigir account_locked=Y e zero
+sessões remanescentes. Se houver sessão, identificar seu proprietário/ID e obter autorização específica
+para encerrá-la; não declarar limpeza concluída. Remover MIGRATION_DATABASE_URL do ambiente (`unset`),
+fechar descritores e retirar credenciais temporárias somente dos caminhos comprovadamente pertencentes
+à execução. Reter evidências/recibos privados, sem senhas, sob custódia.
+
+Se houve DDL parcial, preservar schema/histórico/journal, manter todos os escritores bloqueados e aplicar
+o plano de parada/revisão. Não repetir migrate-initial, reset/dev/resolve, apagar `_prisma_migrations`,
+restaurar sobre o banco ou executar recover da aplicação para contornar a quarentena. Recuperação de
+migration é uma autorização distinta. Após sucesso a base já contém estado da aplicação; updates exigem
+backup e restore reais. A ativação continua sendo uma entrega e autorização independentes.

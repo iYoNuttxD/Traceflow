@@ -532,6 +532,41 @@ function inspectorRoles(spec) {
   });
 }
 
+// Closed vocabulary for the reviewed MySQL/HeatWave administrative profile.
+// Unknown privileges need review; they are never silently ignored next to proof.
+const METADATA_SCHEMA_PRIVILEGES = new Set(
+  (
+    "USAGE|ALL PRIVILEGES|SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|REFERENCES|INDEX|ALTER|" +
+    "CREATE TEMPORARY TABLES|LOCK TABLES|EXECUTE|CREATE VIEW|SHOW VIEW|CREATE ROUTINE|" +
+    "ALTER ROUTINE|EVENT|TRIGGER"
+  ).split("|"),
+);
+const METADATA_GLOBAL_PRIVILEGES = new Set([
+  ...METADATA_SCHEMA_PRIVILEGES,
+  ...(
+    "RELOAD|SHUTDOWN|PROCESS|FILE|SHOW DATABASES|SUPER|REPLICATION SLAVE|REPLICATION CLIENT|" +
+    "CREATE USER|CREATE TABLESPACE|CREATE ROLE|DROP ROLE|APPLICATION_PASSWORD_ADMIN|AUDIT_ADMIN|" +
+    "BACKUP_ADMIN|CONNECTION_ADMIN|EXPORT_QUERY_RESULTS|FLUSH_OPTIMIZER_COSTS|FLUSH_PRIVILEGES|" +
+    "FLUSH_STATUS|FLUSH_TABLES|FLUSH_USER_RESOURCES|OPTION_TRACKER_OBSERVER|REPLICATION_APPLIER|" +
+    "ROLE_ADMIN|SET_ANY_DEFINER|SHOW_ROUTINE|TRANSACTION_GTID_TAG|VECTOR_STORE_LOAD_EXEC|XA_RECOVER_ADMIN"
+  ).split("|"),
+]);
+function metadataPrivileges(text, global) {
+  // MySQL renders dynamic privileges with commas without spaces as well.
+  const rights = text.split(/, ?/);
+  const known = global
+    ? METADATA_GLOBAL_PRIVILEGES
+    : METADATA_SCHEMA_PRIVILEGES;
+  check(
+    new Set(rights).size === rights.length &&
+      rights.every((p) => known.has(p)) &&
+      (rights.length === 1 ||
+        !rights.some((p) => ["USAGE", "ALL PRIVILEGES"].includes(p))),
+    "INITIAL_METADATA_VISIBILITY",
+  );
+  return rights;
+}
+
 // This checks metadata VISIBILITY of the independent administrator, not runtime
 // privileges. A role assignment alone never supplies this proof: USING must expand
 // the explicitly authorized, active role, or the transcript is refused.
@@ -556,6 +591,7 @@ export function validateMetadataVisibility(grants, spec, schema, currentRoles) {
         text,
       );
     if (revoke) {
+      metadataPrivileges(revoke[1], false);
       check(
         revoke[2] !== schema &&
           revoke[3] + "@" + revoke[4] === spec.inspectorAccount,
@@ -564,24 +600,32 @@ export function validateMetadataVisibility(grants, spec, schema, currentRoles) {
       continue;
     }
     const grant =
-      /^GRANT (.+) TO `([^`]+)`@`([^`]+)`(?: WITH GRANT OPTION)?$/.exec(text);
+      /^GRANT (.+) TO `([^`]+)`@`([^`]+)`(?: WITH (GRANT|ADMIN) OPTION)?$/.exec(
+        text,
+      );
     check(
       grant && grant[2] + "@" + grant[3] === spec.inspectorAccount,
       "INITIAL_METADATA_VISIBILITY",
     );
-    const privilege = /^([A-Z_, ]+) ON (\*\.\*|`[^`]+`\.\*)$/.exec(grant[1]);
-    if (!privilege) {
+    if (grant[1] === "PROXY ON ``@``") {
+      // Exact HeatWave administrator delegation observed in OCI-07.4. It is not
+      // metadata access, and no other proxy target/profile is authorized here.
       check(
-        roles.length === 1 && grant[1] === roles[0],
+        roles[0] === "`administrator`@`%`" && grant[4] === "GRANT",
         "INITIAL_METADATA_VISIBILITY",
       );
       continue;
     }
-    const rights = privilege[1].split(", ");
-    check(
-      new Set(rights).size === rights.length,
-      "INITIAL_METADATA_VISIBILITY",
-    );
+    const privilege = /^([A-Z_, ]+) ON (\*\.\*|`[^`]+`\.\*)$/.exec(grant[1]);
+    if (!privilege) {
+      check(
+        roles.length === 1 && grant[1] === roles[0] && grant[4] !== "GRANT",
+        "INITIAL_METADATA_VISIBILITY",
+      );
+      continue;
+    }
+    check(grant[4] !== "ADMIN", "INITIAL_METADATA_VISIBILITY");
+    const rights = metadataPrivileges(privilege[1], privilege[2] === "*.*");
     const set =
       privilege[2] === "*.*"
         ? global
