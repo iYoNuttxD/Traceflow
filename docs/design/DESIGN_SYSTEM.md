@@ -1142,7 +1142,8 @@ Substitui a página `/notifications`, que redireciona para `/projects` com o pai
 - **Forma.** Gaveta à direita, de até 400 px, sobre o overlay. Até 720 px, ocupa a tela inteira.
   Fica num portal fora do `main` e entra na pilha do `useDialogLayer`, para o Escape fechar a
   camada certa. Contém o foco, deixa o shell `inert` e trava a rolagem do `body`. O foco inicial vai
-  para o título e volta ao sino ao fechar. O movimento respeita `prefers-reduced-motion`; em
+  para o título e volta ao sino ao fechar. O `Tab` e o `Shift+Tab` tratam como borda o foco que está
+  fora da lista de controles, como o título: `Shift+Tab` nele vai ao último controle (TF-REV-011). O movimento respeita `prefers-reduced-motion`; em
   `forced-colors`, borda, ponto e anel de foco usam cores do sistema.
 - **Cabeçalho.** Título "Notificações", atalho para as preferências e fechar, os dois em botões de
   ícone de 44 px. Sem parágrafo de abertura.

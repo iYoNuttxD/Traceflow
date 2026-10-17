@@ -85,17 +85,19 @@ export function NotificationsPanel({ onClose }) {
         (element) => element.getAttribute('aria-hidden') !== 'true'
       );
       if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (!panel.contains(document.activeElement)) {
+      const active = document.activeElement;
+      const follows = (element) =>
+        Boolean(active.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const others = focusable.filter((element) => element !== active);
+      if (!panel.contains(active)) {
         event.preventDefault();
-        first.focus();
-      } else if (event.shiftKey && document.activeElement === first) {
+        focusable[0].focus();
+      } else if (event.shiftKey && !others.some((element) => !follows(element))) {
         event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+        focusable.at(-1).focus();
+      } else if (!event.shiftKey && !others.some(follows)) {
         event.preventDefault();
-        first.focus();
+        focusable[0].focus();
       }
     }
     document.addEventListener('keydown', handleKeyDown);
