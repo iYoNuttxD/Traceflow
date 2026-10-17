@@ -89,6 +89,7 @@ function closureOf(entries) {
 describe('TF-REV-006 — executor dos jobs (ADR-024 D7)', () => {
   it('J-03 o stop() aborta a execução em curso, espera ela parar entre lotes e libera a lease', async () => {
     const batches = [];
+    let finished = false;
     const job = {
       name: 'lotes',
       intervalMs: 1000,
@@ -96,8 +97,9 @@ describe('TF-REV-006 — executor dos jobs (ADR-024 D7)', () => {
         for (let batch = 0; batch < 200; batch += 1) {
           if (signal.aborted) break;
           batches.push(batch);
-          await new Promise((done) => setTimeout(done, 5));
+          await new Promise((done) => setTimeout(done, 20));
         }
+        finished = true;
         return { batches: batches.length };
       }
     };
@@ -106,12 +108,13 @@ describe('TF-REV-006 — executor dos jobs (ADR-024 D7)', () => {
     expect(runner.start()).toBe(true);
     await vi.waitFor(() => expect(batches.length).toBeGreaterThan(2));
     await runner.stop();
+
+    expect(finished).toBe(true);
+    expect(leases.released).toEqual(['lotes']);
     const stoppedAt = batches.length;
     await new Promise((done) => setTimeout(done, 50));
-
     expect(stoppedAt).toBeLessThan(200);
     expect(batches).toHaveLength(stoppedAt);
-    expect(leases.released).toEqual(['lotes']);
     expect(log.info).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ event: 'scheduled_job_completed', job: 'lotes', interrupted: true })

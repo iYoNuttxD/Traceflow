@@ -180,6 +180,64 @@ describe('TF-REV-009 — notificação e decisão do RF59 na mesma transação',
     expect(await committed(scenario.task)).toEqual({ sent: 1, notifications: 1 });
   }, 30000);
 
+  it('U-05 a falha depois de gravar a primeira decisão desfaz as notificações e as decisões do lote', async () => {
+    const scenario = await overdueScenario();
+    const second = await createTask(prisma, scenario.project.id, {
+      responsibleUserId: scenario.responsible.id,
+      deadline: new Date(`${DUE_DATE}T00:00:00.000Z`),
+      createdAt: new Date('2026-10-05T12:00:00.000Z')
+    });
+    const previous = await prisma.notificationDecision.create({
+      data: {
+        type: 'TASK_OVERDUE',
+        eventKey: `${second.id}:${DUE_DATE}`,
+        projectId: scenario.project.id,
+        recipientUserId: scenario.responsible.id,
+        recipientKey: scenario.responsible.id,
+        outcome: 'PREFERENCE_OFF',
+        occurredAt: new Date(`${DUE_DATE}T03:00:00.000Z`),
+        decidedAt: new Date('2026-10-11T12:00:00.000Z')
+      }
+    });
+    let release;
+    let ready;
+    const released = new Promise((resolve) => {
+      release = resolve;
+    });
+    const holding = new Promise((resolve) => {
+      ready = resolve;
+    });
+    const blocker = prisma.$transaction(
+      async (tx) => {
+        await tx.notificationDecision.update({
+          where: { id: previous.id },
+          data: { decidedAt: previous.decidedAt }
+        });
+        ready();
+        await released;
+      },
+      { timeout: 80000 }
+    );
+    await holding;
+
+    const failed = await runDueJob(scenario.project.id);
+    release();
+    await blocker;
+
+    expect(failed.failed).toBe(1);
+    expect(await committed(scenario.task)).toEqual({ sent: 0, notifications: 0 });
+    expect(await committed(second)).toEqual({ sent: 0, notifications: 0 });
+    expect(
+      (await prisma.notificationDecision.findUnique({ where: { id: previous.id } })).outcome
+    ).toBe('PREFERENCE_OFF');
+
+    const resumed = await runDueJob(scenario.project.id);
+
+    expect(resumed.created).toBe(2);
+    expect(await committed(scenario.task)).toEqual({ sent: 1, notifications: 1 });
+    expect(await committed(second)).toEqual({ sent: 1, notifications: 1 });
+  }, 90000);
+
   it('U-03 a métrica do período não conta envio que a notificação não confirmou', async () => {
     const scenario = await overdueScenario();
     const blocker = holdNotificationKey(scenario);
