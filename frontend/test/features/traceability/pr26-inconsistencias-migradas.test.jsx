@@ -647,12 +647,12 @@ describe('PR #26 casos migrados: tarefa e resumo (S2-01 F12, F13, F14, C4)', () 
       )
       .mockResolvedValueOnce(summary());
     const first = renderSummary();
-    expect(await screen.findByText('Nenhuma inconsistência aberta.')).toBeInTheDocument();
+    expect(await screen.findAllByText('0')).toHaveLength(3);
     expect(screen.queryByText(/podem estar desatualizados/)).toBeNull();
     first.unmount();
 
     renderSummary();
-    expect(await screen.findByText('Nenhuma inconsistência aberta.')).toBeInTheDocument();
+    expect(await screen.findAllByText('0')).toHaveLength(3);
     expect(screen.queryByText(/podem estar desatualizados/)).toBeNull();
   });
 });

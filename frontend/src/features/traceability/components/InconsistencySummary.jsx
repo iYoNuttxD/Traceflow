@@ -1,11 +1,11 @@
-import { Fragment, useState } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router';
 import { ErrorState, FeedbackRegion, normalizeApiError } from '../../../shared/index.js';
 import { reconcileTraceabilityAlerts } from '../api/traceability.api.js';
 import { useAlertSummary } from '../hooks/useAlertSummary.js';
 import {
   NO_REPOSITORY_MESSAGE,
-  inconsistencySummaryParts,
+  inconsistencyMetrics,
   reconcileMessage,
   reconciliationNotice
 } from '../model/alert-view.js';
@@ -13,11 +13,11 @@ import '../styles/trace-alert.css';
 import './InconsistencySummary.css';
 
 export function InconsistencySummary({ projectId }) {
+  const headingId = useId();
   const { summary, error, reload } = useAlertSummary(projectId);
   const [feedback, setFeedback] = useState({});
   const [reconciling, setReconciling] = useState(false);
   const permissions = summary?.permissions || {};
-  const parts = inconsistencySummaryParts(summary, projectId);
 
   async function reconcile() {
     setReconciling(true);
@@ -35,7 +35,21 @@ export function InconsistencySummary({ projectId }) {
   }
 
   return (
-    <section className="trace-inconsistency-summary" aria-label="Inconsistências abertas">
+    <div className="trace-inconsistency-summary" role="group" aria-labelledby={headingId}>
+      <div className="trace-inconsistency-summary__heading">
+        <h3 id={headingId}>Inconsistências abertas</h3>
+        {permissions.canManage && (
+          <button
+            type="button"
+            className="button button-secondary button-compact"
+            onClick={reconcile}
+            disabled={reconciling}
+            aria-busy={reconciling || undefined}
+          >
+            Reprocessar inconsistências
+          </button>
+        )}
+      </div>
       {!summary && error ? (
         <ErrorState
           message={error.message}
@@ -43,18 +57,24 @@ export function InconsistencySummary({ projectId }) {
           onRetry={reload}
         />
       ) : (
-        <p className="trace-inconsistency-summary__sentence">
-          {!summary
-            ? 'Carregando inconsistências...'
-            : parts.length
-              ? parts.map((part, index) => (
-                  <Fragment key={part.type}>
-                    {index > 0 && ' · '}
-                    <Link to={part.to}>{part.text}</Link>
-                  </Fragment>
-                ))
-              : 'Nenhuma inconsistência aberta.'}
-        </p>
+        <dl className="trace-inconsistency-summary__metrics" aria-busy={!summary || undefined}>
+          {inconsistencyMetrics(summary, projectId).map((metric) => (
+            <div key={metric.type}>
+              <dt>{metric.label}</dt>
+              <dd>
+                {metric.count === null ? (
+                  '—'
+                ) : metric.count > 0 ? (
+                  <Link to={metric.to} aria-label={metric.text}>
+                    {metric.count.toLocaleString('pt-BR')}
+                  </Link>
+                ) : (
+                  '0'
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
       )}
       <FeedbackRegion
         success={feedback.success}
@@ -73,19 +93,6 @@ export function InconsistencySummary({ projectId }) {
           <Link to={`/projects/${projectId}/repository`}>Abrir o repositório do projeto</Link>
         </p>
       )}
-      {permissions.canManage && (
-        <div className="trace-alert-actions">
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={reconcile}
-            disabled={reconciling}
-            aria-busy={reconciling || undefined}
-          >
-            Reprocessar inconsistências
-          </button>
-        </div>
-      )}
-    </section>
+    </div>
   );
 }

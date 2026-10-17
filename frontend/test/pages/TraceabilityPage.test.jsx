@@ -100,7 +100,7 @@ beforeEach(() => {
   });
 });
 describe('PR #26 resumo de inconsistências no lugar da sub-navegação (TF-REV-008)', () => {
-  it('mostra a linha de inconsistências abertas no topo, sem a sub-navegação', async () => {
+  it('mostra as inconsistências abertas no resumo, sem a sub-navegação', async () => {
     api.getTraceabilityAlertSummary.mockResolvedValue({
       projectId: 9,
       open: {
@@ -112,7 +112,7 @@ describe('PR #26 resumo de inconsistências no lugar da sub-navegação (TF-REV-
       permissions: { canLink: true, canManage: false }
     });
     renderPage();
-    const summary = await screen.findByRole('region', { name: 'Inconsistências abertas' });
+    const summary = await screen.findByRole('group', { name: 'Inconsistências abertas' });
     expect(
       await within(summary).findByRole('link', { name: '2 tarefas concluídas sem commit' })
     ).toHaveAttribute('href', '/projects/9/tasks?rastreabilidade=SEM_COMMIT');
@@ -125,7 +125,7 @@ describe('PR #26 resumo de inconsistências no lugar da sub-navegação (TF-REV-
   it('falha no resumo de inconsistências não derruba a tela de requisitos', async () => {
     api.getTraceabilityAlertSummary.mockRejectedValue(new Error('indisponível'));
     renderPage();
-    const summary = await screen.findByRole('region', { name: 'Inconsistências abertas' });
+    const summary = await screen.findByRole('group', { name: 'Inconsistências abertas' });
     expect(
       await within(summary).findByRole('button', { name: /Tentar novamente/ })
     ).toBeInTheDocument();

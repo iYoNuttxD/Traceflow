@@ -84,17 +84,19 @@ const SUMMARY_TARGETS = Object.freeze({
     `/projects/${projectId}/repository?inconsistencia=OPEN&tipo=issue`
 });
 
-export function inconsistencySummaryParts(summary, projectId) {
-  if (!summary) return [];
-  return Object.entries(ALERT_TYPES)
-    .map(([type, labels]) => ({ type, labels, count: summary.open.byType[type] || 0 }))
-    .filter((part) => part.count > 0)
-    .map(({ type, labels, count }) => ({
+const capitalized = (text) => text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1);
+
+export function inconsistencyMetrics(summary, projectId) {
+  return Object.entries(ALERT_TYPES).map(([type, labels]) => {
+    const count = summary ? summary.open.byType[type] || 0 : null;
+    return {
       type,
+      label: capitalized(labels.plural),
       count,
-      text: counted(count, labels.singular, labels.plural),
+      text: count === null ? '' : counted(count, labels.singular, labels.plural),
       to: SUMMARY_TARGETS[type](projectId)
-    }));
+    };
+  });
 }
 
 export function alertSubjectFilter(alert) {

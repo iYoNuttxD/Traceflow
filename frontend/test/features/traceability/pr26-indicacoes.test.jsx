@@ -745,7 +745,7 @@ describe('PR #26 resumo da Rastreabilidade e rotas antigas (TF-REV-008)', () => 
 
     trace.getTraceabilityAlertSummary.mockResolvedValue(summary({ permissions: roles.VIEWER }));
     renderSummary();
-    expect(await screen.findByText('Nenhuma inconsistência aberta.')).toBeInTheDocument();
+    expect(await screen.findAllByText('0')).toHaveLength(3);
     expect(screen.queryByRole('button', { name: 'Reprocessar inconsistências' })).toBeNull();
   });
 

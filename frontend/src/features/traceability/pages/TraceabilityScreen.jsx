@@ -102,8 +102,9 @@ function ProjectTraceability({ projectId }) {
           </div>
           <ProjectSectionNav projectId={projectId} activeSection="traceability" />
         </header>
-        <InconsistencySummary projectId={projectId} />
-        <RequirementSummary summary={catalog.data?.summary} />
+        <RequirementSummary summary={catalog.data?.summary}>
+          <InconsistencySummary projectId={projectId} />
+        </RequirementSummary>
         <RequirementFilters
           filters={catalog.filters}
           onChange={catalog.change}

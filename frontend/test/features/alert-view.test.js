@@ -11,7 +11,7 @@ import {
   alertTypeLabel,
   formatInstant,
   historyToggleLabel,
-  inconsistencySummaryParts,
+  inconsistencyMetrics,
   reconcileMessage,
   reconciliationNotice,
   resolutionLabel,
@@ -60,30 +60,41 @@ describe('S2-01 vocabulário de alertas na interface', () => {
     expect(formatInstant(null)).toBe('');
   });
 
-  it('resume as inconsistências abertas por tipo, com plural, milhar e destino filtrado (TF-REV-008)', () => {
-    expect(inconsistencySummaryParts(null, 9)).toEqual([]);
-    expect(inconsistencySummaryParts({ open: { total: 0, byType: {} } }, 9)).toEqual([]);
+  it('resume as inconsistências abertas por tipo, com plural, milhar e destino filtrado (TF-REV-008, UX-R2-02)', () => {
+    expect(inconsistencyMetrics(null, 9).map(({ count, text }) => [count, text])).toEqual([
+      [null, ''],
+      [null, ''],
+      [null, '']
+    ]);
     expect(
-      inconsistencySummaryParts(
+      inconsistencyMetrics(
         {
           open: {
-            total: 1206,
-            byType: {
-              TASK_CONCLUDED_WITHOUT_COMMIT: 1,
-              PULL_REQUEST_MERGED_WITHOUT_TASK: 1204,
-              ISSUE_CLOSED_WITHOUT_TASK: 1
-            }
+            total: 1205,
+            byType: { PULL_REQUEST_MERGED_WITHOUT_TASK: 1204, ISSUE_CLOSED_WITHOUT_TASK: 1 }
           }
         },
         9
-      ).map(({ text, to }) => [text, to])
+      ).map(({ label, count, text, to }) => [label, count, text, to])
     ).toEqual([
-      ['1 tarefa concluída sem commit', '/projects/9/tasks?rastreabilidade=SEM_COMMIT'],
       [
+        'Tarefas concluídas sem commit',
+        0,
+        '0 tarefas concluídas sem commit',
+        '/projects/9/tasks?rastreabilidade=SEM_COMMIT'
+      ],
+      [
+        'PRs mescladas sem tarefa',
+        1204,
         '1.204 PRs mescladas sem tarefa',
         '/projects/9/repository?inconsistencia=OPEN&tipo=pull_request'
       ],
-      ['1 issue fechada sem tarefa', '/projects/9/repository?inconsistencia=OPEN&tipo=issue']
+      [
+        'Issues fechadas sem tarefa',
+        1,
+        '1 issue fechada sem tarefa',
+        '/projects/9/repository?inconsistencia=OPEN&tipo=issue'
+      ]
     ]);
   });
 

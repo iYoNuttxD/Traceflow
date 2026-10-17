@@ -1202,10 +1202,17 @@ o trabalho acontece, sem tela própria.
   - "Dados": só o que não se repete (as branches da PR, o estado atual da issue quando ela foi
     reaberta, os vínculos da tarefa) e a detecção, a dispensa ou a resolução;
   - ações numa linha (`role="group"`): vincular, dispensar, GitHub e "Histórico (n)".
-- **Rastreabilidade do projeto.** A sub-navegação saiu. O topo traz a linha "3 tarefas concluídas sem
-  commit · 2 PRs mescladas sem tarefa · 1 issue fechada sem tarefa", em que cada parte é link para a
-  lista filtrada, mais o aviso de números desatualizados e "Reprocessar inconsistências" para
-  MANAGER+.
+- **Rastreabilidade do projeto.** A sub-navegação saiu. Desde 2026-10-17 (UX-R2-02), as
+  inconsistências abertas ficam dentro do bloco "Resumo", num grupo próprio, "Inconsistências
+  abertas", separado dos indicadores de requisito por uma borda, porque as unidades são outras:
+  - três contagens por tipo (tarefas concluídas sem commit, PRs mescladas sem tarefa, issues fechadas
+    sem tarefa), sempre presentes; com inconsistência, o número é link para a lista filtrada, com o
+    nome acessível por extenso ("2 tarefas concluídas sem commit");
+  - "Reprocessar inconsistências" como ação secundária compacta, só para MANAGER+, com o retorno no
+    próprio grupo;
+  - o aviso de números desatualizados e o de repositório desconectado, dentro do grupo.
+
+  A faixa separada no topo da tela saiu.
 - **Vocabulário.** Na interface, o alerta é "inconsistência", no feminino: Aberta, Dispensada,
   Resolvida.
 
