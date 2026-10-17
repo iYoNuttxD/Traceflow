@@ -1,5 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { useEffect, useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -43,6 +46,17 @@ const { UnreadNotificationsProvider } =
 const { useDialogLayer } = await import('../../../src/shared/components/dialog-stack.js');
 
 const CREATED = '2026-10-15T14:30:00.000Z';
+const PANEL_CSS = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../src/features/notifications/components/NotificationsPanel.css'
+);
+const PREFERENCES = Object.freeze({
+  TASK_STATUS_CHANGED: true,
+  TASK_OVERDUE: true,
+  ISSUE_EVENT: true,
+  PULL_REQUEST_EVENT: true,
+  TRACEABILITY_INCONSISTENCY: true
+});
 
 function notification(id, overrides = {}) {
   return {
@@ -143,6 +157,8 @@ beforeEach(() => {
   api.markNotification.mockImplementation(async (id, read) => ({
     notification: notification(id, { readAt: read ? CREATED : null })
   }));
+  api.getNotificationPreferences.mockResolvedValue({ preferences: { ...PREFERENCES } });
+  api.saveNotificationPreferences.mockImplementation(async (preferences) => ({ preferences }));
 });
 
 const FOCUSABLE =
@@ -188,5 +204,113 @@ describe('TF-REV-011 — contenção de foco do painel a partir do título', () 
       expect(screen.queryByRole('dialog', { name: 'Notificações' })).not.toBeInTheDocument()
     );
     expect(document.activeElement).toBe(bell());
+  });
+});
+
+const preferencesDialog = () => screen.getByRole('dialog', { name: 'Preferências' });
+
+describe('UX-R2-04 — painel pela esquerda e preferências no painel', () => {
+  it('P-04 o painel abre colado à navegação lateral, expandida ou recolhida, e ocupa a tela no celular', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await openPanel(user);
+
+    expect(panel().closest('.notifications-panel-layer')).toHaveAttribute(
+      'data-sidebar-state',
+      'expanded'
+    );
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Recolher sidebar' }));
+    await openPanel(user);
+    expect(panel().closest('.notifications-panel-layer')).toHaveAttribute(
+      'data-sidebar-state',
+      'collapsed'
+    );
+
+    const css = readFileSync(PANEL_CSS, 'utf8');
+    const block = css.match(/\.notifications-panel \{[^}]*\}/)[0];
+    expect(block).toMatch(/left: var\(--notifications-panel-offset\);/);
+    expect(block).toMatch(/--notifications-panel-offset: var\(--layout-sidebar-expanded\);/);
+    expect(block).not.toMatch(/right: 0/);
+    expect(css).toMatch(
+      /\[data-sidebar-state='collapsed'\] \.notifications-panel \{\s*--notifications-panel-offset: var\(--layout-sidebar-collapsed\);/
+    );
+    expect(css).toMatch(/@media \(max-width: 720px\) \{[^@]*--notifications-panel-offset: 0px;/);
+  });
+
+  it('P-05 as preferências abrem dentro do painel e a volta preserva aba, origem e páginas carregadas', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await openPanel(user);
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Origem' }), 'TASKS');
+    await screen.findAllByRole('button', { name: /^Marcar como lida/ });
+    const listings = api.listNotifications.mock.calls.length;
+
+    await user.click(screen.getByRole('button', { name: 'Preferências de notificação' }));
+
+    expect(preferencesDialog()).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Preferências' }));
+    const issues = await within(preferencesDialog()).findByRole('checkbox', {
+      name: /Issues vinculadas/
+    });
+    expect(screen.queryByLabelText('Destino')).toBeNull();
+    await user.click(issues);
+    await user.click(screen.getByRole('button', { name: 'Salvar preferências' }));
+    expect(api.saveNotificationPreferences).toHaveBeenCalledWith({
+      ...PREFERENCES,
+      ISSUE_EVENT: false
+    });
+    expect(await screen.findByText('Preferências salvas.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Voltar às notificações' }));
+
+    expect(panel()).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Todas' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Origem' })).toHaveValue('TASKS');
+    expect(screen.getAllByRole('button', { name: /^Marcar como lida/ })).toHaveLength(2);
+    expect(api.listNotifications.mock.calls.length).toBe(listings);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Preferências de notificação' })
+    );
+  });
+
+  it('P-06 o que foi marcado como lido ou não lido continua assim depois das preferências', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await openPanel(user);
+    const [first] = await screen.findAllByRole('button', { name: /^Marcar como lida/ });
+
+    await user.click(first);
+    await screen.findByRole('button', { name: /^Marcar como não lida/ });
+    await user.click(screen.getByRole('button', { name: 'Preferências de notificação' }));
+    await within(preferencesDialog()).findByRole('checkbox', { name: /Issues vinculadas/ });
+    await user.click(screen.getByRole('button', { name: 'Voltar às notificações' }));
+
+    expect(screen.getAllByRole('button', { name: /^Marcar como não lida/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^Marcar como lida/ })).toHaveLength(1);
+  });
+
+  it('P-07 o estado vazio tem um ícone discreto com a mensagem curta, nas duas abas', async () => {
+    api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: 0 });
+    api.listNotifications.mockResolvedValue(listing([]));
+    const user = userEvent.setup();
+    renderShell();
+    await openPanel(user);
+
+    const unread = await within(panel()).findByRole('heading', {
+      name: 'Nenhuma notificação não lida.'
+    });
+    const icon = unread.closest('.notifications-panel__empty').querySelector('svg');
+    expect(icon).toHaveAttribute('aria-hidden', 'true');
+
+    await user.click(screen.getByRole('tab', { name: 'Todas' }));
+    const all = await within(panel()).findByRole('heading', {
+      name: 'Nenhuma notificação recebida.'
+    });
+    expect(all.closest('.notifications-panel__empty').querySelector('svg')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
   });
 });

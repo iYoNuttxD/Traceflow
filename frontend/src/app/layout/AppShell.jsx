@@ -534,7 +534,7 @@ export function AppShell({ user, onLogout, children }) {
           {children}
         </div>
       </div>
-      {panelOpen && <NotificationsPanel onClose={closePanel} />}
+      {panelOpen && <NotificationsPanel onClose={closePanel} sidebarState={sidebarState} />}
     </div>
   );
 }

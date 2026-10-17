@@ -1139,14 +1139,23 @@ Substitui a página `/notifications`, que redireciona para `/projects` com o pai
 - **Abertura.** O sino da sidebar é um botão com `aria-haspopup="dialog"` e `aria-expanded`. O nome
   acessível leva a contagem ("Notificações, 3 não lidas"); o selo continua oculto em zero e com
   "99+" acima de 99. No celular, o sino fica na barra superior, com o ponto de não lidas.
-- **Forma.** Gaveta à direita, de até 400 px, sobre o overlay. Até 720 px, ocupa a tela inteira.
+- **Forma.** Gaveta de até 400 px que abre colada à navegação lateral, perto do sino: começa na
+  borda da sidebar expandida ou recolhida (UX-R2-04, segunda revisão do PR #26, 17/10/2026). O
+  overlay cobre o resto da tela, inclusive a sidebar, que fica `inert`. Até 720 px, ocupa a tela
+  inteira.
   Fica num portal fora do `main` e entra na pilha do `useDialogLayer`, para o Escape fechar a
   camada certa. Contém o foco, deixa o shell `inert` e trava a rolagem do `body`. O foco inicial vai
   para o título e volta ao sino ao fechar. O `Tab` e o `Shift+Tab` tratam como borda o foco que está
   fora da lista de controles, como o título: `Shift+Tab` nele vai ao último controle (TF-REV-011). O movimento respeita `prefers-reduced-motion`; em
   `forced-colors`, borda, ponto e anel de foco usam cores do sistema.
-- **Cabeçalho.** Título "Notificações", atalho para as preferências e fechar, os dois em botões de
+- **Cabeçalho.** Título "Notificações", "Preferências de notificação" e fechar, os dois em botões de
   ícone de 44 px. Sem parágrafo de abertura.
+- **Preferências no painel.** O botão de preferências troca o conteúdo do painel pela vista
+  "Preferências", com "Voltar às notificações" e fechar no cabeçalho, uma frase curta e o mesmo
+  formulário da página `/settings/notifications` (`NotificationPreferencesForm`). A vista recebe o
+  foco no título; a volta devolve o foco ao botão de preferências e preserva a aba, a origem, as
+  páginas já carregadas e o que foi marcado como lido. A página continua existindo, para o acesso
+  direto e a área de Configurações.
 - **Filtros.** Abas "Não lidas" e "Todas", com `tablist` completo (setas, Home e End). O
   `SelectControl` "Origem" (Todas, Tarefas, GitHub, Inconsistências) divide a linha com "Marcar
   todas como lidas", que segue o contador único.
@@ -1165,7 +1174,9 @@ Substitui a página `/notifications`, que redireciona para `/projects` com o pai
     destino no TraceFlow, o item abre o artefato no GitHub em nova aba, continua no painel, e o
     metadado avisa "abre no GitHub em nova aba".
 - **Estados.** Carregando, erro com nova tentativa, limite de taxa com `Retry-After`, vazio por aba
-  e por origem com "Ver todas", e "Carregar mais (N restantes)" pelo cursor.
+  e por origem com "Ver todas", e "Carregar mais (N restantes)" pelo cursor. O vazio, nas duas abas,
+  tem um ícone de sino discreto (`aria-hidden`, círculo neutro de 40 px) sobre a mensagem curta, sem
+  texto novo nem ilustração (sugestão do revisor, ⚑15).
 
 ## Indicações de inconsistência — PR #26, TF-REV-008 (2026-10-16)
 

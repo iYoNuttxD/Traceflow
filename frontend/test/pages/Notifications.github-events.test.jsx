@@ -296,10 +296,10 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
       within(panel).getByRole('heading', { level: 2, name: 'Notificações' })
     ).toBeInTheDocument();
     expect(within(panel).queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
-    const preferences = within(panel).getByRole('link', { name: 'Preferências de notificação' });
-    expect(preferences).toHaveAttribute('href', '/settings/notifications');
+    const preferences = within(panel).getByRole('button', { name: 'Preferências de notificação' });
 
     await user.click(preferences);
+    expect(screen.getByRole('dialog', { name: 'Preferências' })).toBeInTheDocument();
 
     const taskNotices = await screen.findByRole('group', { name: 'Avisos sobre as suas tarefas' });
     expect(taskNotices).toHaveTextContent(

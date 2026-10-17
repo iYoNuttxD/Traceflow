@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router';
 import {
   EmptyState,
   ErrorState,
@@ -26,6 +25,7 @@ import {
 } from '../model/notification-view.js';
 import { NotificationIcon } from './NotificationIcon.jsx';
 import { NotificationItem } from './NotificationItem.jsx';
+import { NotificationPreferencesForm } from './NotificationPreferencesForm.jsx';
 import './NotificationsPanel.css';
 
 const focusableSelector = [
@@ -46,21 +46,36 @@ function failureFeedback(failure, fallback) {
   return { error: error.message };
 }
 
-export function NotificationsPanel({ onClose }) {
+export function NotificationsPanel({ onClose, sidebarState = 'expanded' }) {
   const isTopLayer = useDialogLayer(true);
   const { unreadCount, refresh: refreshCount, report, begin } = useUnreadNotifications();
   const list = useNotifications({ onCount: report, beginCount: begin });
   const [feedback, setFeedback] = useState({});
   const [busyIds, setBusyIds] = useState(() => new Set());
   const [markingAll, setMarkingAll] = useState(false);
+  const [view, setView] = useState('list');
   const panelRef = useRef(null);
   const titleRef = useRef(null);
+  const preferencesTitleRef = useRef(null);
+  const preferencesButtonRef = useRef(null);
+  const viewChangedRef = useRef(false);
   const listRef = useRef(list);
   const busyRef = useRef(busyIds);
   listRef.current = list;
   busyRef.current = busyIds;
   const items = list.data?.notifications || [];
   const remaining = Math.max((list.data?.pagination?.total ?? 0) - items.length, 0);
+
+  useEffect(() => {
+    if (!viewChangedRef.current) return;
+    if (view === 'preferences') preferencesTitleRef.current?.focus();
+    else preferencesButtonRef.current?.focus();
+  }, [view]);
+
+  function showView(next) {
+    viewChangedRef.current = true;
+    setView(next);
+  }
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -178,156 +193,192 @@ export function NotificationsPanel({ onClose }) {
     panelRef.current?.querySelector(`#notifications-tab-${next}`)?.focus();
   }
 
+  const closeButton = (
+    <button
+      type="button"
+      className="notifications-panel__icon-button"
+      aria-label="Fechar notificações"
+      onClick={() => onClose()}
+    >
+      <NotificationIcon name="close" />
+    </button>
+  );
+
   return createPortal(
-    <div className="notifications-panel-layer">
+    <div className="notifications-panel-layer" data-sidebar-state={sidebarState}>
       <div className="notifications-panel__backdrop" aria-hidden="true" onClick={() => onClose()} />
       <section
         ref={panelRef}
         className="notifications-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="notifications-panel-title"
+        aria-labelledby={
+          view === 'preferences' ? 'notifications-preferences-title' : 'notifications-panel-title'
+        }
       >
-        <header className="notifications-panel__header">
-          <h2 id="notifications-panel-title" ref={titleRef} tabIndex={-1}>
-            Notificações
-          </h2>
-          <Link
-            className="notifications-panel__icon-button"
-            to="/settings/notifications"
-            aria-label="Preferências de notificação"
-            title="Preferências de notificação"
-            onClick={() => onClose({ restoreFocus: false })}
-          >
-            <NotificationIcon name="settings" />
-          </Link>
-          <button
-            type="button"
-            className="notifications-panel__icon-button"
-            aria-label="Fechar notificações"
-            onClick={() => onClose()}
-          >
-            <NotificationIcon name="close" />
-          </button>
-        </header>
-        <div
-          className="internal-tabs notifications-panel__tabs"
-          role="tablist"
-          aria-label="Mostrar"
-          onKeyDown={changeTab}
-        >
-          {NOTIFICATION_FILTERS.map((filter) => {
-            const selected = list.status === filter.value;
-            return (
+        {view === 'preferences' ? (
+          <>
+            <header className="notifications-panel__header">
               <button
-                key={filter.value}
-                id={`notifications-tab-${filter.value}`}
                 type="button"
-                role="tab"
-                className={`internal-tab${selected ? ' internal-tab--active' : ''}`}
-                aria-selected={selected}
-                aria-controls="notifications-panel-list"
-                tabIndex={selected ? 0 : -1}
-                onClick={() => list.changeStatus(filter.value)}
+                className="notifications-panel__icon-button"
+                aria-label="Voltar às notificações"
+                title="Voltar às notificações"
+                onClick={() => showView('list')}
               >
-                {filter.label}
-                {filter.value === 'UNREAD' && unreadCount > 0 && (
-                  <span className="notifications-panel__count">{unreadCount}</span>
-                )}
+                <NotificationIcon name="back" />
               </button>
-            );
-          })}
-        </div>
-        <div className="notifications-panel__toolbar">
-          <label className="notifications-panel__origin">
-            <span>Origem</span>
-            <SelectControl
-              value={list.group}
-              onChange={(event) => list.changeGroup(event.target.value)}
+              <h2 id="notifications-preferences-title" ref={preferencesTitleRef} tabIndex={-1}>
+                Preferências
+              </h2>
+              {closeButton}
+            </header>
+            <div className="notifications-panel__body notifications-panel__preferences">
+              <p>Escolha quais avisos você quer receber.</p>
+              <NotificationPreferencesForm />
+            </div>
+          </>
+        ) : (
+          <>
+            <header className="notifications-panel__header">
+              <h2 id="notifications-panel-title" ref={titleRef} tabIndex={-1}>
+                Notificações
+              </h2>
+              <button
+                ref={preferencesButtonRef}
+                type="button"
+                className="notifications-panel__icon-button"
+                aria-label="Preferências de notificação"
+                title="Preferências de notificação"
+                onClick={() => showView('preferences')}
+              >
+                <NotificationIcon name="settings" />
+              </button>
+              {closeButton}
+            </header>
+            <div
+              className="internal-tabs notifications-panel__tabs"
+              role="tablist"
+              aria-label="Mostrar"
+              onKeyDown={changeTab}
             >
-              {NOTIFICATION_GROUPS.map((group) => (
-                <option key={group.value} value={group.value}>
-                  {group.label}
-                </option>
-              ))}
-            </SelectControl>
-          </label>
-          <button
-            type="button"
-            className="button button-secondary button-compact"
-            onClick={markAll}
-            aria-disabled={markingAll || unreadCount === 0}
-            aria-busy={markingAll || undefined}
-          >
-            Marcar todas como lidas
-          </button>
-        </div>
-        {(feedback.success || feedback.error || feedback.info || feedback.rateLimit) && (
-          <div className="notifications-panel__feedback">
-            <FeedbackRegion
-              success={feedback.success}
-              error={feedback.error}
-              info={feedback.info}
-              rateLimit={feedback.rateLimit}
-              retryAfterSeconds={feedback.retryAfterSeconds}
-            />
-          </div>
-        )}
-        <div
-          id="notifications-panel-list"
-          className="notifications-panel__body"
-          role="tabpanel"
-          aria-labelledby={`notifications-tab-${list.status}`}
-        >
-          {items.length > 0 && (
-            <ul className="notifications-panel__list">
-              {items.map((notification) => (
-                <li key={notification.id}>
-                  <NotificationItem
-                    notification={notification}
-                    busy={busyIds.has(notification.id)}
-                    onToggleRead={toggleRead}
-                    onOpen={open}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-          {list.loading && <LoadingState message="Carregando notificações..." />}
-          {list.error && (
-            <ErrorState
-              message={list.error.message}
-              retryAfterSeconds={list.error.retryAfterSeconds}
-              onRetry={list.retry}
-            />
-          )}
-          {!list.loading && !list.error && list.data && items.length === 0 && (
-            <div className="notifications-panel__empty">
-              <EmptyState title={notificationEmptyTitle(list.status, list.group)} />
-              {list.status === 'UNREAD' && (
-                <button
-                  type="button"
-                  className="button button-secondary button-compact"
-                  onClick={() => list.changeStatus('ALL')}
+              {NOTIFICATION_FILTERS.map((filter) => {
+                const selected = list.status === filter.value;
+                return (
+                  <button
+                    key={filter.value}
+                    id={`notifications-tab-${filter.value}`}
+                    type="button"
+                    role="tab"
+                    className={`internal-tab${selected ? ' internal-tab--active' : ''}`}
+                    aria-selected={selected}
+                    aria-controls="notifications-panel-list"
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => list.changeStatus(filter.value)}
+                  >
+                    {filter.label}
+                    {filter.value === 'UNREAD' && unreadCount > 0 && (
+                      <span className="notifications-panel__count">{unreadCount}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="notifications-panel__toolbar">
+              <label className="notifications-panel__origin">
+                <span>Origem</span>
+                <SelectControl
+                  value={list.group}
+                  onChange={(event) => list.changeGroup(event.target.value)}
                 >
-                  Ver todas
-                </button>
+                  {NOTIFICATION_GROUPS.map((group) => (
+                    <option key={group.value} value={group.value}>
+                      {group.label}
+                    </option>
+                  ))}
+                </SelectControl>
+              </label>
+              <button
+                type="button"
+                className="button button-secondary button-compact"
+                onClick={markAll}
+                aria-disabled={markingAll || unreadCount === 0}
+                aria-busy={markingAll || undefined}
+              >
+                Marcar todas como lidas
+              </button>
+            </div>
+            {(feedback.success || feedback.error || feedback.info || feedback.rateLimit) && (
+              <div className="notifications-panel__feedback">
+                <FeedbackRegion
+                  success={feedback.success}
+                  error={feedback.error}
+                  info={feedback.info}
+                  rateLimit={feedback.rateLimit}
+                  retryAfterSeconds={feedback.retryAfterSeconds}
+                />
+              </div>
+            )}
+            <div
+              id="notifications-panel-list"
+              className="notifications-panel__body"
+              role="tabpanel"
+              aria-labelledby={`notifications-tab-${list.status}`}
+            >
+              {items.length > 0 && (
+                <ul className="notifications-panel__list">
+                  {items.map((notification) => (
+                    <li key={notification.id}>
+                      <NotificationItem
+                        notification={notification}
+                        busy={busyIds.has(notification.id)}
+                        onToggleRead={toggleRead}
+                        onOpen={open}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {list.loading && <LoadingState message="Carregando notificações..." />}
+              {list.error && (
+                <ErrorState
+                  message={list.error.message}
+                  retryAfterSeconds={list.error.retryAfterSeconds}
+                  onRetry={list.retry}
+                />
+              )}
+              {!list.loading && !list.error && list.data && items.length === 0 && (
+                <div className="notifications-panel__empty">
+                  <span className="notifications-panel__empty-icon">
+                    <NotificationIcon name="bell" />
+                  </span>
+                  <EmptyState title={notificationEmptyTitle(list.status, list.group)} />
+                  {list.status === 'UNREAD' && (
+                    <button
+                      type="button"
+                      className="button button-secondary button-compact"
+                      onClick={() => list.changeStatus('ALL')}
+                    >
+                      Ver todas
+                    </button>
+                  )}
+                </div>
+              )}
+              {!list.error && list.data?.nextCursor && (
+                <div className="notifications-panel__more">
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={list.loading}
+                    onClick={list.more}
+                  >
+                    {loadMoreLabel(remaining)}
+                  </button>
+                </div>
               )}
             </div>
-          )}
-          {!list.error && list.data?.nextCursor && (
-            <div className="notifications-panel__more">
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={list.loading}
-                onClick={list.more}
-              >
-                {loadMoreLabel(remaining)}
-              </button>
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </section>
     </div>,
     document.body

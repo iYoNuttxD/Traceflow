@@ -46,6 +46,17 @@
   overflow-wrap: anywhere;
 }
 
+.notification-preferences__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.notification-preferences__actions .button {
+  min-height: var(--size-touch-target);
+}
+
 .notification-preferences [aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.6;
