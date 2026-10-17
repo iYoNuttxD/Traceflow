@@ -40,6 +40,7 @@ export function DashboardEditor({
   policy,
   onSave,
   onReset,
+  onUnpin,
   onSaved,
   onClose,
   returnFocusRef
@@ -165,20 +166,32 @@ export function DashboardEditor({
     setReset(true);
     setAnnouncement('Seleção padrão restaurada. Salve para aplicar.');
   }
-  async function save(event) {
+  async function save(event, pinnedToOverview = initialPreference.pinnedToOverview) {
     event.preventDefault();
-    if (inFlight.current || retryRemaining > 0 || !dirty || !valid) return;
+    const pinChanged = pinnedToOverview !== initialPreference.pinnedToOverview;
+    const removingPin = pinChanged && !pinnedToOverview;
+    if (
+      inFlight.current ||
+      retryRemaining > 0 ||
+      (!dirty && !pinChanged) ||
+      (!valid && !removingPin)
+    )
+      return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
-      const saved = reset
-        ? await onReset()
-        : await onSave({
-            configurationVersion: policy.defaultPreference.configurationVersion,
-            widgets
-          });
-      if (alive.current && saved) onSaved({ restored: reset });
+      const saved = removingPin
+        ? await onUnpin()
+        : reset && !pinnedToOverview && !pinChanged
+          ? await onReset()
+          : await onSave({
+              configurationVersion: policy.defaultPreference.configurationVersion,
+              widgets,
+              pinnedToOverview
+            });
+      if (alive.current && saved)
+        onSaved({ restored: reset, pinChanged, pinnedToOverview, keepEditor: removingPin });
     } catch (failure) {
       if (alive.current) {
         const normalized = normalizeApiError(failure, 'Não foi possível salvar o painel.');
@@ -197,7 +210,7 @@ export function DashboardEditor({
     <SprintDialog
       open
       title="Personalizar painel"
-      description="Escolha os indicadores e organize a ordem de leitura."
+      description="Escolha os indicadores e organize a ordem de leitura. Fixar salva a seleção e a exibe na Visão Geral só para você."
       size="large"
       className="dashboard-editor"
       initialFocusSelector="#dashboard-widget-search"
@@ -205,7 +218,7 @@ export function DashboardEditor({
       onClose={close}
       busy={busy}
     >
-      <form onSubmit={save}>
+      <form onSubmit={(event) => save(event)}>
         <fieldset disabled={busy} className="dashboard-editor__fields">
           <section aria-labelledby="dashboard-selected-title">
             <div className="dashboard-editor__section-heading">
@@ -375,6 +388,11 @@ export function DashboardEditor({
           retryAfterSeconds={error?.retryAfterSeconds}
           remainingRetryAfterSeconds={retryRemaining}
         />
+        {initialPreference.pinnedToOverview && (
+          <p className="dashboard-editor__hint">
+            Remover da Visão Geral mantém o painel salvo e não salva as alterações em edição.
+          </p>
+        )}
         <footer className="dashboard-editor__footer">
           <button
             type="button"
@@ -385,6 +403,18 @@ export function DashboardEditor({
             Restaurar padrão
           </button>
           <div className="dialog-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={
+                busy || retryRemaining > 0 || (!valid && !initialPreference.pinnedToOverview)
+              }
+              onClick={(event) => save(event, !initialPreference.pinnedToOverview)}
+            >
+              {initialPreference.pinnedToOverview
+                ? 'Remover da Visão Geral'
+                : 'Fixar na Visão Geral'}
+            </button>
             <button
               type="button"
               className="button button-secondary"

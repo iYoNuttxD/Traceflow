@@ -202,6 +202,7 @@ projeto inacessível, membership ausente/inativa ou recurso fora do escopo retor
 | GET | `/indicators/catalog` | VIEWER | Projeto autorizado | Leitura |
 | GET | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Leitura sem escrita implícita |
 | PUT | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Salvar personalização; CSRF obrigatório |
+| PATCH | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Fixar/desfixar sem alterar seleção; CSRF obrigatório |
 | DELETE | `/indicator-preference` | VIEWER | Próprio usuário + projeto | Remover preferência / restaurar padrão; CSRF obrigatório |
 
 Project Health usa o aggregate existente (`view=GENERAL&healthOnly=true`), sem endpoint separado.

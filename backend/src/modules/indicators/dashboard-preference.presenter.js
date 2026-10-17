@@ -14,6 +14,7 @@ export function presentDashboardPreference(row) {
     ...(widgets.length
       ? { configurationVersion: row.configurationVersion, widgets, isDefault: false }
       : defaultDashboardPreference()),
+    pinnedToOverview: row.configuration?.pinnedToOverview === true,
     updatedAt: row.updatedAt.toISOString(),
     ...(adjusted ? { configurationAdjusted: true } : {})
   };

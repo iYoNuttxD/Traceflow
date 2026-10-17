@@ -84,11 +84,27 @@ function LoadingDashboard() {
   );
 }
 
-export function DashboardPanel({ projectId, refreshVersion = 0 }) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selection = querySelection(searchParams);
+export function DashboardPanel({ projectId, refreshVersion = 0, overview = false }) {
+  const [routeParams, setRouteParams] = useSearchParams();
+  const [overviewFilters, setOverviewFilters] = useState(null);
+  // Overview filters are local to this visit/project and never take over the Indicators URL.
+  const searchParams = overview
+    ? overviewFilters?.projectId === projectId
+      ? overviewFilters.params
+      : new URLSearchParams()
+    : routeParams;
+  const setSearchParams = (params) => {
+    if (overview) setOverviewFilters({ projectId, params });
+    else setRouteParams(params);
+  };
+  const selection = {
+    ...querySelection(searchParams),
+    ...(overview ? { view: 'CUSTOM' } : {})
+  };
   const { view, startDate, endDate, timeZone, sprintId } = selection;
   const preferenceState = useDashboardPreference(projectId, view === 'CUSTOM');
+  const enabled = !overview || preferenceState.preference?.pinnedToOverview === true;
+  const [unpinError, setUnpinError] = useState(null);
   const [editorContext, setEditorContext] = useState(null);
   const [savedContext, setSavedContext] = useState(null);
   const [recoveryError, setRecoveryError] = useState(null);
@@ -101,6 +117,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
     setEditorContext(null);
     setSavedContext(null);
     setRecoveryError(null);
+    setUnpinError(null);
+    setOverviewFilters(null);
     return () => {
       if (recoveryOwner.current === owner) recoveryOwner.current = null;
     };
@@ -153,6 +171,7 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   }, [projectId, startDate, endDate, timeZone]);
 
   useEffect(() => {
+    if (!enabled) return;
     const generation = ++catalogGeneration.current;
     const controller = new AbortController();
     setCatalogState({ projectId, data: null, error: null });
@@ -177,9 +196,10 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
       }
     );
     return () => controller.abort();
-  }, [projectId, catalogRefresh]);
+  }, [projectId, catalogRefresh, enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     const generation = ++sprintGeneration.current;
     const controller = new AbortController();
     setSprintState({ projectId, rows: [], error: null });
@@ -198,10 +218,10 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
       }
     );
     return () => controller.abort();
-  }, [projectId, sprintRefresh]);
+  }, [projectId, sprintRefresh, enabled]);
 
   useEffect(() => {
-    if (view === 'CUSTOM' && !widgets) return;
+    if (!enabled || (view === 'CUSTOM' && !widgets)) return;
     const generation = ++dashboardGeneration.current;
     const controller = new AbortController();
     if (invalidPeriod) {
@@ -246,14 +266,39 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
     manualRefresh,
     identity,
     widgets,
-    invalidPeriod
+    invalidPeriod,
+    enabled,
+    overview
   ]);
+
+  async function unpin() {
+    const owner = recoveryOwner.current;
+    setUnpinError(null);
+    try {
+      const saved = await preferenceState.setOverviewPin(false);
+      if (saved && owner === recoveryOwner.current)
+        setSavedContext({ context: feedbackContext, pinChanged: true, pinnedToOverview: false });
+    } catch (error) {
+      if (owner === recoveryOwner.current)
+        setUnpinError(
+          normalizeApiError(error, 'Não foi possível remover o painel da Visão Geral.')
+        );
+    }
+  }
 
   async function recoverDefault() {
     const owner = recoveryOwner.current;
     setRecoveryError(null);
     try {
-      if (await preferenceState.reset()) {
+      const saved = preferenceState.preference?.pinnedToOverview
+        ? await preferenceState.save({
+            configurationVersion:
+              catalogState.personalization.defaultPreference.configurationVersion,
+            widgets: catalogState.personalization.defaultPreference.widgets,
+            pinnedToOverview: true
+          })
+        : await preferenceState.reset();
+      if (saved) {
         if (owner === recoveryOwner.current) setCatalogRefresh((value) => value + 1);
       }
     } catch (error) {
@@ -340,7 +385,13 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const dashboard = dashboardState.identity === identity ? dashboardState.data : null;
   const dashboardError = dashboardState.identity === identity ? dashboardState.error : null;
   const confirmedSave = savedContext?.context === feedbackContext;
-  const savedMessage = savedContext?.restored ? 'Painel restaurado ao padrão' : 'Painel salvo';
+  const savedMessage = savedContext?.pinChanged
+    ? savedContext.pinnedToOverview
+      ? 'Painel salvo e fixado na Visão Geral'
+      : 'Painel removido da Visão Geral. Sua seleção continua salva em Indicadores.'
+    : savedContext?.restored
+      ? 'Painel restaurado ao padrão'
+      : 'Painel salvo';
   const catalogError = catalogState.projectId === projectId ? catalogState.error : null;
   const sprints = sprintState.projectId === projectId ? sprintState.rows : [];
   const catalogById = new Map((catalog ?? []).map((item) => [item.metricId, item]));
@@ -368,28 +419,39 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const visibleWarnings =
     dashboard?.warnings?.filter((warning) => !warning.code.includes('FILTER_')) ?? [];
 
-  return (
-    <section className="dashboard-panel" aria-label="Análise de indicadores">
-      <IndicatorsSummary
-        health={dashboard?.projectHealth}
-        loading={loading}
-        metadata={
-          dashboard && (
-            <>
-              <span>
-                {viewState !== 'AVAILABLE' ? `${VIEW_STATES[viewState]} · ` : ''}Atualizado em{' '}
-                {formatDateTime(dashboard.generatedAt)}
-              </span>
-              {dashboard.context?.sprint && <span>{dashboard.context.sprint.name}</span>}
-              {dashboard.freshness?.github?.sourceUpdatedAt && (
+  const panel = (
+    <section
+      className={`dashboard-panel${overview ? ' dashboard-panel--overview' : ''}`}
+      aria-label={overview ? 'Painel fixado na Visão Geral' : 'Análise de indicadores'}
+    >
+      {overview ? (
+        <header className="dashboard-panel__overview-heading">
+          <h2 id="overview-dashboard-title">Meu painel</h2>
+          <p>Seu painel de indicadores, visível só para você neste projeto.</p>
+        </header>
+      ) : (
+        <IndicatorsSummary
+          health={dashboard?.projectHealth}
+          loading={loading}
+          metadata={
+            dashboard && (
+              <>
                 <span>
-                  GitHub atualizado em {formatDateTime(dashboard.freshness.github.sourceUpdatedAt)}
+                  {viewState !== 'AVAILABLE' ? `${VIEW_STATES[viewState]} · ` : ''}Atualizado em{' '}
+                  {formatDateTime(dashboard.generatedAt)}
                 </span>
-              )}
-            </>
-          )
-        }
-      />
+                {dashboard.context?.sprint && <span>{dashboard.context.sprint.name}</span>}
+                {dashboard.freshness?.github?.sourceUpdatedAt && (
+                  <span>
+                    GitHub atualizado em{' '}
+                    {formatDateTime(dashboard.freshness.github.sourceUpdatedAt)}
+                  </span>
+                )}
+              </>
+            )
+          }
+        />
+      )}
       <CollapsibleFilterPanel
         onClear={clearFilters}
         canClear={Boolean(activeFilterCount > 0 || draft.startDate || draft.endDate)}
@@ -458,29 +520,41 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
       <div
         className={`dashboard-panel__toolbar${view === 'CUSTOM' ? ' dashboard-panel__toolbar--custom' : ''}`}
       >
-        <div
-          className="internal-tabs dashboard-panel__tabs"
-          role="tablist"
-          aria-label="Visões de indicadores"
-        >
-          {DASHBOARD_VIEWS.map(([view, label], index) => (
-            <button
-              className={`internal-tab${selection.view === view ? ' internal-tab--active' : ''}`}
-              key={view}
-              id={`dashboard-tab-${view.toLowerCase()}`}
-              type="button"
-              role="tab"
-              aria-selected={selection.view === view}
-              aria-controls="dashboard-view-content"
-              tabIndex={selection.view === view ? 0 : -1}
-              onClick={() => selectView(view)}
-              onKeyDown={(event) => handleTabKeyDown(event, index)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {!overview && (
+          <div
+            className="internal-tabs dashboard-panel__tabs"
+            role="tablist"
+            aria-label="Visões de indicadores"
+          >
+            {DASHBOARD_VIEWS.map(([view, label], index) => (
+              <button
+                className={`internal-tab${selection.view === view ? ' internal-tab--active' : ''}`}
+                key={view}
+                id={`dashboard-tab-${view.toLowerCase()}`}
+                type="button"
+                role="tab"
+                aria-selected={selection.view === view}
+                aria-controls="dashboard-view-content"
+                tabIndex={selection.view === view ? 0 : -1}
+                onClick={() => selectView(view)}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="dashboard-panel__toolbar-actions">
+          {overview && (
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={preferenceState.saving || Boolean(unpinError)}
+              onClick={unpin}
+            >
+              {preferenceState.saving ? 'Salvando...' : 'Remover da Visão Geral'}
+            </button>
+          )}
           {view === 'CUSTOM' && (
             <button
               type="button"
@@ -524,10 +598,13 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
 
       <div
         id="dashboard-view-content"
-        role="tabpanel"
-        aria-labelledby={`dashboard-tab-${selection.view.toLowerCase()}`}
+        role={overview ? undefined : 'tabpanel'}
+        aria-labelledby={
+          overview ? 'overview-dashboard-title' : `dashboard-tab-${selection.view.toLowerCase()}`
+        }
         className="dashboard-panel__body"
       >
+        {unpinError && <DashboardRequestError error={unpinError} onRetry={unpin} />}
         {view === 'CUSTOM' && preferenceState.error && (
           <DashboardRequestError
             key={`preference:${projectId}:${view}`}
@@ -766,10 +843,28 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           </>
         )}
       </div>
+    </section>
+  );
+
+  return (
+    <>
+      {overview && !enabled ? (
+        preferenceState.error ? (
+          <DashboardRequestError error={preferenceState.error} onRetry={preferenceState.retry} />
+        ) : !preferenceState.preference ? (
+          <p role="status">Carregando seu painel...</p>
+        ) : null
+      ) : (
+        panel
+      )}
       <FeedbackRegion
         key={`save:${feedbackContext}`}
         transient
-        success={confirmedSave && view === 'CUSTOM' && !dashboardError ? savedMessage : undefined}
+        success={
+          confirmedSave && view === 'CUSTOM' && (!enabled || !dashboardError)
+            ? savedMessage
+            : undefined
+        }
       />
       {view === 'CUSTOM' && editorContext === projectId && compatiblePreference && catalog && (
         <DashboardEditor
@@ -779,14 +874,15 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           policy={catalogState.personalization}
           onSave={preferenceState.save}
           onReset={preferenceState.reset}
+          onUnpin={() => preferenceState.setOverviewPin(false)}
           returnFocusRef={personalizeRef}
           onClose={closeEditor}
-          onSaved={({ restored }) => {
-            setSavedContext({ context: feedbackContext, restored });
-            closeEditor();
+          onSaved={({ restored, pinChanged, pinnedToOverview, keepEditor }) => {
+            setSavedContext({ context: feedbackContext, restored, pinChanged, pinnedToOverview });
+            if (!keepEditor) closeEditor();
           }}
         />
       )}
-    </section>
+    </>
   );
 }

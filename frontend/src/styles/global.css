@@ -17,7 +17,7 @@
 }
 
 .page-container {
-  width: min(1180px, calc(100% - 2rem));
+  width: min(var(--layout-reading-max), calc(100% - 2rem));
   margin: 0 auto;
   padding: 3rem 0 4rem;
 }

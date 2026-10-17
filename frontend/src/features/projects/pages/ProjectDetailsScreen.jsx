@@ -25,6 +25,9 @@ import { MemberAvatarStack } from '../components/MemberAvatarStack.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import './ProjectDetailsScreen.css';
 
+const OverviewDashboard = lazy(() =>
+  import('../../indicators/index.js').then((module) => ({ default: module.DashboardPanel }))
+);
 const ProjectHealthSummary = lazy(() =>
   import('../../indicators/index.js').then((module) => ({ default: module.ProjectHealthSummary }))
 );
@@ -703,6 +706,14 @@ export function ProjectDetailsScreen() {
           <span>Atualizado em {formatDateTime(project.updatedAt)}</span>
         </footer>
       </section>
+      <Suspense fallback={<p role="status">Carregando seu painel...</p>}>
+        <OverviewDashboard
+          key={project.id}
+          projectId={project.id}
+          refreshVersion={dashboardRefreshVersion}
+          overview
+        />
+      </Suspense>
     </main>
   );
 }

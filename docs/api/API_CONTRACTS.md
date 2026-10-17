@@ -1854,6 +1854,7 @@ Não permite alterar fórmulas, referências, Health ou filtros por widget.
 | --- | --- | --- |
 | `GET /api/projects/:projectId/indicator-preference` | Lê a preferência da sessão; ausência não cria registro | 200 com configuração persistida ou default |
 | `PUT /api/projects/:projectId/indicator-preference` | Valida e faz upsert do par projeto/usuário | 200 com configuração confirmada |
+| `PATCH /api/projects/:projectId/indicator-preference` | Altera somente a fixação do painel do ator; preserva seleção e ordem | 200 com configuração confirmada |
 | `DELETE /api/projects/:projectId/indicator-preference` | Remove somente a preferência do ator; idempotente | 200 com default |
 
 Body PUT estrito:
@@ -1861,7 +1862,8 @@ Body PUT estrito:
 ```json
 {
   "configurationVersion": 1,
-  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"]
+  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"],
+  "pinnedToOverview": true
 }
 ```
 
@@ -1872,9 +1874,25 @@ Resposta sem configuração persistida (GET ou DELETE):
   "configurationVersion": 1,
   "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"],
   "isDefault": true,
+  "pinnedToOverview": false,
   "updatedAt": null
 }
 ```
+
+`pinnedToOverview` é booleano opcional no PUT e sempre booleano na resposta.
+Ausência no JSON legado é apresentada como `false`; ausência no PUT preserva a
+fixação existente, sob os mesmos locks da escrita. Isso mantém clientes anteriores
+compatíveis. A fixação usa o JSON da row existente, sem nova migration.
+
+PATCH aceita exclusivamente `{ "pinnedToOverview": false }` ou o mesmo campo
+com valor `true`. Não aceita
+`widgets`, `configurationVersion`, `userId` nem outros campos. Preserva exatamente
+os widgets, a ordem, a versão e demais campos JSON já persistidos, mesmo se o
+catálogo mudou ou houve edição em outra aba. `false` sem row é idempotente e não
+cria preferência; `true` sem row fixa a seleção padrão canônica. GET continua sem
+escrita. DELETE é o reset completo explícito e remove também a fixação; a UI de
+Restaurar padrão em um painel fixado usa PUT com os widgets padrão e a fixação
+preservada. Remover da Visão Geral usa PATCH, nunca DELETE.
 
 Uma row persistida utilizável retorna `isDefault: false` e `updatedAt` ISO-8601. A posição no
 array determina a ordem; não existem propriedades de dimensão/posição livre.
@@ -1885,16 +1903,16 @@ usa o default canônico com `isDefault: true`. Nesses casos a resposta acrescent
 a última escrita persistida. GET não escreve nem migra a configuração original.
 `configurationVersion` identifica o formato aceito no PUT, não um mecanismo de migração automática.
 Uma seleção legada utilizável conserva a versão armazenada na apresentação; o fallback utiliza
-a versão do default. Apenas save/reset explícito altera a persistência.
+a versão do default. Apenas save/reset ou alteração explícita de fixação muda a persistência.
 Mínimo 1, máximo 12, IDs únicos, conhecidos e elegíveis. Versão diferente de 1,
 ID proibido, campos extras (inclusive `userId`), shape inválido ou query inesperada
 são rejeitados no PUT com 400 pelo envelope de validação existente. DELETE aceita body
-vazio; GET/PUT/DELETE não possuem query de usuário.
+vazio; GET/PUT/PATCH/DELETE não possuem query de usuário.
 
 Autorização usa sessão e membership ativa: VIEWER, MEMBER, MANAGER e OWNER podem
 ler/escrever somente a própria preferência. `userId` é derivado de `req.auth`.
 401 sem autenticação; 404 opaco para projeto alheio, excluído ou membership inativa.
-PUT/DELETE exigem o CSRF canônico. A transação revalida projeto, membership e conta
+PUT/PATCH/DELETE exigem o CSRF canônico. A transação revalida projeto, membership e conta
 ativa sob locks de projeto/membership, protegendo a concorrência com exclusão.
 
 Soft delete torna a preferência inacessível; restore a preserva; hard purge e

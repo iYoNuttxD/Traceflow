@@ -507,7 +507,8 @@ button.trace-shell__nav-item {
 
 .trace-shell__content {
   width: 100%;
-  max-width: var(--layout-page-max);
+  /* Page owners apply gutters before their cap; do not cap the workspace first. */
+  min-width: 0;
   min-height: 100vh;
   margin: 0 auto;
 }
