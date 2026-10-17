@@ -1189,6 +1189,9 @@ o trabalho acontece, sem tela própria.
   warning com borda: tipo, conclusão e detecção; "Vincular commit" (abre o editor de vínculos com o
   foco na busca de commits), "Dispensar" (MANAGER+, com o `AlertDismissForm`) e "Histórico (n)",
   com quem, quando e por quê.
+  - Sem alerta aberto, fica uma linha compacta em superfície neutra, "Inconsistências anteriores",
+    com "Histórico (n)": a dispensa e a resolução continuam consultáveis depois de recarregar
+    (TF-REV-010, 2026-10-17). Sem histórico, nada aparece.
 - **Repositório.** A célula de estado ganha a linha "sem tarefa vinculada" (warning, com ícone) ou
   "sem tarefa · dispensada em …" e "inconsistência resolvida em …" (discretas). A ação "Ver
   inconsistência" abre o detalhe num `SprintDialog`, com vincular, dispensar, GitHub e histórico.

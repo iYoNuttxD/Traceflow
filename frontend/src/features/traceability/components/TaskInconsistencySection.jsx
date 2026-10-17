@@ -62,7 +62,7 @@ export function TaskInconsistencySection({
   const headingRef = useRef(null);
   const focusedRef = useRef(false);
   const current = useOpenAlert(projectId, openAlertId);
-  const history = useSubjectAlerts(projectId, { taskId }, { enabled: Boolean(openAlertId) });
+  const history = useSubjectAlerts(projectId, { taskId });
   const [view, setView] = useState('details');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,23 +109,23 @@ export function TaskInconsistencySection({
     void history.reload();
   }
 
+  const historyId = `${id}-history`;
+
   if (!alert) {
-    if (feedback.success || feedback.error)
-      return (
-        <FeedbackRegion
-          success={feedback.success}
-          error={feedback.error}
-          retryAfterSeconds={feedback.retryAfterSeconds}
-        />
-      );
-    if (!openAlertId) return null;
-    if (current.loading)
+    const feedbackRegion = (feedback.success || feedback.error) && (
+      <FeedbackRegion
+        success={feedback.success}
+        error={feedback.error}
+        retryAfterSeconds={feedback.retryAfterSeconds}
+      />
+    );
+    if (openAlertId && current.loading && !feedbackRegion)
       return (
         <p className="trace-inconsistency__loading" role="status">
           Carregando inconsistência...
         </p>
       );
-    if (current.error)
+    if (openAlertId && current.error && !feedbackRegion)
       return (
         <ErrorState
           message={current.error.message}
@@ -133,12 +133,43 @@ export function TaskInconsistencySection({
           onRetry={current.read}
         />
       );
-    return null;
+    if (!history.error && history.total === 0) return feedbackRegion || null;
+    return (
+      <>
+        {feedbackRegion}
+        <section className="trace-inconsistency-history" aria-labelledby={`${id}-history-title`}>
+          <h4 id={`${id}-history-title`}>Inconsistências anteriores</h4>
+          {history.error ? (
+            <ErrorState
+              message={history.error.message}
+              retryAfterSeconds={history.error.retryAfterSeconds}
+              onRetry={history.reload}
+            />
+          ) : (
+            <AlertHistoryToggle
+              controls={historyId}
+              expanded={historyOpen}
+              total={history.total}
+              onToggle={() => setHistoryOpen((open) => !open)}
+            />
+          )}
+          {historyOpen && !history.error && (
+            <AlertHistoryList
+              id={historyId}
+              entries={history.alerts}
+              total={history.total}
+              error={null}
+              emptyText="Nenhuma inconsistência anterior desta tarefa."
+              onRetry={history.reload}
+            />
+          )}
+        </section>
+      </>
+    );
   }
 
   const context = alert.context || {};
   const disconnected = context.integrationConnected === false;
-  const historyId = `${id}-history`;
 
   return (
     <section className="trace-inconsistency" aria-labelledby={`${id}-title`}>
