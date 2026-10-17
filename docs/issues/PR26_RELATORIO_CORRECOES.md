@@ -209,8 +209,8 @@ Cada mutante foi aplicado sozinho, com os testes da área, e o arquivo restaurad
 - **Pendente de aval do João:** o upgrade representativo, numa cópia do banco de dev em
   `traceflow_upgrade_test`, com os dry-runs do RF59 e da reconciliação (Anexo A, itens 10 e 11).
 
-**Auditoria de trailers.** `git log --format=%(trailers) 9c053bf..HEAD` não traz nenhum trailer. As
-mensagens não citam Claude.
+**Auditoria de trailers.** `git log --format=%(trailers) 9c053bf..HEAD` não traz nenhum trailer, e
+nenhuma mensagem tem coautoria. Autor e committer de todos os commits: JoaoVitorSHernandes.
 
 ## 7. Composição com a branch OCI (Fase 16, só leitura)
 
