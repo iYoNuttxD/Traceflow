@@ -71,11 +71,24 @@ export function createTestExecutionService({
               );
             const version = await tx.currentVersion(id, row.currentVersion);
             const steps = executionSteps(version.snapshotJson, data.steps);
-            const ref = await tx.executions.reference(
-              row.projectId,
-              data.testedReference.type,
-              data.testedReference.id
-            );
+            let ref;
+            if (data.testedReference.type === 'MANUAL') {
+              const project = await tx.project(row.projectId);
+              if (!project) throw missing();
+              if (project.githubIntegration)
+                throw fail(
+                  'Projetos com integração GitHub exigem uma Pull Request ou um Commit importado.',
+                  409,
+                  'TEST_EXECUTION_MANUAL_REFERENCE_UNAVAILABLE'
+                );
+              ref = data.testedReference;
+            } else {
+              ref = await tx.executions.reference(
+                row.projectId,
+                data.testedReference.type,
+                data.testedReference.id
+              );
+            }
             if (!ref) throw missing();
             const result = calculateResult(steps);
             const execution = await tx.executions.create(
@@ -172,7 +185,9 @@ export function createTestExecutionService({
           )
           .map((l) => l.taskId);
       }
+      const project = await cases.project(row.projectId);
       return {
+        manualReferenceAllowed: Boolean(project) && !project.githubIntegration,
         items: (
           await executions.candidates(id, row.projectId, q.search, q.limit, priorityTaskIds)
         ).map(({ type, ref, relatedTaskIds }) => ({

@@ -22,6 +22,15 @@ export const indicatorsController = {
       await dashboardPreferenceService.save(req.params.projectId, req.auth.user.id, req.body)
     )
   ),
+  setOverviewPin: asyncHandler(async (req, res) =>
+    res.json(
+      await dashboardPreferenceService.setOverviewPin(
+        req.params.projectId,
+        req.auth.user.id,
+        req.body.pinnedToOverview
+      )
+    )
+  ),
   resetPreference: asyncHandler(async (req, res) =>
     res.json(await dashboardPreferenceService.reset(req.params.projectId, req.auth.user.id))
   ),

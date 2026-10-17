@@ -68,9 +68,14 @@ pelo DELETE do caso.
 
 `TestExecution` referencia a versão por FK e registra o número da versão. Ambiente:
 `LOCAL | DESENVOLVIMENTO | HOMOLOGACAO`. A referência principal é exatamente uma
-PullRequest OU Commit importado do projeto; discriminator/FKs têm CHECK de XOR.
+PullRequest OU Commit importado do projeto; alternativamente, em projeto sem integração,
+MANUAL com identificação textual da versão testada (trim, 1–200 caracteres). O CHECK preserva
+exatamente uma FK para referência importada e ambas nulas para MANUAL. A ausência de integração
+é revalidada sob lock do Project; não basta a capability recebida pelo cliente.
 O snapshot guarda PR id/number/title/state/githubUrl ou Commit
-id/hash/shortHash/message/authorName/date/githubUrl, sem e-mail.
+id/hash/shortHash/message/authorName/date/githubUrl, sem e-mail. Para MANUAL, somente
+`{type: "MANUAL", version}`. Vincular GitHub posteriormente não reescreve esse histórico;
+novas execuções em projeto integrado exigem referência técnica. Ver ADR-018.
 
 `executedByUserId` vem da sessão e `executedByDisplayNameSnapshot` do nome da conta;
 `executedAt/createdAt` são timestamps do banco. O payload não aceita autor, horário

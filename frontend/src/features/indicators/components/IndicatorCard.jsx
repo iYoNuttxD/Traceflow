@@ -342,9 +342,10 @@ export function IndicatorCard({
         <IndicatorReference assessment={assessment} />
         <strong>Como interpretar</strong>
         <p>{help.meaning}</p>
-        {assessment?.reasonCode && assessment?.basis && (
-          <p>{describeHealthReason(assessment, indicator.metricId)}</p>
-        )}
+        {assessment?.reasonCode &&
+          (assessment.basis || assessment.reasonCode === 'GITHUB_LIFECYCLE_NOT_APPLICABLE') && (
+            <p>{describeHealthReason(assessment, indicator.metricId)}</p>
+          )}
         <IndicatorCalculationDetails indicator={indicator} metadata={metadata} />
       </IndicatorHeader>
 

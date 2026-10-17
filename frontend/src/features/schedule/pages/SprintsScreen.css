@@ -880,6 +880,13 @@
   font-size: var(--font-size-4);
 }
 
+/* Add useful columns once the workspace exceeds laptop-sized layouts. */
+@container sprints-page (min-width: 88rem) {
+  .sprint-grid {
+    grid-template-columns: repeat(4, minmax(min(100%, 18rem), 1fr));
+  }
+}
+
 @container sprints-page (max-width: 66rem) {
   .sprints-summary__metric,
   .sprints-summary__metric--active {

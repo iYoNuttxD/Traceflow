@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   accessCodeApi: { get: vi.fn(), regenerate: vi.fn(), updateRole: vi.fn() },
   syncProjectGithub: vi.fn(),
   getProjectGithubSyncStatus: vi.fn(),
-  indicatorsApi: { dashboard: vi.fn(), catalog: vi.fn() },
+  indicatorsApi: { dashboard: vi.fn(), catalog: vi.fn(), preference: vi.fn() },
   listSprints: vi.fn(),
   membersApi: {
     list: vi.fn(),
@@ -141,6 +141,7 @@ describe('ProjectDetailsPage E9', () => {
         }
       ]
     });
+    mocks.indicatorsApi.preference.mockResolvedValue({ data: { pinnedToOverview: false } });
     mocks.indicatorsApi.catalog.mockResolvedValue({ data: { indicators: [] } });
     mocks.indicatorsApi.dashboard.mockResolvedValue({
       data: {

@@ -33,7 +33,7 @@ export function combineActivity(commits, tasks, { commitsAvailable = true } = {}
       commits: commitsAvailable ? 0 : null
     });
   }
-  for (const person of commits.people ?? []) {
+  for (const person of commitsAvailable ? (commits.people ?? []) : []) {
     const existing = people.get(person.userId);
     if (existing) existing.commits = person.count;
     else

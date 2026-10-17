@@ -45,7 +45,12 @@ export function caseDetail(row, role) {
     capabilities: {
       canEdit: role !== 'VIEWER',
       canDelete: role !== 'VIEWER',
-      canExecute: role !== 'VIEWER' && row.status === 'ATIVO'
+      canExecute: role !== 'VIEWER' && row.status === 'ATIVO',
+      canUseManualReference:
+        role !== 'VIEWER' &&
+        row.status === 'ATIVO' &&
+        Boolean(row.project) &&
+        !row.project.githubIntegration
     }
   };
 }

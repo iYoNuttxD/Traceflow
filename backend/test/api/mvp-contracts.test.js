@@ -1097,7 +1097,7 @@ describe('Kanban e histórico', () => {
   });
 
   it('preserva métricas de tarefas e coberturas técnicas atuais', async () => {
-    const project = await createProject(prisma);
+    const project = await createProject(prisma, { githubOwner: 'fixture', githubRepo: 'coverage' });
     const pullRequest = await createPullRequest(prisma, project.id);
     const commit = await createCommit(prisma, project.id);
     const issue = await createIssue(prisma, project.id);

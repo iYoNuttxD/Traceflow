@@ -49,16 +49,17 @@ function extractPullRequests(tasks) {
 
 export function getImplementationStatus(requirement, tasks, hasTechnicalEvidence) {
   if (requirement.status === 'CONCLUIDO') return 'CONCLUIDO';
-  return getImplementationStage(tasks, hasTechnicalEvidence);
+  return getImplementationStage(tasks, hasTechnicalEvidence, requirement.lifecycleBasis);
 }
 
 // Estágio técnico compartilhado; o override histórico permanece no DTO legado.
-export function getImplementationStage(tasks, hasTechnicalEvidence) {
+export function getImplementationStage(tasks, hasTechnicalEvidence, lifecycleBasis = 'GITHUB') {
   return getImplementationStageFromCounts({
     tasksTotal: tasks.length,
     tasksDone: tasks.filter((task) => task.status === 'CONCLUIDO').length,
     tasksInProgress: tasks.filter((task) => task.status === 'EM_ANDAMENTO').length,
-    hasTechnicalEvidence
+    hasTechnicalEvidence,
+    lifecycleBasis
   });
 }
 
@@ -66,14 +67,16 @@ export function getImplementationStageFromCounts({
   tasksTotal,
   tasksDone,
   tasksInProgress,
-  hasTechnicalEvidence
+  hasTechnicalEvidence,
+  lifecycleBasis = 'GITHUB'
 }) {
   if (tasksTotal === 0) return 'SEM_RASTREABILIDADE';
   const allTasksCompleted = tasksDone === tasksTotal;
   const completedTasksCount = tasksDone;
   const hasInProgressTask = tasksInProgress > 0;
 
-  if (allTasksCompleted && hasTechnicalEvidence) return 'IMPLEMENTADO';
+  if (allTasksCompleted && (lifecycleBasis === 'LOCAL' || hasTechnicalEvidence))
+    return 'IMPLEMENTADO';
   if (completedTasksCount > 0 || hasInProgressTask || hasTechnicalEvidence) {
     return 'EM_DESENVOLVIMENTO';
   }

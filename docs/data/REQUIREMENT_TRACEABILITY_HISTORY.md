@@ -146,3 +146,10 @@ Leituras exigem membership ativa VIEWER/MEMBER/MANAGER/OWNER. Sessão ausente �
 ## Verificação
 
 Policy, projeção/DB, transações/reconciliação, API/IDOR/cursor e contagem de queries são cobertos nas suítes `requirement-traceability.test.js`, `s109-traceability.test.js` de integração e API. A evidência de gates, repetibilidade e migrations está no [relatório da Etapa 2](../deliveries/S1_09_BACKEND_PROJECTION_SITUATION_HISTORY_REPORT.md). Cards, filtros, workspace e Inspector estão implementados; evidência da revisão atual na seção FINAL TARGETED CORRECTIONS do [relatório da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
+
+## Extensão LOCAL/GITHUB (ADR-018)
+
+Novas transições usam rulesVersion 4 e lifecycleBasis no metadataJson. Entradas antigas são
+preservadas. A base persistida e imutável do requisito é atribuída na criação; conexão GitHub
+posterior não reabre conclusão LOCAL. A migration de adoção reconcilia macro, State e transições
+dos requisitos backfilled como LOCAL, sem reescrever histórico anterior ou alterar requisitos GITHUB.

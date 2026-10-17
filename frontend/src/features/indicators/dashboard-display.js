@@ -314,7 +314,7 @@ const INTERPRETATION_COPY = {
   I62: 'O percentual mostra quanto do catálogo de requisitos possui evidência técnica vinculada por Task.',
   I63: 'O percentual mostra quanto do catálogo de requisitos possui caso de teste ativo relevante.',
   I64: 'O percentual mostra quanto do catálogo de requisitos possui defeito ativo relevante.',
-  I65: 'O percentual mostra quanto do catálogo de requisitos está concluído.',
+  I65: 'O percentual mostra quanto do catálogo de requisitos está concluído conforme a base de ciclo preservada de cada requisito. Requisitos de ciclo local não exigem PRs ou commits; evidência técnica é medida separadamente.',
   I66: 'O percentual mostra quanto do catálogo de requisitos atingiu a implementação técnica, independentemente da validação de qualidade.'
 };
 

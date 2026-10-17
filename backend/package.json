@@ -55,6 +55,7 @@
     "db:test:validate-s2-p3": "node scripts/validate-s2-p3-migration.js",
     "db:test:validate-s2-p5-1": "node scripts/validate-s2-p5-1-migration.js",
     "db:test:validate-dashboard-preference": "node scripts/validate-dashboard-preference-migration.js",
+    "db:test:validate-standalone-lifecycle": "node scripts/validate-standalone-lifecycle-migration.js",
     "db:test:validate-task-responsibility": "node scripts/validate-task-responsibility-migration.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

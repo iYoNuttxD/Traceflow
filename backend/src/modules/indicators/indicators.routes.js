@@ -4,6 +4,7 @@ import { indicatorsController } from './indicators.controller.js';
 import {
   dashboardQuerySchema,
   dashboardPreferenceBodySchema,
+  dashboardOverviewPinBodySchema,
   flowTaskPeriodQuerySchema,
   indicatorPeriodQuerySchema,
   indicatorProjectParamsSchema,
@@ -24,6 +25,15 @@ router.put(
     body: dashboardPreferenceBodySchema
   }),
   indicatorsController.savePreference
+);
+router.patch(
+  '/projects/:projectId/indicator-preference',
+  validateRequest({
+    params: indicatorProjectParamsSchema,
+    query: emptyObject,
+    body: dashboardOverviewPinBodySchema
+  }),
+  indicatorsController.setOverviewPin
 );
 router.delete(
   '/projects/:projectId/indicator-preference',

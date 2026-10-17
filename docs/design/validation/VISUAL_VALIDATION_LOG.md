@@ -1400,3 +1400,43 @@ originais foram preservadas, mas não se afirma disponibilidade dos arquivos. As
 ajuda correspondentes no inventário ficam TECHNICALLY VERIFIED, sem rebaixar RF55 funcional.
 A retificação P8.4 continua válida; caminhos ausentes foram mantidos como referências históricas
 textuais, não links de evidência disponível. Não foi fabricada evidência retroativa.
+
+
+## 2026-10-17 — workspace largo e painel pessoal fixado (validação renderizada bloqueada)
+
+Escopo: shell autenticado, Overview/Indicadores, catálogos e workspaces que usam
+`--layout-page-max`; painel CUSTOM fixado na Overview e ação correspondente no editor.
+A largura útil é definida pela página, até 1920px, sem o teto intermediário do shell.
+Settings, páginas de leitura e formulários conservam limites próprios.
+
+### Evidência técnica
+
+- Frontend lint, format:check e build de produção passaram. Build manteve avisos de chunk
+  grande/IIFE; não houve falha de compilação.
+- Suíte de estilos/app: 19 arquivos, 125 testes passaram no código final; a suíte responsiva
+  específica verifica 17 contratos, incluindo wrap das ações do painel fixado.
+- `scripts/check-ui-inventory.test.mjs`: 3 testes passaram; inventário/censo atualizados.
+- A fixture `frontend/test/visual/p8.jsx` foi compilada separadamente com Vite. Ela renderiza os
+  componentes reais com respostas sintéticas e não consulta APIs reais. Parâmetros:
+  `screen=overview|indicators|settings`, `sidebar=expanded|collapsed|auto`, `pin=1|0`,
+  `panelState=available|loading|error`, `theme=light|dark`, `health=HEALTHY|ATTENTION|CRITICAL|UNASSESSED`.
+  O histórico de views/filtros pode ser exercitado dentro do router da fixture.
+
+### Limitação e classificação
+
+Status da tentativa renderizada: `ENVIRONMENT BLOCKED`. O navegador de nuvem está disponível,
+mas não alcança o servidor Vite no localhost isolado do executor. A tentativa de servidor em
+rede compartilhada falhou na inicialização do sandbox, antes de expor a aplicação. Nenhum caminho
+negado foi alterado. As rotas file/data e automação alternativa fora do navegador suportado não
+foram usadas.
+
+Consequentemente, 320/375/768/1280/1440/1920/2560px, Light/Dark, estados de sidebar, drawer,
+loading/erro/retry e interação do editor não receberam inspeção renderizada nesta rodada. Não há
+capturas nem alegação de ausência de overflow medida. Cálculos de largura e testes de CSSOM
+são evidência estrutural, não substituem inspeção visual.
+
+As surfaces afetadas permanecem `TECHNICALLY VERIFIED` no escopo automatizado. A homologação
+visual anterior é preservada como histórico; o inventário marca `REVALIDATION REQUIRED` para
+layout largo e fixação. Uma próxima execução com navegador conectado ao frontend deve verificar
+as larguras acima, nomes longos, filtros abertos/fechados, navegação e foco após Cancelar/Salvar,
+Fixar/Remover e retorno entre Overview/Indicadores.

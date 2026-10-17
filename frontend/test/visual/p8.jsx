@@ -4,6 +4,11 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { ThemeProvider } from '../../src/app/theme/ThemeProvider.jsx';
 import { httpClient } from '../../src/api/http-client.js';
 import { ProjectDetailsScreen } from '../../src/features/projects/pages/ProjectDetailsScreen.jsx';
+import { ProjectsCatalogProvider } from '../../src/features/projects/hooks/ProjectsCatalogContext.jsx';
+import { AppShell } from '../../src/app/layout/AppShell.jsx';
+import { IndicatorsScreen } from '../../src/features/indicators/IndicatorsScreen.jsx';
+import { SettingsLayout } from '../../src/features/settings/SettingsLayout.jsx';
+import { ConfirmProvider } from '../../src/shared/components/ConfirmDialog.jsx';
 import '../../src/styles/tokens.css';
 import '../../src/styles/base.css';
 import '../../src/styles/global.css';
@@ -17,6 +22,18 @@ const healthScore = Object.hasOwn(healthScores, healthState)
   ? healthScores[healthState]
   : undefined;
 window.localStorage.setItem('traceflow.theme', savedTheme);
+const sidebar = query.get('sidebar');
+if (sidebar === 'expanded' || sidebar === 'collapsed') {
+  window.localStorage.setItem('traceflow.sidebar.collapsed', String(sidebar === 'collapsed'));
+} else {
+  window.localStorage.removeItem('traceflow.sidebar.collapsed');
+}
+const screen = query.get('screen') ?? 'overview';
+const route =
+  screen === 'settings'
+    ? '/settings/account'
+    : `/projects/1${screen === 'indicators' ? '/indicators' : ''}`;
+const panelState = query.get('panelState') ?? 'available';
 const date = '2026-09-25T15:00:00Z';
 const titles = {
   I01: 'Progresso das Tasks',
@@ -330,6 +347,12 @@ const catalog = Object.entries(titles).map(([metricId, title]) => ({
   title,
   description: `${title}: descrição do catálogo de teste.`,
   source: 'Fonte canônica',
+  category: ['I45', 'I46', 'I47'].includes(metricId) ? 'SPRINT' : 'TASK',
+  customization: {
+    customizable: true,
+    description: `${title}: descrição do catálogo de teste.`,
+    sizeClass: ['I45', 'I46', 'I47'].includes(metricId) ? 'wide' : 'compact'
+  },
   temporalType: ['I45', 'I46', 'I47'].includes(metricId)
     ? 'HISTORICAL_SERIES'
     : ['I02', 'I04', 'I06', 'I09', 'I20', 'I21', 'I22', 'I25', 'I48', 'I49'].includes(metricId)
@@ -351,12 +374,34 @@ const project = {
     lastSyncAt: date
   }
 };
+const defaultPreference = {
+  configurationVersion: 1,
+  widgets: ['I01', 'I23', 'I61', 'I66', 'I45', 'I46'],
+  pinnedToOverview: false,
+  isDefault: true,
+  updatedAt: null
+};
+let preference = { ...defaultPreference, pinnedToOverview: query.get('pin') === '1' };
+const metricsById = new Map(
+  Object.values(sections)
+    .flatMap((view) => view.flatMap((section) => section.indicators))
+    .map((indicator) => [indicator.metricId, indicator])
+);
 httpClient.defaults.adapter = async (config) => {
   const path = new URL(config.url, 'http://local.test').pathname;
   const view = String(config.params?.view ?? 'GENERAL').toUpperCase();
   let data;
-  if (path === '/projects/1') data = { project };
-  else if (path === '/projects/1/members')
+  if (path === '/projects') data = { projects: [project], deletedProjects: [] };
+  else if (path === '/projects/1') data = { project };
+  else if (path === '/projects/1/indicator-preference') {
+    if (config.method === 'put' || config.method === 'patch') {
+      const changes = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+      preference = { ...preference, ...changes, isDefault: false, updatedAt: date };
+    } else if (config.method === 'delete') {
+      preference = { ...defaultPreference };
+    }
+    data = preference;
+  } else if (path === '/projects/1/members')
     data = {
       currentMembership: { id: 1, role: 'OWNER' },
       members: [
@@ -375,6 +420,7 @@ httpClient.defaults.adapter = async (config) => {
   else if (path === '/projects/1/indicators/catalog')
     data = {
       indicators: catalog,
+      personalization: { minWidgets: 1, maxWidgets: 12, defaultPreference },
       views: Object.keys(sections).map((view) => ({
         view,
         periodIncludesProjectHealth: view === 'GENERAL',
@@ -387,7 +433,9 @@ httpClient.defaults.adapter = async (config) => {
         }
       }))
     };
-  else if (path === '/projects/1/indicators/dashboard')
+  else if (path === '/projects/1/indicators/dashboard') {
+    if (view === 'CUSTOM' && panelState === 'loading') await new Promise(() => {});
+    if (view === 'CUSTOM' && panelState === 'error') throw new Error('Falha sintética do painel.');
     data = {
       dashboardContractVersion: 1,
       projectId: 1,
@@ -410,32 +458,60 @@ httpClient.defaults.adapter = async (config) => {
         sprint: view === 'SPRINT' ? { id: 1, name: 'Sprint 2' } : null
       },
       freshness: { local: { generatedAt: date }, github: { sourceUpdatedAt: date } },
-      sections: sections[view] ?? sections.GENERAL,
+      sections:
+        view === 'CUSTOM'
+          ? [
+              {
+                id: 'custom',
+                indicators: String(config.params?.widgets ?? preference.widgets.join(','))
+                  .split(',')
+                  .flatMap((metricId) =>
+                    metricsById.has(metricId) ? [metricsById.get(metricId)] : []
+                  )
+              }
+            ]
+          : (sections[view] ?? sections.GENERAL),
       ...(view === 'GENERAL' && projectHealth ? { projectHealth } : {}),
       warnings: []
     };
-  else throw new Error(`Fixture sem resposta para ${path}`);
+  } else throw new Error(`Fixture sem resposta para ${path}`);
   return { data, status: 200, statusText: 'OK', headers: {}, config };
 };
 
 createRoot(document.getElementById('root')).render(
   <ThemeProvider>
-    <MemoryRouter initialEntries={[`/projects/1?${query.toString()}`]}>
-      <div style={{ maxWidth: '100vw', minHeight: '100vh', background: 'var(--color-bg-page)' }}>
-        <div
-          style={{
-            padding: '12px 24px',
-            borderBottom: '1px solid var(--color-border-default)',
-            background: 'var(--color-surface-primary)'
-          }}
-        >
-          <strong>TraceFlow</strong>{' '}
-          <span style={{ color: 'var(--color-text-secondary)' }}>· fixture visual P8</span>
-        </div>
-        <Routes>
-          <Route path="/projects/:id" element={<ProjectDetailsScreen />} />
-        </Routes>
-      </div>
-    </MemoryRouter>
+    <ConfirmProvider>
+      <MemoryRouter initialEntries={[`${route}?${query.toString()}`]}>
+        <ProjectsCatalogProvider>
+          <AppShell
+            user={{ id: 9, name: 'Pessoa de teste', email: 'fixture@example.test' }}
+            onLogout={() => {}}
+          >
+            <Routes>
+              <Route path="/projects/:id" element={<ProjectDetailsScreen />} />
+              <Route path="/projects/:projectId/indicators" element={<IndicatorsScreen />} />
+              <Route path="/settings" element={<SettingsLayout />}>
+                <Route
+                  path="account"
+                  element={
+                    <section className="settings-surface">
+                      <h2>Conta de teste</h2>
+                      <p>
+                        Fixture de largura: os campos e textos de configuração mantêm uma área de
+                        leitura limitada, mesmo em um monitor grande.
+                      </p>
+                      <label className="field">
+                        <span>Nome</span>
+                        <input value="Pessoa de teste" readOnly />
+                      </label>
+                    </section>
+                  }
+                />
+              </Route>
+            </Routes>
+          </AppShell>
+        </ProjectsCatalogProvider>
+      </MemoryRouter>
+    </ConfirmProvider>
   </ThemeProvider>
 );

@@ -100,8 +100,10 @@ export const indicatorsService = {
         sourceUpdatedAt: freshness.sourceUpdatedAt,
         sourceSyncStatus: freshness.sourceSyncStatus,
         limitations: [
-          ...(!facts.branch ? ['MAIN_BRANCH_NOT_OBSERVED'] : []),
-          ...(facts.branch && !hasConfirmedMain ? ['MAIN_MEMBERSHIP_NOT_CONFIRMED'] : []),
+          ...(facts.project.githubIntegration && !facts.branch ? ['MAIN_BRANCH_NOT_OBSERVED'] : []),
+          ...(facts.project.githubIntegration && facts.branch && !hasConfirmedMain
+            ? ['MAIN_MEMBERSHIP_NOT_CONFIRMED']
+            : []),
           ...(commits.unassociated && hasConfirmedMain ? ['COMMIT_AUTHOR_NOT_ASSOCIATED'] : []),
           ...freshness.limitations
         ]

@@ -78,6 +78,18 @@ describe('Indicator Engine puro', () => {
     );
   });
 
+  it('does not expose residual commits when the GitHub source is unavailable', () => {
+    const commits = calculateDistribution([
+      { userId: 1, displayName: 'Ana', count: 9 },
+      { userId: 2, displayName: 'Bia', count: 3 }
+    ]);
+    const tasks = calculateDistribution([{ userId: 1, displayName: 'Ana', count: 2 }]);
+    expect(combineActivity(commits, tasks, { commitsAvailable: false })).toEqual([
+      { userId: 1, displayName: 'Ana', completedTasks: 2, commits: null }
+    ]);
+    expect(combineActivity(commits, { people: [] }, { commitsAvailable: false })).toEqual([]);
+  });
+
   it('marca falha/reconexão/head divergente como frescor comprometido sem limiar de idade', () => {
     expect(
       githubFreshness(

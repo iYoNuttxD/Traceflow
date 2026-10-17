@@ -37,19 +37,20 @@ export const indicatorsRepository = {
           select: projectSelect
         });
         if (!project) return null;
-        const branch = needsCommits
-          ? await tx.gitBranch.findFirst({
-              where: { projectId, name: 'main', isActive: true },
-              select: {
-                id: true,
-                name: true,
-                headSha: true,
-                lastSyncedHeadSha: true,
-                lastSyncedGeneration: true,
-                lastSeenAt: true
-              }
-            })
-          : null;
+        const branch =
+          needsCommits && project.githubIntegration
+            ? await tx.gitBranch.findFirst({
+                where: { projectId, name: 'main', isActive: true },
+                select: {
+                  id: true,
+                  name: true,
+                  headSha: true,
+                  lastSyncedHeadSha: true,
+                  lastSyncedGeneration: true,
+                  lastSeenAt: true
+                }
+              })
+            : null;
         const validBranch = branch?.name === 'main' ? branch : null;
         const commitRows =
           validBranch?.lastSyncedHeadSha && validBranch.lastSyncedGeneration

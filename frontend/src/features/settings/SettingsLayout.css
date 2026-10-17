@@ -1,5 +1,5 @@
 .settings-shell {
-  width: min(var(--layout-page-max), calc(100% - (2 * var(--layout-page-gutter))));
+  width: min(var(--layout-settings-max), calc(100% - (2 * var(--layout-page-gutter))));
 }
 
 .settings-header {
@@ -36,7 +36,8 @@
 
 .settings-content {
   display: grid;
-  width: min(100%, 55rem);
+  width: 100%;
+  max-width: 55rem;
   min-width: 0;
   gap: var(--space-6);
 }

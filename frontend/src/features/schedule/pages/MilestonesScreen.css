@@ -745,6 +745,13 @@
   display: flex;
 }
 
+/* Add useful columns once the workspace exceeds laptop-sized layouts. */
+@container milestones-page (min-width: 88rem) {
+  .milestone-grid {
+    grid-template-columns: repeat(4, minmax(min(100%, 19rem), 1fr));
+  }
+}
+
 @container milestones-page (max-width: 66rem) {
   .milestones-summary__metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -125,6 +125,7 @@ export function defaultDashboardPreference() {
     configurationVersion: DASHBOARD_CONFIGURATION_VERSION,
     widgets: [...DEFAULT_DASHBOARD_WIDGETS],
     isDefault: true,
+    pinnedToOverview: false,
     updatedAt: null
   };
 }

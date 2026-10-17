@@ -40,14 +40,21 @@ export const requirementRepository = {
         sourceEntityType: 'Requirement',
         createdEntity: 'requirementIds'
       },
-      (tx) =>
-        tx.requirement.create({
+      async (tx) => {
+        // traceabilityTransaction already holds the same Project lock as GitHub linking.
+        const integration = await tx.projectGitHubIntegration.findUnique({
+          where: { projectId },
+          select: { id: true }
+        });
+        return tx.requirement.create({
           data: {
             ...data,
-            projectId
+            projectId,
+            lifecycleBasis: integration ? 'GITHUB' : 'LOCAL'
           },
           include: requirementInclude
-        })
+        });
+      }
     );
   },
 

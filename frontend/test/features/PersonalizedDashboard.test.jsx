@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   catalog: vi.fn(),
   preference: vi.fn(),
   savePreference: vi.fn(),
+  setOverviewPin: vi.fn(),
   resetPreference: vi.fn()
 }));
 vi.mock('../../src/features/indicators/api/indicators.api.js', () => ({ indicatorsApi: api }));
@@ -110,6 +111,10 @@ beforeEach(() => {
   api.dashboard.mockImplementation((id, filters) => Promise.resolve(aggregate(filters)));
   api.savePreference.mockImplementation((id, config) => {
     stored = { ...config, isDefault: false, updatedAt: new Date().toISOString() };
+    return Promise.resolve({ data: stored });
+  });
+  api.setOverviewPin.mockImplementation((id, pinnedToOverview) => {
+    stored = { ...stored, pinnedToOverview };
     return Promise.resolve({ data: stored });
   });
   api.resetPreference.mockImplementation(() => {
@@ -366,7 +371,9 @@ describe.each(mutations)('pending $method preference ownership', (mutation) => {
 });
 function widgetOrder() {
   return [
-    ...screen.getByRole('region', { name: 'Meu painel' }).querySelectorAll('[data-metric-id]')
+    ...(screen
+      .queryByRole('region', { name: 'Meu painel' })
+      ?.querySelectorAll('[data-metric-id]') ?? [])
   ].map((el) => el.dataset.metricId);
 }
 
@@ -422,7 +429,8 @@ describe('P9 personalized workspace', () => {
     await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
     expect(api.savePreference).toHaveBeenCalledExactlyOnceWith(1, {
       configurationVersion: 1,
-      widgets: ['I23', 'I01']
+      widgets: ['I23', 'I01'],
+      pinnedToOverview: false
     });
     expect(api.dashboard).toHaveBeenCalledTimes(2);
     const feedback = screen.getByText('Painel salvo').closest('[role="status"]');
@@ -635,7 +643,8 @@ describe('P9.1 controls', () => {
     await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I21', 'I01']));
     expect(api.savePreference).toHaveBeenCalledExactlyOnceWith(1, {
       configurationVersion: 1,
-      widgets: ['I23', 'I21', 'I01']
+      widgets: ['I23', 'I21', 'I01'],
+      pinnedToOverview: false
     });
     expect(api.dashboard).toHaveBeenCalledTimes(2);
   });
@@ -786,4 +795,309 @@ it('allows an explicit reset even when all legacy widgets already display the de
   await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
   await waitFor(() => expect(api.resetPreference).toHaveBeenCalledOnce());
   expect(await screen.findByText('Painel restaurado ao padrão')).toBeInTheDocument();
+});
+
+function mountOverview(projectId = 1, refreshVersion = 0) {
+  return render(
+    <ConfirmProvider>
+      <MemoryRouter
+        initialEntries={['/projects/1?view=github&startDate=2025-01-01&endDate=2025-02-01']}
+      >
+        <DashboardPanel projectId={projectId} refreshVersion={refreshVersion} overview />
+      </MemoryRouter>
+    </ConfirmProvider>
+  );
+}
+
+describe('personal dashboard pinned to the project overview', () => {
+  it('saves the edited order and pin together, then shows it on every overview visit', async () => {
+    const app = mount();
+    const dialog = await editor();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Fixar na Visão Geral' }));
+    await screen.findByText('Painel salvo e fixado na Visão Geral');
+    expect(api.savePreference).toHaveBeenCalledExactlyOnceWith(1, {
+      configurationVersion: 1,
+      widgets: ['I23', 'I01'],
+      pinnedToOverview: true
+    });
+    app.unmount();
+    const overview = mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+    expect(screen.getByRole('region', { name: 'Painel fixado na Visão Geral' })).toBeVisible();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saúde do projeto')).not.toBeInTheDocument();
+    expect(api.dashboard.mock.calls.at(-1)[1]).toMatchObject({
+      view: 'CUSTOM',
+      widgets: 'I23,I01'
+    });
+    expect(api.dashboard.mock.calls.at(-1)[1]).not.toHaveProperty('startDate');
+    overview.unmount();
+    mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+  });
+
+  it.each([false, undefined])(
+    'does not fetch or render custom widgets when pin is %s',
+    async (pin) => {
+      stored = { ...stored, pinnedToOverview: pin };
+      mountOverview();
+      await waitFor(() =>
+        expect(screen.queryByText('Carregando seu painel...')).not.toBeInTheDocument()
+      );
+      expect(api.preference).toHaveBeenCalledOnce();
+      expect(api.dashboard).not.toHaveBeenCalled();
+      expect(api.catalog).not.toHaveBeenCalled();
+      expect(screen.queryByRole('region', { name: 'Meu painel' })).not.toBeInTheDocument();
+    }
+  );
+
+  it('pins an unchanged valid selection and keeps the draft after a failed pin', async () => {
+    api.savePreference.mockRejectedValueOnce(new Error('Offline'));
+    mount();
+    const dialog = await editor();
+    const pin = within(dialog).getByRole('button', { name: 'Fixar na Visão Geral' });
+    expect(pin).toBeEnabled();
+    await userEvent.click(pin);
+    expect(await within(dialog).findByText(/Sua seleção foi mantida/)).toBeVisible();
+    expect(stored.pinnedToOverview).not.toBe(true);
+    await userEvent.click(pin);
+    await screen.findByText('Painel salvo e fixado na Visão Geral');
+    expect(stored.widgets).toEqual(['I01', 'I23']);
+    expect(stored.pinnedToOverview).toBe(true);
+  });
+
+  it('does not allow an empty selection to be pinned', async () => {
+    mount();
+    const dialog = await editor();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Remover Progresso atual do painel' })
+    );
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Remover Trabalho em andamento do painel' })
+    );
+    expect(within(dialog).getByRole('button', { name: 'Fixar na Visão Geral' })).toBeDisabled();
+    expect(api.savePreference).not.toHaveBeenCalled();
+  });
+
+  it('unpins without deleting the selected widgets and stays unpinned after reload', async () => {
+    stored = { ...stored, widgets: ['I23', 'I01'], pinnedToOverview: true, isDefault: false };
+    const app = mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+    await userEvent.click(screen.getByRole('button', { name: 'Remover da Visão Geral' }));
+    await screen.findByText(
+      'Painel removido da Visão Geral. Sua seleção continua salva em Indicadores.'
+    );
+    expect(api.resetPreference).not.toHaveBeenCalled();
+    expect(stored).toMatchObject({ widgets: ['I23', 'I01'], pinnedToOverview: false });
+    expect(widgetOrder()).toEqual([]);
+    app.unmount();
+    const overview = mountOverview();
+    await waitFor(() =>
+      expect(screen.queryByText('Carregando seu painel...')).not.toBeInTheDocument()
+    );
+    expect(widgetOrder()).toEqual([]);
+    overview.unmount();
+    mount();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+  });
+
+  it('keeps the pin and panel after failed removal and allows retry', async () => {
+    stored = { ...stored, pinnedToOverview: true };
+    api.setOverviewPin.mockRejectedValueOnce(new Error('Offline'));
+    mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    await userEvent.click(screen.getByRole('button', { name: 'Remover da Visão Geral' }));
+    await screen.findByRole('button', { name: 'Tentar novamente' });
+    expect(widgetOrder()).toEqual(['I01', 'I23']);
+    expect(stored.pinnedToOverview).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(widgetOrder()).toEqual([]));
+    expect(stored.pinnedToOverview).toBe(false);
+  });
+
+  it('keeps a pinned panel pinned when saving changes or restoring the default selection', async () => {
+    stored = { ...stored, widgets: ['I21'], pinnedToOverview: true, isDefault: false };
+    mount();
+    let dialog = await editor();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Adicionar: Progresso atual' })
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I21', 'I01']));
+    expect(stored.pinnedToOverview).toBe(true);
+    dialog = await editor();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Restaurar padrão' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restaurar', exact: true }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    expect(stored.pinnedToOverview).toBe(true);
+    expect(api.resetPreference).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes a changed catalog without mutating a saved pin or requesting removed widgets', async () => {
+    stored = { ...stored, widgets: ['I99', 'I23'], pinnedToOverview: true };
+    mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23']));
+    expect(screen.getByText(/Alguns indicadores salvos não estão mais disponíveis/)).toBeVisible();
+    expect(api.dashboard.mock.calls.at(-1)[1].widgets).toBe('I23');
+    expect(api.savePreference).not.toHaveBeenCalled();
+    expect(stored.widgets).toEqual(['I99', 'I23']);
+  });
+
+  it('uses safe defaults for an empty legacy panel while explaining the adjustment', async () => {
+    stored = { ...stored, widgets: [], pinnedToOverview: true };
+    mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    expect(screen.getByText(/Alguns indicadores salvos não estão mais disponíveis/)).toBeVisible();
+    expect(api.savePreference).not.toHaveBeenCalled();
+  });
+
+  it('does not flash the previous project panel while the next preference is pending', async () => {
+    stored = { ...stored, pinnedToOverview: true };
+    const app = mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    const pending = deferred();
+    api.preference.mockReturnValueOnce(pending.promise);
+    app.rerender(
+      <ConfirmProvider>
+        <MemoryRouter>
+          <DashboardPanel projectId={2} overview />
+        </MemoryRouter>
+      </ConfirmProvider>
+    );
+    expect(widgetOrder()).toEqual([]);
+    await act(() => pending.resolve({ data: { ...stored, pinnedToOverview: false } }));
+    expect(widgetOrder()).toEqual([]);
+    expect(api.dashboard.mock.calls.every(([projectId]) => projectId === 1)).toBe(true);
+  });
+
+  it('refreshes the pinned data when the project sync refresh version changes', async () => {
+    stored = { ...stored, pinnedToOverview: true };
+    const app = mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    app.rerender(
+      <ConfirmProvider>
+        <MemoryRouter>
+          <DashboardPanel projectId={1} refreshVersion={1} overview />
+        </MemoryRouter>
+      </ConfirmProvider>
+    );
+    await waitFor(() => expect(api.dashboard).toHaveBeenCalledTimes(2));
+    expect(api.dashboard.mock.calls.at(-1)[1].view).toBe('CUSTOM');
+  });
+  it('unpins in the editor without saving or losing its unsaved draft, including after an error', async () => {
+    stored = { ...stored, pinnedToOverview: true };
+    api.setOverviewPin.mockRejectedValueOnce(new Error('Offline'));
+    mount();
+    const dialog = await editor();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remover da Visão Geral' }));
+    await within(dialog).findByText(/Sua seleção foi mantida/);
+    expect(stored.pinnedToOverview).toBe(true);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remover da Visão Geral' }));
+    await within(dialog).findByRole('button', { name: 'Fixar na Visão Geral' });
+    expect(stored).toMatchObject({ widgets: ['I01', 'I23'], pinnedToOverview: false });
+    expect(api.savePreference).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+    expect(stored.pinnedToOverview).toBe(false);
+  });
+
+  it('can unpin without a catalog and does not rewrite removed widgets', async () => {
+    stored = { ...stored, widgets: ['I99', 'I23'], pinnedToOverview: true };
+    api.catalog.mockRejectedValue(new Error('Offline'));
+    mountOverview();
+    const unpin = await screen.findByRole('button', { name: 'Remover da Visão Geral' });
+    await userEvent.click(unpin);
+    await waitFor(() => expect(stored.pinnedToOverview).toBe(false));
+    expect(stored.widgets).toEqual(['I99', 'I23']);
+    expect(api.setOverviewPin).toHaveBeenCalledExactlyOnceWith(1, false);
+    expect(api.savePreference).not.toHaveBeenCalled();
+  });
+
+  it('shows a failed preference read with retry instead of assuming unpinned', async () => {
+    api.preference.mockRejectedValueOnce(new Error('Offline'));
+    stored = { ...stored, pinnedToOverview: true };
+    mountOverview();
+    const retry = await screen.findByRole('button', { name: 'Tentar novamente' });
+    expect(api.dashboard).not.toHaveBeenCalled();
+    await userEvent.click(retry);
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    expect(api.preference).toHaveBeenCalledTimes(2);
+  });
+  it('keeps the same overview editor and unsaved draft after unpinning, with no hidden aggregate fetch', async () => {
+    stored = { ...stored, pinnedToOverview: true };
+    const app = mountOverview();
+    const dialog = await editor();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    const requests = api.dashboard.mock.calls.length;
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remover da Visão Geral' }));
+    await within(dialog).findByRole('button', { name: 'Fixar na Visão Geral' });
+    expect(screen.getByRole('dialog', { name: 'Personalizar painel' })).toBe(dialog);
+    expect(within(dialog).getAllByRole('button', { name: /^Reordenar / })[0]).toHaveAccessibleName(
+      'Reordenar Trabalho em andamento, posição 1 de 2'
+    );
+    expect(
+      screen.queryByRole('region', { name: 'Painel fixado na Visão Geral' })
+    ).not.toBeInTheDocument();
+    expect(api.dashboard).toHaveBeenCalledTimes(requests);
+    expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(stored).toMatchObject({ widgets: ['I23', 'I01'], pinnedToOverview: false });
+    expect(api.dashboard).toHaveBeenCalledTimes(requests);
+    app.unmount();
+    mount();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+  });
+  it('keeps overview periods local to the visit and resets them on project navigation', async () => {
+    stored = { ...stored, pinnedToOverview: true };
+    function OverviewRoute() {
+      const { projectId } = useParams();
+      return <DashboardPanel projectId={Number(projectId)} overview />;
+    }
+    const router = createMemoryRouter(
+      [{ path: '/projects/:projectId', element: <OverviewRoute /> }],
+      {
+        initialEntries: ['/projects/1?view=github&source=kept']
+      }
+    );
+    render(
+      <ConfirmProvider>
+        <RouterProvider router={router} />
+      </ConfirmProvider>
+    );
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    await userEvent.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+    fireEvent.change(screen.getByLabelText('De', { exact: true }), {
+      target: { value: '2026-09-01' }
+    });
+    fireEvent.change(screen.getByLabelText('Até', { exact: true }), {
+      target: { value: '2026-09-30' }
+    });
+    await waitFor(() =>
+      expect(api.dashboard.mock.calls.at(-1)[1]).toMatchObject({
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        view: 'CUSTOM'
+      })
+    );
+    expect(router.state.location.search).toBe('?view=github&source=kept');
+    expect(api.savePreference).not.toHaveBeenCalled();
+    await act(() => router.navigate('/projects/2'));
+    await waitFor(() => expect(api.dashboard.mock.calls.at(-1)[0]).toBe(2));
+    expect(api.dashboard.mock.calls.at(-1)[1]).not.toHaveProperty('startDate');
+    await act(() => router.navigate(-1));
+    await waitFor(() => expect(api.dashboard.mock.calls.at(-1)[0]).toBe(1));
+    expect(api.dashboard.mock.calls.at(-1)[1]).not.toHaveProperty('startDate');
+    expect(router.state.location.search).toBe('?view=github&source=kept');
+  });
 });

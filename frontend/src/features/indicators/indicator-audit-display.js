@@ -41,12 +41,13 @@ export function indicatorAuditDetails(indicator, metadata) {
   const sources = indicator.sources ?? [];
   // These requirement projections include synchronized technical evidence.
   const external =
-    indicator.sourceSyncStatus != null ||
-    sources.some(
-      (source) =>
-        /^(Commit|Git|PullRequest|Issue|I02|I04)/.test(source) ||
-        ['S1-09 technicalEvidence', 'S1-09 situation', 'S1-09 implementation'].includes(source)
-    );
+    indicator.sourceScope !== 'LOCAL' &&
+    (indicator.sourceSyncStatus != null ||
+      sources.some(
+        (source) =>
+          /^(Commit|Git|PullRequest|Issue|I02|I04)/.test(source) ||
+          ['S1-09 technicalEvidence', 'S1-09 situation', 'S1-09 implementation'].includes(source)
+      ));
   const clock =
     indicator.state === 'UNAVAILABLE'
       ? null

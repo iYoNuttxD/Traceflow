@@ -25,49 +25,64 @@ const props = {
   onLoaded: () => {},
   canWrite: true
 };
-it('exposes creation only on FAIL and preserves committed defects across returns', async () => {
-  const create = vi.fn(),
-    open = vi.fn(),
-    user = userEvent.setup();
-  const saved = {
-    id: 1,
-    title: 'Primeiro',
-    detectedExecutionStepId: 101,
-    severity: 'ALTA',
-    status: 'ABERTO'
-  };
-  const ui = (receipts) => (
-    <MemoryRouter>
-      <TestCaseDialogContent
-        {...props}
-        onCreateDefect={create}
-        onOpenDefect={open}
-        defectReceipt={receipts}
-      />
-    </MemoryRouter>
-  );
-  const view = render(ui([]));
-  await user.click(await screen.findByRole('button', { name: 'Registrar defeito' }));
-  expect(create).toHaveBeenCalledOnce();
-  expect(create.mock.calls[0][1].id).toBe(101);
-  view.rerender(
-    ui([
-      { kind: 'create', saved },
-      { kind: 'create', saved: { ...saved, id: 2, title: 'Segundo' } }
-    ])
-  );
-  expect(screen.getByRole('button', { name: 'DEF-1 · Primeiro' })).toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'DEF-2 · Segundo' }));
-  expect(open).toHaveBeenCalledWith(2);
-  view.rerender(
-    ui([
-      { kind: 'create', saved },
-      { kind: 'delete', id: 1 }
-    ])
-  );
-  expect(screen.queryByRole('button', { name: 'DEF-1 · Primeiro' })).not.toBeInTheDocument();
-  expect(read).toHaveBeenCalledOnce();
-});
+it.each(['PULL_REQUEST', 'MANUAL'])(
+  'exposes creation only on FAIL for %s and preserves committed defects across returns',
+  async (type) => {
+    if (type === 'MANUAL') {
+      const current = await read();
+      read.mockClear();
+      read.mockResolvedValue({
+        ...current,
+        testedReferenceSnapshot: { type: 'MANUAL', version: 'build antes da integração' }
+      });
+    }
+    const create = vi.fn(),
+      open = vi.fn(),
+      user = userEvent.setup();
+    const saved = {
+      id: 1,
+      title: 'Primeiro',
+      detectedExecutionStepId: 101,
+      severity: 'ALTA',
+      status: 'ABERTO'
+    };
+    const ui = (receipts) => (
+      <MemoryRouter>
+        <TestCaseDialogContent
+          {...props}
+          onCreateDefect={create}
+          onOpenDefect={open}
+          defectReceipt={receipts}
+        />
+      </MemoryRouter>
+    );
+    const view = render(ui([]));
+    await user.click(await screen.findByRole('button', { name: 'Registrar defeito' }));
+    if (type === 'MANUAL') {
+      expect(screen.getByText('build antes da integração')).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /GitHub/ })).not.toBeInTheDocument();
+    }
+    expect(create).toHaveBeenCalledOnce();
+    expect(create.mock.calls[0][1].id).toBe(101);
+    view.rerender(
+      ui([
+        { kind: 'create', saved },
+        { kind: 'create', saved: { ...saved, id: 2, title: 'Segundo' } }
+      ])
+    );
+    expect(screen.getByRole('button', { name: 'DEF-1 · Primeiro' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'DEF-2 · Segundo' }));
+    expect(open).toHaveBeenCalledWith(2);
+    view.rerender(
+      ui([
+        { kind: 'create', saved },
+        { kind: 'delete', id: 1 }
+      ])
+    );
+    expect(screen.queryByRole('button', { name: 'DEF-1 · Primeiro' })).not.toBeInTheDocument();
+    expect(read).toHaveBeenCalledOnce();
+  }
+);
 it('never exposes FAIL mutations to a viewer', async () => {
   render(
     <MemoryRouter>
