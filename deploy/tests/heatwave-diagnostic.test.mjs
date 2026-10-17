@@ -59,8 +59,8 @@ const publicGraph = {
   IS_GRANTABLE: "NO",
   IS_MANDATORY: "YES",
 };
-const grantRows = (values) =>
-  values.map((grant) => ({ "Grants for traceflow_diag@10.20.1.184": grant }));
+const grantRows = (values, column = "Grants for traceflow_diag@10.20.1.184") =>
+  values.map((grant) => ({ [column]: grant }));
 const unsafeDetail =
   syntheticPassword +
   " mysql://synthetic.invalid/private SELECT private_payload";
@@ -166,13 +166,13 @@ async function scenario(options = {}) {
     ],
     Object.hasOwn(options, "directGrants")
       ? options.directGrants
-      : grantRows([
-          ...grants,
-          ...(options.explicitPublic ? [publicAssignment] : []),
-        ]),
+      : grantRows(
+          [...grants, ...(options.explicitPublic ? [publicAssignment] : [])],
+          options.grantColumn,
+        ),
     options.settings ?? [{ activateAllRolesOnLogin: 0n }],
     Object.hasOwn(options, "roleGraph") ? options.roleGraph : [],
-    [{ value: 1n }],
+    [{ 1: 1n }],
   ];
   if (options.audited)
     responses.push(
@@ -204,6 +204,12 @@ async function scenario(options = {}) {
         throw fault("SIMULATED_EXIT");
       }
       if (options.failSql === index) throw options.error ?? fault();
+      if (
+        sql === originalSql[3] &&
+        queries.filter((query) => query === originalSql[3]).length === 2 &&
+        Object.hasOwn(options, "finalGrants")
+      )
+        return options.finalGrants;
       return responses[index];
     },
   };
@@ -1053,3 +1059,240 @@ for (const [name, options, code, phase] of [
     assert.equal(r.value.code, code);
     assert.equal(r.value.phase, phase);
   });
+
+// Observed with Prisma 6.12.0 + MySQL Community 26.7.0 on 2026-10-17:
+// prepared SHOW GRANTS FOR CURRENT_USER returns one string column named f0;
+// the textual client returns "Grants for <account>". These are row-format
+// regression fixtures, not evidence of managed role absence or final approval.
+const preparedAccount = "traceflow_diag@10.20.1.184";
+const preparedGrants = [
+  "GRANT USAGE ON *.* TO " + recipient,
+  "GRANT SELECT ON `traceflow`.* TO " + recipient,
+];
+const preparedRows = (grants = preparedGrants) => grantRows(grants, "f0");
+const validatePrepared = (rows, account = preparedAccount) =>
+  heatwave.validateDirectGrants(rows, "traceflow", "diagnostic", {}, account);
+
+for (const column of ["f0", "Grants for " + preparedAccount])
+  test("MySQL 26.7 grant format accepts only audited SELECT: " + column, () => {
+    assert.deepEqual(validatePrepared(grantRows(preparedGrants, column)), {
+      privileges: ["SELECT"],
+      publicAssigned: false,
+      recipient: preparedAccount,
+    });
+  });
+
+for (const [name, rows] of [
+  ["unknown column", grantRows(preparedGrants, "f1")],
+  ["case variation", grantRows(preparedGrants, "F0")],
+  ["padded column", grantRows(preparedGrants, "f0 ")],
+  ["empty column", grantRows(preparedGrants, "")],
+  ["foreign named account", grantRows(preparedGrants, "Grants for other@%")],
+  ["extra column", [{ f0: preparedGrants[1], extra: unsafeDetail }]],
+  [
+    "two recognized columns",
+    [
+      {
+        f0: preparedGrants[1],
+        ["Grants for " + preparedAccount]: preparedGrants[1],
+      },
+    ],
+  ],
+  [
+    "symbol column",
+    [{ f0: preparedGrants[1], [Symbol("extra")]: unsafeDetail }],
+  ],
+  [
+    "non-enumerable extra",
+    [
+      Object.defineProperty({ f0: preparedGrants[1] }, "extra", {
+        value: unsafeDetail,
+      }),
+    ],
+  ],
+  ["inherited column", [Object.create({ f0: preparedGrants[1] })]],
+  ["null value", [{ f0: null }]],
+  ["number value", [{ f0: 1 }]],
+  ["bigint value", [{ f0: 1n }]],
+  ["buffer value", [{ f0: Buffer.from(preparedGrants[1]) }]],
+  ["object value", [{ f0: { value: preparedGrants[1] } }]],
+  ["array row", [[preparedGrants[1]]]],
+  ["empty value", [{ f0: "" }]],
+  ["newline in grant", [{ f0: preparedGrants[1] + "\n" }]],
+  ["NUL in grant", [{ f0: preparedGrants[1] + "\0" }]],
+  ["DEL in grant", [{ f0: preparedGrants[1] + "\x7f" }]],
+  ["duplicate grant", preparedRows([...preparedGrants, preparedGrants[1]])],
+])
+  test("prepared grants reject malformed " + name, () => {
+    assert.throws(() => validatePrepared(rows), { code: "MALFORMED_GRANTS" });
+  });
+
+for (const account of [undefined, null, ""])
+  test(
+    "prepared grants require an authenticated account: " + String(account),
+    () => {
+      assert.throws(
+        () =>
+          heatwave.validateDirectGrants(
+            preparedRows(),
+            "traceflow",
+            "diagnostic",
+            {},
+            account,
+          ),
+        { code: "MALFORMED_GRANTS" },
+      );
+    },
+  );
+test("prepared grants cannot be accepted by the unbound legacy wrapper", () => {
+  assert.throws(() => heatwave.validateGrants(preparedRows(), "traceflow"), {
+    code: "MALFORMED_GRANTS",
+  });
+});
+test("prepared grant accessor is never invoked or serialized", () => {
+  let called = 0;
+  const row = Object.defineProperty({}, "f0", {
+    get() {
+      called++;
+      throw Error(unsafeDetail);
+    },
+  });
+  assert.throws(() => validatePrepared([row]), { code: "MALFORMED_GRANTS" });
+  assert.equal(called, 0);
+});
+for (const privilege of [
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "CREATE",
+  "ALTER",
+  "DROP",
+  "FILE",
+  "SUPER",
+  "SYSTEM_USER",
+  "ALL PRIVILEGES",
+])
+  test("prepared grants still reject " + privilege, () => {
+    assert.throws(
+      () =>
+        validatePrepared(
+          preparedRows([
+            ...preparedGrants,
+            "GRANT " + privilege + " ON `traceflow`.* TO " + recipient,
+          ]),
+        ),
+      { code: "EXCESSIVE_OR_UNRESOLVED_GRANTS" },
+    );
+  });
+for (const [name, grant] of [
+  ["global SELECT", "GRANT SELECT ON *.* TO " + recipient],
+  ["other schema", "GRANT SELECT ON `other`.* TO " + recipient],
+  ["table scope", "GRANT SELECT ON `traceflow`.`table` TO " + recipient],
+  ["GRANT OPTION", preparedGrants[1] + " WITH GRANT OPTION"],
+  ["public assignment", publicAssignment],
+  ["additional role", "GRANT `reader`@`%` TO " + recipient],
+  ["ADMIN OPTION", publicAssignment + " WITH ADMIN OPTION"],
+  ["partial revoke", "REVOKE SELECT ON `other`.* FROM " + recipient],
+  ["trailing SQL", preparedGrants[1] + "; SELECT 1"],
+])
+  test("prepared grants still reject " + name, () => {
+    assert.throws(
+      () => validatePrepared(preparedRows([...preparedGrants, grant])),
+      { code: "EXCESSIVE_OR_UNRESOLVED_GRANTS" },
+    );
+  });
+for (const account of ["`other`@`10.20.1.184`", "`traceflow_diag`@`%`"])
+  test("prepared grants bind the complete recipient " + account, () => {
+    assert.throws(
+      () =>
+        validatePrepared(
+          preparedRows(["GRANT SELECT ON `traceflow`.* TO " + account]),
+        ),
+      { code: "GRANT_IDENTITY_MISMATCH" },
+    );
+  });
+
+test("MySQL 26.7 prepared rows reach only the managed intermediate result", async () => {
+  const r = await scenario({
+    audited: true,
+    grantColumn: "f0",
+    identity: { port: 3306n },
+  });
+  assert.equal(r.value.status, "PRISMA_VERIFIED");
+  assert.equal(r.value.final, false);
+  assert.equal(r.value.writes, false);
+  assert.equal(r.value.payload.disconnected, true);
+  sameQueries(r.queries, [
+    ...originalSql.slice(0, 4),
+    prismaAudit.AUDITED_SETTINGS_SQL,
+    "SELECT 1",
+    prismaAudit.AUDITED_FINAL_SQL,
+    originalSql[3],
+  ]);
+});
+test("MySQL 26.7 prepared rows preserve local-isolated direct-only diagnostics", async () => {
+  const r = await scenario({
+    local: true,
+    publicRole: false,
+    grantColumn: "f0",
+  });
+  assert.equal(r.value.status, "PASS");
+  assert.equal(r.value.mode, "local-isolated");
+  assert.equal(r.value.writes, false);
+  assert.equal(r.value.disconnected, true);
+});
+for (const [name, rows, code] of [
+  [
+    "extra write",
+    preparedRows([
+      ...preparedGrants,
+      "GRANT INSERT ON `traceflow`.* TO " + recipient,
+    ]),
+    "EXCESSIVE_OR_UNRESOLVED_GRANTS",
+  ],
+  [
+    "public assignment",
+    preparedRows([...preparedGrants, publicAssignment]),
+    "EXCESSIVE_OR_UNRESOLVED_GRANTS",
+  ],
+  [
+    "malformed result",
+    [{ f0: unsafeDetail, extra: unsafeDetail }],
+    "MALFORMED_GRANTS",
+  ],
+  [
+    "foreign host",
+    preparedRows(["GRANT SELECT ON `traceflow`.* TO `traceflow_diag`@`%`"]),
+    "GRANT_IDENTITY_MISMATCH",
+  ],
+  [
+    "SHOW VIEW outside approved profile",
+    preparedRows(["GRANT SELECT, SHOW VIEW ON `traceflow`.* TO " + recipient]),
+    "AUDIT_SESSION_GRANTS_MISMATCH",
+  ],
+])
+  for (const final of [false, true])
+    test(
+      "prepared managed " +
+        (final ? "final" : "initial") +
+        " audit rejects " +
+        name,
+      async () => {
+        const r = await scenario({
+          audited: true,
+          grantColumn: "f0",
+          [final ? "finalGrants" : "directGrants"]: rows,
+        });
+        assert.equal(r.value.status, "FAIL");
+        assert.equal(r.value.code, code);
+        assert.equal(
+          r.value.phase,
+          final ? "SQL_FINAL_GRANTS" : "DIRECT_GRANTS",
+        );
+        assert.ok(!JSON.stringify(r.value).includes(unsafeDetail));
+        assert.equal(
+          r.events.filter((event) => event === "DISCONNECT").length,
+          1,
+        );
+      },
+    );

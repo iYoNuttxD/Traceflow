@@ -257,6 +257,9 @@ export function connectionContract(environment, authorization) {
 }
 
 // Accept only the single-column SHOW GRANTS result, never arbitrary first values.
+// Prisma 6.12/MySQL 26.7 prepared results use f0 instead of the textual header.
+// That alias requires the authenticated account; auditGrants still binds every
+// statement's full recipient and audits its privileges, scope and role assignments.
 function grantText(row, currentUser) {
   let value = row;
   if (typeof row !== 'string') {
@@ -265,7 +268,10 @@ function grantText(row, currentUser) {
     check(
       keys.length === 1 &&
         typeof keys[0] === 'string' &&
-        (currentUser ? keys[0] === 'Grants for ' + currentUser : keys[0].startsWith('Grants for ')),
+        (currentUser
+          ? keys[0] === 'Grants for ' + currentUser ||
+            (keys[0] === 'f0' && typeof currentUser === 'string')
+          : keys[0].startsWith('Grants for ')),
       'MALFORMED_GRANTS'
     );
     value = errorProperty(row, keys[0]);

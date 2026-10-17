@@ -623,3 +623,14 @@ for (let i = 0; i < 4; i++)
       assert.ok(!JSON.stringify(r.failure).includes("private"));
     },
   );
+
+test("MySQL 26.7 observed bigint aliases and f0 final grants remain auditable", async () => {
+  const r = await sessionScenario((x) => {
+    x.identity.port = 3306n;
+    x.responses[2][0].port = 3306n;
+    x.responses[3] = admin.GRANTS.map((grant) => ({ f0: grant }));
+  });
+  assert.equal(r.result.prisma, "6.12.0");
+  assert.equal(r.result.connectionId, "201");
+  assert.ok(Object.values(r.result.checks).every((value) => value === true));
+});
