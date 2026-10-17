@@ -46,6 +46,7 @@ class ReleaseTests(unittest.TestCase):
             dest=runtime/path;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(value)
         (admin/"node_modules/prisma/build").mkdir(parents=True)
         (admin/"node_modules/prisma/build/index.js").write_text("// fixture")
+        shutil.copytree(runtime/"backend/prisma",admin/"prisma")
         common={"formatVersion":1,"application":"TraceFlow","releaseId":rid,"commitSha":"a"*40,
             "platform":{"os":"linux","architecture":"arm64","distribution":"Oracle Linux 9.8","opensslMajor":3},
             "sourceState":"candidate","nodeVersion":"22.23.2","prismaVersion":"6.12.0","schema":c.schema_contract(runtime)}

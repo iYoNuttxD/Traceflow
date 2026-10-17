@@ -1,11 +1,21 @@
 // Administrative/read-only bridge. JSON-lines protocol; never loads .env or prints SQL/errors.
 import { createRequire } from "node:module";
 import { readFileSync, lstatSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
 import { lookup } from "node:dns/promises";
+import {
+  isInitial,
+  validateMigrationPolicy,
+  validateUtc,
+  assertInitialSnapshot,
+  assertUpgradeSnapshot,
+  loadInitialEvidence,
+  validateReleaseGrants,
+  verifyMigrationFiles,
+} from "./lib/migration-contract.mjs";
 
 const [releaseArg, adminArg, authorizationArg, mode] = process.argv.slice(2);
 let client, runningChild;
@@ -109,7 +119,11 @@ try {
       url.hostname === "127.0.0.1" &&
         target.port >= 49152 &&
         target.port <= 65535 &&
-        !url.search &&
+        (!url.search ||
+          (url.searchParams.get("sslaccept") === "strict" &&
+            url.searchParams
+              .get("sslcert")
+              ?.startsWith(dirname(target.datadir) + "/"))) &&
         /^tf_oci_[a-f0-9]{12}_test$/.test(target.schema) &&
         target.ownerHash &&
         target.datadir,
@@ -139,7 +153,11 @@ try {
     }
     check(
       auth.gates?.heatwaveTlsHomologated === true &&
-        auth.gates?.restoreRehearsed === true &&
+        (isInitial(auth) ||
+          auth.operation === "inspect-schema" ||
+          (auth.operation === "recover-migration" &&
+            auth.migrationKind === "initial") ||
+          auth.gates?.restoreRehearsed === true) &&
         auth.gates?.deploymentAuthorized === true,
       "PRODUCTION_GATES",
     );
@@ -163,6 +181,12 @@ try {
       "UNREVIEWED_CONNECTION_OPTION",
     );
   }
+  if (isInitial(auth) || auth.operation === "migrate")
+    validateMigrationPolicy(auth, manifest);
+  let initialEvidence = isInitial(auth)
+    ? loadInitialEvidence(auth, manifest)
+    : null;
+  verifyMigrationFiles(release, admin, manifest);
   const require = createRequire(resolve(release, "backend/package.json"));
   const { PrismaClient, Prisma } = require("@prisma/client");
   check(
@@ -175,7 +199,7 @@ try {
   await client.$transaction(
     async (tx) => {
       const [identity] = await tx.$queryRawUnsafe(
-        "SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version, @@global.time_zone AS globalTimeZone, CONNECTION_ID() AS connectionId",
+        "SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version, @@global.time_zone AS globalTimeZone, @@session.time_zone AS sessionTimeZone, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS utcOffsetSeconds, CURRENT_USER() AS currentUser, CURRENT_ROLE() AS activeRoles, @@mandatory_roles AS mandatoryRoles, @@partial_revokes AS partialRevokes, @@activate_all_roles_on_login AS activateAllRolesOnLogin, CONNECTION_ID() AS connectionId",
       );
       check(
         identity.db === target.schema &&
@@ -203,63 +227,24 @@ try {
         );
         check(tls[0]?.Value, "TLS_SESSION_REQUIRED");
       }
-      if (mode === "migrate")
-        check(identity.globalTimeZone === "+00:00", "MIGRATION_UTC_REQUIRED");
+      if (mode === "migrate") validateUtc(identity);
       const grants = await tx.$queryRawUnsafe("SHOW GRANTS FOR CURRENT_USER");
-      const allowedScopes = new Set(["`" + target.schema + "`.*"]);
-      if (disposable)
-        allowedScopes.add(
-          "`" + target.schema.replace(/_test$/, "_owner") + "`.*",
-        );
-      check(
-        grants.every((g) => {
-          const text = Object.values(g).join(" ");
-          if (/^GRANT USAGE ON \*\.\* TO /.test(text)) return true;
-          const match = /^GRANT ([A-Z ,]+) ON (.+?) TO /.exec(text);
-          return (
-            match &&
-            allowedScopes.has(match[2]) &&
-            !/GRANT OPTION|SUPER|FILE|CREATE USER|SYSTEM_USER/.test(text)
-          );
-        }),
-        "EXCESSIVE_DATABASE_PRIVILEGES",
+      validateReleaseGrants(
+        grants,
+        target,
+        mode,
+        identity.currentUser,
+        disposable,
       );
-      if (mode === "read") {
+      check(identity.activeRoles === "NONE", "DATABASE_ACTIVE_ROLE");
+      if (initialEvidence) {
         check(
-          grants.every(
-            (g) =>
-              !/\b(?:ALL PRIVILEGES|CREATE|ALTER|DROP|INDEX|TRIGGER|GRANT OPTION|FILE|SUPER)\b/i.test(
-                Object.values(g).join(" "),
-              ),
-          ),
-          "RUNTIME_DDL_PRIVILEGE",
-        );
-      }
-      if (mode === "migrate") {
-        const scope = "`" + target.schema + "`.*";
-        const own = grants
-          .map((g) => Object.values(g).join(" "))
-          .filter((text) => text.includes(" ON " + scope + " TO "));
-        const privileges = own.flatMap((text) =>
-          text
-            .slice(6, text.indexOf(" ON "))
-            .split(",")
-            .map((x) => x.trim()),
-        );
-        check(
-          privileges.includes("ALL PRIVILEGES") ||
-            [
-              "SELECT",
-              "INSERT",
-              "UPDATE",
-              "DELETE",
-              "CREATE",
-              "ALTER",
-              "DROP",
-              "INDEX",
-              "REFERENCES",
-            ].every((x) => privileges.includes(x)),
-          "MIGRATION_DDL_PRIVILEGE",
+          identity.mandatoryRoles === initialEvidence.mandatoryRoles &&
+            Number(identity.partialRevokes) ===
+              initialEvidence.partialRevokes &&
+            Number(identity.activateAllRolesOnLogin) ===
+              initialEvidence.activateAllRolesOnLogin,
+          "INITIAL_ROLE_CONFIGURATION",
         );
       }
       const lockName =
@@ -271,6 +256,10 @@ try {
       );
       check(Number(locked.acquired) === 1, "DATABASE_OPERATION_LOCKED");
       async function fence() {
+        check(
+          Date.parse(auth.expiresAt) > Date.now(),
+          "AUTH_EXPIRED_OR_MISMATCH",
+        );
         const [row] = await tx.$queryRawUnsafe(
           "SELECT CAST(IS_USED_LOCK(?) AS UNSIGNED) AS owner",
           lockName,
@@ -281,8 +270,26 @@ try {
         );
       }
       async function snapshot() {
+        const schema = await tx.$queryRawUnsafe(
+          "SELECT DEFAULT_CHARACTER_SET_NAME AS charset, DEFAULT_COLLATION_NAME AS collation FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=DATABASE()",
+        );
+        check(
+          schema.length === 1 &&
+            schema[0].charset === "utf8mb4" &&
+            schema[0].collation === "utf8mb4_unicode_ci",
+          "SCHEMA_DEFAULTS",
+        );
+        const routines = await tx.$queryRawUnsafe(
+          "SELECT ROUTINE_NAME, ROUTINE_TYPE FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA=DATABASE() ORDER BY ROUTINE_NAME,ROUTINE_TYPE",
+        );
+        const triggers = await tx.$queryRawUnsafe(
+          "SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() ORDER BY TRIGGER_NAME",
+        );
+        const events = await tx.$queryRawUnsafe(
+          "SELECT EVENT_NAME, STATUS FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_SCHEMA=DATABASE() ORDER BY EVENT_NAME",
+        );
         const tables = await tx.$queryRawUnsafe(
-          "SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_COLLATION AS collation FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME<>'_prisma_migrations' ORDER BY TABLE_NAME",
+          "SELECT TABLE_NAME AS name, TABLE_TYPE AS type, ENGINE AS engine, TABLE_COLLATION AS collation FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME<>'_prisma_migrations' ORDER BY TABLE_NAME",
         );
         const columns = await tx.$queryRawUnsafe(
           "SELECT TABLE_NAME,COLUMN_NAME,ORDINAL_POSITION,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,CHARACTER_SET_NAME,COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME<>'_prisma_migrations' ORDER BY TABLE_NAME,ORDINAL_POSITION",
@@ -323,7 +330,26 @@ try {
           "MIGRATION_HISTORY_DIVERGENT",
         );
         return {
-          fingerprint: hash({ tables, columns, indexes, foreignKeys, checks }),
+          fingerprint: hash({
+            schema,
+            tables,
+            columns,
+            indexes,
+            foreignKeys,
+            checks,
+            routines,
+            triggers,
+            events,
+            historyTablePresent: exists.length > 0,
+          }),
+          historyTablePresent: exists.length > 0,
+          objectCounts: {
+            tables: tables.filter((x) => x.type === "BASE TABLE").length,
+            views: tables.filter((x) => x.type === "VIEW").length,
+            routines: routines.length,
+            triggers: triggers.length,
+            events: events.length,
+          },
           applied,
           tableCount: tables.length,
         };
@@ -340,6 +366,17 @@ try {
       };
       async function cli(args) {
         await fence();
+        check(
+          Date.parse(auth.expiresAt) > Date.now(),
+          "AUTH_EXPIRED_OR_MISMATCH",
+        );
+        verifyMigrationFiles(release, admin, manifest);
+        if (mode === "migrate") {
+          const [utc] = await tx.$queryRawUnsafe(
+            "SELECT @@global.time_zone AS globalTimeZone, @@session.time_zone AS sessionTimeZone, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS utcOffsetSeconds",
+          );
+          validateUtc(utc);
+        }
         return await new Promise((done, reject) => {
           runningChild = spawn(
             process.execPath,
@@ -361,6 +398,7 @@ try {
             } catch {
               lost = true;
               child.kill("SIGTERM");
+              timer ??= setTimeout(() => child.kill("SIGKILL"), 5000);
             } finally {
               checking = false;
             }
@@ -411,26 +449,55 @@ try {
         );
         return current;
       }
-      async function prepareMigration() {
+      async function prepareMigration(inspect = false) {
         check(
           mode === "migrate" &&
-            auth.operation === "migrate" &&
-            auth.gates?.writersControlled === true &&
-            auth.gates?.backupVerified === true &&
-            auth.gates?.restoreRehearsed === true &&
-            typeof auth.backupReference === "string" &&
-            auth.backupReference.length >= 8,
+            (auth.operation === "migrate" ||
+              (inspect
+                ? auth.operation === "inspect-initial-schema"
+                : auth.operation === "migrate-initial")),
           "MIGRATION_AUTHORIZATION",
         );
+        check(
+          Date.parse(auth.expiresAt) > Date.now(),
+          "AUTH_EXPIRED_OR_MISMATCH",
+        );
+        validateMigrationPolicy(auth, manifest);
+        if (isInitial(auth))
+          initialEvidence = loadInitialEvidence(auth, manifest);
+        const [session] = await tx.$queryRawUnsafe(
+          "SELECT @@global.time_zone AS globalTimeZone, @@session.time_zone AS sessionTimeZone, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS utcOffsetSeconds, CURRENT_USER() AS currentUser, CURRENT_ROLE() AS activeRoles, @@mandatory_roles AS mandatoryRoles, @@partial_revokes AS partialRevokes, @@activate_all_roles_on_login AS activateAllRolesOnLogin",
+        );
+        validateUtc(session);
+        check(
+          session.currentUser === identity.currentUser &&
+            session.activeRoles === "NONE",
+          "DATABASE_SESSION_CHANGED",
+        );
+        if (initialEvidence)
+          check(
+            session.mandatoryRoles === initialEvidence.mandatoryRoles &&
+              Number(session.partialRevokes) ===
+                initialEvidence.partialRevokes &&
+              Number(session.activateAllRolesOnLogin) ===
+                initialEvidence.activateAllRolesOnLogin,
+            "INITIAL_ROLE_CONFIGURATION",
+          );
+        validateReleaseGrants(
+          await tx.$queryRawUnsafe("SHOW GRANTS FOR CURRENT_USER"),
+          target,
+          mode,
+          session.currentUser,
+          disposable,
+        );
         const before = await snapshot();
-        check(
-          auth.beforeFingerprint === before.fingerprint,
-          "SCHEMA_BEFORE_MISMATCH",
-        );
-        check(
-          before.applied.length || before.tableCount === 0,
-          "UNBASELINED_SCHEMA",
-        );
+        if (isInitial(auth)) assertInitialSnapshot(before);
+        else assertUpgradeSnapshot(before);
+        if (!inspect)
+          check(
+            auth.beforeFingerprint === before.fingerprint,
+            "SCHEMA_BEFORE_MISMATCH",
+          );
         return before;
       }
       emit({ ready: true, targetVerified: true, lock: true });
@@ -446,6 +513,8 @@ try {
             let result;
             if (request.action === "check") result = { lock: true };
             else if (request.action === "snapshot") result = await snapshot();
+            else if (request.action === "initial-snapshot")
+              result = await prepareMigration(true);
             else if (request.action === "prepare-migration")
               result = await prepareMigration();
             else if (request.action === "compatible")
@@ -477,6 +546,9 @@ try {
                   .map((x) => x.name),
                 fingerprint: after.fingerprint,
                 migrationCount: after.applied.length,
+                migrationKind: isInitial(auth) ? "initial" : "upgrade",
+                chainSha256: manifest.schema.chainSha256,
+                initialEvidenceSha256: initialEvidence?.sha256 ?? null,
               };
             } else if (request.action === "close") {
               emit({ ok: true });
@@ -515,5 +587,9 @@ try {
   process.exitCode = 1;
 } finally {
   stopChild();
-  await client?.$disconnect();
+  try {
+    await client?.$disconnect();
+  } catch {
+    process.exitCode = 1;
+  } // Parent refuses completion; never log a raw disconnect error.
 }

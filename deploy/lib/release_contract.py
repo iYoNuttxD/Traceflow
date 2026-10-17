@@ -35,7 +35,14 @@ def file_digest(path):
 
 def read_json(path):
     require(not path.is_symlink() and path.is_file(), "JSON_FILE_REQUIRED")
-    return json.loads(path.read_bytes())
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            require(key not in result,"DUPLICATE_JSON_FIELD")
+            result[key]=value
+        return result
+    return json.loads(path.read_bytes(),object_pairs_hook=unique,
+                      parse_constant=lambda _: require(False,"INVALID_JSON_NUMBER"))
 
 def safe_relative(value):
     p = PurePosixPath(value)
@@ -131,8 +138,8 @@ def inventory(root, policy=True, omit_manifest=True):
     require(bool(result), "EMPTY_TREE")
     return result
 
-def schema_contract(root):
-    base = root / "backend/prisma"
+def schema_contract(root, kind="runtime"):
+    base = root / ("backend/prisma" if kind == "runtime" else "prisma")
     chain = [{"name": p.parent.name, "sha256": file_digest(p)}
              for p in sorted((base/"migrations").glob("*/migration.sql"))]
     require(chain and all(re.fullmatch(r"\d{14}(?:_[a-zA-Z0-9_]+)?", x["name"]) for x in chain), "INVALID_MIGRATION_CHAIN")
@@ -152,7 +159,17 @@ def validate_manifest(m, kind):
         require(name != "manifest.json" and re.fullmatch("[a-f0-9]{64}",rec["sha256"])
                 and 0 <= rec["size"] <= 512*1024*1024 and rec["mode"] in (0o644,0o755), "FILE_RECORD")
     require(sum(r["size"] for r in m["files"].values()) < 3*1024**3, "ARTIFACT_TOO_LARGE")
-    require(m["schema"]["chainSha256"] == digest(encoded(m["schema"]["migrations"])), "SCHEMA_DIGEST")
+    schema=m.get("schema",{});chain=schema.get("migrations",[])
+    require(schema.get("policy")=="exact-chain-and-live-drift-v1" and
+            bool(re.fullmatch("[a-f0-9]{64}",schema.get("schemaSha256",""))) and
+            isinstance(chain,list) and 0<len(chain)<1000,"SCHEMA_CONTRACT")
+    for item in chain:
+        require(isinstance(item,dict) and set(item)=={"name","sha256"} and
+                bool(re.fullmatch(r"\d{14}(?:_[a-zA-Z0-9_]+)?",item["name"])) and
+                bool(re.fullmatch("[a-f0-9]{64}",item["sha256"])),"INVALID_MIGRATION_CHAIN")
+    names=[x["name"] for x in chain]
+    require(names==sorted(set(names)),"INVALID_MIGRATION_CHAIN")
+    require(schema["chainSha256"] == digest(encoded(chain)), "SCHEMA_DIGEST")
 
 def verify_tree(root, kind, expected_manifest=None):
     m = read_json(root/"manifest.json")
@@ -165,6 +182,7 @@ def verify_tree(root, kind, expected_manifest=None):
             require(name in m["files"], "RUNTIME_LAYOUT")
     else:
         require("node_modules/prisma/build/index.js" in m["files"], "ADMIN_CLI_MISSING")
+        require(schema_contract(root,"admin")==m["schema"], "ADMIN_MIGRATION_INTEGRITY")
     return m
 
 def pack(root, output, manifest):
@@ -222,3 +240,35 @@ def descriptor(path, expected):
         archive=path.parent/rec["file"];trusted_path(archive)
         require(file_digest(archive)==rec["sha256"],"ARCHIVE_DIGEST")
     return value
+
+
+def operation_gates(auth, operation, disposable=False):
+    """Migration readiness and application readiness are distinct approvals."""
+    gates=auth.get("gates",{})
+    require(gates.get("writersControlled") is True,"WRITERS_NOT_CONTROLLED")
+    initial=operation in ("migrate-initial","inspect-initial-schema")
+    if initial:
+        plan=auth.get("initialization",{})
+        recovery=plan.get("recovery",{})
+        require(plan.get("formatVersion")==1 and
+                recovery.get("strategy")=="stop-and-review-empty-initialization" and
+                isinstance(recovery.get("planReference"),str) and len(recovery["planReference"])>=8 and
+                isinstance(recovery.get("operatorId"),str) and len(recovery["operatorId"])>=3,
+                "INITIAL_RECOVERY_PLAN_REQUIRED")
+        require("backupReference" not in auth and "backupVerified" not in gates and
+                "restoreRehearsed" not in gates,"INITIAL_BACKUP_CLAIM_FORBIDDEN")
+    elif operation=="migrate":
+        require("initialization" not in auth,"INITIAL_CONTRACT_ON_UPGRADE")
+        require(gates.get("backupVerified") is True and gates.get("restoreRehearsed") is True and
+                isinstance(auth.get("backupReference"),str) and len(auth["backupReference"])>=8,
+                "MIGRATION_AUTHORIZATION")
+    if not disposable:
+        for key in ("heatwaveTlsHomologated","deploymentAuthorized"):
+            require(gates.get(key) is True,"PRODUCTION_GATE_"+key)
+        if operation in ("activate","rollback","recover","smoke"):
+            for key in ("restoreRehearsed","uploadsResolved","smtpHomologated","githubAppHomologated"):
+                require(gates.get(key) is True,"PRODUCTION_GATE_"+key)
+        if operation=="recover-migration":
+            require(auth.get("migrationKind") in ("initial","upgrade"),"RECOVERY_KIND")
+            if auth["migrationKind"]=="upgrade":
+                require(gates.get("restoreRehearsed") is True,"PRODUCTION_GATE_restoreRehearsed")

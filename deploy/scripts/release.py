@@ -24,7 +24,7 @@ from urllib.parse import urlsplit
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"lib"))
 from release_contract import (Refused,require,encoded,digest,file_digest,read_json,private_json,
-    trusted_path,atomic_json,fsync_dir,exclusive_lock,release_id,descriptor,extract_verified,verify_tree,inventory)
+    trusted_path,atomic_json,fsync_dir,exclusive_lock,release_id,descriptor,extract_verified,verify_tree,inventory,operation_gates)
 
 SERVICES=("traceflow-api.service","traceflow-github-worker.service")
 ASSET=re.compile(r"^[A-Za-z0-9_./-]+-[A-Za-z0-9_-]{8,}\.(?:js|css|png|jpe?g|svg|webp|gif|ico|woff2?|ttf|mp4|webm)$")
@@ -126,17 +126,17 @@ def authorization(layout,path,operation,rid,expected):
             auth.get("descriptorSha256")==expected,"AUTHORIZATION_MISMATCH")
     expiry=dt.datetime.fromisoformat(auth["expiresAt"].replace("Z","+00:00")).timestamp()
     require(time.time()<expiry<time.time()+86400,"AUTHORIZATION_EXPIRED")
-    require(auth.get("gates",{}).get("writersControlled") is True,"WRITERS_NOT_CONTROLLED")
+    operation_gates(auth,operation,layout.lab)
     if layout.lab:require(auth.get("environment")=="disposable","LAB_AUTHORIZATION")
     else:
         require(auth.get("environment") in ("staging","production"),"ENVIRONMENT")
-        for gate in ("heatwaveTlsHomologated","restoreRehearsed","deploymentAuthorized","uploadsResolved","smtpHomologated","githubAppHomologated"):
-            require(auth["gates"].get(gate) is True,"PRODUCTION_GATE_"+gate)
+
     return auth
 
 class Database:
     def __init__(self,release,admin,auth,mode):
-        allowed=("TEST_DATABASE_URL","TEST_RUNTIME_DATABASE_URL","MIGRATION_DATABASE_URL","RUNTIME_DATABASE_URL","TF_RELEASE_LAB_TOKEN")
+        allowed=(("TEST_DATABASE_URL","MIGRATION_DATABASE_URL","TF_RELEASE_LAB_TOKEN") if mode=="migrate" else
+                 ("TEST_RUNTIME_DATABASE_URL","RUNTIME_DATABASE_URL","TF_RELEASE_LAB_TOKEN"))
         require(not os.environ.get("DATABASE_URL"),"AMBIGUOUS_DATABASE_URL")
         env={k:os.environ[k] for k in allowed if k in os.environ}
         env.update(PATH="/usr/bin:/bin",HOME="/nonexistent",LANG="C.UTF-8",TZ="UTC")
@@ -146,7 +146,8 @@ class Database:
             result=self.read(15)
             require(result.get("ready") is True,result.get("code","DATABASE_START_FAILED"))
         except BaseException:
-            self.close();raise
+            with contextlib.suppress(Refused):self.close()
+            raise
     def read(self,timeout):
         require(select.select([self.p.stdout],[],[],timeout)[0],"DATABASE_TIMEOUT")
         line=self.p.stdout.readline();require(bool(line),"DATABASE_BRIDGE_EXITED")
@@ -161,12 +162,17 @@ class Database:
         if self.p.poll() is None:
             self.p.stdin.close()
             try:self.p.wait(10)
-            except subprocess.TimeoutExpired:self.p.kill();self.p.wait()
+            except subprocess.TimeoutExpired:
+                self.p.kill();self.p.wait();raise Refused("DATABASE_CLOSE_TIMEOUT")
+        require(self.p.returncode==0,"DATABASE_CLOSE_FAILED")
     def __enter__(self):return self
-    def __exit__(self,*_):self.close()
+    def __exit__(self,kind,*_):
+        if kind is None:self.close()
+        else:
+            with contextlib.suppress(Refused):self.close()
 
 def service_state(name):
-    p=command(["systemctl","show",name,"-p","ActiveState","-p","SubState","-p","MainPID","-p","User"],check=False)
+    p=command(["systemctl","show",name,"-p","ActiveState","-p","SubState","-p","MainPID","-p","User","-p","LoadState"],check=False)
     return dict(l.split("=",1) for l in p.stdout.splitlines() if "=" in l)
 def assert_stopped():
     for service in SERVICES:
@@ -323,6 +329,7 @@ def activate(layout,args,operation):
     with exclusive_lock(layout.state/"operation.lock"):
         state=layout.load()
         if operation=="recover":
+            require(state.get("phase") not in ("migration","migration-failed"),"USE_MIGRATION_RECOVERY")
             require(state["status"] in ("in-progress","intervention-required"),"NO_INTERRUPTED_OPERATION")
             previous=state.get("previousCurrent");previous_web=state.get("previousWeb")
             # First installation has no previous release. Only an explicit recovery of the
@@ -382,21 +389,34 @@ def activate(layout,args,operation):
 
 def migrate(layout,args):
     native_context(layout,allow_lab_root=True);rid=release_id(args.release_id)
-    authorization(layout,args.authorization,"migrate",rid,args.digest)
+    operation=getattr(args,"action","migrate")
+    require(operation in ("migrate","migrate-initial"),"MIGRATION_OPERATION")
+    auth=authorization(layout,args.authorization,operation,rid,args.digest)
+    initial=operation=="migrate-initial"
     with exclusive_lock(layout.state/"operation.lock"):
         state=layout.load();require(state["status"]=="idle","RECOVERY_REQUIRED")
+        layout.current_matches(state)
+        if initial:
+            require(state.get("current") is None and state.get("previous") is None and not state.get("history") and
+                    state.get("phase") not in ("migration-complete","migration-recovered"),"INITIAL_RELEASE_STATE")
         assert_stopped()
-        release,admin,_=layout.installed(rid,args.digest)
+        release,admin,manifest=layout.installed(rid,args.digest)
         # Identity, lock and preconditions are checked before a migration journal is opened.
         with Database(release,admin,args.authorization,"migrate") as db:
             db.ask("prepare-migration")
             state.update(status="in-progress",phase="migration",target=rid,previousCurrent=state["current"],
-                         previousWeb=state["web"],bootId=boot_id(),pid=os.getpid(),processStart=proc_start(os.getpid()))
+                         previousWeb=state["web"],bootId=boot_id(),pid=os.getpid(),processStart=proc_start(os.getpid()),
+                         migrationKind="initial" if initial else "upgrade", descriptorSha256=args.digest,
+                         chainSha256=manifest["schema"]["chainSha256"], authorizationId=auth.get("authorizationId"),
+                         initialRecovery=auth.get("initialization",{}).get("recovery"))
             layout.save(state)
             try:
                 result=db.ask("migrate")
+                db.close()  # A receipt must not acknowledge an unclosed migration session.
+                atomic_json(layout.state/("migration-"+uuid.uuid4().hex+".json"),{"releaseId":rid,**result,
+                    "descriptorSha256":args.digest,"authorizationId":auth.get("authorizationId"),
+                    "initialRecovery":state.get("initialRecovery"),"finishedAt":now()})
                 state.update(status="idle",phase="migration-complete");layout.save(state)
-                atomic_json(layout.state/("migration-"+uuid.uuid4().hex+".json"),{"releaseId":rid,**result,"finishedAt":now()})
                 emit("migration_complete",**result)
             except BaseException:
                 state.update(status="intervention-required",phase="migration-failed");layout.save(state)
@@ -404,13 +424,18 @@ def migrate(layout,args):
 
 def recover_migration(layout,args):
     native_context(layout);rid=release_id(args.release_id)
-    authorization(layout,args.authorization,"recover-migration",rid,args.digest)
+    auth=authorization(layout,args.authorization,"recover-migration",rid,args.digest)
     with exclusive_lock(layout.state/"operation.lock"):
         state=layout.load()
         require(state["status"] in ("in-progress","intervention-required") and
                 state.get("phase") in ("migration","migration-failed"),"NO_MIGRATION_RECOVERY")
+        require(state.get("target")==rid and state.get("descriptorSha256")==args.digest,"RECOVERY_TARGET")
+        require(auth.get("migrationKind")==state.get("migrationKind"),"RECOVERY_KIND")
+        if state.get("migrationKind")=="initial":
+            require(auth.get("initialRecovery")==state.get("initialRecovery") and state.get("initialRecovery"),"INITIAL_RECOVERY_PLAN_REQUIRED")
         assert_stopped()
-        release,admin,_=layout.installed(rid,args.digest)
+        release,admin,manifest=layout.installed(rid,args.digest)
+        require(manifest["schema"]["chainSha256"]==state.get("chainSha256"),"RECOVERY_CHAIN")
         with Database(release,admin,args.authorization,"read") as db:result=db.ask("compatible")
         # Read-only recovery can acknowledge an already complete and verified schema.
         # Failed Prisma history, drift or partial chains remain blocked for assisted recovery.
@@ -464,7 +489,7 @@ def main():
     guard=sub.add_parser("guard");guard.add_argument("service")
     for name in ("verify","stage"):
         s=sub.add_parser(name);s.add_argument("--descriptor",required=True);s.add_argument("--digest",required=True)
-    for name in ("activate","rollback","recover","migrate","smoke","inspect-schema","recover-migration"):
+    for name in ("activate","rollback","recover","migrate","migrate-initial","smoke","inspect-schema","inspect-initial-schema","recover-migration"):
         s=sub.add_parser(name);s.add_argument("--release-id",required=True);s.add_argument("--digest",required=True);s.add_argument("--authorization",required=True)
     s=sub.add_parser("prune");s.add_argument("--days",type=int,default=7);s.add_argument("--keep",type=int,default=3);s.add_argument("--apply",action="store_true")
     args=p.parse_args()
@@ -481,15 +506,20 @@ def main():
     if args.action=="status":emit("release_status",**layout.load());return
     if args.action=="stage":stage(layout,args.descriptor,args.digest);return
     if args.action=="prune":prune(layout,args);return
-    if args.action=="migrate":migrate(layout,args);return
+    if args.action in ("migrate","migrate-initial"):migrate(layout,args);return
     if args.action=="recover-migration":recover_migration(layout,args);return
     if args.action in ("activate","rollback","recover"):activate(layout,args,args.action);return
-    native_context(layout,allow_lab_root=args.action=="inspect-schema")
+    native_context(layout,allow_lab_root=args.action in ("inspect-schema","inspect-initial-schema"))
     auth=authorization(layout,args.authorization,args.action,args.release_id,args.digest)
     with exclusive_lock(layout.state/"operation.lock"):
         release,admin,_=layout.installed(args.release_id,args.digest)
-        with Database(release,admin,args.authorization,"read") as db:
-            if args.action=="inspect-schema":emit("schema_snapshot",**db.ask("snapshot"))
+        initial=args.action=="inspect-initial-schema"
+        if initial:
+            state=layout.load();require(state["status"]=="idle" and state.get("current") is None and not state.get("history"),"INITIAL_RELEASE_STATE")
+            assert_stopped()
+        with Database(release,admin,args.authorization,"migrate" if initial else "read") as db:
+            if args.action in ("inspect-schema","inspect-initial-schema"):
+                emit("schema_snapshot",**db.ask("initial-snapshot" if initial else "snapshot"))
             else:
                 state=layout.load();require(state["status"]=="idle" and state["current"]==args.release_id,"NOT_CURRENT")
                 layout.current_matches(state);smoke(layout,args.release_id,state,auth,db,int(time.time()*1000)-60000)

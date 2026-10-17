@@ -21,7 +21,7 @@ ALLOW=("backend/src/","backend/prisma/","frontend/src/","frontend/public/")
 FILES={"backend/package.json","backend/package-lock.json","frontend/package.json","frontend/package-lock.json",
        "frontend/index.html","frontend/vite.config.js","frontend/production-contract.js","deploy/scripts/validate-service-environment.mjs"}
 RECIPES=("scripts/package-release.mjs","scripts/package_release.py","deploy/lib/release_contract.py",
-         "deploy/scripts/artifact-smoke.mjs","deploy/scripts/release.py","deploy/scripts/release-database.mjs")
+         "deploy/scripts/artifact-smoke.mjs","deploy/scripts/release.py","deploy/scripts/release-database.mjs","deploy/scripts/lib/migration-contract.mjs")
 def command(args,cwd=None,env=None):
     r=subprocess.run(args,cwd=cwd,env=env,capture_output=True)
     require(r.returncode==0,"COMMAND_FAILED_"+Path(args[0]).name)

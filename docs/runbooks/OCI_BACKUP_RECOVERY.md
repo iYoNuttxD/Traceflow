@@ -186,3 +186,22 @@ justificado pelo contrato futuro. O CLI existente continua local-isolated e não
 por esta documentação. DR, retenção, recuperação de segredos e restore real permanecem gates
 antes de aceitar dados reais; a primeira migration precisa resolver separadamente o gate de
 backup obrigatório do job atual. Nenhum backup/restore real foi executado nesta preparação.
+
+
+## OCI-DEPLOY-07.1 — exceção delimitada para o primeiro schema vazio
+
+O fluxo `migrate-initial` não exige dump lógico anterior quando a ausência de todos os objetos e do
+histórico Prisma foi comprovada por inspeção administrativa protegida e revalidada pela sessão do job.
+Não preencher backupVerified, backupReference ou restoreRehearsed artificialmente: o contrato inicial
+recusa esses campos. Exige plano `stop-and-review-empty-initialization`, referência revisada e operador.
+
+O plano é de **interrupção e análise**, não de restauração de dados inexistentes. Após DDL parcial,
+preservar o alvo, histórico e journal; não apagar/recriar schema, não marcar migrations como aplicadas
+nem repetir o fluxo inicial. Reparação ou recriação eventualmente necessárias dependem de autorização
+específica. `recover-migration` só reconhece estado já integralmente concluído da mesma release/digest/
+cadeia, com fingerprint novo e diff limpo, sem executar DDL.
+
+Após as 68 migrations existe histórico e há a linha inicial de EvidenceUploadBudget. A exceção de vazio
+não se aplica mais. Migrations posteriores exigem backup/restore; a ativação da aplicação mantém sua
+recuperação obrigatória. O primeiro job não comprova DR de produção, RPO/RTO, restauração gerenciada,
+retenção nem backup de arquivos. Ver o procedimento exato em [OCI_MIGRATIONS.md](OCI_MIGRATIONS.md#oci-deploy-071--primeira-inicialização).

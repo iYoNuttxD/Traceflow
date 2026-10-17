@@ -1,5 +1,10 @@
 # OCI — Releases imutáveis e publicação controlada
 
+> **OCI-DEPLOY-07.1:** o primeiro schema comprovadamente vazio possui fluxo separado
+> `inspect-initial-schema` → `migrate-initial`, descrito em [migrations](OCI_MIGRATIONS.md#oci-deploy-071--primeira-inicialização).
+> A preparação do banco não exige SMTP/uploads/GitHub nem backup de dados inexistentes.
+> A ativação da aplicação mantém todos os seus gates; as seções OCI05 abaixo preservam o histórico.
+
 Status: implementação local OCI-DEPLOY-05. Este procedimento não autoriza execução na OCI.
 Consulte [o relatório](../deliveries/OCI_DEPLOY_05_RELEASE_MIGRATION_ROLLBACK_REPORT.md),
 [o contrato de ambiente](OCI_ENVIRONMENT.md), [os serviços OCI-04](OCI_RUNTIME_SERVICES.md)
@@ -368,3 +373,22 @@ Rollback de aplicação exige compatibilidade com protocolo v1 ou bloqueio expl�
 até restaurar uma release compatível. Manter recibos/partes/arquivos confirmados; não fazer down
 migration automática. Backup/restore abrange DB e arquivos consistentes. Reter assets antigos
 continua necessário. Ver [recuperação de uploads](OCI_RESUMABLE_UPLOADS.md).
+
+
+## OCI-DEPLOY-07.1 — separação de readiness do banco e da aplicação
+
+A inicialização exige exatamente a cadeia atual de 68 migrations, runtime/admin íntegros e correspondentes,
+inspeção administrativa fresca com visibilidade comprovada, grants mínimos do migrator, UTC efetivo,
+writersControlled, heatwaveTlsHomologated, deploymentAuthorized e plano inicial de interrupção/recuperação.
+Não preencher backupVerified/backupReference/restoreRehearsed para inventar dados anteriores. A proibição
+vale exclusivamente ao fluxo inicial; `migrate` posterior continua exigindo os três campos com evidência.
+
+`activate`, `rollback`, `recover` e `smoke` continuam exigindo restoreRehearsed, uploadsResolved,
+smtpHomologated e githubAppHomologated, além dos gates comuns. A primeira migration não desbloqueia esses
+comandos nem inicia serviços. `recover` de aplicação recusa uma migration interrompida; usar somente o
+reconhecimento readonly de `recover-migration` quando toda a cadeia já estiver completa e sem drift.
+
+A receita inclui `deploy/scripts/lib/migration-contract.mjs`. Um pacote anterior não recebe esse código
+por cópia avulsa; gerar no futuro uma release completa revisada, com novo manifesto/digest. Candidatos
+com receita não commitada continuam não promovíveis pelo contrato existente. Nenhum pacote foi gerado
+nesta entrega e não há autorização para commit ou publicação.
