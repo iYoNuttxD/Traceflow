@@ -70,6 +70,9 @@ export async function runBounded(
       spec.timeoutMs <= 45000,
     "AUDIT_PROCESS_WINDOW_EXPIRED",
   );
+  // Commands such as id and the verifier never consume stdin. Opening a pipe
+  // and ending even an empty chunk can fail with EPIPE after an early exit.
+  const hasInput = spec.input !== undefined && spec.input !== null;
   return new Promise((resolve, reject) => {
     let child,
       timer,
@@ -104,7 +107,7 @@ export async function runBounded(
         detached: true,
         shell: false,
         stdio: [
-          "pipe",
+          hasInput ? "pipe" : "ignore",
           "pipe",
           "pipe",
           ...(spec.credentialFd === undefined ? [] : [spec.credentialFd]),
@@ -123,7 +126,8 @@ export async function runBounded(
         total += chunk.length;
         if (total > spec.maxBytes) stop("AUDIT_PROCESS_OUTPUT_LIMIT");
       });
-      child.stdin.on("error", () => stop("AUDIT_PROCESS_INPUT_FAILED"));
+      if (hasInput)
+        child.stdin.on("error", () => stop("AUDIT_PROCESS_INPUT_FAILED"));
       child.once("error", () => {
         cleanup();
         reject(
@@ -144,7 +148,13 @@ export async function runBounded(
           for (const chunk of chunks) chunk.fill(0);
         }
       });
-      child.stdin.end(spec.input ?? "");
+      if (hasInput) {
+        try {
+          child.stdin.end(spec.input);
+        } catch {
+          stop("AUDIT_PROCESS_INPUT_FAILED");
+        }
+      }
     } catch {
       cleanup();
       stop("AUDIT_PROCESS_START_FAILED");

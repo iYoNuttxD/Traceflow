@@ -4,9 +4,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
-import { constants } from "node:fs";
-import { dirname } from "node:path";
-import { spawnSync } from "node:child_process";
+import { constants, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   executeManual,
@@ -612,6 +614,7 @@ function fakeChild(action) {
       signals,
       spawnProcess: (cmd, args, config) => {
         options.push({ cmd, args, config });
+        if (config.stdio[0] === "ignore") child.stdin = null;
         setImmediate(() => action(child, signals));
         return child;
       },
@@ -645,6 +648,218 @@ test("bounded process uses pinned descriptor, clean pipes and no shell; drains u
   assert.deepEqual(f.options[0].config.stdio, ["pipe", "pipe", "pipe", 99]);
   assert.equal(f.signals.listenerCount("SIGTERM"), 0);
 });
+for (const [name, inputSpec] of [
+  ["omitted", {}],
+  ["undefined", { input: undefined }],
+  ["null", { input: null }],
+])
+  test(
+    "bounded process does not open stdin when input is " + name,
+    async () => {
+      const f = fakeChild((c) => {
+        c.stdout.write("ok\n");
+        c.emit("close", 0, null);
+      });
+      const noInputSpec = { ...spec };
+      delete noInputSpec.input;
+      delete noInputSpec.credentialFd;
+      const r = await runBounded({ ...noInputSpec, ...inputSpec }, f.deps);
+      assert.equal(r.stdout, "ok\n");
+      assert.equal(r.exitCode, 0);
+      assert.equal(f.child.stdin, null);
+      assert.deepEqual(f.options[0].config.stdio, ["ignore", "pipe", "pipe"]);
+      assert.deepEqual(f.kills, []);
+      assert.equal(f.signals.listenerCount("SIGINT"), 0);
+      assert.equal(f.signals.listenerCount("SIGTERM"), 0);
+    },
+  );
+for (const nativeCode of ["EPIPE", "ERR_STREAM_DESTROYED"])
+  test(
+    "SQL stdin error remains fatal even with exit zero: " + nativeCode,
+    async () => {
+      const f = fakeChild((c) => {
+        c.stdin.emit(
+          "error",
+          Object.assign(new Error("private detail"), { code: nativeCode }),
+        );
+        c.stdout.write("ok\n");
+        c.emit("close", 0, null);
+      });
+      await assert.rejects(runBounded(spec, f.deps), {
+        code: "AUDIT_PROCESS_INPUT_FAILED",
+        message: "",
+      });
+      assert.deepEqual(f.kills, [1234]);
+      assert.equal(f.signals.listenerCount("SIGTERM"), 0);
+    },
+  );
+test("synchronous SQL stdin failure is sanitized and kills the process group", async () => {
+  const f = fakeChild(() => {});
+  f.child.stdin.end = () => {
+    throw Object.assign(new Error("private detail"), { code: "EPIPE" });
+  };
+  await assert.rejects(runBounded(spec, f.deps), {
+    code: "AUDIT_PROCESS_INPUT_FAILED",
+    message: "",
+  });
+  assert.deepEqual(f.kills, [1234]);
+  assert.equal(f.signals.listenerCount("SIGINT"), 0);
+});
+test("SQL stdin failure consumes the attempt without publishing evidence or a receipt", async () => {
+  const w = workflow();
+  let count = 0;
+  w.io.collect = async () => {
+    count++;
+    const f = fakeChild((c) => {
+      c.stdin.emit(
+        "error",
+        Object.assign(new Error("private detail"), { code: "EPIPE" }),
+      );
+      c.emit("close", 0, null);
+    });
+    return runBounded(spec, f.deps);
+  };
+  await assert.rejects(w.perform("collect-initial"), {
+    code: "AUDIT_PROCESS_INPUT_FAILED",
+  });
+  await assert.rejects(w.perform("collect-initial"), { code: "EEXIST" });
+  assert.equal(count, 1);
+  const paths = [...w.files.keys()];
+  assert.ok(paths.some((p) => p.endsWith("collect-initial.attempt.json")));
+  assert.ok(!paths.some((p) => p.endsWith(".receipt.json")));
+  assert.ok(
+    !paths.includes(
+      EVIDENCE_BASE +
+        "/" +
+        w.auth.administrativeAudit.evidenceIds.ADMIN_INITIAL +
+        ".json",
+    ),
+  );
+  const failure = paths.find((p) => p.endsWith("collect-initial.failure.json"));
+  const stored = w.get(failure).data.toString();
+  assert.ok(stored.includes("AUDIT_PROCESS_INPUT_FAILED"));
+  assert.ok(!stored.includes("private detail"));
+});
+
+const localProcessSpec = {
+  command: process.execPath,
+  cwd: tmpdir(),
+  env: cleanEnvironment(process.execPath),
+  timeoutMs: 3000,
+  maxBytes: 1024,
+};
+// Real local children only: no MySQL, launcher, credentials, sockets or VM.
+// The marker proves fd 0 is already closed; no scheduling race or fixed delay
+// decides whether the regression is exercised.
+function closedStdinFixture(t) {
+  const directory = mkdtempSync(join(tmpdir(), "tf-p04-stdin-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const marker = join(directory, "closed");
+  const wait = new Int32Array(new SharedArrayBuffer(4));
+  return {
+    spec: {
+      ...localProcessSpec,
+      args: [
+        "--input-type=module",
+        "-e",
+        "import { closeSync, writeFileSync, writeSync } from 'node:fs'; " +
+          "closeSync(0); writeSync(1, 'ok\\n'); writeFileSync(process.argv[1], 'closed');",
+        marker,
+      ],
+    },
+    deps: {
+      spawnProcess: (...args) => {
+        const child = spawn(...args);
+        const deadline = Date.now() + 3000;
+        while (!existsSync(marker) && Date.now() < deadline)
+          Atomics.wait(wait, 0, 0, 5);
+        if (!existsSync(marker)) {
+          child.kill("SIGKILL");
+          throw new Error("Local stdin fixture did not become ready");
+        }
+        return child;
+      },
+    },
+  };
+}
+test("real child with stdin already closed succeeds when no input was requested", async (t) => {
+  const f = closedStdinFixture(t);
+  const r = await runBounded(f.spec, f.deps);
+  assert.deepEqual(r, {
+    exitCode: 0,
+    signal: null,
+    stderrBytes: 0,
+    stdout: "ok\n",
+  });
+});
+test("real child with stdin already closed rejects SQL instead of reporting success", async (t) => {
+  const f = closedStdinFixture(t);
+  await assert.rejects(
+    runBounded({ ...f.spec, input: administrativeSql() }, f.deps),
+    {
+      code: "AUDIT_PROCESS_INPUT_FAILED",
+      message: "",
+    },
+  );
+});
+for (const [name, input] of [
+  ["absent input", undefined],
+  ["SQL string", administrativeSql()],
+  ["SQL buffer", Buffer.from(administrativeSql())],
+  ["explicit empty input", ""],
+])
+  test("real child receives complete " + name + " and EOF", async () => {
+    const r = await runBounded({
+      ...localProcessSpec,
+      args: [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs'; " +
+          "import { createHash } from 'node:crypto'; " +
+          "const bytes = readFileSync(0); " +
+          "console.log(JSON.stringify({ bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }));",
+      ],
+      input,
+    });
+    assert.equal(r.exitCode, 0);
+    assert.equal(r.stderrBytes, 0);
+    assert.deepEqual(JSON.parse(r.stdout), {
+      bytes: Buffer.byteLength(input ?? ""),
+      sha256: createHash("sha256")
+        .update(input ?? "")
+        .digest("hex"),
+    });
+  });
+for (const input of [undefined, "synthetic SQL"])
+  test(
+    "spawn failure stays fatal with input=" + (input !== undefined),
+    async () => {
+      await assert.rejects(
+        runBounded({
+          ...localProcessSpec,
+          command: "/nonexistent/traceflow-p04-test-only",
+          args: [],
+          input,
+        }),
+        { code: "AUDIT_PROCESS_START_FAILED", message: "" },
+      );
+    },
+  );
+test("no-input child preserves nonzero exit and counts stderr without exposing it", async () => {
+  const r = await runBounded({
+    ...localProcessSpec,
+    args: [
+      "-e",
+      "process.stderr.write('private detail'); process.exitCode = 7;",
+    ],
+  });
+  assert.deepEqual(r, {
+    exitCode: 7,
+    signal: null,
+    stderrBytes: 14,
+    stdout: "",
+  });
+});
 for (const [name, action, code] of [
   ["timeout", () => {}, "AUDIT_PROCESS_TIMEOUT"],
   ["interrupt", (_c, s) => s.emit("SIGINT"), "AUDIT_PROCESS_INTERRUPTED"],
@@ -659,12 +874,19 @@ for (const [name, action, code] of [
     "AUDIT_PROCESS_OUTPUT_LIMIT",
   ],
 ])
-  test("bounded process kills group on " + name, async () => {
-    const f = fakeChild(action);
-    await assert.rejects(runBounded(spec, f.deps), { code });
-    assert.deepEqual(f.kills, [1234]);
-    assert.equal(f.signals.listenerCount("SIGINT"), 0);
-  });
+  for (const input of [spec.input, undefined])
+    test(
+      "bounded process kills group on " +
+        name +
+        " with input=" +
+        (input !== undefined),
+      async () => {
+        const f = fakeChild(action);
+        await assert.rejects(runBounded({ ...spec, input }, f.deps), { code });
+        assert.deepEqual(f.kills, [1234]);
+        assert.equal(f.signals.listenerCount("SIGINT"), 0);
+      },
+    );
 test("raw stderr is counted, never returned or logged", async () => {
   const f = fakeChild((c) => {
     c.stderr.write("synthetic-secret");

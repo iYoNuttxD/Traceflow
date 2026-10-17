@@ -1899,3 +1899,75 @@ sob autorização própria. Não se declara teste no HeatWave nem execução ope
 desta nova versão em VM. Permanecem a aceitação humana da janela, novos pins e
 validação do futuro artefato instalado, antes de qualquer conexão real.
 Prisma–HeatWave/D03 permanece sem homologação; 06.1.4 permanece FAIL.
+
+## 34. OCI-DEPLOY-06.1.8 P04 — correção local de stdin
+
+Investigação em 16/10/2026 (Brasília), sobre `daniel-dev`, base
+`f1555b727c62703d4eaa6b212bb35e2a2add551e`. O relato operacional informa
+`AUDIT_PROCESS_INPUT_FAILED`, fase `PREVALIDATION`, no pacote instalado
+`traceflow-prisma-diagnostic-050cd197d215346d`, sem arquivos de tentativa,
+falha, recibo ou evidência inicial. Esses dados são os fornecidos pelo operador;
+o pacote e os arquivos da VM não foram consultados nesta investigação.
+
+### 34.1 Reprodução e causa local
+
+`runBounded` abria stdin como pipe e executava `child.stdin.end(spec.input ?? "")`
+inclusive em comandos sem entrada: consultas de UID/GID, verificador de
+integridade e captura pelo launcher. A escrita vazia pode receber `EPIPE` se o
+subprocesso fechar stdin antes desse envio.
+
+No macOS com Node 22.23.3, 50 execuções comuns de `id -u` passaram. Em outro
+experimento local, permitindo ao subprocesso encerrar antes de devolver o
+controle a `runBounded`, ocorreram cinco falhas de cinco, com `EPIPE` convertido
+em `AUDIT_PROCESS_INPUT_FAILED`, mesmo sem input. A regressão permanente usa um
+subprocesso Node que fecha fd 0 e publica um marcador temporário; o teste só
+devolve o subprocesso após observar esse marcador. Assim, exercita a condição
+sem depender de uma corrida de agendamento.
+
+Antes da correção, a primeira rodada ampliada teve 88 PASS e cinco FAIL, incluindo
+a reprodução com subprocesso real e a classificação incorreta de uma exceção
+síncrona de stdin como falha de inicialização. Os 82 testes preexistentes
+passavam. Isso confirma o defeito local; a saída operacional disponível não
+identifica qual subprocesso falhou na VM nem comprova retrospectivamente seu
+erro nativo. Não se afirma acesso ao banco a partir da falha informada.
+
+### 34.2 Correção e regressões
+
+- Input omitido, `undefined` ou `null`: stdin usa `ignore`, sem stream de escrita,
+  listener ou chamada a `end`. stdout e stderr continuam capturados e limitados.
+- Input explícito, inclusive string vazia: mantém pipe, envio integral e EOF.
+  SQL continua separado do descritor da credencial; argumentos e SQL não mudam.
+- Erros assíncronos de stdin continuam fatais. Exceções síncronas de `end` agora
+  recebem `AUDIT_PROCESS_INPUT_FAILED` e encerram o grupo, sem expor detalhes.
+- Não se ignora `EPIPE`, não se tenta novamente e não se aumenta timeout.
+  Interrupção, limite de saída, código de saída e falha de spawn permanecem
+  cobertos. A falha de SQL/stdin não pode produzir evidência ou recibo de sucesso.
+
+As 20 regressões adicionais estão em `deploy/tests/heatwave-admin-manual.test.mjs`.
+Incluem processos locais reais sem entrada, stdin fechado, entrega exata de SQL
+como string/Buffer, EOF, erro de spawn, saída não zero e stderr sanitizado;
+os cenários de custódia continuam usando somente memória e dados sintéticos.
+
+### 34.3 Validação e limite de aprovação
+
+Executadas as mesmas seis suítes Node e duas suítes Python listadas em 33.5:
+**529 PASS Node** (incluindo **102** do coletor manual), **27 PASS Python** e
+**52 PASS** dos helpers `heatwave-connection`, total **608 PASS**. Zero falhas,
+cancelamentos ou testes ignorados nas rodadas finais. Os helpers foram executados
+com configuração de banco, setup/globalSetup e carregamento de `.env` desativados,
+além de cache temporário exclusivo. Nenhum cliente MySQL ou Prisma real foi usado.
+
+ESLint dos dois MJS: zero erros/warnings. Prettier dos dois MJS e desta documentação,
+sintaxe Node, scanner de segredos dos arquivos alterados e `git diff --check`: PASS.
+
+A janela anterior declarada expirava em `2026-10-17T02:22:09.152Z`, equivalente a
+**16/10/2026, 23:22:09.152, em Brasília**. À verificação de
+`2026-10-17T02:22:35Z`, esse prazo já havia expirado. Trata-se somente da comparação
+do horário informado, sem leitura ou alteração do estado remoto. A autorização
+anterior não foi reutilizada; nenhuma nova janela foi criada.
+
+Veredito: **PASS LOCAL da correção**, sem homologação OCI/HeatWave. Não houve
+alteração da VM, do pacote instalado, de contas, bancos, migrations, branch DEV,
+PR ou release, nem commit, push, merge ou deploy. Não foi produzido um novo pacote
+distribuível. Preparação/publicação de outro artefato e validação operacional
+dependem de autorização separada; não reutilizar a autorização anterior.
