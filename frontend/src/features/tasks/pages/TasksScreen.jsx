@@ -44,7 +44,7 @@ import {
   matchesTraceabilityFilter,
   TRACEABILITY_FILTERS
 } from '../components/kanban-view.js';
-import { AlertIndexNotice, TechnicalLinkSummary } from '../components/TaskIndications.jsx';
+import { AlertIndexNotice } from '../components/TaskIndications.jsx';
 import './TasksScreen.css';
 
 const EMPTY_FILTERS = Object.freeze({
@@ -741,16 +741,6 @@ export function TasksScreen() {
               </div>
             </CollapsibleFilterPanel>
 
-            <TechnicalLinkSummary
-              tasks={tasks}
-              active={filters.traceability === 'SEM_VINCULO'}
-              onToggle={() =>
-                setFilters((current) => ({
-                  ...current,
-                  traceability: current.traceability === 'SEM_VINCULO' ? '' : 'SEM_VINCULO'
-                }))
-              }
-            />
             <AlertIndexNotice error={alertIndex.error} onRetry={reloadAlertIndex} />
 
             <TaskList

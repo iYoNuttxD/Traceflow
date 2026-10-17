@@ -1180,12 +1180,15 @@ o trabalho acontece, sem tela própria.
 - **Linha de rastreabilidade (RF58).** Separa o vínculo técnico ("1 PR · 2 commits", ou "Sem vínculo
   técnico" em semibold) do requisito ("1 req", ou "Sem requisito" em `text-secondary`). Sem
   requisito é informação, não alerta.
-- **Resumo do RF58.** Linha própria, abaixo dos filtros do Kanban e da lista: "Sem vínculo técnico:
-  12 de 80 tarefas (15%)", com o denominador do recorte. É um botão com `aria-pressed` que aplica e
-  retira o filtro; sem tarefas sem vínculo, vira texto simples. Nos extremos, "<1%" e ">99%", para
-  não arredondar para 0% ou 100%.
-- **Filtro "Rastreabilidade".** `SelectControl` nos filtros do Kanban e da lista: Todas, Sem vínculo
-  técnico (RF58) e Concluídas sem commit (RF13). Na lista, acompanha `?rastreabilidade=`.
+- **Contador "Sem vínculo técnico" (RF58).** Fica no resumo de cada tela: a métrica de
+  `TaskMetrics`, em Tarefas, e a de `KanbanSummary`, no Kanban. Não há faixa nem botão próprio
+  (UX-R2-03, segunda revisão do PR #26, 17/10/2026). O resumo de Tarefas passa a ter 7 métricas,
+  em 7, 4 e 2 colunas conforme a largura.
+- **Filtro "Rastreabilidade".** `SelectControl` só em "Buscar e filtrar", no Kanban e na lista:
+  Todas, Sem vínculo técnico e Concluídas sem commit. Conta como filtro ativo e sai com "Limpar
+  filtros". Na lista, acompanha `?rastreabilidade=`.
+- **Sem código de RF na interface.** Rótulos, opções e avisos não mostram "RF58" nem "RF13"; o
+  aviso de índice indisponível fala em "concluídas sem commit".
 - **Seção "Inconsistência" nos detalhes.** No topo da Rastreabilidade da tarefa, em superfície
   warning com borda: tipo, conclusão e detecção; "Vincular commit" (abre o editor de vínculos com o
   foco na busca de commits), "Dispensar" (MANAGER+, com o `AlertDismissForm`) e "Histórico (n)",

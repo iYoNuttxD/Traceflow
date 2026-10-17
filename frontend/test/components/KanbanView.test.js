@@ -9,8 +9,7 @@ import {
   formatTraceabilityLine,
   getBoardTasks,
   getKanbanSummary,
-  isTaskOverdue,
-  technicalLinkSummary
+  isTaskOverdue
 } from '../../src/features/tasks/components/kanban-view.js';
 
 const tasks = [
@@ -204,26 +203,5 @@ describe('kanban-view', () => {
         filterKanbanBoard(frozen, { ...EMPTY_KANBAN_FILTERS, traceability: 'SEM_VINCULO' })
       )
     ).toEqual([]);
-  });
-
-  it('resume o RF58 com o denominador e sem arredondar para 0% ou 100%', () => {
-    const linked = { ...tasks[0] };
-    const unlinked = { ...tasks[2] };
-    const many = (count, task) => Array.from({ length: count }, (_, id) => ({ ...task, id }));
-
-    expect(technicalLinkSummary([...many(68, linked), ...many(12, unlinked)])).toEqual({
-      total: 80,
-      unlinked: 12,
-      text: 'Sem vínculo técnico: 12 de 80 tarefas (15%)'
-    });
-    expect(technicalLinkSummary([...many(299, linked), unlinked]).text).toBe(
-      'Sem vínculo técnico: 1 de 300 tarefas (<1%)'
-    );
-    expect(technicalLinkSummary([linked, ...many(1203, unlinked)]).text).toBe(
-      'Sem vínculo técnico: 1.203 de 1.204 tarefas (>99%)'
-    );
-    expect(technicalLinkSummary([unlinked]).text).toBe('Sem vínculo técnico: 1 de 1 tarefa (100%)');
-    expect(technicalLinkSummary([])).toMatchObject({ total: 0, unlinked: 0 });
-    expect(technicalLinkSummary([{ id: 1, isFrozen: true }, linked]).total).toBe(1);
   });
 });

@@ -12,7 +12,7 @@ import { FrozenTaskDetails } from '../components/FrozenTaskDetails.jsx';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
 import { KanbanFilters } from '../components/KanbanFilters.jsx';
 import { KanbanSummary } from '../components/KanbanSummary.jsx';
-import { AlertIndexNotice, TechnicalLinkSummary } from '../components/TaskIndications.jsx';
+import { AlertIndexNotice } from '../components/TaskIndications.jsx';
 import { KANBAN_COLUMNS } from '../components/kanban-display.js';
 import {
   countActiveKanbanFilters,
@@ -226,7 +226,6 @@ export function KanbanScreen() {
     () => filterKanbanBoard(sprintScopedBoard, filters, alertIndex.tasks),
     [alertIndex.tasks, filters, sprintScopedBoard]
   );
-  const scopedTasks = useMemo(() => getBoardTasks(sprintScopedBoard), [sprintScopedBoard]);
   const visibleCount = useMemo(() => getBoardTasks(visibleBoard).length, [visibleBoard]);
   const activeFilterCount = useMemo(() => countActiveKanbanFilters(filters), [filters]);
   const sprintNames = useMemo(
@@ -724,19 +723,7 @@ export function KanbanScreen() {
             onClear={() => setFilters({ ...EMPTY_KANBAN_FILTERS })}
           />
           {!frozenSprint && (
-            <>
-              <TechnicalLinkSummary
-                tasks={scopedTasks}
-                active={filters.traceability === 'SEM_VINCULO'}
-                onToggle={() =>
-                  setFilters((current) => ({
-                    ...current,
-                    traceability: current.traceability === 'SEM_VINCULO' ? '' : 'SEM_VINCULO'
-                  }))
-                }
-              />
-              <AlertIndexNotice error={alertIndex.error} onRetry={reloadAlertIndex} />
-            </>
+            <AlertIndexNotice error={alertIndex.error} onRetry={reloadAlertIndex} />
           )}
 
           {frozenView.loading ? (

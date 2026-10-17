@@ -1,3 +1,4 @@
+import { technicalLinkState } from './kanban-view.js';
 import './TaskMetrics.css';
 
 export function TaskMetrics({ tasks }) {
@@ -15,7 +16,8 @@ export function TaskMetrics({ tasks }) {
       'Com estimativa',
       tasks.filter((task) => task.estimatedEffort !== null && task.estimatedEffort !== undefined)
         .length
-    ]
+    ],
+    ['Sem vínculo técnico', tasks.filter((task) => technicalLinkState(task) === 'UNLINKED').length]
   ];
 
   return (

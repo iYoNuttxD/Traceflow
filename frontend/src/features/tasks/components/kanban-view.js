@@ -11,8 +11,8 @@ export const EMPTY_KANBAN_FILTERS = Object.freeze({
 
 export const TRACEABILITY_FILTERS = Object.freeze([
   { value: '', label: 'Todas' },
-  { value: 'SEM_VINCULO', label: 'Sem vínculo técnico (RF58)' },
-  { value: 'SEM_COMMIT', label: 'Concluídas sem commit (RF13)' }
+  { value: 'SEM_VINCULO', label: 'Sem vínculo técnico' },
+  { value: 'SEM_COMMIT', label: 'Concluídas sem commit' }
 ]);
 
 export function isTraceabilityFilter(value) {
@@ -149,27 +149,6 @@ export function formatTraceabilityLine(task) {
   const line = traceabilityLine(task);
   if (line.unavailable) return 'Rastreabilidade indisponível';
   return `${line.technical || 'Sem vínculo técnico'} · ${line.requirement || 'Sem requisito'}`;
-}
-
-function formatShare(part, total) {
-  if (!total) return '0%';
-  const share = (part / total) * 100;
-  if (part > 0 && share < 1) return '<1%';
-  if (part < total && share > 99) return '>99%';
-  return `${Math.round(share)}%`;
-}
-
-export function technicalLinkSummary(tasks) {
-  const known = tasks.filter((task) => technicalLinkState(task) !== 'UNKNOWN');
-  const unlinked = known.filter((task) => technicalLinkState(task) === 'UNLINKED').length;
-  const total = known.length;
-  return {
-    total,
-    unlinked,
-    text: `Sem vínculo técnico: ${unlinked.toLocaleString('pt-BR')} de ${total.toLocaleString(
-      'pt-BR'
-    )} ${total === 1 ? 'tarefa' : 'tarefas'} (${formatShare(unlinked, total)})`
-  };
 }
 
 export function updateBoardTask(board, taskId, patch) {

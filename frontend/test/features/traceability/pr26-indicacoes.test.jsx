@@ -349,30 +349,33 @@ describe('PR #26 indicações nas tarefas (TF-REV-008, RF13, RF58)', () => {
     );
   });
 
-  it('X-03 o resumo do RF58 traz o denominador e aplica e retira o filtro, com a URL acompanhando', async () => {
+  it('X-03 o resumo conta as sem vínculo técnico e o filtro de "Buscar e filtrar" aplica e retira, com a URL acompanhando', async () => {
     const user = userEvent.setup();
     arrangeTasks();
     renderTasks();
 
-    const summary = await screen.findByRole('button', {
-      name: 'Sem vínculo técnico: 2 de 3 tarefas (67%)'
-    });
-    expect(summary).toHaveAttribute('aria-pressed', 'false');
-    await user.click(summary);
+    const overview = await screen.findByRole('region', { name: 'Visão geral das tarefas' });
+    await waitFor(() =>
+      expect(within(overview).getByText('Sem vínculo técnico').closest('div')).toHaveTextContent(
+        'Sem vínculo técnico2'
+      )
+    );
+    await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+    const select = screen.getByRole('combobox', { name: 'Rastreabilidade' });
+    await user.selectOptions(select, 'SEM_VINCULO');
 
-    expect(summary).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByRole('article', { name: /TASK-32 / })).toBeNull();
     expect(cardOf(31)).toBeInTheDocument();
     expect(cardOf(33)).toBeInTheDocument();
     expect(screen.getByLabelText('Destino')).toHaveTextContent(
       '/projects/9/tasks?rastreabilidade=SEM_VINCULO'
     );
-    await user.click(summary);
+    await user.selectOptions(select, '');
     expect(cardOf(32)).toBeInTheDocument();
     expect(screen.getByLabelText('Destino')).toHaveTextContent(/^\/projects\/9\/tasks$/);
   });
 
-  it('X-04 o filtro Rastreabilidade tem RF58 e RF13, e o quadro congelado não oferece o RF13', async () => {
+  it('X-04 o filtro Rastreabilidade tem as duas opções, e o quadro congelado não oferece a das concluídas sem commit', async () => {
     const user = userEvent.setup();
     const props = {
       filters: { ...EMPTY_KANBAN_FILTERS },
@@ -390,7 +393,7 @@ describe('PR #26 indicações nas tarefas (TF-REV-008, RF13, RF58)', () => {
       within(select)
         .getAllByRole('option')
         .map((option) => option.textContent)
-    ).toEqual(['Todas', 'Sem vínculo técnico (RF58)', 'Concluídas sem commit (RF13)']);
+    ).toEqual(['Todas', 'Sem vínculo técnico', 'Concluídas sem commit']);
     await user.selectOptions(select, 'SEM_COMMIT');
     expect(props.onChange).toHaveBeenCalledWith('traceability', 'SEM_COMMIT');
 
@@ -399,7 +402,7 @@ describe('PR #26 indicações nas tarefas (TF-REV-008, RF13, RF58)', () => {
       within(screen.getByRole('combobox', { name: 'Rastreabilidade' }))
         .getAllByRole('option')
         .map((option) => option.textContent)
-    ).toEqual(['Todas', 'Sem vínculo técnico (RF58)']);
+    ).toEqual(['Todas', 'Sem vínculo técnico']);
   });
 
   it('X-05 o link "?rastreabilidade=SEM_COMMIT" chega filtrado pelas concluídas sem commit', async () => {
