@@ -106,7 +106,11 @@ def content_policy(name, path):
     safe_relative(name)
     parts = PurePosixPath(name).parts
     leaf = parts[-1].lower()
-    require(not any(p.lower() in {"uploads","test-evidence","backups","logs",".git",".data",".cache"} for p in parts), "FORBIDDEN_CONTENT")
+    # This reviewed source module implements upload validation; it is not user data.
+    # Keep the exception exact, and still apply all content/secret checks below.
+    source_upload_contract = name == "backend/src/modules/testCases/uploads/upload-contract.js"
+    require(not any(part.lower() in {"uploads","test-evidence","backups","logs",".git",".data",".cache"}
+                    and not (source_upload_contract and part == "uploads") for part in parts), "FORBIDDEN_CONTENT")
     require(not any(p.lower().startswith(".env") for p in parts) and leaf not in {"credentials","tokens","terraform.tfstate","terraform.tfstate.backup"}, "FORBIDDEN_CONTENT")
     require(not leaf.endswith((".key",".log",".bak",".dump",".sql.gz")), "FORBIDDEN_CONTENT")
     require(not leaf.endswith(".sql") or "/prisma/migrations/" in "/" + name, "SQL_OUTSIDE_MIGRATIONS")
