@@ -160,7 +160,10 @@ async function* pagesOf(list, map) {
   }
 }
 
-function githubDouble(project, { issuePages = [[]], pullRequestPages = [[]] } = {}) {
+function githubDouble(
+  project,
+  { issuePages = [[]], pullRequestPages = [[]], issueGate = Promise.resolve() } = {}
+) {
   return {
     getRepository: vi.fn().mockResolvedValue({
       githubRepositoryId: project.repositoryId,
@@ -178,7 +181,10 @@ function githubDouble(project, { issuePages = [[]], pullRequestPages = [[]] } = 
     listCommitPages: vi.fn(() => pagesOf([[]], (item) => item)),
     listPullRequestPages: vi.fn(() => pagesOf(pullRequestPages, mapGithubPullRequest)),
     listPullRequestLifecycleEventPages: vi.fn(() => pagesOf([[]], (item) => item)),
-    listIssuePages: vi.fn(() => pagesOf(issuePages, mapGithubIssue))
+    listIssuePages: vi.fn(async function* () {
+      await issueGate;
+      yield* pagesOf(issuePages, mapGithubIssue);
+    })
   };
 }
 
@@ -1111,16 +1117,33 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
       81
     );
     const runsBefore = await prisma.gitHubSyncRun.count({ where: { projectId: project.id } });
-    boundary.client = githubDouble(project, { issuePages: [[rawIssue(81, 'closed')]] });
+    let openGate;
+    const issueGate = new Promise((resolve) => {
+      openGate = resolve;
+    });
+    boundary.client = githubDouble(project, {
+      issuePages: [[rawIssue(81, 'closed')]],
+      issueGate
+    });
 
-    const [first, second] = await Promise.all([
-      manager.mutate('post', `/api/projects/${project.id}/github/sync`).send({}),
-      manager.mutate('post', `/api/projects/${project.id}/github/sync`).send({})
-    ]);
+    const first = await manager.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
+    await vi.waitFor(() => expect(boundary.client.listIssuePages).toHaveBeenCalledTimes(1), {
+      timeout: 15000,
+      interval: 20
+    });
+    const second = await manager.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
+    const stillRunning = await prisma.gitHubSyncRun.findUnique({
+      where: { id: first.body.run.id },
+      select: { status: true }
+    });
+    openGate();
     await finishedRun(manager, project);
     await settled(project);
 
     expect([first.status, second.status]).toEqual([202, 202]);
+    expect(stillRunning.status).toBe('RUNNING');
+    expect(first.body.run.alreadyRunning).toBe(false);
+    expect(second.body.run.alreadyRunning).toBe(true);
     observe(
       'EV-S-07 respostas',
       [first.body.run, second.body.run].map((run) => ({

@@ -1,18 +1,13 @@
-const ROWS = 12000;
-const slowCount = `WITH RECURSIVE s(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM s WHERE n < ${ROWS}) SELECT COUNT(*) AS c FROM s a JOIN s b ON a.n < b.n AND (a.n * 31 + b.n) % 97 = 3`;
+export const SLOW_STATEMENT_SECONDS = 15;
 
-async function allowDeepRecursion(tx) {
-  await tx.$executeRawUnsafe('SET SESSION cte_max_recursion_depth = 100000');
+export function slowQuery(tx, seconds = SLOW_STATEMENT_SECONDS) {
+  return tx.$queryRawUnsafe(
+    `SELECT COUNT(*) AS c FROM (SELECT SLEEP(${Number(seconds)}) AS pause) AS slow`
+  );
 }
 
-export async function slowQuery(tx) {
-  await allowDeepRecursion(tx);
-  return tx.$queryRawUnsafe(slowCount);
-}
-
-export async function slowUpdate(tx, userId) {
-  await allowDeepRecursion(tx);
+export function slowUpdate(tx, userId, seconds = SLOW_STATEMENT_SECONDS) {
   return tx.$executeRawUnsafe(
-    `UPDATE User SET name = (SELECT CONCAT('pesado ', c) FROM (${slowCount}) t) WHERE id = ${Number(userId)}`
+    `UPDATE User SET name = CONCAT('pesado ', SLEEP(${Number(seconds)})) WHERE id = ${Number(userId)}`
   );
 }
