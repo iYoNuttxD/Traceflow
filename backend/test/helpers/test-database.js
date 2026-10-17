@@ -117,6 +117,7 @@ export async function cleanTestDatabase(prisma) {
     await tx.taskTimeEntry.deleteMany();
     await tx.taskComment.deleteMany();
     await tx.taskCommit.deleteMany();
+    await tx.taskArtifactLinkPeriod.deleteMany();
     await tx.taskIssue.deleteMany();
     await tx.taskHistoryEntry.deleteMany();
     await tx.taskMovement.deleteMany();

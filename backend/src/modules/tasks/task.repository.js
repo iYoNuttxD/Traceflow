@@ -5,6 +5,7 @@ import { AppError } from '../../shared/errors/index.js';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import { captureBurnupEstimate, captureBurnupScope } from '../sprints/sprint-burnup.events.js';
+import { closeLinkPeriods } from './repositories/task-link-period.js';
 
 const pullRequestSelect = {
   id: true,
@@ -341,6 +342,7 @@ export const taskRepository = {
           where: { taskId: id }
         });
 
+        await closeLinkPeriods(tx, { taskId: id });
         await tx.taskIssue.deleteMany({
           where: { taskId: id }
         });

@@ -454,6 +454,7 @@ model Project {
   notifications              Notification[]
   notificationDecisions      NotificationDecision[]
   githubEvents               GitHubArtifactEvent[]
+  taskArtifactLinkPeriods    TaskArtifactLinkPeriod[]
   alertReconciliation        TraceabilityAlertReconciliation?
 
   @@index([status])
@@ -758,6 +759,7 @@ model Task {
   traceabilityAlerts   TraceabilityAlert[]
   notifications        Notification[]
   githubEventTargets   GitHubArtifactEventTask[]
+  artifactLinkPeriods  TaskArtifactLinkPeriod[]
   responsibleUser      User?                     @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([pullRequestId])
@@ -1110,6 +1112,27 @@ model TaskIssue {
   @@index([issueId])
 }
 
+model TaskArtifactLinkPeriod {
+  id            Int       @id @default(autoincrement())
+  projectId     Int
+  taskId        Int?
+  issueId       Int?
+  pullRequestId Int?
+  linkedAt      DateTime  @default(now())
+  unlinkedAt    DateTime?
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  issue       Issue?       @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  pullRequest PullRequest? @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, issueId, linkedAt])
+  @@index([projectId, pullRequestId, linkedAt])
+  @@index([taskId, unlinkedAt])
+  @@index([issueId])
+  @@index([pullRequestId])
+}
+
 // Historico de movimentacoes do quadro Kanban do RF08.
 model TaskMovement {
   id                          Int                          @id @default(autoincrement())
@@ -1364,6 +1387,7 @@ model PullRequest {
   lifecycleEvents    PullRequestLifecycleEvent[]
   traceabilityAlerts TraceabilityAlert[]
   githubEvents       GitHubArtifactEvent[]
+  taskLinkPeriods    TaskArtifactLinkPeriod[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
@@ -1410,10 +1434,11 @@ model Issue {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  project            Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project            Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskLinks          TaskIssue[]
   traceabilityAlerts TraceabilityAlert[]
   githubEvents       GitHubArtifactEvent[]
+  taskLinkPeriods    TaskArtifactLinkPeriod[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])

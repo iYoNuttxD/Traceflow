@@ -3,6 +3,7 @@ import { prisma } from '../../../database/prismaClient.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
 import { lockActiveProject } from '../../projects/active-project-write.js';
+import { closeLinkPeriods, openLinkPeriod } from './task-link-period.js';
 
 export const taskLinkRepository = {
   async setRequirement(task, requirementId, auditEvent) {
@@ -50,11 +51,21 @@ export const taskLinkRepository = {
         sourceEntityId: taskId
       },
       async (tx) => {
+        const previous = await tx.task.findUniqueOrThrow({
+          where: { id: taskId },
+          select: { pullRequestId: true }
+        });
         const task = await tx.task.update({
           where: { id: taskId },
           data: { pullRequestId },
           include: taskInclude
         });
+        if (previous.pullRequestId !== pullRequestId) {
+          if (previous.pullRequestId)
+            await closeLinkPeriods(tx, { taskId, pullRequestId: previous.pullRequestId });
+          if (pullRequestId)
+            await openLinkPeriod(tx, { projectId: task.projectId, taskId, pullRequestId });
+        }
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         return task;
       }
@@ -99,6 +110,11 @@ export const taskLinkRepository = {
       },
       async (tx) => {
         const link = await tx.taskIssue.create({ data: { taskId, issueId } });
+        const { projectId } = await tx.task.findUniqueOrThrow({
+          where: { id: taskId },
+          select: { projectId: true }
+        });
+        await openLinkPeriod(tx, { projectId, taskId, issueId, linkedAt: link.createdAt });
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         return link;
       }
@@ -114,6 +130,7 @@ export const taskLinkRepository = {
       },
       async (tx) => {
         await tx.taskIssue.delete({ where: { taskId_issueId: { taskId, issueId } } });
+        await closeLinkPeriods(tx, { taskId, issueId });
         if (auditEvent) await auditRepository.create(auditEvent, tx);
       }
     );
