@@ -298,7 +298,7 @@ function RepositoryInfoContent({ projectId }) {
     dialogReturnFocusRef.current = trigger;
     setDialog({
       alertId: artifact.inconsistency.alertId,
-      title: `Inconsistência · ${artifactReference(artifact, { capitalized: true })}`
+      title: 'Inconsistência'
     });
   }
 
@@ -664,7 +664,7 @@ function RepositoryInfoContent({ projectId }) {
       <SprintDialog
         open={Boolean(dialog)}
         title={dialog?.title || 'Inconsistência'}
-        size="wide"
+        className="trace-alert-dialog"
         onClose={closeInconsistency}
         returnFocusRef={dialogReturnFocusRef}
       >

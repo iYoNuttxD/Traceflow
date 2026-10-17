@@ -1195,7 +1195,13 @@ o trabalho acontece, sem tela própria.
     (TF-REV-010, 2026-10-17). Sem histórico, nada aparece.
 - **Repositório.** A célula de estado ganha a linha "sem tarefa vinculada" (warning, com ícone) ou
   "sem tarefa · dispensada em …" e "inconsistência resolvida em …" (discretas). A ação "Ver
-  inconsistência" abre o detalhe num `SprintDialog`, com vincular, dispensar, GitHub e histórico.
+  inconsistência" abre o detalhe num `SprintDialog` compacto (`trace-alert-dialog`, até 36rem),
+  com o título "Inconsistência", em três blocos (UX-R2-01, 2026-10-17):
+  - cabeçalho com tipo, estado e a identificação do item, uma vez só;
+  - "Motivo": uma frase com a data da ocorrência, uma vez só;
+  - "Dados": só o que não se repete (as branches da PR, o estado atual da issue quando ela foi
+    reaberta, os vínculos da tarefa) e a detecção, a dispensa ou a resolução;
+  - ações numa linha (`role="group"`): vincular, dispensar, GitHub e "Histórico (n)".
 - **Rastreabilidade do projeto.** A sub-navegação saiu. O topo traz a linha "3 tarefas concluídas sem
   commit · 2 PRs mescladas sem tarefa · 1 issue fechada sem tarefa", em que cada parte é link para a
   lista filtrada, mais o aviso de números desatualizados e "Reprocessar inconsistências" para

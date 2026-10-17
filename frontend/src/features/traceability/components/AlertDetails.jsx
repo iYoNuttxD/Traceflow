@@ -12,11 +12,13 @@ import { dismissTraceabilityAlert, getTraceabilityAlert } from '../api/traceabil
 import { useSubjectAlerts } from '../hooks/useSubjectAlerts.js';
 import {
   NO_REPOSITORY_MESSAGE,
+  alertFactText,
   alertSubjectFilter,
   formatInstant,
+  resolutionLabel,
   taskStatusLabel
 } from '../model/alert-view.js';
-import { AlertBadges, AlertFacts } from './AlertCard.jsx';
+import { AlertBadges } from './AlertCard.jsx';
 import { AlertDismissForm } from './AlertDismissForm.jsx';
 import { AlertHistoryList, AlertHistoryToggle } from './AlertHistory.jsx';
 import { AlertLinkTask } from './AlertLinkTask.jsx';
@@ -53,26 +55,32 @@ function TaskContext({ context }) {
 
 function PullRequestContext({ context }) {
   return (
-    <>
-      <ContextRow label="Pull request">{`PR #${context.number} · ${context.title}`}</ContextRow>
-      <ContextRow label="Branches">
-        {`${context.sourceBranch || 'origem não informada'} → ${context.targetBranch || 'destino não informado'}`}
-      </ContextRow>
-      <ContextRow label="Mesclada em">{formatInstant(context.mergedAt)}</ContextRow>
-    </>
+    <ContextRow label="Branches">
+      {`${context.sourceBranch || 'origem não informada'} → ${context.targetBranch || 'destino não informado'}`}
+    </ContextRow>
   );
 }
 
 function IssueContext({ context }) {
+  return context.state === 'closed' ? null : (
+    <ContextRow label="Estado atual no GitHub">Aberta</ContextRow>
+  );
+}
+
+function AlertTimeline({ alert }) {
   return (
     <>
-      <ContextRow label="Issue">{`Issue #${context.number} · ${context.title}`}</ContextRow>
-      <ContextRow label="Estado no GitHub">
-        {context.state === 'closed' ? 'Fechada' : 'Aberta'}
-      </ContextRow>
-      <ContextRow label="Fechada em">
-        {formatInstant(context.closedAt) || 'Não informado'}
-      </ContextRow>
+      <ContextRow label="Detectada em">{formatInstant(alert.detectedAt)}</ContextRow>
+      {alert.status === 'RESOLVED' && (
+        <ContextRow label="Resolvida em">
+          {`${formatInstant(alert.resolvedAt)} · ${resolutionLabel(alert.resolutionReason)}`}
+        </ContextRow>
+      )}
+      {alert.dismissal && (
+        <ContextRow label="Dispensada">
+          {`${alert.dismissal.by?.name || 'pessoa removida'} em ${formatInstant(alert.dismissal.at)}: “${alert.dismissal.reason}”`}
+        </ContextRow>
+      )}
     </>
   );
 }
@@ -183,32 +191,36 @@ export function AlertDetails({ projectId, alertId, permissions, onChanged }) {
           onRetry={read}
         />
       )}
-      <AlertBadges alert={alert} />
-      <p className="trace-alert-subject">
-        <span className="trace-alert-subject__code">{alert.subject.code}</span>
-        {alert.subject.title}
-      </p>
-      {!alert.subject.available && (
-        <p className="trace-alert-notice">
-          O item desta inconsistência foi excluído. Os dados exibidos são os da detecção.
+      <header className="trace-alert-details__header">
+        <AlertBadges alert={alert} />
+        <p className="trace-alert-subject">
+          <span className="trace-alert-subject__code">{alert.subject.code}</span>
+          {alert.subject.title}
         </p>
-      )}
-      <AlertFacts alert={alert} />
-      {alert.context && Context && (
-        <section aria-label="Contexto da inconsistência">
-          <h4>Contexto</h4>
-          <dl className="trace-alert-context">
-            <Context context={alert.context} />
-          </dl>
-          {alert.subject.type === 'TASK' && alert.context.pendingCommitSuggestions > 0 && (
-            <p className="trace-alert-notice">
-              {alert.context.pendingCommitSuggestions === 1
-                ? '1 sugestão de commit pendente para esta tarefa.'
-                : `${alert.context.pendingCommitSuggestions} sugestões de commit pendentes para esta tarefa.`}
-            </p>
-          )}
-        </section>
-      )}
+      </header>
+      <section className="trace-alert-details__block" aria-labelledby={`${historyId}-reason`}>
+        <h4 id={`${historyId}-reason`}>Motivo</h4>
+        <p>{alertFactText(alert)}</p>
+        {!alert.subject.available && (
+          <p className="trace-alert-notice">
+            O item desta inconsistência foi excluído. Os dados exibidos são os da detecção.
+          </p>
+        )}
+        {alert.subject.type === 'TASK' && alert.context?.pendingCommitSuggestions > 0 && (
+          <p className="trace-alert-notice">
+            {alert.context.pendingCommitSuggestions === 1
+              ? '1 sugestão de commit pendente para esta tarefa.'
+              : `${alert.context.pendingCommitSuggestions} sugestões de commit pendentes para esta tarefa.`}
+          </p>
+        )}
+      </section>
+      <section className="trace-alert-details__block" aria-labelledby={`${historyId}-data`}>
+        <h4 id={`${historyId}-data`}>Dados</h4>
+        <dl className="trace-alert-context">
+          {alert.context && Context && <Context context={alert.context} />}
+          <AlertTimeline alert={alert} />
+        </dl>
+      </section>
       {view === 'dismiss' && (
         <AlertDismissForm busy={busy} onSubmit={dismiss} onCancel={() => setView('details')} />
       )}
@@ -221,7 +233,7 @@ export function AlertDetails({ projectId, alertId, permissions, onChanged }) {
         />
       )}
       {view === 'details' && (
-        <div className="trace-alert-actions">
+        <div className="trace-alert-actions" role="group" aria-label="Ações da inconsistência">
           {alert.subject.type === 'TASK' && alert.subject.available && (
             <Link
               className="button button-primary"

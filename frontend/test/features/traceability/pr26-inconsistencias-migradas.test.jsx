@@ -139,7 +139,7 @@ async function openInconsistency(user) {
   await user.click(trigger);
   return {
     trigger,
-    dialog: await screen.findByRole('dialog', { name: 'Inconsistência · PR #45' })
+    dialog: await screen.findByRole('dialog', { name: 'Inconsistência' })
   };
 }
 
@@ -170,7 +170,7 @@ beforeEach(() => {
 });
 
 describe('PR #26 casos migrados da tela de alertas: detalhe e permissões (S2-01 F2, F6, F7, AT-U-04)', () => {
-  it('F2 AT-U-04 o detalhe da PR mostra tipo, situação, branches, merge, detecção e o GitHub em nova aba', async () => {
+  it('F2 AT-U-04 M-05 o detalhe da PR mostra tipo, situação, branches, merge, detecção e o GitHub em nova aba, num diálogo compacto', async () => {
     const user = userEvent.setup();
     trace.getTraceabilityAlert.mockResolvedValue(
       prDetail(prAlert(), roles.MANAGER, { sourceBranch: null })
@@ -181,10 +181,15 @@ describe('PR #26 casos migrados da tela de alertas: detalhe e permissões (S2-01
 
     expect(await within(dialog).findByText('PR mesclada sem tarefa')).toBeInTheDocument();
     expect(within(dialog).getByText('Aberta')).toBeInTheDocument();
-    expect(within(dialog).getByText('PR #45 · Ajusta CI')).toBeInTheDocument();
+    expect(within(dialog).getByText('PR #45')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ajusta CI')).toBeInTheDocument();
     expect(within(dialog).getByText('origem não informada → main')).toBeInTheDocument();
     expect(within(dialog).getByText(`Mesclada em ${formatInstant(MERGED)}`)).toBeInTheDocument();
-    expect(within(dialog).getByText(`Detectada em ${formatInstant(DETECTED)}`)).toBeInTheDocument();
+    const data = within(dialog).getByRole('region', { name: 'Dados' });
+    expect(within(data).getByText('Detectada em')).toBeInTheDocument();
+    expect(within(data).getByText(formatInstant(DETECTED))).toBeInTheDocument();
+    expect(dialog).toHaveClass('trace-alert-dialog');
+    expect(dialog).not.toHaveClass('sprint-dialog--wide');
     const github = within(dialog).getByRole('link', { name: /Abrir no GitHub/ });
     expect(github).toHaveAttribute('href', PR_URL);
     expect(github).toHaveAttribute('rel', 'noopener noreferrer');
@@ -197,7 +202,7 @@ describe('PR #26 casos migrados da tela de alertas: detalhe e permissões (S2-01
 
     const { dialog } = await openInconsistency(user);
 
-    expect(await within(dialog).findByText('PR #45 · Ajusta CI')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Ajusta CI')).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Vincular a uma tarefa' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Dispensar' })).toBeNull();
     expect(within(dialog).getByRole('link', { name: /Abrir no GitHub/ })).toBeInTheDocument();
@@ -455,12 +460,12 @@ describe('PR #26 casos migrados: conteúdo do GitHub e foco (S2-01 AT-U-09, F16)
     renderRepository();
     const { trigger, dialog } = await openInconsistency(user);
 
-    await within(dialog).findByText('PR #45 · Ajusta CI');
+    await within(dialog).findByText('Ajusta CI');
     await user.click(within(dialog).getByRole('button', { name: /^Fechar/ }));
     await waitFor(() => expect(trigger).toHaveFocus());
 
     await user.click(trigger);
-    await screen.findByRole('dialog', { name: 'Inconsistência · PR #45' });
+    await screen.findByRole('dialog', { name: 'Inconsistência' });
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(trigger).toHaveFocus();
