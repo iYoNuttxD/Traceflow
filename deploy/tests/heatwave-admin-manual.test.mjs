@@ -1,3 +1,5 @@
+import { validateAdministrativeRuntime } from "../../backend/scripts/lib/heatwave-administrative-runtime.js";
+import { runtimeFixture } from "./helpers/administrative-runtime-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
@@ -135,7 +137,9 @@ function filesystem() {
           f.mode = mode;
         },
         async sync() {},
-        async close() {},
+        async close() {
+          io.onClose?.(p, f);
+        },
       };
     },
   };
@@ -295,6 +299,7 @@ function workflow() {
     gid: 1200,
     packageRoot: "/opt/traceflow-diagnostics/" + fixture.binding.packageId,
     node: "/usr/bin/node",
+    runtime: async () => validateAdministrativeRuntime(runtimeFixture()),
   };
   const io = createAdministrativeIO(f.store, options);
   io.collect = async () => {
@@ -380,7 +385,7 @@ function workflow() {
     },
   };
 }
-test("each invocation performs only one stage; no early PASS; default offline gate stays closed", async () => {
+test("each invocation performs only one stage; PASS requires all four with verified runtime", async () => {
   const w = workflow();
   assert.equal((await w.perform("collect-initial")).final, false);
   assert.deepEqual(w.calls, ["mysql"]);
@@ -388,18 +393,14 @@ test("each invocation performs only one stage; no early PASS; default offline ga
   assert.deepEqual(w.calls, ["mysql", "prisma"]);
   assert.equal((await w.perform("collect-final")).final, false);
   assert.deepEqual(w.calls, ["mysql", "prisma", "mysql"]);
-  await assert.rejects(w.perform("verify-offline"), {
-    code: "ADMIN_COLLECTION_RUNTIME_UNVERIFIED",
-  });
+  const final = await w.perform("verify-offline");
+  assert.equal(final.status, "PASS");
+  assert.equal(final.final, true);
   assert.deepEqual(w.calls, ["mysql", "prisma", "mysql"]);
-  assert.ok(
-    [...w.files.keys()].some((p) => p.endsWith("verify-offline.failure.json")),
-  );
 });
-test("offline contract success requires all protected receipts and explicit synthetic runtime double", async () => {
+test("offline contract success requires protected receipts and the approved runtime facts", async () => {
   const w = workflow();
   for (const op of OPERATIONS.slice(0, 3)) await w.perform(op);
-  w.io.requireVerifiedRuntime = () => {}; // Explicit synthetic proof, not an operational switch.
   const r = await w.perform("verify-offline");
   assert.equal(r.status, "PASS");
   assert.equal(r.limitations.atomicSnapshot, false);
@@ -411,7 +412,6 @@ test("offline contract success requires all protected receipts and explicit synt
 for (const op of OPERATIONS)
   test("attempt cannot be reused: " + op, async () => {
     const w = workflow();
-    w.io.requireVerifiedRuntime = () => {};
     for (const step of OPERATIONS.slice(0, OPERATIONS.indexOf(op) + 1))
       await w.perform(step);
     const calls = [...w.calls];
@@ -713,6 +713,7 @@ function adapterFixture() {
     gid: 1200,
     packageRoot: "/opt/traceflow-diagnostics/" + fixture.binding.packageId,
     node: "/usr/bin/node",
+    runtime: async () => validateAdministrativeRuntime(runtimeFixture()),
     dns: async () => calls.push("dns"),
     validateCa: (pem, hash) => {
       assert.equal(pem, "SYNTHETIC_CA");
@@ -827,9 +828,8 @@ test("offline adapter reads closure only and never invokes mysql/launcher/DNS", 
   );
   assert.equal((await f.adapter().closure(f.auth)).runId, f.id);
   assert.deepEqual(f.calls, []);
-  assert.throws(() => f.adapter().requireVerifiedRuntime(), {
-    code: "ADMIN_COLLECTION_RUNTIME_UNVERIFIED",
-  });
+  await f.adapter().requireVerifiedRuntime();
+  assert.deepEqual(f.calls, []);
 });
 test("system executable symlinks require protected source and target; evidence still forbids symlinks", async () => {
   const f = filesystem();
@@ -893,3 +893,87 @@ test("expired process window is rejected before spawning", async () => {
   await assert.rejects(runBounded({ ...spec, timeoutMs: 0 }, f.deps));
   assert.equal(f.options.length, 0);
 });
+
+for (const operation of OPERATIONS) {
+  test("runtime mismatch prevents any effect in " + operation, async () => {
+    const w = workflow();
+    for (const op of OPERATIONS.slice(0, OPERATIONS.indexOf(operation)))
+      await w.perform(op);
+    const before = [...w.files.keys()],
+      calls = [...w.calls];
+    w.io.requireVerifiedRuntime = async () =>
+      validateAdministrativeRuntime({ ...runtimeFixture(), selinux: "0" });
+    await assert.rejects(w.perform(operation), {
+      code: "ADMIN_COLLECTION_RUNTIME_UNVERIFIED",
+    });
+    assert.deepEqual([...w.files.keys()], before);
+    assert.deepEqual(w.calls, calls);
+  });
+  test(
+    "runtime drift after execution prevents receipt in " + operation,
+    async () => {
+      const w = workflow();
+      for (const op of OPERATIONS.slice(0, OPERATIONS.indexOf(operation)))
+        await w.perform(op);
+      let checks = 0;
+      w.io.requireVerifiedRuntime = async () =>
+        validateAdministrativeRuntime({
+          ...runtimeFixture(),
+          selinux: ++checks === 1 ? "1" : "0",
+        });
+      await assert.rejects(w.perform(operation), {
+        code: "ADMIN_COLLECTION_RUNTIME_UNVERIFIED",
+      });
+      assert.equal(checks, 2);
+      assert.ok(
+        ![...w.files.keys()].some((p) =>
+          p.endsWith(operation + ".receipt.json"),
+        ),
+      );
+      assert.ok(
+        [...w.files.keys()].some((p) =>
+          p.endsWith(operation + ".failure.json"),
+        ),
+      );
+      await assert.rejects(w.perform(operation));
+    },
+  );
+}
+for (const operation of ["collect", "capture"]) {
+  for (const primaryFailure of [false, true]) {
+    test(
+      operation +
+        " closes all pinned files and preserves primary=" +
+        primaryFailure,
+      async () => {
+        const f = adapterFixture(),
+          closed = [],
+          opened = [];
+        const original = f.store.openProtected.bind(f.store);
+        f.store.openProtected = async (...args) => {
+          const file = await original(...args);
+          opened.push(file);
+          return file;
+        };
+        f.io.onClose = (path) => {
+          closed.push(path);
+          if (closed.length === 1) throw new Error("SYNTHETIC_SECRET_CLOSE");
+        };
+        if (primaryFailure)
+          f.config.run = async () => {
+            throw Object.assign(new Error("SYNTHETIC_SECRET_PRIMARY"), {
+              code: "AUDIT_PROCESS_TIMEOUT",
+            });
+          };
+        await assert.rejects(f.adapter()[operation](f.auth), {
+          code: primaryFailure
+            ? "AUDIT_PROCESS_TIMEOUT"
+            : "AUDIT_FILE_CLOSE_FAILED",
+        });
+        assert.equal(closed.length, 2);
+        assert.equal(opened.length, 2);
+        assert.ok(opened.every((f) => f.bytes.every((b) => b === 0)));
+      },
+    );
+  }
+}

@@ -14,14 +14,22 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'deploy/lib'))
 from diagnostic_contract import (SOURCES, DRIVERS, DEPENDENCIES, ENGINE, Refused, require,
-                                 encoded, digest, file_digest, trusted, pack, extract)
+                                 encoded, digest, file_digest, trusted, pack, extract, extract_dependency_base)
 
 RECIPES = ('scripts/package-diagnostic.mjs', 'scripts/package_diagnostic.py',
            'deploy/lib/diagnostic_contract.py', *DRIVERS)
 REVIEW_INPUTS = ('deploy/tests/heatwave-diagnostic.test.mjs',
                 'deploy/tests/diagnostic-launcher.test.mjs',
                 'docs/runbooks/OCI_HEATWAVE_PRISMA_DIAGNOSTIC.md',
-                'deploy/tests/test_diagnostic_offline.py')
+                'deploy/tests/test_diagnostic_offline.py',
+                'deploy/tests/test_diagnostic_package.py',
+                'deploy/tests/role-attestation.test.mjs',
+                'deploy/tests/administrative-audit.test.mjs',
+                'deploy/tests/heatwave-admin-manual.test.mjs',
+                'deploy/tests/administrative-runtime.test.mjs',
+                'deploy/tests/helpers/role-attestation-fixture.mjs',
+                'deploy/tests/helpers/administrative-audit-fixture.mjs',
+                'deploy/tests/helpers/administrative-runtime-fixture.mjs')
 INPUTS = tuple(dict.fromkeys((*SOURCES, *RECIPES, 'backend/package.json',
                             'backend/package-lock.json', *REVIEW_INPUTS)))
 # Reuse is permitted only when the generator inputs and unchanged runtime contracts match.
@@ -29,7 +37,10 @@ REUSE_GUARDS = ('backend/package.json', 'backend/package-lock.json',
                 'backend/prisma/schema.prisma', 'backend/src/database/prismaClient.js',
                 'backend/src/database/database-safety.js', 'backend/scripts/lib/database-safety.js',
                 'backend/scripts/lib/oci-compatibility-safety.js',
-                'deploy/scripts/diagnostic-runtime.mjs', 'deploy/lib/diagnostic_contract.py')
+                'deploy/scripts/diagnostic-runtime.mjs')
+# The verifier is reviewed as a current recipe, never reused as a dependency.
+# Old-base import has its own exact legacy inventory; native-input guards above
+# remain unchanged and dependency bytes still require both independent pins.
 
 
 def command(args, cwd=None, env=None, timeout=900):
@@ -194,7 +205,7 @@ def offline(args):
     require(node.split('.')[0] == '22', 'NODE22_REQUIRED')
     with workspace(args.source_sha256[:16]) as work:
         base_root = work / 'verified-base'
-        base = extract(args.base_archive, args.base_sha256, args.base_manifest_sha256, base_root)
+        base = extract_dependency_base(args.base_archive, args.base_sha256, args.base_manifest_sha256, base_root)
         require(base['nodeVersion'] == '22.23.2', 'BASE_NODE_VERSION')
         for name in REUSE_GUARDS:
             require(base.get('sourceFiles', {}).get(name) == proof['files'][name], 'REUSE_INPUT_CHANGED')

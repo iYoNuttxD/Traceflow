@@ -171,6 +171,7 @@ export async function executeManual(
       auth.administrativeAudit.initialSha256 === null,
       "AUDIT_INITIAL_ALREADY_BOUND",
     );
+  await io.requireVerifiedRuntime();
   const index = OPERATIONS.indexOf(operation);
   const chain = index === 0 ? [] : await io.loadChain(auth, index);
   verifyPrefix(chain, auth, binding, index, now());
@@ -244,10 +245,8 @@ export async function executeManual(
         binding,
         now(),
       );
-      // Pure contract success is insufficient for operational PASS. No document,
-      // flag or operator assertion can replace missing real protocol validation.
-      await io.requireVerifiedRuntime();
     }
+    await io.requireVerifiedRuntime();
     validateAuditAuthorization(auth, binding, now());
     // A receipt binds the producer attempt separately from the child timestamps.
     const receipt = {
@@ -287,6 +286,20 @@ export async function executeManual(
   }
 }
 
+// Close every descriptor even if one close fails; never replace a primary failure.
+async function closePinned(primary, ...files) {
+  let failed = false;
+  for (const file of files.filter(Boolean)) {
+    file.bytes.fill(0);
+    try {
+      await file.close();
+    } catch {
+      failed = true;
+    }
+  }
+  if (!primary) check(!failed, "AUDIT_FILE_CLOSE_FAILED");
+}
+
 export function createAdministrativeIO(
   store,
   {
@@ -299,6 +312,7 @@ export function createAdministrativeIO(
     run = runBounded,
     dns = verifyManagedDns,
     validateCa = publicCaContract,
+    runtime = requireValidatedAdministrativeRuntime,
   },
 ) {
   const env = cleanEnvironment(node);
@@ -371,7 +385,7 @@ export function createAdministrativeIO(
         modes: [0o444, 0o644],
         maxBytes: 65536,
       });
-      let credential;
+      let credential, primary;
       try {
         validateCa(ca.bytes.toString("utf8"), auth.target.caSha256);
         validateAuditAuthorization(
@@ -405,12 +419,11 @@ export function createAdministrativeIO(
         await credential.recheck();
         await ca.recheck();
         return result;
+      } catch (error) {
+        primary = error;
+        throw error;
       } finally {
-        if (credential) {
-          credential.bytes.fill(0);
-          await credential.close();
-        }
-        await ca.close();
+        await closePinned(primary, credential, ca);
       }
     },
     async capture(auth) {
@@ -418,7 +431,7 @@ export function createAdministrativeIO(
       const id = auth.administrativeAudit.runId;
       const copyPath = inputPath(id, "prisma-authorization.json");
       const copy = await store.openProtected(copyPath, { uid, modes: [0o600] });
-      let credential;
+      let credential, primary;
       try {
         check(
           canonical(strictJson(copy.bytes.toString("utf8"))) ===
@@ -457,16 +470,15 @@ export function createAdministrativeIO(
         await copy.recheck();
         await credential.recheck();
         return result;
+      } catch (error) {
+        primary = error;
+        throw error;
       } finally {
-        if (credential) {
-          credential.bytes.fill(0);
-          await credential.close();
-        }
-        await copy.close();
+        await closePinned(primary, credential, copy);
       }
     },
     closure: (auth) => privateJson(auth, "closure.json"),
-    requireVerifiedRuntime: requireValidatedAdministrativeRuntime,
+    requireVerifiedRuntime: runtime,
     async persist(auth, attempt, document, receipt) {
       if (attempt.operation === "collect-initial") {
         await store.publish(

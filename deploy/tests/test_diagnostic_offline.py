@@ -4,6 +4,8 @@ import io
 import json
 from pathlib import Path
 import shutil
+import re
+import tarfile
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -118,6 +120,83 @@ class OfflinePackageTests(unittest.TestCase):
         for name in (*d.SOURCES, *d.DRIVERS):
             self.assertEqual((installed / name).read_bytes(), (self.source / name).read_bytes())
         self.assertEqual(set(d.inventory(installed)), d.FILES)
+
+    def legacy_base(self, omit=None, extra=None):
+        names = set(d.LEGACY_FILES)
+        if omit:
+            names.remove(omit)
+        contents = {name: (self.base / name).read_bytes() for name in names}
+        if extra:
+            contents[extra] = b'unexpected synthetic content'
+        metadata = dict(self.base_metadata, files={
+            name: {'sha256': d.digest(data), 'size': len(data), 'mode': 0o644}
+            for name, data in contents.items()})
+        metadata['sourceFiles'] = dict(metadata['sourceFiles'])
+        # The old verifier recipe is not a reusable native dependency.
+        metadata['sourceFiles']['deploy/lib/diagnostic_contract.py'] = {'sha256': '0' * 64, 'size': 1}
+        manifest = d.encoded(metadata)
+        contents['manifest.json'] = manifest
+        self.archive = self.work / 'legacy-synthetic.tar.gz'
+        with tarfile.open(self.archive, 'w:gz', format=tarfile.USTAR_FORMAT) as tar:
+            for name, data in sorted(contents.items()):
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                info.mode = 0o644
+                tar.addfile(info, io.BytesIO(data))
+        self.base_receipt = {'sha256': d.file_digest(self.archive), 'manifestSha256': d.digest(manifest)}
+
+    def test_legacy_base_reuses_only_verified_dependencies_and_includes_all_current_modules(self):
+        self.legacy_base()
+        before = self.archive.read_bytes()
+        with self.assertRaises(d.Refused):
+            d.extract(self.archive, self.base_receipt['sha256'],
+                      self.base_receipt['manifestSha256'], self.work / 'not-current')
+        result = self.invoke()
+        self.assertEqual(before, self.archive.read_bytes())
+        manifest = json.loads((self.output / 'manifest.json').read_bytes())
+        self.assertEqual(set(manifest['files']), d.FILES)
+        self.assertEqual(manifest['runtimeProvenance']['archiveSha256'], self.base_receipt['sha256'])
+        self.assertNotEqual(result['sha256'], self.base_receipt['sha256'])
+
+    def test_incomplete_legacy_base_refused(self):
+        self.legacy_base(omit='backend/node_modules/dotenv/LICENSE')
+        with self.assertRaisesRegex(d.Refused, 'MANIFEST_ALLOWLIST'):
+            self.invoke()
+        self.assertFalse(self.output.exists())
+
+    def test_legacy_base_unknown_member_refused(self):
+        self.legacy_base(extra='unexpected.txt')
+        with self.assertRaisesRegex(d.Refused, 'ARCHIVE_ALLOWLIST'):
+            self.invoke()
+        self.assertFalse(self.output.exists())
+
+    def test_legacy_base_still_requires_both_pins(self):
+        self.legacy_base()
+        for field in ('base_sha256', 'base_manifest_sha256'):
+            with self.subTest(field=field), self.assertRaises(d.Refused):
+                self.invoke(**{field: '0' * 64})
+            self.assertFalse(self.output.exists())
+
+    def test_legacy_base_preserves_native_input_guards(self):
+        self.legacy_base()
+        path = self.source / 'backend/package-lock.json'
+        path.write_bytes(path.read_bytes() + b'\n')
+        self.refresh_source()
+        with self.assertRaisesRegex(d.Refused, 'REUSE_INPUT_CHANGED'):
+            self.invoke()
+
+    def test_current_runtime_inventory_closes_relative_imports(self):
+        for name in (*d.SOURCES, *d.DRIVERS):
+            if not name.endswith(('.js', '.mjs')):
+                continue
+            text = (REPO / name).read_text()
+            pattern = r"(?:from\s+|import\(\s*)['\"](\.[^'\"]+)['\"]"
+            for relative in re.findall(pattern, text):
+                target = ((REPO / name).parent / relative).resolve().relative_to(REPO).as_posix()
+                self.assertIn(target, d.FILES, (name, relative))
+        self.assertNotIn('deploy/tests/administrative-runtime.test.mjs', d.FILES)
+        self.assertTrue(all('/test' not in name and not name.endswith('.md') for name in d.FILES))
+
 
     def test_reproducible_offline_bytes(self):
         first = self.invoke()

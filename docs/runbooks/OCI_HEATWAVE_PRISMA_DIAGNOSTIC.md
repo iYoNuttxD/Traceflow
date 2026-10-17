@@ -1684,3 +1684,218 @@ no teste; a interface CLI não oferece tal opção.
 Veredito: **PARTIAL**, pelos limites reais enumerados na seção 32.5. Esta
 continuação não produziu atestado real, autorização operacional, credencial,
 conexão MySQL/OCI, migration, pacote, commit, push, PR ou deploy.
+
+## 33. OCI-DEPLOY-06.1.5-W02-E — finalização operacional local
+
+Esta seção atualiza o estado operacional sem alterar as evidências históricas.
+Baseline: `daniel-dev`, HEAD `36092331a8c0c3f2f669e82fea476d551e3db721`, working tree
+inicial limpo. Nenhuma conexão externa, consulta SQL real, migration, instalação,
+alteração de certificados, pacote distribuível, commit ou deploy nesta entrega.
+
+### 33.1 Evidências utilizadas e limites
+
+- W02-B: 515 testes locais; contratos, coletor, captura e consolidador implementados.
+- W02-C: 68 verificações experimentais PASS, conforme a entrega confirmada pelo
+  operador: MySQL Community 26.7.0, protocolo textual, associação imediata de
+  `SHOW COUNT(*) WARNINGS`, parser e TLS. Não comprova o HeatWave gerenciado.
+- W02-D: 27 verificações Linux PASS, Node 22.23.2, cliente MySQL 26.7.0, Oracle
+  Linux 9.8 ARM64: descritor `/proc/self/fd/3`, runuser, grupos de processos,
+  timeout/interrupção, custódia root/traceflow, publicação exclusiva, recibos e
+  fsync. Os 20 arquivos do inventário sanitizado local tiveram seus hashes
+  revalidados nesta entrega. SHA-256 de `SHA256SUMS`:
+  `323f6f0149b76a095a8aa6e2c33fc817918ba6c1f9c4a743c6ce9af3f42ff799`.
+- O relatório D preservado registra uma falha inicial da fixture, corrigida em
+  reteste separado, e pendência de limpeza por timeout SSH. O operador confirmou
+  posteriormente `W02D_CLEANUP_PASS` dos quatro diretórios. Essa confirmação é do
+  operador; a W02-E não reconectou à VM nem reescreveu o relatório anterior.
+
+SELinux estava Enforcing, mas os processos testados eram `unconfined_t`. Não se
+alega homologação de domínio systemd confinado. fsync bem-sucedido não equivale a
+um ensaio de perda de energia. O encerramento de descendentes cobre o grupo de
+processos testado, não daemonização intencional com fuga por `setsid`.
+
+### 33.2 Estado do bloqueio e perfil verificável
+
+`ADMIN_COLLECTION_RUNTIME_UNVERIFIED` continua sendo uma recusa de segurança.
+Sua implementação deixou de ser incondicional: agora somente admite o perfil
+`w02d-oracle98-arm64-20261016`, conferido em arquivos/processo locais, sem SQL,
+subprocessos de coleta ou conexão. Não existe flag, campo de autorização ou
+variável de ambiente que permita ignorar o controle.
+
+O perfil exige Linux ARM64, Oracle Linux Server release 9.8, Node **22.23.2** em
+`/usr/bin/node-22`, OpenSSL 3, SELinux Enforcing e exatamente o contexto observado
+`unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023`. Os executáveis devem ter
+caminhos canônicos, ancestrais protegidos, dono root, arquivo regular sem hardlink,
+modo 0555/0755 e os hashes medidos em D02:
+
+| Executável          | SHA-256 aprovado pela evidência técnica W02-D                      |
+| ------------------- | ------------------------------------------------------------------ |
+| `/usr/bin/node-22`  | `70c5311d18f5eb533861e906068a1d1ecf2bf75422e7297bbb5bb1e39f830845` |
+| `/usr/bin/mysql`    | `e75c4c3e186787a8139a11a9a911a5a20c598f4d97aabefecf8df0aa631b0f08` |
+| `/usr/sbin/runuser` | `47a3d80077e877734f3fc9c6949e48c3608083efdae07fc32dcb5e3c8ccb108f` |
+
+Os arquivos são abertos com proteção contra symlink, limites de tamanho e
+revalidação do descritor, caminho e ancestrais. Arquivos de kernel são lidos em
+caminhos fixos com limite de 2048 bytes. Falha de leitura, versão, contexto,
+permissão, hash ou substituição mantém `ADMIN_COLLECTION_RUNTIME_UNVERIFIED`, sem
+mensagem bruta do sistema. A leitura dos binários é limitada a 128 MiB por arquivo.
+Atualização de um executável ou mudança de domínio SELinux exige revisão e
+validação específica do perfil; não se deve desabilitar SELinux nem substituir
+binários para contornar a recusa. Bibliotecas compartilhadas e política do sistema
+continuam pertencendo à administração confiável do host; estes pins não são uma
+atestação integral do sistema operacional.
+
+O controle é executado antes de cada operação manual e novamente antes de
+publicar seu documento/recibo. O launcher e o diagnóstico também o verificam ao
+validar a evidência inicial, antes da credencial/conexão e na conferência final.
+O hash do pacote cobre essa política junto com o código. Evidências históricas
+C/D habilitam apenas o perfil de execução; nunca substituem a coleta nova nem a
+autorização temporária da homologação.
+
+### 33.3 Quatro invocações independentes
+
+Continuam obrigatórios os arquivos, identidades, permissões e pré-requisitos da
+seção 32.3: pacote completo em diretório exclusivo root protegido, CA pública
+original, inputs sob custódia, autorização v2 nova, identificadores únicos,
+janela de no máximo dez minutos e aceitação humana explícita da limitação TOCTOU.
+A duração de cada evidência permanece limitada a 35 segundos, com intervalo
+máximo de 60 segundos entre etapas; o timeout de processo nunca amplia a janela.
+Desabilitar core dumps no contexto de execução conforme o procedimento já
+previsto, sem mudar configurações persistentes. Não preparar credenciais em
+argv, variável de ambiente ou histórico do shell.
+
+Os comandos abaixo são **procedimento futuro**, não foram executados pela W02-E.
+Substituir os placeholders pelos valores do novo pacote e da autorização real.
+Cada bloco é uma decisão manual separada; não executar como script encadeado.
+
+Com a conta de diagnóstico bloqueada e a autorização inicial ainda sem hash de
+coleta, executar somente:
+
+```text
+sudo env -i PATH=/usr/bin:/bin /usr/bin/node-22 /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation collect-initial --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+Conferir `EVIDENCE_RECORDED`, documento e recibo. A ferramenta vincula o hash da
+coleta inicial e publica as cópias de autorização sob custódia. A preparação da
+conta/credencial temporária é procedimento humano separado e exige autorização.
+Somente então invocar:
+
+```text
+sudo env -i PATH=/usr/bin:/bin /usr/bin/node-22 /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation capture-prisma --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+O documento Prisma continua `PRISMA_VERIFIED`, `final=false`, `writes=false` e
+`disconnected=true`. A resposta da captura é `EVIDENCE_RECORDED`; não é PASS de
+homologação. Falha de desconexão impede a evidência. Depois da conferência humana,
+bloqueio da conta e confirmação independente de zero sessões, executar:
+
+```text
+sudo env -i PATH=/usr/bin:/bin /usr/bin/node-22 /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation collect-final --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+Essa operação realiza uma coleta nova; não reutiliza a inicial. Preparar a
+confirmação operacional de encerramento protegida e somente então invocar:
+
+```text
+sudo env -i PATH=/usr/bin:/bin /usr/bin/node-22 /opt/traceflow-diagnostics/<PACKAGE_ID>/deploy/scripts/heatwave-admin-manual.mjs --operation verify-offline --run-id <RUN_ID> --manifest-sha256 <MANIFEST_SHA256>
+```
+
+O consolidador não abre conexão. PASS exige ambas as auditorias novas completas,
+resultado Prisma intermediário válido/desconectado, hashes/recibos/tentativas
+coerentes, mesmo servidor/conta/pacote/runId, estado inicial/final igual, prazos
+válidos e encerramento operacional aprovado. O documento final continua declarando
+`atomicSnapshot=false`, `continuousAudit=false` e
+`TRANSIENT_ACL_CHANGES_NOT_AUTOMATICALLY_DETECTED`. Duas coletas iguais não provam
+ausência de alterações transitórias. Sem aceitação humana futura dessa política,
+nenhuma homologação pode ser aprovada.
+
+Todas as 15 consultas administrativas, a associação imediata de warnings,
+verificações Prisma, TLS, DNS, CA, UUID, conta completa, grants e rejeição de roles
+foram preservadas. Não há tratamento de 3530/1141/1295 como sucesso. Resultado
+SQL incompleto, warning, stderr, erro de processo ou evidência ambígua recusam a
+operação. A W02-D demonstrou que exit code zero do cliente sozinho é insuficiente:
+a validação integral do transcript continua obrigatória.
+
+Em falha, interromper; não prosseguir nem reaproveitar a tentativa consumida.
+Preservar apenas evidências sanitizadas e realizar D04 autorizado. O fechamento
+de todos os arquivos protegidos é tentado mesmo se um descritor falhar: uma falha
+secundária não mascara a primária; sem falha primária, erro de fechamento produz
+`AUDIT_FILE_CLOSE_FAILED` e impede recibo de sucesso. Buffers privados do pai são
+zerados. A ferramenta não muda usuários, grants, roles, certificados ou schema.
+
+### 33.4 Prontidão de fontes para o próximo pacote
+
+A inspeção encontrou uma omissão concreta: a allowlist da distribuição ainda era
+anterior à W02-B. A receita existente agora inclui os seis helpers administrativos
+(incluindo o novo controle de runtime) e os dois drivers manual/processo. São
+**32 arquivos de execução**, mais `manifest.json`; testes/documentação entram
+somente no inventário de fontes revisadas, nunca no runtime.
+
+O importador de dependências reconhece somente dois inventários fechados: o antigo
+com 24 arquivos e o atual com 32. A compatibilidade antiga existe apenas na entrada
+do empacotador offline; os comandos normais `verify`/`extract` do novo verificador
+exigem o inventário atual completo. Não aceita subconjuntos, arquivos extras ou
+misturas. Ambos os hashes externos, inventário, permissões, paths, hashes de todos
+os membros e todos os guards de geração/runtime continuam obrigatórios.
+
+A receita do verificador foi separada dos guards de dependências: é conferida
+contra a exportação atual revisada e incluída nova, nunca reutilizada nem executada
+a partir da base antiga. Somente os mesmos 13 arquivos de dependências podem ser
+reaproveitados. Schema, locks, Prisma compartilhado e preflight nativo continuam
+exigindo igualdade. Isso permite incorporar os componentes atuais sem misturar
+launcher antigo ou enfraquecer a integridade.
+
+Nesta entrega, uma leitura local confirmou os hashes históricos do tar e manifesto
+do pacote `efa7abc8191bbf10`, e os oito guards de reutilização permanecem idênticos.
+Não houve extração/reempacotamento dessa base real nem alteração de pacote anterior.
+O próximo pacote ainda exige autorização própria, packageId e checksums novos,
+inventário final, verificação após extração e preflight ARM64 do novo artefato.
+
+### 33.5 Validação local W02-E
+
+Node 22.23.3 em macOS ARM64, dependências já disponíveis. Esse Mac é corretamente
+recusado pelo gate operacional; os cenários válidos dos testes usam fatos
+sintéticos, nunca atestados de produção. Não foram repetidos W02-C ou W02-D.
+
+```bash
+env -i PATH=/usr/bin:/bin /opt/homebrew/opt/node@22/bin/node \
+  --experimental-vm-modules --test --test-reporter=spec \
+  deploy/tests/role-attestation.test.mjs \
+  deploy/tests/heatwave-diagnostic.test.mjs \
+  deploy/tests/diagnostic-launcher.test.mjs \
+  deploy/tests/administrative-audit.test.mjs \
+  deploy/tests/heatwave-admin-manual.test.mjs \
+  deploy/tests/administrative-runtime.test.mjs
+
+PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover \
+  -s deploy/tests -p 'test_diagnostic*.py' -v
+```
+
+- Node: **509 PASS**, zero FAIL/cancelados/ignorados.
+- Helpers: **52 PASS** via `startVitest`, apenas
+  `backend/test/unit/heatwave-connection.test.js`; `config=false`, `configFile=false`,
+  `envDir=false`, setup/globalSetup vazios e coverage desabilitada. Cache exclusivo
+  temporário removido após o teste; nenhum setup de banco foi carregado.
+- Python: **27 PASS**; fixtures de archives temporários não executáveis, sem engine
+  Prisma real, removidas ao final. Não foi produzida distribuição ARM64.
+- Total: **588 PASS**. Os 54 testes novos cobrem runtime divergente/incompleto,
+  hashes, custódia e fechamento, deriva entre execução/publicação, falta de recibo,
+  ausência de encadeamento automático e compatibilidade estrita da base antiga.
+
+ESLint: oito arquivos JS/MJS, zero erros/warnings. Prettier: nove arquivos
+JS/MJS/Markdown conformes. Sintaxe: oito arquivos Node e quatro Python válidos.
+`git diff --check`: PASS. Consultas administrativas e Prisma, launcher, cliente
+compartilhado, schema, migrations, dependências e texto histórico do runbook
+preservados. Nenhum segredo real foi acessado ou incluído.
+
+Uma rodada intermediária dos testes Python teve uma expectativa de código de
+recusa desatualizada: o membro extra passou a ser recusado mais cedo por
+`ARCHIVE_ALLOWLIST`, antes de `MANIFEST_ALLOWLIST`. A asserção foi corrigida para
+exigir o código antecipado; a recusa não foi relaxada. A rodada final tem zero
+FAIL e zero ignorados.
+
+Veredito W02-E: **PASS LOCAL**, com fontes prontas para preparar o próximo pacote
+sob autorização própria. Não se declara teste no HeatWave nem execução operacional
+desta nova versão em VM. Permanecem a aceitação humana da janela, novos pins e
+validação do futuro artefato instalado, antes de qualquer conexão real.
+Prisma–HeatWave/D03 permanece sem homologação; 06.1.4 permanece FAIL.

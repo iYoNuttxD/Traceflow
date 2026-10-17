@@ -45,8 +45,8 @@ test("synthetic complete collection, evidence chain and qualified consolidated c
   );
   assert.deepEqual(result.previous, audit.reference(f.final));
 });
-test("deployed path is deliberately closed before file/credential/network access", async () => {
-  assert.throws(() => audit.requireValidatedAdministrativeRuntime(), {
+test("unsupported local host remains closed before file/credential/network access", async () => {
+  await assert.rejects(audit.requireValidatedAdministrativeRuntime(), {
     code: "ADMIN_COLLECTION_RUNTIME_UNVERIFIED",
   });
   await assert.rejects(audit.loadInitialAudit({}, "/untrusted"), {

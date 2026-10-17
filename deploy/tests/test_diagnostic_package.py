@@ -84,6 +84,37 @@ class DiagnosticArchiveTests(unittest.TestCase):
                 self.extract(archive, d.file_digest(archive))
             self.assertFalse((self.work / 'installed').exists())
 
+    def test_dependency_base_rejects_malicious_members_before_extraction(self):
+        for kind in ('absolute', 'traversal', 'duplicate', 'symlink', 'unlisted', 'directory'):
+            def mutate(entries):
+                m = copy.copy(entries[0][0]); data = entries[0][1]
+                if kind == 'absolute': m.name = '/tmp/outside'
+                if kind == 'traversal': m.name = '../outside'
+                if kind == 'duplicate': return entries + [entries[0]]
+                if kind == 'symlink':
+                    m.type = tarfile.SYMTYPE; m.linkname = '/etc/passwd'; m.size = 0
+                if kind == 'unlisted': m.name = '.env'
+                if kind == 'directory': m.type = tarfile.DIRTYPE; m.size = 0
+                return [(m, data), *entries[1:]]
+            archive = self.malicious(mutate)
+            with self.subTest(kind=kind), self.assertRaises(d.Refused):
+                d.extract_dependency_base(archive, d.file_digest(archive),
+                                          self.receipt['manifestSha256'], self.work / 'installed')
+            self.assertFalse((self.work / 'installed').exists())
+
+    def test_dependency_base_bounds_scan_before_reading_large_payload(self):
+        # Only a synthetic header: no large file is created or allocated.
+        m = tarfile.TarInfo('backend/package.json')
+        m.size = 65 * 1024 * 1024
+        m.mode = 0o644
+        archive = self.work / 'oversize.tar.gz'
+        import gzip
+        archive.write_bytes(gzip.compress(m.tobuf(format=tarfile.USTAR_FORMAT)))
+        with self.assertRaisesRegex(d.Refused, 'ARCHIVE_MEMBER'):
+            d.extract_dependency_base(archive, d.file_digest(archive),
+                                      self.receipt['manifestSha256'], self.work / 'installed')
+        self.assertFalse((self.work / 'installed').exists())
+
     def test_content_change_with_valid_outer_checksum(self):
         def mutate(entries):
             m, data = entries[0]

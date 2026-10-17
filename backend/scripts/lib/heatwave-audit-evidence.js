@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { requireValidatedAdministrativeRuntime } from './heatwave-administrative-runtime.js';
+export { requireValidatedAdministrativeRuntime } from './heatwave-administrative-runtime.js';
 import {
   exact,
   canonical,
@@ -362,10 +364,9 @@ export function consolidateEvidence(
   return consolidated;
 }
 export async function loadInitialAudit(auth, root) {
-  // Operational collector/capture is not yet authorized/validated. No file,
-  // caller flag, synthetic fixture or claimed producer can bypass this gate.
-  // Keep this BEFORE any credential read or connection in both entrypoints.
-  requireValidatedAdministrativeRuntime();
+  // Recheck the exact W02-D runtime before credentials/connections and again
+  // on final evidence validation. A claimed producer cannot bypass this gate.
+  await requireValidatedAdministrativeRuntime();
   const a = auth.administrativeAudit;
   // Auth and evidence are independently root-custodied. The private authorization
   // copy passed to the existing launcher cannot change the approved window.
@@ -391,9 +392,6 @@ export async function loadInitialAudit(auth, root) {
   check(digest(initial) === a.initialSha256, 'ADMIN_INITIAL_HASH_MISMATCH');
   validateAdministrativeEvidence(initial, auth, 'ADMIN_INITIAL', a.package);
   return initial;
-}
-export function requireValidatedAdministrativeRuntime() {
-  check(false, 'ADMIN_COLLECTION_RUNTIME_UNVERIFIED');
 }
 export function administrativePayload(observations, auth) {
   const checked = validateAdministrativeObservations(observations, auth.target);

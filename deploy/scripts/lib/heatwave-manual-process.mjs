@@ -53,7 +53,8 @@ export function validateAdminOptions(bytes) {
 }
 
 // No shell; bounded pipes; kill the child's process group on interruption.
-// Actual runuser/descendant session behavior still needs isolated Linux validation.
+// W02-D validated runuser descendants in this process group on the pinned runtime.
+// Deliberate daemonization/setsid escape is outside that measured scope.
 // The dependency arguments are for unit tests, never CLI/environment switches.
 export async function runBounded(
   spec,

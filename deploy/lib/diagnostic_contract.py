@@ -18,7 +18,7 @@ import tarfile
 sys.dont_write_bytecode = True
 
 ENGINE = 'libquery_engine-linux-arm64-openssl-3.0.x.so.node'
-SOURCES = (
+LEGACY_SOURCES = (
     'backend/scripts/validate-oci-heatwave-connection.js',
     'backend/scripts/lib/heatwave-connection.js',
     'backend/scripts/lib/oci-compatibility-safety.js',
@@ -27,7 +27,17 @@ SOURCES = (
     'backend/src/database/database-safety.js',
     'backend/prisma/schema.prisma',
 )
-DRIVERS = ('deploy/scripts/diagnostic-launcher.mjs', 'deploy/scripts/diagnostic-runtime.mjs')
+SOURCES = (*LEGACY_SOURCES,
+    'backend/scripts/lib/heatwave-role-attestation.js',
+    'backend/scripts/lib/heatwave-admin-audit.js',
+    'backend/scripts/lib/heatwave-audit-evidence.js',
+    'backend/scripts/lib/heatwave-prisma-audit.js',
+    'backend/scripts/lib/heatwave-manual-custody.js',
+    'backend/scripts/lib/heatwave-administrative-runtime.js',
+)
+LEGACY_DRIVERS = ('deploy/scripts/diagnostic-launcher.mjs', 'deploy/scripts/diagnostic-runtime.mjs')
+DRIVERS = (*LEGACY_DRIVERS, 'deploy/scripts/heatwave-admin-manual.mjs',
+           'deploy/scripts/lib/heatwave-manual-process.mjs')
 DEPENDENCIES = tuple('backend/node_modules/' + name for name in (
     '@prisma/client/default.js', '@prisma/client/index.js', '@prisma/client/package.json',
     '@prisma/client/LICENSE', '@prisma/client/runtime/library.js',
@@ -36,6 +46,8 @@ DEPENDENCIES = tuple('backend/node_modules/' + name for name in (
     'dotenv/lib/main.js', 'dotenv/package.json', 'dotenv/LICENSE',
 ))
 FILES = frozenset((*SOURCES, *DRIVERS, *DEPENDENCIES, 'backend/package.json', 'diagnostic-tool.py'))
+LEGACY_FILES = frozenset((*LEGACY_SOURCES, *LEGACY_DRIVERS, *DEPENDENCIES,
+                          'backend/package.json', 'diagnostic-tool.py'))
 MAX_SIZE = 128 * 1024 * 1024
 
 
@@ -93,9 +105,10 @@ def scan(name, data):
                 int.from_bytes(data[18:20], 'little') == 183, 'ENGINE_ARCHITECTURE')
 
 
-def inventory(root):
+def inventory(root, _files=FILES):
+    require(_files in (FILES, LEGACY_FILES), 'UNKNOWN_FILE_CONTRACT')
     root = trusted(root, directory=True)
-    expected_dirs = {str(p) for name in FILES for p in PurePosixPath(name).parents if str(p) != '.'}
+    expected_dirs = {str(p) for name in _files for p in PurePosixPath(name).parents if str(p) != '.'}
     result = {}
     total = 0
     for path in sorted(root.rglob('*')):
@@ -107,7 +120,7 @@ def inventory(root):
             require(name in expected_dirs, 'UNEXPECTED_DIRECTORY')
             continue
         require(stat.S_ISREG(st.st_mode) and st.st_nlink == 1, 'TREE_FILE_TYPE')
-        require(name == 'manifest.json' or name in FILES, 'UNEXPECTED_FILE')
+        require(name == 'manifest.json' or name in _files, 'UNEXPECTED_FILE')
         require(stat.S_IMODE(st.st_mode) == 0o644 and st.st_size <= 64 * 1024 * 1024, 'TREE_FILE_MODE_SIZE')
         total += st.st_size
         require(total <= MAX_SIZE, 'TREE_SIZE')
@@ -116,11 +129,12 @@ def inventory(root):
         data = path.read_bytes()
         scan(name, data)
         result[name] = {'sha256': digest(data), 'size': len(data), 'mode': 0o644}
-    require(set(result) == FILES, 'MISSING_FILE')
+    require(set(result) == _files, 'MISSING_FILE')
     return result
 
 
-def validate_manifest(value):
+def validate_manifest(value, _files=FILES):
+    require(_files in (FILES, LEGACY_FILES), 'UNKNOWN_FILE_CONTRACT')
     require(value.get('formatVersion') == 1 and value.get('kind') == 'prisma-diagnostic' and
             value.get('application') == 'TraceFlow' and value.get('productionRelease') is False, 'MANIFEST_FORMAT')
     require(value.get('platform') == {'os': 'linux', 'architecture': 'arm64', 'distribution': 'Oracle Linux 9.8', 'opensslMajor': 3},
@@ -132,7 +146,7 @@ def validate_manifest(value):
             re.fullmatch(r'traceflow-prisma-diagnostic-[a-f0-9]{16}', value.get('packageId', '')), 'PROVENANCE')
     require(value.get('sourceState') == 'working-tree-candidate' and
             isinstance(value.get('sourceFiles'), dict) and isinstance(value.get('includedLocalChanges'), list), 'SOURCE_STATE')
-    require(set(value.get('files', {})) == FILES, 'MANIFEST_ALLOWLIST')
+    require(set(value.get('files', {})) == _files, 'MANIFEST_ALLOWLIST')
     total = 0
     for name, entry in value['files'].items():
         safe_path(name)
@@ -142,14 +156,14 @@ def validate_manifest(value):
     require(total <= MAX_SIZE, 'MANIFEST_SIZE')
 
 
-def verify_tree(root, expected):
+def verify_tree(root, expected, _files=FILES):
     root = trusted(root, directory=True)
     require(re.fullmatch('[a-f0-9]{64}', expected or ''), 'EXPECTED_MANIFEST_REQUIRED')
     path = trusted(root / 'manifest.json')
     require(path.stat().st_size <= 1024 * 1024 and file_digest(path) == expected, 'MANIFEST_DIGEST')
     value = json.loads(path.read_bytes())
-    validate_manifest(value)
-    require(inventory(root) == value['files'], 'TREE_INTEGRITY')
+    validate_manifest(value, _files)
+    require(inventory(root, _files) == value['files'], 'TREE_INTEGRITY')
     return value
 
 
@@ -174,7 +188,8 @@ def pack(root, output, metadata):
             'sha256': file_digest(output), 'manifestSha256': file_digest(mpath)}
 
 
-def extract(archive, expected, manifest_digest, destination):
+def extract(archive, expected, manifest_digest, destination, _files=FILES):
+    require(_files in (FILES, LEGACY_FILES), 'UNKNOWN_FILE_CONTRACT')
     archive = trusted(archive)
     require(re.fullmatch('[a-f0-9]{64}', expected or '') and file_digest(archive) == expected, 'ARCHIVE_DIGEST')
     destination = Path(os.path.abspath(destination))
@@ -185,19 +200,19 @@ def extract(archive, expected, manifest_digest, destination):
         total = 0
         for item in tar:
             safe_path(item.name)
-            require(item.name in FILES or item.name == 'manifest.json', 'ARCHIVE_ALLOWLIST')
+            require(item.name in _files or item.name == 'manifest.json', 'ARCHIVE_ALLOWLIST')
             require(item.name not in entries and item.isfile() and not item.linkname and
                     item.type in (tarfile.REGTYPE, tarfile.AREGTYPE) and not item.sparse and
                     item.mode == 0o644 and item.size <= 64 * 1024 * 1024, 'ARCHIVE_MEMBER')
             total += item.size
-            require(len(entries) < len(FILES) + 1 and total <= MAX_SIZE, 'ARCHIVE_SIZE')
+            require(len(entries) < len(_files) + 1 and total <= MAX_SIZE, 'ARCHIVE_SIZE')
             entries[item.name] = item
-        require(set(entries) == {*FILES, 'manifest.json'}, 'ARCHIVE_INVENTORY')
+        require(set(entries) == {*_files, 'manifest.json'}, 'ARCHIVE_INVENTORY')
         require(entries['manifest.json'].size <= 1024 * 1024, 'MANIFEST_SIZE')
         data = tar.extractfile(entries['manifest.json']).read()
         require(digest(data) == manifest_digest, 'MANIFEST_DIGEST')
         value = json.loads(data)
-        validate_manifest(value)
+        validate_manifest(value, _files)
         destination.mkdir(mode=0o750)
         identity = (destination.stat().st_ino, destination.stat().st_uid)
         try:
@@ -212,12 +227,46 @@ def extract(archive, expected, manifest_digest, destination):
                 with out.open('xb') as stream:
                     stream.write(data)
                 out.chmod(0o644)
-            return verify_tree(destination, manifest_digest)
+            return verify_tree(destination, manifest_digest, _files)
         except BaseException:
             require(not destination.is_symlink() and
                     (destination.stat().st_ino, destination.stat().st_uid) == identity, 'CLEANUP_OWNER')
             shutil.rmtree(destination)
             raise
+
+
+def extract_dependency_base(archive, expected, manifest_digest, destination):
+    """Packaging input only. CLI/runtime verify/extract still require current FILES.
+
+    Recognize exactly the old or current inventory, then run the same full safe
+    extractor. Neither an arbitrary subset nor an extra member is accepted.
+    The base verifier is data, never executed; both external pins are mandatory.
+    """
+    archive = trusted(archive)
+    require(re.fullmatch('[a-f0-9]{64}', expected or '') and file_digest(archive) == expected,
+            'ARCHIVE_DIGEST')
+    with tarfile.open(archive, 'r:gz') as tar:
+        entries = {}
+        total = 0
+        for item in tar:
+            safe_path(item.name)
+            require(item.name in FILES or item.name == 'manifest.json', 'ARCHIVE_ALLOWLIST')
+            require(item.name not in entries and item.isfile() and not item.linkname and
+                    item.type in (tarfile.REGTYPE, tarfile.AREGTYPE) and not item.sparse and
+                    item.mode == 0o644 and item.size <= 64 * 1024 * 1024, 'ARCHIVE_MEMBER')
+            total += item.size
+            require(len(entries) < len(FILES) + 1 and total <= MAX_SIZE, 'ARCHIVE_SIZE')
+            entries[item.name] = item
+        manifest = entries.get('manifest.json')
+        require(manifest is not None and 0 < manifest.size <= 1024 * 1024, 'MANIFEST_SIZE')
+        data = tar.extractfile(manifest).read()
+    require(digest(data) == manifest_digest, 'MANIFEST_DIGEST')
+    value = json.loads(data)
+    files = frozenset(value.get('files', {}))
+    require(files in (FILES, LEGACY_FILES), 'MANIFEST_ALLOWLIST')
+    validate_manifest(value, files)
+    require(set(entries) == {*files, 'manifest.json'}, 'ARCHIVE_INVENTORY')
+    return extract(archive, expected, manifest_digest, destination, files)
 
 
 def main():
