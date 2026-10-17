@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { env } from '../src/config/env.js';
-import { prisma } from '../src/database/prismaClient.js';
+import { disconnectDatabase } from '../src/database/prismaClient.js';
 import { traceabilityAlertService } from '../src/modules/traceability/traceability-alert.service.js';
 import { isProductionDatabase, sanitizedDatabaseTarget } from './lib/database-safety.js';
 
@@ -57,6 +57,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     );
     process.exitCode = 1;
   } finally {
-    await prisma.$disconnect();
+    await disconnectDatabase();
   }
 }

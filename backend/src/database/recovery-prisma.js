@@ -1,16 +1,20 @@
 import { PrismaClient } from '@prisma/client';
-import { validateTestDatabaseUrl } from './database-safety.js';
+import { validateTestDatabaseUrl, withConnectionLimits } from './database-safety.js';
 
 const RECOVERY_LOCK_WAIT_SECONDS = 2;
+export const RECOVERY_POOL = Object.freeze({ connectionLimit: 1, poolTimeoutSeconds: 2 });
 let client = null;
 
-const recoveryOptions = () =>
-  process.env.NODE_ENV === 'test'
-    ? { datasourceUrl: validateTestDatabaseUrl(process.env.TEST_DATABASE_URL) }
-    : {};
+const recoveryUrl = () =>
+  withConnectionLimits(
+    process.env.NODE_ENV === 'test'
+      ? validateTestDatabaseUrl(process.env.TEST_DATABASE_URL)
+      : process.env.DATABASE_URL,
+    RECOVERY_POOL
+  );
 
 export function recoveryPrisma() {
-  client ??= new PrismaClient(recoveryOptions());
+  client ??= new PrismaClient({ datasourceUrl: recoveryUrl() });
   return client;
 }
 

@@ -48,8 +48,13 @@ sempre usa `connection_limit=1&pool_timeout=2`.
 O pânico do motor do Prisma e a conexão envenenada (um `KILL` sem confirmação em 2 s) param o
 processo com código 1, depois da drenagem. O `Restart=on-failure` reinicia o serviço.
 - Depois de 3 partidas em 300 s, o `systemd` deixa o serviço parado. Confira o
-  `journalctl -u traceflow-github-worker` (eventos `database_engine_panic` e
-  `database_connection_poisoned`) e o banco antes de `systemctl reset-failed` e `systemctl start`.
+  `journalctl -u traceflow-github-worker` e o banco antes de `systemctl reset-failed` e
+  `systemctl start`. Eventos:
+  - `database_unavailable_shutdown`, nos dois processos, com `reason` `ENGINE_PANIC` ou
+    `POISONED_CONNECTION`;
+  - `database_engine_panic`, na API;
+  - `database_connection_poisoned`, com o `connectionId` da transação;
+  - `worker_shutdown_incomplete`, quando um serviço do worker não para em 60 s.
 - A API segue a mesma regra, com o `traceflow-api`.
 
 ## Pausa para backup, migration e rollback

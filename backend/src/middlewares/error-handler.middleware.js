@@ -1,4 +1,4 @@
-import { markEnginePanic } from '../database/engine-health.js';
+import { isEnginePanic, markEnginePanic } from '../database/engine-health.js';
 import { isLockWaitTimeout } from '../database/lock-wait.js';
 import { isTransactionDeadline } from '../database/transaction-guard.js';
 import { AppError, ERROR_CODES } from '../shared/errors/index.js';
@@ -13,7 +13,6 @@ const OPERATION_TIMEOUT_RETRY_AFTER_SECONDS = '5';
 
 const isTransactionExpired = (error) =>
   error?.name === 'PrismaClientKnownRequestError' && error.code === 'P2028';
-const isEnginePanic = (error) => error?.name === 'PrismaClientRustPanicError';
 
 function prismaCauseCode(error) {
   const name = String(error?.name ?? '');

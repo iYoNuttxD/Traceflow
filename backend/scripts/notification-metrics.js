@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { env } from '../src/config/env.js';
-import { prisma } from '../src/database/prismaClient.js';
+import { disconnectDatabase } from '../src/database/prismaClient.js';
 import { createNotificationMetricsService } from '../src/modules/notifications/notification-metrics.service.js';
 import { addDays } from '../src/modules/notifications/notification.policy.js';
 import { createLogger } from '../src/shared/logger/index.js';
@@ -74,6 +74,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       databaseUrl: env.databaseUrl
     });
   } finally {
-    await prisma.$disconnect();
+    await disconnectDatabase();
   }
 }

@@ -45,13 +45,56 @@ describe('Prisma test datasource isolation without connecting to a database', ()
     expect(construct).not.toHaveBeenCalled();
   });
 
-  it('pins the recovery client to the same test datasource', async () => {
+  it('pins the recovery client to the same test datasource, with one connection and a 2 s pool wait', async () => {
     await loadClient();
     const { recoveryPrisma } = await import('../../src/database/recovery-prisma.js');
+    expect(construct).toHaveBeenCalledTimes(1);
+    recoveryPrisma();
     recoveryPrisma();
     expect(construct).toHaveBeenCalledTimes(2);
-    expect(construct).toHaveBeenLastCalledWith({ datasourceUrl: testUrl });
+    expect(construct).toHaveBeenLastCalledWith({
+      datasourceUrl: `${testUrl}?connection_limit=1&pool_timeout=2`
+    });
   });
+
+  it('builds the production recovery client from DATABASE_URL, keeping its options', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TEST_DATABASE_URL', undefined);
+    vi.stubEnv('DATABASE_URL', `${developmentUrl}?sslaccept=strict`);
+    const { recoveryPrisma } = await import('../../src/database/recovery-prisma.js');
+    recoveryPrisma();
+    expect(construct).toHaveBeenCalledExactlyOnceWith({
+      datasourceUrl: `${developmentUrl}?sslaccept=strict&connection_limit=1&pool_timeout=2`
+    });
+  });
+
+  it('applies DATABASE_POOL_LIMIT to the application client', async () => {
+    vi.stubEnv('DATABASE_POOL_LIMIT', '3');
+    await loadClient();
+    expect(construct).toHaveBeenCalledExactlyOnceWith({
+      datasourceUrl: `${testUrl}?connection_limit=3`
+    });
+  });
+
+  it('applies DATABASE_POOL_LIMIT to the production datasource', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TEST_DATABASE_URL', undefined);
+    vi.stubEnv('DATABASE_POOL_LIMIT', '5');
+    await loadClient();
+    expect(loadEnv).not.toHaveBeenCalled();
+    expect(construct).toHaveBeenCalledExactlyOnceWith({
+      datasourceUrl: `${developmentUrl}?connection_limit=5`
+    });
+  });
+
+  it.each(['0', '101', '2.5', 'cinco'])(
+    'refuses DATABASE_POOL_LIMIT=%s before client construction',
+    async (limit) => {
+      vi.stubEnv('DATABASE_POOL_LIMIT', limit);
+      await expect(loadClient()).rejects.toThrow('DATABASE_POOL_LIMIT');
+      expect(construct).not.toHaveBeenCalled();
+    }
+  );
 
   it('keeps the chosen datasource when DATABASE_URL later changes', async () => {
     await loadClient();

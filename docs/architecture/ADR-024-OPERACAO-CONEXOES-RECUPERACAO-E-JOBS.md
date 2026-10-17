@@ -83,18 +83,20 @@ O que a branch OCI espera (`origin/daniel-dev` em `ecb3f34`, lida em 17/10/2026)
    - **Mudança.** O logger lê `process.env.NODE_ENV`, com o mesmo padrão `development`, em vez de
      importar o `env.js`. A validação do `NODE_ENV` continua no `env.js`, que a API, o worker e os
      comandos carregam.
-   - **Fechamento resultante**, com 8 arquivos:
+   - **Fechamento resultante**, com 9 arquivos:
      - `src/database/prismaClient.js`;
      - `src/database/database-safety.js`;
      - `src/database/transaction-guard.js`;
      - `src/database/lock-wait.js`;
      - `src/database/recovery-prisma.js`;
+     - `src/database/engine-health.js`, que a guarda usa para marcar o motor como indisponível
+       (D4 e D5) e que não importa nada;
      - `src/shared/logger/index.js`;
      - `src/shared/logger/logger.js`;
      - `src/shared/logger/redaction.js`.
    - **Teste.** Um teste percorre os imports estáticos e trava a lista. Outro copia só esses
      arquivos e importa o cliente.
-   - **Para a branch OCI.** O `SOURCES` do diagnóstico ganha os 6 arquivos novos, com o manifesto
+   - **Para a branch OCI.** O `SOURCES` do diagnóstico ganha os 7 arquivos novos, com o manifesto
      regenerado, dois builds idênticos, a verificação depois da extração e o smoke ARM64. Isso cabe ao
      dono da branch OCI, e o TF-REV-005 só fecha com esse artefato.
 7. **Agenda dos jobs no worker (D7).**
@@ -185,7 +187,7 @@ O que a branch OCI espera (`origin/daniel-dev` em `ecb3f34`, lida em 17/10/2026)
 | O `KILL` pendente não tem prazo global | espera limitada a 2 s e conexão envenenada (D4) |
 | A saúde degradada não reinicia o processo | saída controlada com código 1 (D5) |
 | Não ampliar privilégios | o `KILL` continua só sobre o mesmo usuário |
-| TF-REV-005 | fechamento em 8 arquivos e proposta de `SOURCES` para a OCI (D6) |
+| TF-REV-005 | fechamento em 9 arquivos e proposta de `SOURCES` para a OCI (D6) |
 | TF-REV-006 e decisão 4 | jobs no worker, com lease, limites, retomada e drenagem; comandos no artefato (D7, D8) |
 | `GET_LOCK` precisa da mesma sessão | lease em tabela, sem `GET_LOCK` (D7) |
 | Pausa para migrations, backup e rollback | D9 |

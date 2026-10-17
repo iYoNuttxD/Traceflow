@@ -1,9 +1,11 @@
 import { logger } from '../shared/logger/index.js';
+import { isEnginePanic, markEngineUnavailable } from './engine-health.js';
 import { lockWaitSecondsFor } from './lock-wait.js';
 import { killConnection, killQuery } from './recovery-prisma.js';
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const KILL_REPEAT_MS = 100;
+export const KILL_WAIT_MS = 2000;
 export const DEADLINE_MARGIN_MS = 1000;
 
 export class TransactionDeadlineError extends Error {
@@ -57,12 +59,33 @@ function startWatchdog(timeoutMs, interrupt, log) {
       state.done = true;
       clearTimeout(timer);
       clearInterval(repeat);
-      await Promise.all(state.kills);
+      if (!state.kills.length) return true;
+      let expire;
+      const expired = new Promise((resolve) => {
+        expire = setTimeout(() => resolve(false), KILL_WAIT_MS);
+      });
+      const settled = Promise.all(state.kills).then(() => true);
+      try {
+        return await Promise.race([settled, expired]);
+      } finally {
+        clearTimeout(expire);
+      }
     }
   };
 }
 
 const isExpired = (error) => error?.code === 'P2028';
+
+function poison(connectionId, onUnavailable, log) {
+  log.error(
+    'A interrupção da transação vencida não foi confirmada; a conexão ficou inutilizável.',
+    {
+      event: 'database_connection_poisoned',
+      connectionId
+    }
+  );
+  onUnavailable('POISONED_CONNECTION');
+}
 
 async function discardConnection(connectionId, discard, log) {
   try {
@@ -83,7 +106,12 @@ async function discardConnection(connectionId, discard, log) {
 
 export function guardTransactions(
   client,
-  { killQuery: interrupt = killQuery, killConnection: discard = killConnection, log = logger } = {}
+  {
+    killQuery: interrupt = killQuery,
+    killConnection: discard = killConnection,
+    log = logger,
+    onUnavailable = markEngineUnavailable
+  } = {}
 ) {
   const transaction = client.$transaction;
   client.$transaction = function guardedTransaction(argument, options) {
@@ -107,7 +135,7 @@ export function guardTransactions(
           } catch (error) {
             outcome = { error };
           }
-          await watchdog.stop();
+          if (!(await watchdog.stop())) poison(connectionId, onUnavailable, log);
           if (watchdog.state.fired) throw new TransactionDeadlineError(timeoutMs, outcome.error);
           if ('error' in outcome) throw outcome.error;
           return outcome.value;
@@ -115,7 +143,8 @@ export function guardTransactions(
         { ...options, timeout: timeoutMs + DEADLINE_MARGIN_MS }
       )
       .catch(async (error) => {
-        if (connectionId && (isExpired(error) || isExpired(error?.cause)))
+        if (isEnginePanic(error) || isEnginePanic(error?.cause)) onUnavailable('ENGINE_PANIC');
+        else if (connectionId && (isExpired(error) || isExpired(error?.cause)))
           await discardConnection(connectionId, discard, log);
         throw error;
       });
