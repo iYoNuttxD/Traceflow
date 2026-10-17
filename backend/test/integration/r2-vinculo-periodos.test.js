@@ -23,6 +23,7 @@ let prisma;
 let taskIssueService;
 let pullRequestLinkService;
 let taskCrudService;
+let githubRepositoryEventsRepository;
 let sequence = 0;
 
 beforeAll(async () => {
@@ -32,6 +33,8 @@ beforeAll(async () => {
   ({ pullRequestLinkService } =
     await import('../../src/modules/tasks/services/task-pull-request.service.js'));
   ({ taskCrudService } = await import('../../src/modules/tasks/services/task-crud.service.js'));
+  ({ githubRepositoryEventsRepository } =
+    await import('../../src/modules/github/github-repository-events.repository.js'));
   await cleanTestDatabase(prisma);
 }, 60000);
 afterEach(async () => cleanTestDatabase(prisma));
@@ -166,5 +169,50 @@ describe('ADR-023 D4 — período de cada vínculo', () => {
       }
     ]);
     expect(periods[1].linkedAt.getTime()).toBeGreaterThanOrEqual(before - 2000);
+  });
+
+  it('V-06 o evento vale para a tarefa só dentro do período: o início conta, o fim não', async () => {
+    const { project, task } = await scenario();
+    const issue = await createIssue(prisma, project.id, { state: 'closed' });
+    const linkedAt = new Date('2026-03-01T12:00:00.000Z');
+    const unlinkedAt = new Date('2026-03-02T12:00:00.000Z');
+    const minutes = (base, count) => new Date(base.getTime() + count * 60_000);
+    await prisma.gitHubEventCoverage.create({
+      data: { projectId: project.id, coverageFrom: new Date('2026-01-01T00:00:00.000Z') }
+    });
+    await prisma.taskArtifactLinkPeriod.create({
+      data: { projectId: project.id, taskId: task.id, issueId: issue.id, linkedAt, unlinkedAt }
+    });
+    const event = (id, eventType, occurredAt) => ({
+      providerEventId: `r2-v06-${project.id}-${id}`,
+      number: issue.number,
+      eventType,
+      occurredAt
+    });
+
+    await githubRepositoryEventsRepository.record(project.id, {
+      pullRequestEvents: [],
+      issueEvents: [
+        event(1, 'REOPENED', minutes(linkedAt, -5)),
+        event(2, 'CLOSED', linkedAt),
+        event(3, 'REOPENED', minutes(linkedAt, 5)),
+        event(4, 'CLOSED', unlinkedAt),
+        event(5, 'REOPENED', minutes(unlinkedAt, 5))
+      ],
+      readStartedAt: new Date()
+    });
+
+    const events = await prisma.gitHubArtifactEvent.findMany({
+      where: { projectId: project.id },
+      orderBy: { occurredAt: 'asc' },
+      include: { targets: true }
+    });
+    expect(
+      events.map((item) => [item.type, item.occurredAt, item.targets.map((row) => row.taskId)])
+    ).toEqual([
+      ['ISSUE_CLOSED', linkedAt, [task.id]],
+      ['ISSUE_REOPENED', minutes(linkedAt, 5), [task.id]]
+    ]);
+    expect(await prisma.issueLifecycleEvent.count({ where: { projectId: project.id } })).toBe(5);
   });
 });
