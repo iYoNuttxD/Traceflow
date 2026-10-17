@@ -36,8 +36,8 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
   | Ordem | Motivo | Quando |
   | --- | --- | --- |
   | 1 | `REGISTRO_INCOMPLETO` | o período começa antes de o registro estar completo (abaixo) |
-  | 2 | `FONTE_POR_COMPARACAO_DE_ESTADO` | RF60/RF61 com a fonte por comparação de estado (ADR-018 D1) |
-  | 3 | `LACUNA_DE_AQUISICAO` | RF60/RF61 com lacuna registrada pela fonte durável (ADR-023, proposto; ainda não produzido) |
+  | 2 | `FONTE_POR_COMPARACAO_DE_ESTADO` | RF60/RF61: o período começa, em algum projeto, antes do `coverageFrom` (ADR-023 D7); ou o projeto ainda não tem leitura completa |
+  | 3 | `LACUNA_DE_AQUISICAO` | RF60/RF61: o período termina, em algum projeto, depois do `completeThrough` da última leitura completa (ADR-023 D7) |
   | 4 | `EVENTOS_NAO_OBSERVADOS` | `U > 0` |
   | 5 | `SEM_EVENTOS` | `T = 0` |
 
@@ -53,6 +53,10 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
 
   `lacunas` traz `{ "motivo": "REGISTRO_INCOMPLETO", "completoDesde": <instante> }`.
   `completoDesde` sai nulo quando a migration não está registrada.
+- **Cobertura do RF60/RF61 por projeto.** `GitHubEventCoverage` dá o trecho coberto pela fonte
+  durável, `[coverageFrom, completeThrough]`. As lacunas trazem o projeto e o instante:
+  `{ "motivo": "FONTE_POR_COMPARACAO_DE_ESTADO", "projeto": <id>, "coberturaDesde": <instante> }`
+  e `{ "motivo": "LACUNA_DE_AQUISICAO", "projeto": <id>, "completoAte": <instante> }`.
 - **Contagens.** T, E, A, N, X e U saem sempre, mesmo com a cobertura indisponível.
 
 ## Fontes
@@ -60,11 +64,15 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
 | RF | T | Decisões (E, A, N) | U |
 | --- | --- | --- | --- |
 | RF30 | cada `TaskMovement` com `movedAt` no período, mais as decisões do período cuja mudança não existe mais (tarefa excluída) | `NotificationDecision` do tipo `TASK_STATUS_CHANGED`, chave `movement:<movementId>`, gravada na transação da mudança | movimentos do período sem decisão |
-| RF59 | cada par (tarefa, data do prazo) cujo vencimento ocorreu no período, reconstruído pelo histórico, mais as decisões do período sem reconstrução (tarefa excluída) | `NotificationDecision` do tipo `TASK_OVERDUE`, chave `<taskId>:<YYYY-MM-DD>`, gravada pelo job | pares reconstruídos sem decisão |
+| RF59 | cada par (tarefa, data do prazo) cujo vencimento ocorreu no período, reconstruído pelo histórico, mais as decisões do período sem reconstrução (tarefa excluída) | `NotificationDecision` do tipo `TASK_OVERDUE`, chave `<taskId>:<YYYY-MM-DD>`, gravada pela varredura na mesma transação da notificação (ADR-016 D6) | pares reconstruídos sem decisão |
 | RF60/RF61 | cada `GitHubArtifactEvent` com `occurredAt` (ou `detectedAt`, sem `occurredAt`) no período: os pares do `outcome` (`participants`, `NO_PARTICIPANT` e `NO_TASK`) | `outcome` do evento: `created` e `alreadyNotified` em E; `excluded` por motivo em A e N; motivo desconhecido em X | eventos `PENDING`, `PROCESSING` ou `FAILED` |
 
-O RF60 conta `ISSUE_CLOSED` e `ISSUE_REOPENED`; o RF61, `PULL_REQUEST_MERGED` e
+O RF60 conta `ISSUE_OPENED`, `ISSUE_CLOSED` e `ISSUE_REOPENED`; o RF61, `PULL_REQUEST_MERGED` e
 `PULL_REQUEST_CLOSED`.
+
+**`SENT` só com a notificação.** No RF59, a decisão `SENT` e a notificação gravam na mesma transação
+desde 17/10/2026 (TF-REV-009). Antes, as duas gravavam em paralelo, e uma queda entre os commits
+podia deixar `SENT` sem notificação.
 
 **Decisão por evento.** No RF59 um evento pode ter mais de uma decisão, uma por destinatário
 avaliado (o responsável mudou entre execuções). O evento conta em E se alguma decisão é `SENT`;
@@ -136,7 +144,7 @@ Exemplo, RF30 num período com registro completo:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 10 | 6 | 3 (`PREFERENCE_OFF` 1, `INACTIVE_ACCOUNT` 1, `INACTIVE_MEMBER` 1) | 1 (`NO_RESPONSIBLE`) | 0 | 0 | 60,00% | 100,00% |
 
-Exemplo, RF61 com a fonte por comparação de estado:
+Exemplo, RF61 num período anterior ao corte, com a fonte por comparação de estado:
 
 | T | E | A | N | X | U | Cobertura total | Cobertura elegível |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -163,5 +171,9 @@ Exemplo, RF61 com a fonte por comparação de estado:
 - A reconstrução usa o fuso único `APP_TIMEZONE` (ADR-016 D5).
 - O job do RF59 roda a cada 15 minutos. Período que termina depois da última execução pode ter
   vencimentos ainda não avaliados e sai `EVENTOS_NAO_OBSERVADOS`: meça períodos já fechados.
-- No RF60/RF61, enquanto o ADR-023 não vigorar, a cobertura total é sempre indisponível. As
-  contagens observadas continuam úteis para conferir o despacho.
+- No RF60/RF61, períodos anteriores a 17/10/2026 continuam com a cobertura total indisponível
+  (`FONTE_POR_COMPARACAO_DE_ESTADO`). Meça períodos posteriores ao corte e já cobertos por uma
+  leitura completa.
+- O `completeThrough` fica 5 minutos antes do início da leitura, por causa da consistência eventual
+  do GitHub. Período que termina depois disso sai `LACUNA_DE_AQUISICAO` até a próxima leitura
+  completa.

@@ -2204,17 +2204,17 @@ Decisão em [ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md); re
 [GitHub Event Notifications](../data/GITHUB_EVENT_NOTIFICATIONS.md).
 
 **Sem rota nova.** As notificações dos tipos `ISSUE_EVENT` (RF60) e `PULL_REQUEST_EVENT` (RF61)
-usam as rotas do S2-02. A transição nasce na sincronização (`POST
-/api/projects/:projectId/github/sync`, sem mudança de contrato) e é despachada logo depois dela ou
-pelo job `notifications:github-events`, que não tem superfície HTTP. A fila de eventos não é exposta
-por API.
+usam as rotas do S2-02. O evento nasce do histórico do repositório, lido na sincronização (`POST
+/api/projects/:projectId/github/sync`, sem mudança de contrato), ou do vínculo de uma issue aberta a
+uma tarefa (`ISSUE_OPENED`). Ele é despachado logo depois da sincronização ou do vínculo, e a retomada
+roda no worker; nenhum dos dois tem superfície HTTP nova. A fila de eventos não é exposta por API.
 
 **Contexto no `NotificationDTO`:**
 
 | Campo | Conteúdo |
 | --- | --- |
-| `context.event` | `ISSUE_CLOSED`, `ISSUE_REOPENED`, `PULL_REQUEST_MERGED` ou `PULL_REQUEST_CLOSED` |
-| `context.occurredAt` | instante da ocorrência no GitHub (ISO-8601 UTC), ou `null` |
+| `context.event` | `ISSUE_OPENED`, `ISSUE_CLOSED`, `ISSUE_REOPENED`, `PULL_REQUEST_MERGED` ou `PULL_REQUEST_CLOSED` |
+| `context.occurredAt` | instante da ocorrência no GitHub (ISO-8601 UTC), ou `null`. Em `ISSUE_OPENED`, é a criação da issue no GitHub |
 | `context.artifact.kind` | `ISSUE` ou `PULL_REQUEST` |
 | `context.artifact.number`, `context.artifact.title` | número e título copiados na detecção (título com até 256 caracteres) |
 | `context.artifact.url` | URL do artefato no GitHub, só com o prefixo `https://github.com/`; fora disso, `null` |

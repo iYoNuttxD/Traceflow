@@ -1,7 +1,8 @@
 # ADR-018 — Notificações de eventos de issues e pull requests
 
 - **Estado:** aceita para o cartão S2-03 (RF60, RF61); revista em 13/10/2026 (correções da campanha de
-  testes) e em 15/10/2026 (revisão independente da PR #26)
+  testes), em 15/10/2026 (revisão independente da PR #26) e em 17/10/2026 (segunda revisão
+  independente)
 - **Data:** 12/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 
@@ -37,16 +38,16 @@ Restrições do terreno:
 
 ## Decisão
 
-1. **Fonte (D1).** A transição nasce da comparação de estado na sincronização (UC04, passo 4), na
-   mesma transação que grava a página de PRs ou issues. Vale para a sincronização manual e para a
-   automática, que passam pelos mesmos `upsertMany`.
-   - A comparação é com o estado gravado na sincronização anterior. A primeira sincronização depois
-     da implantação gera evento para as transições ocorridas desde então. Conectar um repositório não
-     gera evento, porque todo artefato é uma primeira observação.
-   - A comparação de estado não vê transições intermediárias entre duas sincronizações. A fonte
-     durável, pelo histórico de eventos de cada artefato vinculado que mudou, está proposta no
-     [ADR-023](ADR-023-FONTE-DURAVEL-EVENTOS-GITHUB.md) (portão G1 da PR #26). Enquanto ela não
-     vigora, a cobertura total do RF60/RF61 é "indisponível" (D14).
+1. **Fonte (D1).** Desde 17/10/2026, o evento nasce do histórico de eventos do repositório
+   (`GET /repos/{owner}/{repo}/issues/events`), lido por inteiro em toda sincronização, manual ou
+   automática ([ADR-023](ADR-023-FONTE-DURAVEL-EVENTOS-GITHUB.md)).
+   - O registro do GitHub e o evento persistem na mesma transação, com a trava do projeto. A
+     comparação de estado deixou de criar eventos e fica só para o log da anomalia.
+   - Leitura incompleta não grava nada e não avança a cobertura; a sincronização seguinte relê a
+     lista inteira.
+   - Conectar um repositório não gera evento: o corte do ADR-023 D7 começa na primeira leitura.
+   - Até 17/10/2026, o evento nascia da comparação do retrato de cada sincronização com o gravado.
+     Os eventos daquela fonte continuam na fila e na métrica, antes do corte.
    - A falha de uma página é registrada mesmo quando a conexão cai junto com ela. A gravação da
      falha da execução tem até três tentativas, e os ganchos de alerta e de despacho rodam depois.
    - As escritas da sincronização esperam a trava do projeto por no máximo 5 s
@@ -54,27 +55,24 @@ Restrições do terreno:
      com `GITHUB_SYNC_PROJECT_BUSY`.
    - Erro de banco na sincronização sai com `GITHUB_SYNC_STORAGE_FAILED` e mensagem própria. O
      código interno do Prisma fica só no log.
-2. **Estados e transições (D2).**
-   - Issue: `OPEN` ou `CLOSED`. PR: `OPEN`, `CLOSED` (fechada sem merge) ou `MERGED`.
-   - Geram evento: issue `OPEN → CLOSED` (`ISSUE_CLOSED`), issue `CLOSED → OPEN` (`ISSUE_REOPENED`),
-     PR `OPEN`/`CLOSED → MERGED` (`PULL_REQUEST_MERGED`), PR `OPEN → CLOSED` (`PULL_REQUEST_CLOSED`) e
-     `CLOSED → CLOSED` com outra data de fechamento (fechada de novo entre duas sincronizações).
-   - Não geram: a primeira observação de um artefato, estado anterior desconhecido, reabertura de
-     PR, PR depois de `MERGED` e mudança só de título, corpo, rótulo ou autor.
-   - A data da reabertura (`ISSUE_REOPENED`) é a última atualização observada da issue
-     (`updatedAtGithub`), porque a listagem do GitHub não traz o instante da reabertura. O cartão
-     diz isso.
+2. **Eventos (D2).**
+   - Issue: `closed` vira `ISSUE_CLOSED` e `reopened` vira `ISSUE_REOPENED`, com a data do GitHub.
+   - PR: `merged` vira `PULL_REQUEST_MERGED`; `closed` vira `PULL_REQUEST_CLOSED`, salvo quando está a
+     até 5 s do `merged` da mesma PR, caso em que faz parte do merge.
+   - Não geram: reabertura de PR e qualquer outro tipo de evento do GitHub.
    - A tabela completa está em [GITHUB_EVENT_NOTIFICATIONS.md](../data/GITHUB_EVENT_NOTIFICATIONS.md).
-3. **Abertura no RF60 (D3).** É a reabertura de uma issue já vinculada (`ISSUE_REOPENED`), a única
-   abertura observável, porque a issue só é vinculada depois de importada (RF12, Quadro 3-29).
-   - O RF60 conta os eventos que acontecem enquanto a issue está vinculada à tarefa.
-   - A criação da issue no GitHub sempre acontece antes de qualquer vínculo possível. Por isso não é
-     evento do RF60.
-   - A revisão de 15/10/2026 manteve esta leitura. A justificativa vai na resposta à revisão
-     independente, que tinha apontado a criação como evento.
-4. **Vínculo (D4).** Vale o retrato dos vínculos no instante da transição, lido na mesma transação e
-   gravado com o evento. Artefato sem tarefa vinculada não gera evento: é o alerta do S2-01
-   (ADR-015).
+3. **Abertura no RF60 (D3).** Desde 17/10/2026, são duas:
+   - `ISSUE_REOPENED`, a reabertura de uma issue vinculada;
+   - `ISSUE_OPENED`, registrado quando uma issue **aberta** passa a estar vinculada a uma tarefa, com
+     a data de criação no GitHub. É uma vez por par (issue, tarefa), e issue fechada no instante do
+     vínculo não gera abertura (ADR-023 D6).
+
+   Fundamento: o RF12 (Quadro 3-29) só vincula issue importada, então a abertura de uma issue
+   vinculada só é conhecida quando o vínculo nasce. Até 17/10/2026, só a reabertura contava; a
+   segunda revisão pediu contrato explícito para a abertura.
+4. **Vínculo (D4).** Vale o vínculo no instante do evento: as tarefas cujo período de vínculo
+   (`TaskArtifactLinkPeriod`) contém o `created_at` do GitHub, gravadas com o evento (ADR-023 D4).
+   Artefato sem tarefa vinculada naquele instante não gera evento: é o alerta do S2-01 (ADR-015).
 5. **Fila transacional (D5).** `GitHubArtifactEvent` guarda uma linha por transição de artefato
    vinculado, com o snapshot do artefato, a contagem de tarefas vinculadas e o estado do despacho;
    `GitHubArtifactEventTask` guarda o retrato. A chave da ocorrência é única por projeto. Evento e
@@ -130,9 +128,9 @@ Restrições do terreno:
     - "Enviada corretamente" é o par com `created` ou `alreadyNotified` no `outcome`.
       `alreadyNotified` é a notificação criada por uma tentativa anterior do mesmo evento, não uma
       duplicata.
-    - Enquanto a fonte for a comparação de estado, o total de eventos ocorridos é desconhecido, porque
-      as transições intermediárias não são observadas. A cobertura total sai "indisponível", com o
-      motivo `FONTE_POR_COMPARACAO_DE_ESTADO` ([NOTIFICATION_METRICS.md](../data/NOTIFICATION_METRICS.md)).
+    - A cobertura total é calculada no trecho coberto pela fonte durável. Antes do corte, sai
+      "indisponível" com `FONTE_POR_COMPARACAO_DE_ESTADO`; depois da última leitura completa, com
+      `LACUNA_DE_AQUISICAO` ([NOTIFICATION_METRICS.md](../data/NOTIFICATION_METRICS.md)).
 15. **Observabilidade (D15).** Logs só com contagens, ids e códigos. Só o reprocessamento manual é
     auditado.
     - A saída do job traz as contagens da execução, o estoque de `FAILED` (`failedStock`), os
@@ -158,8 +156,8 @@ Restrições do terreno:
 - **Linha do tempo do GitHub de todo artefato a cada sincronização.** Rejeitada: uma requisição por
   issue ou PR, contra o limite de taxa. A variante restrita ao artefato vinculado que mudou está
   proposta no ADR-023.
-- **Notificar quando alguém vincula uma issue aberta.** Rejeitada: é ação no TraceFlow, não evento
-  no repositório.
+- **Notificar quando alguém vincula uma issue aberta.** Rejeitada em 12/10/2026, por ser ação no
+  TraceFlow. Adotada em 17/10/2026 como a abertura do RF60 (D3), a pedido da segunda revisão.
 - **Ler os vínculos no despacho.** Rejeitada: daria aviso retroativo a vínculo criado depois da
   transição, e a PR não tem data de vínculo para filtrar.
 - **Só o responsável como destinatário.** Rejeitada: o texto oficial fala de usuários envolvidos,
@@ -197,11 +195,10 @@ Restrições do terreno:
 ## Consequências negativas
 
 - O aviso chega na sincronização seguinte à mudança no GitHub; até a PR #24, só na manual.
-- Mudanças intermediárias entre duas sincronizações se fundem: fechar e reabrir uma issue entre
-  elas não deixa rastro. A correção proposta é o ADR-023.
+- Até 17/10/2026, mudanças intermediárias entre duas sincronizações se fundiam e a data da
+  reabertura era aproximada. Desde então, a fonte é o histórico do GitHub (ADR-023).
 - Quem fechou ou mesclou também recebe o aviso.
-- A criação de uma issue nunca notifica (D3).
-- A data da reabertura de uma issue é aproximada: é a última atualização observada.
+- A abertura é avisada no vínculo, com a data de criação no GitHub, que é anterior (D3).
 - A página com transição faz até cinco instruções a mais que a página sem transição, qualquer que
   seja o número de transições.
 - A página sem transição fazia cerca de três instruções por item (um upsert por item, anterior ao
@@ -261,4 +258,17 @@ e as decisões estão incorporadas no texto acima:
 | TF-REV-002 | métrica com o total de eventos ocorridos e "indisponível" enquanto a fonte for a comparação de estado (D14) |
 | TF-REV-002 | fonte durável proposta no ADR-023, à espera do portão G1 (D1) |
 | TF-REV-008 | itens no painel lateral, com a origem Inconsistências (D13) |
+
+## Revisão de 17/10/2026 — segunda revisão independente da PR #26
+
+A segunda revisão manteve o TF-REV-002 aberto: a comparação de estado perde transições, e a
+abertura não tinha contrato. O João aprovou as recomendações em 17/10/2026
+(`PR26_PROMPT_CORRECOES_REVISAO_2.md`, não versionado):
+
+| Achado | Decisão |
+| --- | --- |
+| TF-REV-002 | fonte pelo histórico de eventos do repositório, com o id do GitHub como identidade (D1, D2; ADR-023) |
+| TF-REV-002 | `ISSUE_OPENED` no vínculo de issue aberta (D3) |
+| TF-REV-002 | vínculo no instante do evento, pelos períodos de vínculo (D4) |
+| TF-REV-002 | cobertura total calculada no trecho coberto, com as lacunas antes e depois (D14) |
 

@@ -6,20 +6,22 @@ Regra em [Task Notifications](../data/TASK_NOTIFICATIONS.md); decisão em
 
 ## Responsabilidade e pré-condições
 
-O responsável pela implantação agenda um job externo recorrente que roda o script
-`backend/scripts/notify-overdue-tasks.js`. Não executar no startup da API nem por `setInterval`
-dentro dela: duplicaria com mais de uma instância e pararia junto com a API.
+Desde 17/10/2026, a varredura roda no worker (`backend/src/github-worker.js`) a cada 15 minutos, com
+lease no banco ([ADR-024](../architecture/ADR-024-OPERACAO-CONEXOES-RECUPERACAO-E-JOBS.md) D7 e o
+runbook [Jobs agendados](SCHEDULED_JOBS.md)). Não há timer nem `cron` a instalar. Não executar no
+startup da API nem por `setInterval` dentro dela.
 
-- Usar as mesmas variáveis protegidas da API (`DATABASE_URL`, `APP_TIMEZONE`). A variável
-  `NOTIFICATIONS_DUE_LOOKBACK_DAYS` saiu em 15/10/2026, junto com a janela de recuperação, e é
-  ignorada se ainda estiver no ambiente.
-- **Primeira execução depois de 15/10/2026.** Sem janela, o job notifica de uma vez todas as
-  tarefas vencidas e abertas, por mais antigas que sejam. Rode o dry-run antes do apply e guarde o
-  `wouldCreate`.
+- O worker usa as mesmas variáveis protegidas da API (`DATABASE_URL`, `APP_TIMEZONE`) e roda os
+  jobs com `JOBS_ENABLED` ligado (padrão), mesmo com o agendador do GitHub desligado.
+- A variável `NOTIFICATIONS_DUE_LOOKBACK_DAYS` saiu em 15/10/2026 e é ignorada se ainda estiver no
+  ambiente.
+- **Primeira execução depois de 15/10/2026.** Sem janela, a varredura notifica de uma vez todas as
+  tarefas vencidas e abertas, por mais antigas que sejam. Rode o dry-run manual antes de ligar o
+  worker e guarde o `wouldCreate`.
 - `APP_TIMEZONE` é o fuso IANA do corte do prazo; o padrão é `America/Sao_Paulo`. Mudá-lo move o
   instante em que as tarefas vencem.
-- Até o agendamento real e o monitoramento existirem no ambiente (S2-09 e S2-10), o RF59 só roda à
-  mão e não está operacionalmente comprovado.
+- A notificação e a decisão de cada tarefa gravam na mesma transação, em lotes de até 1.000 tarefas
+  (ADR-016 D6).
 
 ## Execução manual
 
@@ -30,74 +32,23 @@ npm run notifications:due:dry-run
 npm run notifications:due
 ```
 
+- O comando fica em `src/jobs/cli/notify-overdue-tasks.js`, dentro do artefato de runtime.
 - Opcional: `-- --project-id=<id>` limita a um projeto.
 - Em banco de produção, o apply exige `--confirm-production`
-  (`node scripts/notify-overdue-tasks.js --apply --confirm-production`).
+  (`node src/jobs/cli/notify-overdue-tasks.js --apply --confirm-production`).
+- O apply toma a mesma lease do worker. Com o worker no meio de uma varredura, o comando avisa e
+  sai com código 1, sem rodar.
 - O dry-run não grava nada e informa `wouldCreate`.
 
-## Agendamento na OCI (VM de aplicação)
+## Agendamento
 
-A cada 15 minutos, por timer do `systemd`. Os caminhos e o usuário abaixo são exemplos e devem
-seguir o que o S2-09 instalar.
+O worker é o agendador. Para conferir:
+- `journalctl -u traceflow-github-worker` com o evento `scheduled_job_completed` e o nome
+  `notifications-due`;
+- a tabela `ScheduledJobLease`, com o dono e a validade da lease em curso.
 
-`/etc/systemd/system/traceflow-notifications-due.service`:
-
-```ini
-[Unit]
-Description=TraceFlow - notificações de prazo vencido (RF59)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-User=traceflow
-WorkingDirectory=/opt/traceflow/backend
-EnvironmentFile=/etc/traceflow/backend.env
-ExecStart=/usr/bin/node scripts/notify-overdue-tasks.js --apply --confirm-production
-```
-
-`/etc/systemd/system/traceflow-notifications-due.timer`:
-
-```ini
-[Unit]
-Description=Executa o job de vencimentos do TraceFlow a cada 15 minutos
-
-[Timer]
-OnCalendar=*:0/15
-Persistent=true
-RandomizedDelaySec=30
-Unit=traceflow-notifications-due.service
-
-[Install]
-WantedBy=timers.target
-```
-
-Ativar com `systemctl daemon-reload` e `systemctl enable --now traceflow-notifications-due.timer`.
-
-- O serviço `oneshot` não se sobrepõe: o `systemd` não inicia uma execução enquanto a anterior
-  roda.
-- `Persistent=true` recupera a execução perdida depois de um desligamento.
-- Conferir com `systemctl list-timers` e `journalctl -u traceflow-notifications-due`.
-
-**Alternativa com `cron`.** Usar `flock` para não sobrepor execuções:
-
-```cron
-*/15 * * * * cd /opt/traceflow/backend && flock -n /tmp/traceflow-notifications-due.lock /usr/bin/node scripts/notify-overdue-tasks.js --apply --confirm-production
-```
-
-Mesmo sem o `flock`, duas execuções simultâneas não duplicam notificações, porque o índice único
-garante isso. O `flock` só evita trabalho repetido.
-
-## Equivalência na Azure
-
-O roadmap anexado previa a Azure; a cópia do repositório adotou a OCI sem ADR (divergência D-RM-01).
-O job não depende da nuvem: é o mesmo comando, com as mesmas variáveis.
-
-- **VM na Azure:** o mesmo timer do `systemd` ou o mesmo `cron` acima.
-- **Job agendado de contêiner** (por exemplo, Container Apps Job com gatilho `*/15 * * * *`): a
-  imagem do backend roda `node scripts/notify-overdue-tasks.js --apply --confirm-production`, com as
-  variáveis injetadas como segredo.
-- Nenhum SDK de nuvem entra no código.
+Timers do `systemd` e `cron` para este job não devem ser instalados: o worker já faz o trabalho, e a
+lease faria a execução externa sair sem rodar.
 
 ## Saída, código de saída e logs
 

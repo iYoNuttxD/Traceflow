@@ -1,7 +1,8 @@
 # ADR-022 — Consulta contextual de alertas e avisos de inconsistência
 
 - **Estado:** aceita em 15/10/2026 (revisão independente da PR #26: TF-REV-008, UX-D01, UX-D02 e
-  UX-D03). Os detalhes visuais dependem da aprovação do esboço (portão G2).
+  UX-D03). Revista em 17/10/2026 com a avaliação visual do João na segunda revisão (UX-R2-01 a
+  UX-R2-04) e as confirmações da seção final.
 - **Data:** 15/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 - **Relação:** revê a interface do [ADR-015](ADR-015-TRACEABILITY-ALERTS.md) (D1 e D7), do
@@ -40,8 +41,11 @@ Restrições do terreno:
 
 1. **Painel de notificações (D1).**
    - **Forma.** O sino do menu abre um painel lateral:
-     - à direita, com no máximo 400 px, a partir de 721 px;
+     - à esquerda, colado à navegação lateral, com no máximo 400 px, a partir de 721 px (UX-R2-04);
      - em tela cheia até 720 px.
+   - **Preferências.** O atalho abre a vista "Preferências" dentro do próprio painel, com "Voltar às
+     notificações". A volta preserva a aba, a origem e as páginas já carregadas. A página
+     `/settings/notifications` continua para o acesso direto.
    - **Camadas.** O painel fica em portal, fora do `main`, na pilha do `useDialogLayer`:
      - contenção de foco e `Escape` na ordem certa;
      - foco inicial no título e retorno ao sino;
@@ -74,17 +78,19 @@ Restrições do terreno:
    - **Linha de rastreabilidade.** Ela separa:
      - vínculo técnico (commit, PR e issue): "Sem vínculo técnico";
      - requisito: "Sem requisito", como informação discreta (UX-D02).
-   - **Filtro "Rastreabilidade".** Entra no Kanban e na lista de tarefas, com as opções:
+   - **Filtro "Rastreabilidade".** Fica só em "Buscar e filtrar", no Kanban e na lista de tarefas,
+     e entra na contagem de filtros ativos e na limpeza. As opções:
      - Todas;
-     - Sem vínculo técnico (RF58);
-     - Concluídas sem commit (RF13).
-   - **Resumo do RF58.** O resumo da lista mostra "Sem vínculo técnico: N de M tarefas (P%)", com o
-     denominador do critério do RF58. Ao ser acionado, ele aplica o filtro.
+     - Sem vínculo técnico;
+     - Concluídas sem commit.
+   - **Contador do RF58.** "Sem vínculo técnico" fica no resumo de cada tela, sem faixa nem botão
+     isolado (UX-R2-03). Os rótulos visíveis não trazem o código do RF.
    - **Detalhes da tarefa.** Ganham a seção "Inconsistência", com:
      - tipo, ocorrência e detecção;
      - o vínculo de commit;
      - a dispensa (MANAGER+, com justificativa);
-     - o histórico dos alertas resolvidos e dispensados da tarefa.
+     - o histórico dos alertas resolvidos e dispensados da tarefa, que continua acessível quando
+       não há alerta aberto (TF-REV-010).
 3. **Indicações nos artefatos (D3).**
    - **Tela do Repositório.** A coluna de estado mostra "Mesclada · sem tarefa" e "Fechada · sem
      tarefa".
@@ -95,12 +101,15 @@ Restrições do terreno:
      - Resolvidas.
    - **Ação "Ver inconsistência".** Abre o detalhe do alerta, com vincular a uma tarefa, dispensar,
      GitHub e histórico.
+     - O detalhe abre na largura padrão, em três blocos: motivo, dados e ações (UX-R2-01).
+     - A identificação do item e a data da ocorrência aparecem uma vez só.
    - **Link direto:** `?alerta=<id>`.
-4. **Resumo em Rastreabilidade (D4).** A sub-navegação sai. O topo da tela mostra as contagens
-   abertas de cada tipo, e cada uma leva à lista filtrada.
-   - Continuam lá:
+4. **Resumo em Rastreabilidade (D4).** A sub-navegação sai. As contagens abertas de cada tipo
+   ficam no bloco "Resumo" da tela, num grupo "Inconsistências abertas", separado dos indicadores de
+   requisito, e cada uma leva à lista filtrada (UX-R2-02).
+   - Continuam no bloco:
      - o aviso de reprocessamento atrasado;
-     - "Reprocessar", só para MANAGER+.
+     - "Reprocessar", ação secundária e compacta, só para MANAGER+.
    - As rotas antigas de alertas e de tarefas sem vínculo redirecionam para a lista filtrada
      correspondente.
 5. **Avisos de inconsistência (D5).** Alerta de PR mesclada ou de issue fechada sem tarefa (RF39,
@@ -209,3 +218,24 @@ Restrições do terreno:
   - é retido por 180 dias.
 - As leituras de alertas e o índice exigem membership ativa, conferida no serviço (emenda do
   ADR-003).
+
+## Revisão de 17/10/2026 — segunda revisão independente da PR #26
+
+**Avaliação visual do João (UX-R2-01 a UX-R2-04).** O João aprovou as recomendações em 17/10/2026
+(`PR26_PROMPT_CORRECOES_REVISAO_2.md`, não versionado):
+
+| Direção | Decisão |
+| --- | --- |
+| UX-R2-01 | o detalhe da inconsistência abre na largura padrão, em três blocos (motivo, dados e ações), sem repetir a identificação nem a data da ocorrência (D3) |
+| UX-R2-02 | as contagens abertas entram no bloco "Resumo" da Rastreabilidade (D4) |
+| UX-R2-03 | o contador do RF58 fica no resumo e o filtro só em "Buscar e filtrar" (D2) |
+| UX-R2-04 | o painel e as preferências abrem pela esquerda (D1) |
+| TF-REV-010 | o histórico de inconsistências da tarefa aparece mesmo sem alerta aberto (D2) |
+
+**Confirmações pedidas pela decisão 7 do parecer.** Confirmadas uma a uma pelo João em 17/10/2026:
+
+| Escolha | Regra confirmada |
+| --- | --- |
+| Agrupamento | mais de 10 avisos do mesmo tipo para a mesma pessoa, numa reconciliação, viram um aviso de resumo (D8) |
+| Elegibilidade | recebe o aviso quem entrou no projeto e ligou a preferência antes da detecção: `joinedAt` e `enabledAt` até `detectedAt` (D6) |
+| Legado | alertas abertos antes da implantação dos avisos ficam `NOT_APPLICABLE`, sem aviso retroativo (D7) |

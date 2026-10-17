@@ -183,11 +183,11 @@ a regra de 15/10/2026, eles foram reescritos:
 
 | Item | Regra |
 | --- | --- |
-| Comando | `npm run notifications:due:dry-run` (padrão) e `npm run notifications:due` (`--apply`) |
+| Comando | `npm run notifications:due:dry-run` (padrão) e `npm run notifications:due` (`--apply`), em `src/jobs/cli/notify-overdue-tasks.js` |
 | Produção | exige `--confirm-production` |
 | Escopo | todos os projetos não excluídos, ou `--project-id=<id>` |
-| Frequência | a cada 15 minutos; o agendamento proposto é uma tarefa periódica do worker do GitHub (ADR-024). Enquanto o ADR-024 não vigorar, um agendador externo chama o comando ([runbook](../runbooks/TASK_NOTIFICATIONS.md)) |
-| Escrita | por projeto, com `createMany` e `skipDuplicates`. As decisões (`NotificationDecision`) são gravadas em paralelo com as notificações, só quando mudam; a decisão de uma notificação que não ficou gravada é desfeita ([NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md)) |
+| Frequência | a cada 15 minutos, no worker, com lease no banco (ADR-024 D7; [runbook](../runbooks/SCHEDULED_JOBS.md)) |
+| Escrita | por projeto, em lotes de até 1.000 tarefas, com até 4 lotes em paralelo. Em cada lote, as notificações (`createMany` com `skipDuplicates`) e as decisões (`NotificationDecision`, só as que mudam) gravam na mesma transação. Uma queda no meio do lote não deixa nenhuma das duas ([NOTIFICATION_METRICS.md](NOTIFICATION_METRICS.md)) |
 | Falha | a falha de um projeto conta em `failed` e não impede os outros; com `failed > 0`, o processo sai com código 1. Com `--project-id` de projeto inexistente ou excluído, avisa em `stderr` e sai com código 2 |
 | Saída | JSON com `dryRun`, `timeZone`, `projects`, `scanned`, `eligible`, `created`, `alreadyNotified`, `excluded` por motivo, `failed`, `durationMs` e, em dry-run, `wouldCreate`. O job não atualiza linhas, e a saída diz isso com `updated: "NOT_APPLICABLE"`. `excluded` tem os quatro motivos do RF59. As contagens valem para a execução e não se somam entre execuções; a métrica é o script `notifications:metrics` |
 | Log | `notifications_due_started` (com o fuso), `notifications_due_project_failed` (projeto e código do erro) e `notifications_due_completed` (contagens); nunca título, nome ou e-mail |

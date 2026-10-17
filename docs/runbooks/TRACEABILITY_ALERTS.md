@@ -2,8 +2,10 @@
 
 Regra em [Traceability Alerts](../data/TRACEABILITY_ALERTS.md); decisão em
 [ADR-015](../architecture/ADR-015-TRACEABILITY-ALERTS.md). Os alertas nascem sozinhos nas mutações
-de tarefa e vínculo, no fim de cada sincronização e na conexão do repositório. Este runbook cobre o
-script de reconciliação, usado na implantação e para recuperar depois de uma falha.
+de tarefa e vínculo, no fim de cada sincronização e na conexão do repositório. Desde 17/10/2026, o
+worker reconcilia a cada 60 minutos os projetos com reconciliação atrasada
+([Jobs agendados](SCHEDULED_JOBS.md)). Este runbook cobre o comando de reconciliação, usado na
+implantação e para recuperar à mão.
 
 ## Quando rodar
 
@@ -28,7 +30,9 @@ npm run traceability:alerts
 - **Dry-run.** Roda em `RepeatableRead`, não grava nada e informa por projeto quantos alertas
   seriam criados e resolvidos.
 - **Produção.** O apply exige `--confirm-production`
-  (`node scripts/reconcile-traceability-alerts.js --apply --confirm-production`).
+  (`node src/jobs/cli/reconcile-traceability-alerts.js --apply --confirm-production`).
+- **Lease.** O apply toma a lease `traceability-alerts` do worker; com a reconciliação agendada em
+  curso, o comando avisa e sai com código 1.
 
 ## Primeira execução depois de 15/10/2026
 

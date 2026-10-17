@@ -69,13 +69,15 @@ Restrições do terreno:
    **Diferença com a tela.** O Kanban marca "Atrasada" pelo fuso do navegador. Para quem está fora
    do fuso de referência, a tela e a notificação discordam por algumas horas (até 17 h em
    `Pacific/Kiritimati`, +14, em relação a `America/Sao_Paulo`). O fuso por usuário é o S202-F07.
-6. **Job externo (D6).** `npm run notifications:due` (script `notify-overdue-tasks.js`):
-   - dry-run por padrão, `--apply` e `--confirm-production`;
-   - deve ser chamado a cada 15 minutos. A forma de agendamento está no ADR-024 (proposto em
-     15/10/2026: tarefa periódica do worker do GitHub, com exclusão no banco);
-   - grava com `INSERT IGNORE` sobre o índice único, então execuções simultâneas não duplicam;
+6. **Varredura do vencimento (D6).** Roda no worker a cada 15 minutos (ADR-024 D7) e pelo comando
+   manual `npm run notifications:due` (`src/jobs/cli/notify-overdue-tasks.js`):
+   - o comando é dry-run por padrão, com `--apply` e `--confirm-production`;
+   - **unidade atômica:** a notificação e a decisão de cada tarefa gravam na mesma transação, em
+     lotes de até 1.000 tarefas, com até 4 lotes em paralelo. Uma queda no meio do lote não deixa
+     decisão `SENT` sem a notificação (TF-REV-009);
+   - grava com `INSERT IGNORE` sobre os índices únicos, então execuções simultâneas não duplicam;
    - informa avaliados, elegíveis, criados, já notificados, excluídos por motivo e falhos;
-   - termina com código diferente de zero quando algum projeto falha.
+   - o comando termina com código diferente de zero quando algum projeto falha.
 7. **Preferências (D7).** Por usuário e por tipo, ligadas por padrão (sem linha = ligada). Valem no
    instante da criação, sem efeito retroativo. O canal é só a aplicação.
    - No RF59, a notificação nasce no job, depois do corte. Para não ser retroativa, a preferência
@@ -253,4 +255,14 @@ e as decisões estão incorporadas no texto acima:
 | TF-REV-004, TF-REV-007 | contador único, o do menu (D10) |
 | TF-REV-006 | agendamento do job no ADR-024, proposto (D6) |
 | TF-REV-008 | painel lateral no lugar da página (D10) |
+
+## Revisão de 17/10/2026 — segunda revisão independente da PR #26
+
+O João aprovou as recomendações em 17/10/2026 (`PR26_PROMPT_CORRECOES_REVISAO_2.md`, não
+versionado):
+
+| Achado | Decisão |
+| --- | --- |
+| TF-REV-009 | notificação e decisão do RF59 na mesma transação, por lote (D6) |
+| TF-REV-006 | varredura agendada no worker e comando manual dentro do artefato (D6; ADR-024 D7 e D8) |
 

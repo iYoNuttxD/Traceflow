@@ -1,23 +1,24 @@
 # Runbook — despacho das notificações de issues e pull requests (RF60, RF61)
 
 Regra em [GitHub Event Notifications](../data/GITHUB_EVENT_NOTIFICATIONS.md); decisão em
-[ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md). A transição nasce na
-sincronização GitHub e vai para a fila `GitHubArtifactEvent`. O despacho roda logo depois de cada
-execução de sincronização e, para o que sobrar, neste job.
+[ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md). O evento nasce do histórico de
+eventos do repositório, lido na sincronização GitHub, e vai para a fila `GitHubArtifactEvent`. A
+abertura (`ISSUE_OPENED`) nasce no vínculo. O despacho roda logo depois de cada execução de
+sincronização, e a retomada roda no worker a cada 5 minutos.
 
 ## Responsabilidade e pré-condições
 
-O responsável pela implantação agenda um job externo recorrente que roda o script
-`backend/scripts/dispatch-github-event-notifications.js`. Não executar no startup da API nem por
-`setInterval` dentro dela: duplicaria com mais de uma instância e pararia junto com a API.
+Desde 17/10/2026, a retomada do despacho roda no worker (`backend/src/github-worker.js`) a cada 5
+minutos, com lease no banco ([ADR-024](../architecture/ADR-024-OPERACAO-CONEXOES-RECUPERACAO-E-JOBS.md)
+D7 e o runbook [Jobs agendados](SCHEDULED_JOBS.md)). Não há timer nem `cron` a instalar.
 
-- Usar as mesmas variáveis protegidas da API (`DATABASE_URL`).
-- Não há janela desde 15/10/2026: a transição de artefato vinculado notifica qualquer que seja a
-  idade da ocorrência. A variável `GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS` saiu e é ignorada se
-  ainda estiver no ambiente.
-- O job não chama o GitHub nem usa o token da GitHub App.
-- Até o agendamento real e o monitoramento existirem no ambiente (S2-09 e S2-10), o despacho de
-  recuperação só roda à mão. O despacho depois da sincronização funciona sem o job.
+- O worker usa as mesmas variáveis protegidas da API (`DATABASE_URL`) e roda os jobs com
+  `JOBS_ENABLED` ligado (padrão).
+- Não há janela desde 15/10/2026. A variável `GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS` saiu e é
+  ignorada se ainda estiver no ambiente.
+- O despacho não chama o GitHub nem usa o token da GitHub App.
+- **Corte de 17/10/2026.** A migration `durable_github_events` grava o início da cobertura de cada
+  projeto integrado. Eventos anteriores ao corte não geram aviso.
 
 ## Execução manual
 
@@ -28,76 +29,27 @@ npm run notifications:github-events:dry-run
 npm run notifications:github-events
 ```
 
+- O comando fica em `src/jobs/cli/dispatch-github-event-notifications.js`, dentro do artefato de
+  runtime.
 - Opcional: `-- --project-id=<id>` limita a um projeto.
 - Opcional: `-- --retry-failed` devolve os eventos `FAILED` à fila (com `--apply`) ou só os conta
   (em dry-run). O reprocessamento é auditado (`GITHUB_EVENT_NOTIFICATIONS_REQUEUED`).
 - Em banco de produção, o apply exige `--confirm-production`
-  (`node scripts/dispatch-github-event-notifications.js --apply --confirm-production`).
+  (`node src/jobs/cli/dispatch-github-event-notifications.js --apply --confirm-production`).
+- O apply toma a mesma lease do worker; com a retomada em curso, o comando avisa e sai com código 1.
 - O dry-run não reserva nem grava nada e informa `wouldCreate`.
 
-## Agendamento na OCI (VM de aplicação)
+## Agendamento
 
-A cada 15 minutos, por timer do `systemd`. Os caminhos e o usuário abaixo são exemplos e devem
-seguir o que o S2-09 instalar.
-
-`/etc/systemd/system/traceflow-github-event-notifications.service`:
-
-```ini
-[Unit]
-Description=TraceFlow - notificações de issues e pull requests (RF60, RF61)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-User=traceflow
-WorkingDirectory=/opt/traceflow/backend
-EnvironmentFile=/etc/traceflow/backend.env
-ExecStart=/usr/bin/node scripts/dispatch-github-event-notifications.js --apply --confirm-production
-```
-
-`/etc/systemd/system/traceflow-github-event-notifications.timer`:
-
-```ini
-[Unit]
-Description=Despacha as notificações de issues e pull requests do TraceFlow a cada 15 minutos
-
-[Timer]
-OnCalendar=*:0/15
-Persistent=true
-RandomizedDelaySec=30
-Unit=traceflow-github-event-notifications.service
-
-[Install]
-WantedBy=timers.target
-```
-
-Ativar com `systemctl daemon-reload` e
-`systemctl enable --now traceflow-github-event-notifications.timer`.
-
-- O serviço `oneshot` não se sobrepõe a si mesmo. Mesmo assim, despachos simultâneos (o do job e o
-  que roda depois de uma sincronização) não duplicam: cada evento é reservado por um só, e a chave
-  única da notificação impede repetição.
-- Conferir com `systemctl list-timers` e `journalctl -u traceflow-github-event-notifications`.
-
-**Alternativa com `cron`.**
-
-```cron
-*/15 * * * * cd /opt/traceflow/backend && flock -n /tmp/traceflow-github-event-notifications.lock /usr/bin/node scripts/dispatch-github-event-notifications.js --apply --confirm-production
-```
+O worker é o agendador. Para conferir, `journalctl -u traceflow-github-worker` com o evento
+`scheduled_job_completed` e o nome `github-event-dispatch`. Timers do `systemd` e `cron` para este
+job não devem ser instalados.
 
 ## Equivalência na Azure
 
 O roadmap anexado previa a Azure; a cópia do repositório adotou a OCI sem ADR (divergência D-RM-01).
-O job não depende da nuvem: é o mesmo comando, com as mesmas variáveis.
-
-- **VM na Azure:** o mesmo timer do `systemd` ou o mesmo `cron` acima.
-- **Job agendado de contêiner** (por exemplo, Container Apps Job com gatilho `*/15 * * * *`): a
-  imagem do backend roda
-  `node scripts/dispatch-github-event-notifications.js --apply --confirm-production`, com as
-  variáveis injetadas como segredo.
-- Nenhum SDK de nuvem entra no código.
-
+O worker não depende da nuvem: é o mesmo processo, com as mesmas variáveis. Nenhum SDK de nuvem entra
+no código.
 ## Saída, código de saída e logs
 
 O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha JSON por evento.

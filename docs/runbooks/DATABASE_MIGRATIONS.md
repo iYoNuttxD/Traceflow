@@ -202,6 +202,13 @@ npx prisma migrate status
 
 5. Verifique `/health/ready`, logs sanitizados e smoke funcional.
 
+## Jobs agendados durante a migration
+
+Desde 17/10/2026, o worker roda os jobs de notificação e de reconciliação. Antes de qualquer
+`migrate deploy` ou rollback, pare o worker e confira que nenhuma lease está válida, como no runbook
+[Jobs agendados](SCHEDULED_JOBS.md#pausa-para-backup-migration-e-rollback). Suba o worker depois da
+conferência. O rollback da aplicação não desfaz DDL.
+
 ## Migration com falha
 
 1. Pare novos deploys e preserve banco/logs sem PII.
