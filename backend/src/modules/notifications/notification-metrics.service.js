@@ -18,7 +18,7 @@ import { notificationRepository } from './notification.repository.js';
 const DAY_MS = 86_400_000;
 const EVENT_UNIT = 'EVENTO';
 const PAIR_UNIT = 'PAR_EVENTO_PARTICIPANTE';
-const RF60_EVENTS = new Set(['ISSUE_CLOSED', 'ISSUE_REOPENED']);
+const RF60_EVENTS = new Set(['ISSUE_OPENED', 'ISSUE_CLOSED', 'ISSUE_REOPENED']);
 const RF61_EVENTS = new Set(['PULL_REQUEST_MERGED', 'PULL_REQUEST_CLOSED']);
 
 const contains = (period, instant) =>

@@ -108,12 +108,15 @@ async function integratedProject() {
   return { project, owner, responsible, repositoryId };
 }
 
+const ISSUE_CREATED_AT = new Date('2026-01-02T12:00:00.000Z');
+
 const issueItem = (number, state = 'open', closedAt = null) => ({
   githubId: `r2-issue-${number}`,
   number,
   title: `Issue ${number}`,
   state,
   labels: [],
+  createdAtGithub: ISSUE_CREATED_AT,
   closedAtGithub: closedAt,
   githubUrl: `https://github.com/usuario-r2/repositorio-r2/issues/${number}`
 });
@@ -174,16 +177,22 @@ async function sync(context, spec) {
 const dispatch = () =>
   createGithubEventNotificationService({ clock: () => new Date() }).runJob({ dryRun: false });
 
+const LIFECYCLE = { not: 'ISSUE_OPENED' };
+
 const eventsOf = (projectId) =>
   prisma.gitHubArtifactEvent.findMany({
-    where: { projectId },
+    where: { projectId, type: LIFECYCLE },
     orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
     select: { type: true, occurredAt: true, occurrenceKey: true, linkedTaskCount: true }
   });
 
 const notificationsOf = (userId) =>
   prisma.notification.findMany({
-    where: { recipientUserId: userId, type: { in: ['ISSUE_EVENT', 'PULL_REQUEST_EVENT'] } },
+    where: {
+      recipientUserId: userId,
+      type: { in: ['ISSUE_EVENT', 'PULL_REQUEST_EVENT'] },
+      githubEvent: LIFECYCLE
+    },
     orderBy: { id: 'asc' },
     select: { githubEvent: true, githubOccurredAt: true, taskId: true }
   });
@@ -531,7 +540,7 @@ describe('TF-REV-002 — fonte durável dos eventos do RF60 e do RF61', () => {
     await dispatch();
 
     const events = await prisma.gitHubArtifactEvent.findMany({
-      where: { projectId: scenario.project.id },
+      where: { projectId: scenario.project.id, type: LIFECYCLE },
       include: { targets: { orderBy: { taskId: 'asc' } } }
     });
     expect(events).toHaveLength(1);
@@ -571,7 +580,9 @@ describe('TF-REV-002 — fonte durável dos eventos do RF60 e do RF61', () => {
       await prisma.issueLifecycleEvent.count({ where: { projectId: scenario.project.id } })
     ).toBe(0);
     expect(await eventsOf(scenario.project.id)).toEqual([]);
-    expect(await prisma.gitHubArtifactEventTask.count()).toBe(0);
+    expect(
+      await prisma.gitHubArtifactEventTask.count({ where: { event: { type: LIFECYCLE } } })
+    ).toBe(0);
 
     const resumed = await sync(scenario, spec);
     await dispatch();
@@ -620,7 +631,7 @@ describe('TF-REV-002 — fonte durável dos eventos do RF60 e do RF61', () => {
     });
 
     const events = await prisma.gitHubArtifactEvent.findMany({
-      where: { projectId: scenario.project.id },
+      where: { projectId: scenario.project.id, type: LIFECYCLE },
       include: { targets: true }
     });
     expect(events).toHaveLength(1);

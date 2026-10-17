@@ -6,6 +6,8 @@ import {
   lifecycleOccurrenceKey,
   linkedTasksAt,
   nextAttemptAfterFailure,
+  normalizeIssueState,
+  openedOccurrenceKey,
   pullRequestEventTypeOf,
   safeGithubUrl,
   snapshotArtifactTitle,
@@ -127,6 +129,37 @@ export const githubEventRepository = {
       where: { projectId, OR: [{ completeThrough: null }, { completeThrough: { lt: through } }] },
       data: { completeThrough: through }
     });
+  },
+
+  async recordIssueOpened(tx, { projectId, taskId, issue, detectedAt }) {
+    if (normalizeIssueState(issue.state) !== 'OPEN') return 0;
+    const occurrenceKey = openedOccurrenceKey(issue.id, taskId);
+    const inserted = await tx.gitHubArtifactEvent.createMany({
+      data: [
+        {
+          projectId,
+          type: 'ISSUE_OPENED',
+          issueId: issue.id,
+          pullRequestId: null,
+          artifactNumber: issue.number,
+          artifactTitle: snapshotArtifactTitle(issue.title),
+          artifactUrl: safeGithubUrl(issue.githubUrl),
+          occurredAt: issue.createdAtGithub ?? null,
+          detectedAt,
+          nextAttemptAt: detectedAt,
+          linkedTaskCount: 1,
+          occurrenceKey
+        }
+      ],
+      skipDuplicates: true
+    });
+    if (!inserted.count) return 0;
+    const event = await tx.gitHubArtifactEvent.findUnique({
+      where: { projectId_occurrenceKey: { projectId, occurrenceKey } },
+      select: { id: true }
+    });
+    await tx.gitHubArtifactEventTask.create({ data: { eventId: event.id, taskId } });
+    return 1;
   },
 
   async recordFromLifecycle(tx, { projectId, issues = [], pullRequests = [], detectedAt }) {

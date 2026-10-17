@@ -120,7 +120,10 @@ describe('S2-03 modelo de exibição dos eventos do GitHub (frase compacta do pa
     }
   });
 
-  it('descreve os quatro eventos com o artefato e a tarefa', () => {
+  it('descreve os cinco eventos com o artefato e a tarefa', () => {
+    expect(notificationSentence(event('ISSUE_EVENT', 'ISSUE_OPENED', 45))).toBe(
+      'Issue #45 aberta no GitHub · TASK-12'
+    );
     expect(notificationSentence(event('ISSUE_EVENT', 'ISSUE_CLOSED', 45))).toBe(
       'Issue #45 fechada no GitHub · TASK-12'
     );

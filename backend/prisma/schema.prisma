@@ -107,6 +107,7 @@ enum GitHubArtifactEventType {
   ISSUE_REOPENED
   PULL_REQUEST_MERGED
   PULL_REQUEST_CLOSED
+  ISSUE_OPENED
 }
 
 enum GitHubArtifactEventStatus {

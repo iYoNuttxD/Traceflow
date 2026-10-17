@@ -263,10 +263,13 @@ async function linkPullRequest(actor, task, project, number, { backdate = true }
   return pullRequest;
 }
 
-async function githubNotificationsOf(person) {
+async function githubNotificationsOf(person, { openings = false } = {}) {
   const response = await person.agent.get('/api/notifications?status=ALL&limit=100');
   expect(response.status).toBe(200);
-  return response.body.notifications.filter((item) => GITHUB_TYPES.includes(item.type));
+  return response.body.notifications.filter(
+    (item) =>
+      GITHUB_TYPES.includes(item.type) && (openings || item.context.event !== 'ISSUE_OPENED')
+  );
 }
 
 async function storedNotification(recipient, projectId, overrides = {}) {
@@ -426,7 +429,7 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
       expect(await githubNotificationsOf(person), person.user.username).toEqual([]);
   });
 
-  it('EV-C-05 Quadro 3-57: vincular issue aberta não avisa; reabrir issue vinculada avisa', async () => {
+  it('EV-C-05 Quadro 3-57: vincular issue aberta avisa a abertura uma vez; reabrir issue vinculada avisa', async () => {
     const project = await integratedProject();
     const manager = await register(project.id, 'OWNER');
     const participant = await register(project.id);
@@ -436,7 +439,11 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
     await syncVia(manager, project, { issues: [rawIssue(41, 'open'), rawIssue(42, 'open')] });
     await linkIssue(manager, task, project, 42);
     await syncVia(manager, project, { issues: [rawIssue(41, 'open'), rawIssue(42, 'open')] });
-    expect(await githubNotificationsOf(participant)).toEqual([]);
+    const openings = await githubNotificationsOf(participant, { openings: true });
+    expect(openings.map((item) => [item.context.event, item.context.artifact.number])).toEqual([
+      ['ISSUE_OPENED', 42],
+      ['ISSUE_OPENED', 41]
+    ]);
 
     await syncVia(manager, project, { issues: [rawIssue(41, 'closed'), rawIssue(42, 'open')] });
     await syncVia(manager, project, {
@@ -446,8 +453,15 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
       ]
     });
 
-    const events = (await githubNotificationsOf(participant)).map((item) => item.context.event);
-    expect(events.sort()).toEqual(['ISSUE_CLOSED', 'ISSUE_REOPENED']);
+    const events = (await githubNotificationsOf(participant, { openings: true })).map(
+      (item) => item.context.event
+    );
+    expect(events.sort()).toEqual([
+      'ISSUE_CLOSED',
+      'ISSUE_OPENED',
+      'ISSUE_OPENED',
+      'ISSUE_REOPENED'
+    ]);
   });
 
   it('EV-C-06 Quadro 3-58: mesclada e fechada sem merge avisam; reabertura e PR nova não', async () => {
@@ -1020,10 +1034,16 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
     ).toBe(202);
     const run = await finishedRun(manager, project);
     const finishedSeenAt = Date.now();
-    const countAtFinish = await prisma.notification.count({ where: { projectId: project.id } });
+    const countAtFinish = await prisma.notification.count({
+      where: { projectId: project.id, githubEvent: { not: 'ISSUE_OPENED' } }
+    });
     await vi.waitFor(
       async () =>
-        expect(await prisma.notification.count({ where: { projectId: project.id } })).toBe(90),
+        expect(
+          await prisma.notification.count({
+            where: { projectId: project.id, githubEvent: { not: 'ISSUE_OPENED' } }
+          })
+        ).toBe(90),
       { timeout: 15000, interval: 10 }
     );
     const notifiedAt = Date.now();

@@ -74,18 +74,20 @@ describe('S2-03 P2: anomalia e vocabulário (D2)', () => {
     expect(pullRequestStateAnomaly(null, merged())).toBe(false);
   });
 
-  it('os quatro eventos e os dois tipos de notificação ficam fixos', () => {
+  it('os cinco eventos e os dois tipos de notificação ficam fixos', () => {
     expect(GITHUB_EVENT_TYPES).toEqual([
+      'ISSUE_OPENED',
       'ISSUE_CLOSED',
       'ISSUE_REOPENED',
       'PULL_REQUEST_MERGED',
       'PULL_REQUEST_CLOSED'
     ]);
+    expect(notificationTypeOf('ISSUE_OPENED')).toBe(ISSUE_EVENT);
     expect(notificationTypeOf('ISSUE_CLOSED')).toBe(ISSUE_EVENT);
     expect(notificationTypeOf('ISSUE_REOPENED')).toBe(ISSUE_EVENT);
     expect(notificationTypeOf('PULL_REQUEST_MERGED')).toBe(PULL_REQUEST_EVENT);
     expect(notificationTypeOf('PULL_REQUEST_CLOSED')).toBe(PULL_REQUEST_EVENT);
-    expect(notificationTypeOf('ISSUE_OPENED')).toBeNull();
+    expect(notificationTypeOf('PULL_REQUEST_REOPENED')).toBeNull();
     expect(notificationTypeOf('__proto__')).toBeNull();
     expect(artifactKindOf(ISSUE_EVENT)).toBe('ISSUE');
     expect(artifactKindOf(PULL_REQUEST_EVENT)).toBe('PULL_REQUEST');

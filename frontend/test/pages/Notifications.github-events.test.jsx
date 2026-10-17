@@ -310,7 +310,7 @@ describe('S2-03 central: eventos de issue e pull request (D13)', () => {
     );
     const githubNotices = screen.getByRole('group', { name: 'Avisos do GitHub' });
     expect(githubNotices).toHaveTextContent(
-      'issue vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é fechada ou reaberta no GitHub'
+      'issue aberta é vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço, e quando essa issue é fechada ou reaberta no GitHub'
     );
     expect(githubNotices).toHaveTextContent(
       'pull request vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é mesclada ou fechada sem merge no GitHub'

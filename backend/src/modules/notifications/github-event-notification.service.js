@@ -345,6 +345,19 @@ export function createGithubEventNotificationService({
       }
     },
 
+    async dispatchAfterLink(projectId) {
+      try {
+        return await run({ projectId, dryRun: false, maxBatches: 1 });
+      } catch (error) {
+        log.warn('Falha ao despachar as notificações do GitHub depois do vínculo.', {
+          event: 'github_event_notifications_link_dispatch_failed',
+          projectId,
+          errorCode: errorCodeOf(error)
+        });
+        return null;
+      }
+    },
+
     isActiveProject(projectId) {
       return repository.isActiveProject(projectId);
     }

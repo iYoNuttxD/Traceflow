@@ -154,7 +154,7 @@ describe('S2-03 preferências dos avisos do GitHub (D7, D13)', () => {
     expect(within(tasks).getAllByRole('checkbox')).toHaveLength(2);
     expect(within(github).getAllByRole('checkbox')).toHaveLength(2);
     expect(issueSwitch()).toHaveAccessibleDescription(
-      /responsável, em que comentou ou registrou esforço é fechada ou reaberta no GitHub/
+      /issue aberta é vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço, e quando essa issue é fechada ou reaberta no GitHub/
     );
     expect(pullRequestSwitch()).toHaveAccessibleDescription(
       /é mesclada ou fechada sem merge no GitHub/

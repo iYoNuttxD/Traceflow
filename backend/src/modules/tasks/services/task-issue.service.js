@@ -3,6 +3,7 @@ import { TaskServiceError, parseIssueId, parseTaskId } from '../task.schema.js';
 import { ensureIssueExists, ensureTaskExists, formatIssue } from '../task.service-support.js';
 import { taskLinkRepository } from '../repositories/task-link.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
+import { githubEventNotificationService } from '../../notifications/github-event-notification.service.js';
 
 export const taskIssueService = {
   async listTaskIssues(taskId) {
@@ -34,6 +35,7 @@ export const taskIssueService = {
         metadata: { taskId: id }
       })
     );
+    await githubEventNotificationService.dispatchAfterLink(task.projectId);
     return (await taskRepository.findTaskIssues(id)).map(formatIssue);
   },
   async unlinkIssue(taskId, issueId, context = {}) {

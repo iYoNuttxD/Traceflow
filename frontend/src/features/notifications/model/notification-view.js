@@ -49,6 +49,7 @@ const ICONS = Object.freeze({
 const GITHUB_TYPES = new Set(['ISSUE_EVENT', 'PULL_REQUEST_EVENT']);
 
 const GITHUB_EVENT_VERBS = new Map([
+  ['ISSUE_OPENED', 'aberta'],
   ['ISSUE_CLOSED', 'fechada'],
   ['ISSUE_REOPENED', 'reaberta'],
   ['PULL_REQUEST_MERGED', 'mesclada'],
@@ -92,7 +93,7 @@ export const PREFERENCE_OPTIONS = Object.freeze([
     group: 'GITHUB',
     label: 'Issues vinculadas às tarefas de que você participa',
     description:
-      'Avisa quando uma issue vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço é fechada ou reaberta no GitHub.'
+      'Avisa quando uma issue aberta é vinculada a uma tarefa da qual você é responsável, em que comentou ou registrou esforço, e quando essa issue é fechada ou reaberta no GitHub.'
   },
   {
     type: 'PULL_REQUEST_EVENT',

@@ -4,6 +4,7 @@ import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
 import { lockActiveProject } from '../../projects/active-project-write.js';
 import { closeLinkPeriods, openLinkPeriod } from './task-link-period.js';
+import { githubEventRepository } from '../../notifications/github-event.repository.js';
 
 export const taskLinkRepository = {
   async setRequirement(task, requirementId, auditEvent) {
@@ -115,6 +116,23 @@ export const taskLinkRepository = {
           select: { projectId: true }
         });
         await openLinkPeriod(tx, { projectId, taskId, issueId, linkedAt: link.createdAt });
+        const issue = await tx.issue.findUniqueOrThrow({
+          where: { id: issueId },
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            githubUrl: true,
+            state: true,
+            createdAtGithub: true
+          }
+        });
+        await githubEventRepository.recordIssueOpened(tx, {
+          projectId,
+          taskId,
+          issue,
+          detectedAt: link.createdAt
+        });
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         return link;
       }
