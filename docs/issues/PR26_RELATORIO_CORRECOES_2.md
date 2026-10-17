@@ -7,8 +7,8 @@
   encerrou TF-REV-001, 003, 004 e 007, manteve TF-REV-002, 005, 006 e 008 e abriu TF-REV-009 a 012.
 - **Estado:**
   - executadas: Fases 0 a 14, a parte da 15 e da 16 que não depende de aval, e esta 17;
-  - aguardam o "pode rodar" do João: a cadeia de migrations do zero (80) e a cadeia composta com a
-    OCI (81), cada uma num banco temporário apagado no fim (seção 7);
+  - as cadeias de migrations do zero (80) e composta com a OCI (81) rodaram com o aval do João, em
+    17/10/2026, cada uma num banco temporário apagado no fim (seção 7);
   - aguardam a liberação do João: o banco `traceflow_visual_r2` e as portas dele, para as capturas
     da matriz visual; depois, a aprovação dele (portão G3, seção 8);
   - aguardam o dono da branch OCI: allowlist do diagnóstico, contagem inicial de migrations e
@@ -38,7 +38,8 @@ Todos locais, na `joao-dev-v2`, sem push e sem coautoria.
 | 16 | `1962c49` | U-05 e J-03, que matam os mutantes MR01 e MR15 |
 | 16 | `77761aa` | inventário de UI sem a faixa removida e com as contagens |
 | 16 | `31d6ff2` | V-06: evento antes, no início, durante, no fim e depois do período |
-| 17 | commit de registro | este relatório, o backlog, a matriz de RF e os documentos de privacidade |
+| 17 | `9ff391f` | este relatório, o backlog, a matriz de RF e os documentos de privacidade |
+| 16 | commit de registro | as duas cadeias de migrations aplicadas do zero, com o aval do João |
 
 As fases foram commitadas na ordem em que ficaram prontas: as de interface (9 a 12) entraram antes
 da 5, porque não dependiam dela.
@@ -65,7 +66,7 @@ da 5, porque não dependiam dela.
 | 2. Guarda global (ADR-024) | mantida, com uma conexão de recuperação, `KILL` com espera de até 2 s, conexão envenenada e saída controlada com código 1; `DATABASE_POOL_LIMIT` |
 | 3. ADR-023 revisto | aceito em 17/10/2026: fonte durável pela listagem de eventos do repositório, identidade pelo id do GitHub, período do vínculo no instante do evento, corte por projeto e lacuna de aquisição na métrica |
 | 4. Worker ou timers do systemd | worker, com lease em tabela (ADR-024 D7); timers registrados como alternativa |
-| 5. Cadeia composta antes da primeira inicialização | 81 migrations (80 nossas e 1 da OCI); `INITIAL_MIGRATION_COUNT` da OCI passa de 68 para 81. A aplicação do zero aguarda o "pode rodar" (seção 7) |
+| 5. Cadeia composta antes da primeira inicialização | 81 migrations (80 nossas e 1 da OCI); `INITIAL_MIGRATION_COUNT` da OCI passa de 68 para 81. A cadeia composta foi aplicada do zero num banco temporário, com as 81 (seção 7) |
 | 6. Conflitos | 5 arquivos, com o que preservar em cada um (seção 6) |
 | 7. Escolhas do ADR-022 | confirmadas uma a uma pelo João na recomendação do ⚑16: resumo acima de 10 avisos; `joinedAt` e `enabledAt` até `detectedAt`; alertas anteriores aos avisos ficam `NOT_APPLICABLE` |
 
@@ -248,11 +249,20 @@ teste afirma o orçamento e não registra o tempo medido.
 - As 76 anteriores não mudaram: `git diff --name-only 08682e9 HEAD -- backend/prisma/migrations`
   lista só as 4 novas.
 - O banco de teste está com as 80 aplicadas (`db:test:status`).
-- **Pendente do "pode rodar" do João:** a cadeia do zero (80) e a composta (81), com o roteiro
-  `validar-cadeias-r2.mjs`. Ele cria `traceflow_test_lr2_empty_validation` ou
-  `traceflow_test_r2_composed_validation` a partir da conexão de teste, aplica com
-  `migrate deploy`, confere a `_prisma_migrations` contra as pastas e as tabelas novas, e apaga o
-  banco no fim. A composta lê a migration exclusiva da OCI com `git show`.
+- **Cadeias do zero, com o aval do João (17/10/2026).** O roteiro confere que a conexão de origem é
+  o `traceflow_test` e cria o banco temporário. Lá, aplica as migrations com `migrate deploy`,
+  confere a `_prisma_migrations` contra as pastas, as tabelas novas e o enum dos eventos, e apaga o
+  banco no fim. A composta junta as nossas pastas à migration exclusiva da OCI, lida com
+  `git show origin/daniel-dev`:
+
+  ```json
+  {"mode":"zero","database":"traceflow_test_lr2_empty_validation","migrations":80,"expected":80,"missing":[],"last":"20261017130000_scheduled_job_leases","ociOnlyApplied":false,"tables":["githubeventcoverage","issuelifecycleevent","scheduledjoblease","taskartifactlinkperiod"],"artifactEventTypes":"enum('ISSUE_CLOSED','ISSUE_REOPENED','PULL_REQUEST_MERGED','PULL_REQUEST_CLOSED','ISSUE_OPENED')","seconds":11}
+  {"mode":"composta","database":"traceflow_test_r2_composed_validation","migrations":81,"expected":81,"missing":[],"last":"20261017130000_scheduled_job_leases","ociOnlyApplied":true,"tables":["evidenceupload","githubeventcoverage","issuelifecycleevent","scheduledjoblease","taskartifactlinkperiod"],"artifactEventTypes":"enum('ISSUE_CLOSED','ISSUE_REOPENED','PULL_REQUEST_MERGED','PULL_REQUEST_CLOSED','ISSUE_OPENED')","seconds":11}
+  ```
+
+  Os nomes das tabelas saem em minúsculas porque o MySQL no Windows usa
+  `lower_case_table_names=1`. Depois, só o `traceflow_test` restava entre os bancos
+  `traceflow_test*`.
 
 **Auditoria de trailers.** `git log --format=%(trailers) 08682e9..HEAD` não traz nenhum trailer, e
 nenhuma mensagem tem coautoria. Autor e committer de todos os commits: JoaoVitorSHernandes.
@@ -281,7 +291,6 @@ VERIFIED no inventário até essa aprovação.
 ## 9. Pendências
 
 - **G3:** a carga do banco visual, as capturas e a aprovação do João (seção 8).
-- **"Pode rodar":** as duas cadeias de migrations (seção 7).
 - **Branch OCI (PR26-F03):** `SOURCES` do diagnóstico, `INITIAL_MIGRATION_COUNT` 81, os 5
   conflitos, as variáveis novas nas unidades e a pausa coordenada do worker nos runbooks.
 - **Homologação (PR26-F04):** `KILL QUERY` entre conexões do mesmo usuário no HeatWave, latência,
