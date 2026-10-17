@@ -9,8 +9,9 @@
   - executadas: Fases 0 a 14, a parte da 15 e da 16 que não depende de aval, e esta 17;
   - as cadeias de migrations do zero (80) e composta com a OCI (81) rodaram com o aval do João, em
     17/10/2026, cada uma num banco temporário apagado no fim (seção 7);
-  - aguardam a liberação do João: o banco `traceflow_visual_r2` e as portas dele, para as capturas
-    da matriz visual; depois, a aprovação dele (portão G3, seção 8);
+  - a matriz visual foi capturada no `traceflow_visual_r2`, com o aval do João, e achou três
+    defeitos, corrigidos em `f630d94` e `4915ffc` (seção 8);
+  - aguarda o João: a aprovação visual (portão G3, seção 8);
   - aguardam o dono da branch OCI: allowlist do diagnóstico, contagem inicial de migrations e
     conflitos (seção 6, PR26-F03).
 
@@ -39,7 +40,10 @@ Todos locais, na `joao-dev-v2`, sem push e sem coautoria.
 | 16 | `77761aa` | inventário de UI sem a faixa removida e com as contagens |
 | 16 | `31d6ff2` | V-06: evento antes, no início, durante, no fim e depois do período |
 | 17 | `9ff391f` | este relatório, o backlog, a matriz de RF e os documentos de privacidade |
-| 16 | commit de registro | as duas cadeias de migrations aplicadas do zero, com o aval do João |
+| 16 | `a655d31` | as duas cadeias de migrations aplicadas do zero, com o aval do João |
+| G3 | `f630d94` | grupo de inconsistências com o recuo lateral e inferior do cartão de resumo (UX-R2-02) |
+| G3 | `4915ffc` | "Marcar todas como lidas" com aparência de desabilitado; ícone do estado vazio com borda (UX-R2-04, ⚑15) |
+| G3 | commit de registro | a matriz visual (seção 8) |
 
 As fases foram commitadas na ordem em que ficaram prontas: as de interface (9 a 12) entraram antes
 da 5, porque não dependiam dela.
@@ -51,7 +55,7 @@ da 5, porque não dependiam dela.
 | TF-REV-002 RF60/RF61 por comparação de estado; abertura sem contrato | **CORRIGIDO** | `96c0415`, `a50e597` e `c19e442` (ADR-023) | V-01 a V-06, F-01 a F-16, A-01 a A-05 e a política da fonte durável; MR04 a MR09 |
 | TF-REV-005 fechamento do cliente fora do allowlist OCI | **CORRIGIDO NO CÓDIGO**; fecha com o artefato da OCI | `443e1e2` (e `cdac782`, que trouxe o `engine-health.js`) | C-01 e C-02; MR13. O allowlist com SHA-256 está na seção 6 |
 | TF-REV-006 jobs e comandos fora da OCI | **CORRIGIDO** | `bf379aa` (ADR-024 D7 e D8) | J-01 a J-09; MR14 e MR15; simulação da seleção do artefato (seção 6) |
-| TF-REV-008 UX-R2-01 a UX-R2-04 | **CORRIGIDO NO CÓDIGO**; aprovação visual no G3 | `f46dab0`, `3240292`, `43c1da6` e `34c78dc` | M-01 a M-05, R-01 a R-04, T-01 a T-05 e P-04 a P-07; MR17 |
+| TF-REV-008 UX-R2-01 a UX-R2-04 | **CORRIGIDO NO CÓDIGO**; matriz capturada, aprovação visual do João pendente (G3) | `f46dab0`, `3240292`, `43c1da6` e `34c78dc`; os achados da matriz em `f630d94` e `4915ffc` | M-01 a M-05, R-01 a R-04, T-01 a T-05 e P-04 a P-07; MR17; as 48 células da matriz (seção 8) |
 | TF-REV-009 RF59 com `SENT` sem notificação | **CORRIGIDO** | `0e97249` e `1962c49` | U-01 a U-05; MR01 (vivo na primeira rodada, morto pelo U-05) |
 | TF-REV-010 histórico da tarefa some sem alerta aberto | **CORRIGIDO** | `eca49dc` | H-01 a H-04; MR02 |
 | TF-REV-011 `Shift+Tab` no título sai do diálogo | **CORRIGIDO** | `945304f` | P-01 a P-03; MR03 |
@@ -269,28 +273,86 @@ nenhuma mensagem tem coautoria. Autor e committer de todos os commits: JoaoVitor
 
 ## 8. Matriz visual (portão G3)
 
-Pelo ⚑17, com a liberação do João: um banco local `traceflow_visual_r2` com dados fictícios nos
-dois extremos (um projeto mínimo e um em escala, com 1.000 tarefas, 60 inconsistências e 200
-notificações), e o backend apontando para ele nas portas do João, com os servidores dele parados. A
-carga desse banco ainda não foi escrita. As capturas entram neste relatório, e o João revalida
-(G3). A matriz é a da seção 7 do enunciado:
+Pelo ⚑17, com a liberação do João em 17/10/2026 ("Pode criar o traceflow_visual_r2 e usar as
+portas 3001 e 5173 para as capturas"), com os servidores dele parados.
 
-| Superfície | Mínimo | Escala |
+**Banco e servidores.** O `traceflow_visual_r2` recebeu as 80 migrations com `migrate deploy` e uma
+carga fictícia. A carga confere `SELECT DATABASE()` antes de gravar e cria:
+- quatro pessoas em `@visual-r2.example`, com uma senha aleatória gerada na carga e guardada fora do
+  repositório;
+- "Visual R2 · mínimo": 1 tarefa e nenhuma inconsistência. O Davi é membro só dele e não tem
+  notificações;
+- "Visual R2 · um alerta": uma tarefa concluída sem commit, a PR #7 mesclada e a issue #12 fechada,
+  as duas sem tarefa;
+- "Visual R2 · escala": 40 requisitos, 1.000 tarefas, 40 PRs e 40 issues. Tem 60 inconsistências
+  abertas, 20 de cada tipo. A PR #100 tem 19 ocorrências anteriores resolvidas, e a tarefa 9 só
+  tem dispensadas (3 no histórico). A última atualização das inconsistências ficou marcada como
+  falha, para o aviso de dados desatualizados;
+- 200 notificações da Ana, 119 delas não lidas.
+
+O backend subiu na 3001 com a `DATABASE_URL` trocada só no processo, sem gravar credencial, e o
+Vite na 5173.
+
+**Cobertura.** As 48 células da matriz foram capturadas: 6 superfícies × 2 extremos × 1366×900 e
+390×844 × claro e escuro. São 69 arquivos, contando rolagens, preferências, filtro e o antes e
+depois das correções. Ficam fora do repositório, na pasta de trabalho da sessão
+(`scratchpad/r2/g3`), para o João conferir.
+
+| Superfície | Mínimo | Escala | O que as capturas mostram |
+|---|---|---|---|
+| Modal da inconsistência | PR #7 e issue #12, "Histórico (0)" | PR #100 com "Histórico (19)"; issue #319 | identificação uma vez, a data no Motivo e as ações agrupadas; folha inferior a 390. Aberto pela notificação, pela linha do Repositório e pela lista filtrada a que o resumo leva. O alerta de tarefa não tem modal: aparece nos detalhes da tarefa |
+| Resumo da Rastreabilidade | 0 de cada tipo | 20, 20 e 20, com links, e o aviso de dados desatualizados | o grupo dentro do cartão, com "Reprocessar inconsistências" |
+| Tarefas | 1 tarefa | 1.000 tarefas; o filtro "Sem vínculo técnico" com "1 filtro ativo" e "117 de 1000 tarefas" | 7 métricas; a contagem só no filtro, sem a faixa |
+| Kanban | 1 tarefa | 1.000 tarefas | o contador só no resumo |
+| Painel | vazio (Davi), nas abas "Não lidas" e "Todas" | 200 notificações: "99+" no menu, 119 não lidas | ao lado do menu a 1366 e em tela cheia a 390; preferências no próprio painel |
+| Detalhes da tarefa | alerta aberto, com "Histórico (0)" | só dispensados: "Inconsistências anteriores", "Histórico (3)" | a seção de rastreabilidade |
+
+**Teclado, com a carga real.**
+- `Shift+Tab` a partir do título do painel fica nele: o foco vai para o último controle, "Carregar
+  mais (99 restantes)" (TF-REV-011).
+- `Escape` fecha o painel e devolve o foco ao botão que o abriu ("Notificações, 119 não lidas").
+- Voltar das preferências preserva a aba do painel.
+
+**Achados da matriz, corrigidos.**
+
+| Achado | Correção | Capturas |
 |---|---|---|
-| Modal da inconsistência (PR, issue e tarefa), pela notificação e pelo Repositório | 1 alerta | histórico com 20 |
-| Resumo da Rastreabilidade | 0 inconsistências | 60 abertas, dados desatualizados |
-| Tarefas: resumo (7 métricas) e "Buscar e filtrar" | 1 tarefa | 1.000 tarefas |
-| Kanban: resumo e filtros | 1 tarefa | 1.000 tarefas |
-| Painel à esquerda, preferências e vazio | 0 notificações | 200 notificações |
-| Detalhes da tarefa: inconsistência e histórico | alerta aberto | só dispensados, depois de recarregar |
+| UX-R2-02: o grupo de inconsistências encostava na borda do cartão de resumo, sem recuo lateral | `f630d94`: o grupo ganha o recuo lateral e inferior do cartão. O componente só aparece nesse cartão | `02-rastreabilidade-*` |
+| Painel vazio: "Marcar todas como lidas" tinha `aria-disabled`, mas parecia ativo, com opacidade 1 e cursor de mão | `4915ffc`: opacidade de desabilitado e cursor `not-allowed` | `05-painel-vazio-390-claro-antes-da-correcao.jpg` e `05-painel-vazio-390-claro.jpg` |
+| ⚑15: o círculo do ícone do estado vazio sumia no tema escuro, em que `--color-surface-interactive` é igual ao fundo do painel (`#1d2735`) | `4915ffc`: borda, como nos outros ícones circulares (`StatusSurface`, `GenericErrorPage` e os itens do painel) | `05-painel-vazio-390-escuro-antes-da-correcao.jpg` e `05-painel-vazio-390-escuro.jpg` |
 
-Larguras 1366×900 e 390×844, temas claro e escuro, e o teclado de cada linha (`Shift+Tab` no
-título do painel, `Escape`, foco na seção da tarefa). O resumo de Tarefas voltou a TECHNICALLY
-VERIFIED no inventário até essa aprovação.
+Os testes do painel e do resumo passam, 60 de 60: `pr26-painel`, `r2-painel-esquerda`,
+`r2-resumo-rastreabilidade`, `pr26-indicacoes`, `NotificationsPage` e
+`NotificationPreferencesPage`. O Prettier aceita os dois CSS.
+
+**Para o julgamento do João.**
+- **Métrica órfã no resumo de Tarefas.** São 7 métricas: 4 + 3 a 1366 e, a 390, "Sem vínculo
+  técnico" sozinha na última linha, com meia célula vazia. O resumo da Rastreabilidade já tinha o
+  mesmo padrão com 5 métricas (3 + 2 a 1366, 2 + 2 + 1 a 390). O `TaskMetrics` é do Daniel, então
+  qualquer ajuste na grade passa por ele.
+- **"Histórico (0)".** O botão aparece mesmo sem ocorrência anterior e abre uma lista vazia.
+- **Ações do modal a 1366.** O modal tem cerca de 580 px, e "Histórico" quebra para a segunda linha.
+
+**Efeitos da carga, não defeitos.**
+- "Data da conclusão indisponível" na tarefa 2: a carga não gravou a movimentação de status, e a
+  interface trata a falta do dado.
+- "A última atualização das inconsistências falhou": a carga marcou de propósito a atualização da
+  escala com `lastFailedAt` e `P1001`.
+
+**Fora do escopo, sem mudança.** Depois de sair, o próximo login volta à última rota de quem saiu. O
+Davi caiu em `/projects/3/tasks`, de um projeto do qual não é membro, e viu "Página não
+encontrada". O comportamento vem do `ProtectedRoute`, anterior a esta PR (código do Daniel, de
+agosto).
+
+**Inventário.** As superfícies da matriz seguem TECHNICALLY VERIFIED no `UI_SURFACE_INVENTORY.md`
+até a aprovação do João: `TASKS-SUMMARY`, `KANBAN-SUMMARY`, `TASK-INCONSISTENCY-SECTION`,
+`TRACEABILITY-INCONSISTENCY-SUMMARY`, `NOTIFICATIONS-PANEL` e `REPOSITORY-INCONSISTENCY`. A matriz
+não muda o inventário.
 
 ## 9. Pendências
 
-- **G3:** a carga do banco visual, as capturas e a aprovação do João (seção 8).
+- **G3:** a aprovação do João sobre as capturas e os três pontos deixados para o julgamento dele
+  (seção 8).
 - **Branch OCI (PR26-F03):** `SOURCES` do diagnóstico, `INITIAL_MIGRATION_COUNT` 81, os 5
   conflitos, as variáveis novas nas unidades e a pausa coordenada do worker nos runbooks.
 - **Homologação (PR26-F04):** `KILL QUERY` entre conexões do mesmo usuário no HeatWave, latência,
