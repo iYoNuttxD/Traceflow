@@ -259,6 +259,18 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(c.private_json(window.run_directory(self.layout,third['runId'])/'prior-state.json'),state)
         self.assertEqual(original_files,self.history());self.assertEqual(self.path,old_path)
 
+    def test_subsequent_recovery_requires_immutable_failure_in_provenance(self):
+        self.test_full_reconciliation_then_authorized_activation_failure_and_next_attempt()
+        state=self.layout.load();path=window.run_directory(self.layout,'1'*32);f=path/'failure.json';raw=f.read_bytes()
+        for value in (None,raw+b' ',c.encoded(dict(c.private_json(f),runId='9'*32))):
+            with self.subTest(value='missing' if value is None else 'tampered'):
+                if value is None:f.unlink()
+                else:f.write_bytes(value)
+                with self.assertRaises((c.Refused,FileNotFoundError)):window.reconciliation_closed(self.layout,state)
+                self.assertEqual(state,self.layout.load());self.assertEqual(self.history(),self.before)
+                f.write_bytes(raw);f.chmod(0o600)
+        self.assertEqual(window.reconciliation_closed(self.layout,state),self.q)
+
     def test_launch_submits_selected_controller_not_historical_runtime(self):
         self.run_flow();new=copy.deepcopy(self.a);new['runId']='1'*32
         selected=Path('/opt/traceflow/releases')/('20261018T060000Z-'+'f'*40+'-'+'e'*12)/'deploy/scripts/release.py'

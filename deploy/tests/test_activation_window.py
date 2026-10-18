@@ -143,13 +143,16 @@ class WindowTests(unittest.TestCase):
         self.a=auth();self.a.update(issuedAt=stamp(time.time()-1),expiresAt=stamp(time.time()+590))
         self.path=window.run_directory(self.layout,self.a['runId']);self.path.mkdir(parents=True,mode=0o700)
         private_write(self.path/'authorization.json',c.encoded(self.a));private_write(self.path/'prior-state.json',c.encoded(state))
+        window.receipt(self.path,'prepared',self.a,expiresAt=self.a['expiresAt'])
+        window.receipt(self.path,'submission',self.a,status='SUBMISSION_REQUESTED')
         self.db=mock.Mock();self.db.ask.return_value={'fingerprint':'e'*64};self.account=mock.Mock();self.events=[]
         self.evidence=self.root/'var/lib/traceflow/test-evidence';self.evidence.mkdir(parents=True);(self.evidence/'keep').write_text('preserve')
     def tearDown(self):self.env.stop();self.temp.cleanup()
-    def run_flow(self,fail=None,missing=False):
+    def run_flow(self,fail=None,missing=False,hook=None):
         original_phase=ops.phase
         def phase(layout,state,name):
             self.events.append(name);original_phase(layout,state,name)
+            if hook:hook(name)
             if name==fail:raise c.Refused('SYNTHETIC_FAILURE')
             if name=='postchecks-pending' and not missing:
                 for kind in contract.POST:private_write(self.path/(kind+'.json'),c.encoded(post(self.a,kind,time.time())))
@@ -204,7 +207,10 @@ class WindowTests(unittest.TestCase):
         with self.assertRaisesRegex(c.Refused,'ACTIVATION_WINDOW_EXPIRED'):self.run_flow(missing=True)
         self.assertEqual(self.layout.load()['phase'],'first-activation-recovered')
     def test_incomplete_recovery_never_returns_idle_or_approved(self):
-        state=self.layout.load();state['web']='test';self.layout.save(state)
+        state=self.layout.load()
+        with mock.patch.object(ops,'boot_id',return_value='test-boot'),mock.patch.object(ops,'proc_start',return_value='123'),mock.patch.object(ops,'emit'):
+            window.claim_activation(ops,self.layout,self.path,self.a,state)
+        state['web']='test';self.layout.save(state)
         self.account.relock.side_effect=c.Refused('DB_UNAVAILABLE')
         with mock.patch.object(ops,'stop_services'),mock.patch.object(window,'nginx_files'),mock.patch.object(window,'nginx_reload'),\
              mock.patch.object(window,'temporary_probe'),mock.patch.object(window,'cleanup_credential'):
@@ -212,9 +218,10 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(result['status'],'INTERVENTION_REQUIRED');self.assertEqual(self.layout.load()['phase'],'recovery-incomplete')
         self.assertEqual(result['failedControls'],['accounts'])
     def test_replay_receipt_refused(self):
-        window.receipt(self.path,'prepared',self.a)
         with self.assertRaises(FileExistsError):window.receipt(self.path,'prepared',self.a)
     def test_finalizer_corrupt_success_still_runs_recovery(self):
+        with mock.patch.object(ops,'boot_id',return_value='test-boot'),mock.patch.object(ops,'proc_start',return_value='123'),mock.patch.object(ops,'emit'):
+            window.claim_activation(ops,self.layout,self.path,self.a,self.layout.load())
         private_write(self.path/'verified.json',b'{"status":"ACTIVATION_VERIFIED"}')
         with mock.patch.object(ops,'native_context'),mock.patch.object(window,'load',return_value=(self.path,self.a)),\
              mock.patch.object(window,'Accounts',return_value=self.account),mock.patch.object(window,'recover',return_value={'status':'TEMPORARY_PAGE_RESTORED'}) as recover:

@@ -688,3 +688,80 @@ recursos descartáveis locais. `fsync` local não equivale a um ensaio de perda 
 energia no filesystem da VM. Testes operacionais Linux/OCI, nova release,
 reconciliação real e ativação **não foram executados**. Os logs e o diff desta revisão
 ficam em `build/oci-reconciliation-review/`.
+
+### Revisão de titularidade — proteção contra recuperação cruzada
+
+A baseline `c4483ba18ce2e6433dfe6df63ed2b003df956947` permitia que
+`finalize-first` chamasse `recover()` sem comprovar quem assumiu o estado global.
+Liberar `operation.lock` antes de `systemd-run` permite duas submissões preparadas
+sobre o mesmo estado anterior. A segunda unidade pode falhar no lock ou na
+comparação de estado e ainda executar `ExecStopPost`. Esse comportamento é previsto
+pela [documentação oficial do systemd](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html#ExecStopPost=);
+`Type=exec` não comprova que o controlador adquiriu o estado da aplicação.
+A reprodução local da baseline confirmou a chamada indevida de recuperação.
+
+O protocolo mantém a submissão fora de `operation.lock`, evitando esperar pelo
+processo filho enquanto o launcher segura o lock necessário à execução. Distingue:
+
+1. **Preparada:** `prepared.json`, autorização específica e credencial exclusiva.
+2. **Submissão solicitada:** `submission.json`, antes de chamar systemd. É intenção;
+   não comprova aceitação do job nem titularidade. Uma resposta perdida continua
+   ambígua e não permite apagar a credencial de uma unidade que possa existir.
+3. **Aquisição:** `claim.json` imutável vincula autorização, submissão, estado
+   anterior e estado pretendido. Somente a persistência do estado global com o
+   `runId`, operação, release alvo e `activationClaimSha256` correspondentes concede
+   titularidade. O recibo sozinho não concede esse direito.
+4. **Execução armada:** `armed.json` é publicado depois da aquisição e antes de
+   desbloquear contas. Se o processo morrer entre a aquisição e esse recibo, o
+   finalizador independente ainda pode provar a titularidade e recuperar.
+5. **Recuperação/conclusão:** preservam os recibos e gates existentes. A recuperação
+   verifica a titularidade antes de qualquer alteração global; conclusão exige os
+   mesmos testes públicos, desconexão e evidências anteriores.
+
+`run-first` e `finalize-first` usam um lock exclusivo por tentativa em
+`shared/release-state/activation-locks/<runId>.lock`, protegido e separado dos
+recibos históricos. A ordem é lock da tentativa, depois `operation.lock`; ambos
+são não bloqueantes. Não há espera circular nem lock global durante submissão.
+Recusa por lock ocupado não autoriza remoção de lock ou recuperação forçada.
+Uma finalização legítima impedida por concorrência continua exigindo revisão e
+repetição explícita; não se introduz retry ou nova janela automática.
+
+O finalizador de uma tentativa que não é proprietária pode somente publicar seu
+`unowned.json` (`NO_GLOBAL_RECOVERY`) e remover sua própria credencial protegida.
+Isso independe do lock global ocupado pela outra tentativa. O lock individual
+impede que um `run-first` atrasado adquira o estado durante a limpeza; depois da
+limpeza, o marcador imutável recusa esse início atrasado. Não há operação sobre
+API, worker, Nginx, MySQL, links, estado ou guard de outra tentativa. Históricos
+já terminados por `closed.json` ou `recovery.json` não recebem esse marcador.
+Repetir o finalizador não renova autorização nem produz nova homologação.
+
+Uma identidade global que aponta para a própria tentativa, mas possui claim
+inválido, alvo/operação divergentes ou identidade de processo inconsistente, é
+ambígua: falha sem recuperação global e preserva a credencial para intervenção.
+Falhas de publicação, arquivos parciais e resíduos continuam bloqueando o protocolo;
+não são descartados para permitir PASS. Recibos novos utilizam a publicação atômica,
+exclusiva e sincronizada já adotada na reconciliação v2.
+
+**Proveniência de falhas.** `recovery.json` passa a vincular `claimSha256` e
+`failureSha256`. A cadeia das recuperações posteriores exige `failure.json` íntegro,
+vinculado à mesma autorização, tentativa e release; alteração até de whitespace,
+remoção ou replay de outra tentativa é recusado. Se uma interrupção abrupta não
+permitiu registrar a exceção, o finalizador registra `ACTIVATION_INTERRUPTED` e a
+fase observada, sem inventar o motivo original. Um recibo existente inválido não é
+sobrescrito: as ações de contenção da tentativa comprovadamente proprietária ainda
+são tentadas, mas a recuperação não pode ser aprovada sem evidência íntegra.
+
+Nenhum recibo histórico é convertido ou completado retroativamente por essa
+mudança. A reconciliação v2 da origem histórica continua com seu inventário selado;
+recuperações posteriores sem os novos vínculos exigem revisão, nunca migração
+silenciosa. A release instalada não foi alterada. Somente controlador compatível,
+posteriormente revisado e autorizado, poderá utilizar este protocolo. Root pode
+contornar voluntariamente código/custódia; essa limitação permanece explícita.
+
+Os testes usam filesystem e `flock` reais no Mac, incluindo outro processo local,
+com MySQL, systemd e HTTPS simulados. Cobrem duas submissões, recusa antes da
+posse, finalizador durante a primeira execução e após seu sucesso, falhas antes/
+depois de `armed`, aquisição parcial entre estado/guard, limpeza interrompida,
+replay e hashes da cadeia v2. Não comprovam execução nativa do systemd, falha física
+de energia ou recuperação na OCI. Produção permanece **BLOCKED**; nenhuma ativação,
+reconciliação, autorização operacional ou instalação decorre desta revisão local.

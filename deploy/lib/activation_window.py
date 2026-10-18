@@ -120,7 +120,7 @@ def receipt(path,event,a,**fields):
           'descriptorSha256':a['descriptorSha256'],'authorizationSha256':file_digest(path/'authorization.json'),
           'at':timestamp(),**fields}
     # Exclusive files make replay and silent replacement fail.
-    private_write(path/(event+'.json'),encoded(data));fsync_dir(path)
+    publish_reconciliation(path/(event+'.json'),data)
     return data
 
 def systemd_command(controller,run_id,seconds):
@@ -170,6 +170,8 @@ def launch(ops,layout,args):
             options='[client]\nuser=traceflow_admin\npassword="'+password.replace('\\','\\\\').replace('"','\\"')+'"\n'
             private_write(volatile/'admin.cnf',options.encode());del password,options
             receipt(path,'prepared',a,expiresAt=a['expiresAt'])
+            # Intent is durable before handing the job to systemd; not proof of ownership.
+            receipt(path,'submission',a,status='SUBMISSION_REQUESTED')
         except BaseException:
             cleanup_credential(a)  # No unit submitted; safe exclusive ownership.
             raise
@@ -194,13 +196,111 @@ def cleanup_credential(a):
     if c.exists():secure_read(c,0,4096,0o600);c.unlink();fsync_dir(p)
     p.rmdir();fsync_dir(RUN_BASE)
 
+def attempt_lock(layout,run_id):
+    run_directory(layout,run_id)  # Validate ID before using it as a lock name.
+    parent=layout.state/'activation-locks';parent.mkdir(mode=0o700,exist_ok=True)
+    trusted_path(parent,directory=True,uid=os.geteuid())
+    require(parent.stat().st_mode&0o777==0o700,'ACTIVATION_LOCK_DIRECTORY')
+    return exclusive_lock(parent/(run_id+'.lock'))
+
+
+def bound_receipt(path,a,event):
+    d=reconciliation_json(path/(event+'.json'))
+    require(d.get('formatVersion')==1 and d.get('event')==event and
+            all(d.get(k)==a[k] for k in ('runId','releaseId','descriptorSha256')) and
+            d.get('authorizationSha256')==file_digest(path/'authorization.json'),'ACTIVATION_RECEIPT_BINDING')
+    utc(d['at'])
+    return d
+
+
+def validate_claim(path,a):
+    claim=bound_receipt(path,a,'claim')
+    require(set(claim)=={'formatVersion','event','runId','releaseId','descriptorSha256',
+            'authorizationSha256','at','priorStateSha256','claimedState','submissionSha256'} and
+            claim['priorStateSha256']==file_digest(path/'prior-state.json') and
+            claim['submissionSha256']==file_digest(path/'submission.json'),'ACTIVATION_CLAIM_BINDING')
+    require(bound_receipt(path,a,'submission').get('status')=='SUBMISSION_REQUESTED','ACTIVATION_SUBMISSION_REQUIRED')
+    claimed=claim['claimedState']
+    require(isinstance(claimed,dict) and claimed.get('runId')==a['runId'] and
+            claimed.get('target')==a['releaseId'] and claimed.get('operation')=='activate-first' and
+            claimed.get('status')=='in-progress' and claimed.get('phase')=='recovery-armed', 'ACTIVATION_CLAIM_STATE')
+    return claim
+
+
+def owns_activation(layout,path,a,state=None):
+    # A receipt alone is never ownership. The authoritative state must name this
+    # exact claim. Called under attempt.lock; mutations also hold operation.lock.
+    state=layout.load() if state is None else state
+    if state.get('runId')!=a['runId']:return False
+    require(state.get('operation')=='activate-first' and state.get('target')==a['releaseId'], 'ACTIVATION_OWNER_MISMATCH')
+    claim=validate_claim(path,a)
+    require(all(state.get(k)==claim['claimedState'].get(k) for k in ('bootId','pid','processStart','expiresAt')),'ACTIVATION_OWNER_IDENTITY')
+    require(state.get('activationClaimSha256')==file_digest(path/'claim.json'),'ACTIVATION_OWNER_UNPROVEN')
+    require((state.get('status') in ('in-progress','intervention-required')) or
+            (state.get('status')=='idle' and state.get('phase')=='complete' and state.get('current')==a['releaseId']),
+            'ACTIVATION_OWNER_STATE')
+    return True
+
+
+def claim_activation(ops,layout,path,a,state):
+    require(not any(os.path.lexists(path/n) for n in ('claim.json','unowned.json','closed.json','recovery.json','failure.json')),
+            'ACTIVATION_ATTEMPT_CONSUMED')
+    require(bound_receipt(path,a,'prepared').get('expiresAt')==a['expiresAt'],'ACTIVATION_PREPARATION_REQUIRED')
+    require(bound_receipt(path,a,'submission').get('status')=='SUBMISSION_REQUESTED','ACTIVATION_SUBMISSION_REQUIRED')
+    state.update(status='in-progress',phase='recovery-armed',target=a['releaseId'],operation='activate-first',runId=a['runId'],
+                 expiresAt=a['expiresAt'],bootId=ops.boot_id(),pid=os.getpid(),processStart=ops.proc_start(os.getpid()))
+    state.pop('activationClaimSha256',None)
+    receipt(path,'claim',a,priorStateSha256=file_digest(path/'prior-state.json'),claimedState=dict(state),
+            submissionSha256=file_digest(path/'submission.json'))
+    state['activationClaimSha256']=file_digest(path/'claim.json')
+    # This save is the ownership boundary, including a crash before armed.json.
+    ops.phase(layout,state,'recovery-armed')
+    receipt(path,'armed',a,claimSha256=state['activationClaimSha256'])
+
+
+def failure_evidence(path,a,state):
+    if not os.path.lexists(path/'failure.json'):
+        # SIGKILL/timeout may leave no Python exception. Record only what is known.
+        receipt(path,'failure',a,status='FAIL',code='ACTIVATION_INTERRUPTED',phase=state.get('phase'),secretsPrinted=False)
+    failure=bound_receipt(path,a,'failure')
+    require(failure.get('status')=='FAIL' and isinstance(failure.get('code'),str) and
+            re.fullmatch(r'[A-Z][A-Z0-9_]{2,80}',failure['code']) and failure.get('secretsPrinted') is False,
+            'ACTIVATION_FAILURE_EVIDENCE')
+    return file_digest(path/'failure.json')
+
+
+def validate_recovery_receipts(path,a):
+    r=bound_receipt(path,a,'recovery');validate_claim(path,a)
+    failure=bound_receipt(path,a,'failure')
+    require(r.get('claimSha256')==file_digest(path/'claim.json') and
+            r.get('failureSha256')==file_digest(path/'failure.json') and
+            failure.get('status')=='FAIL' and failure.get('secretsPrinted') is False, 'RECONCILE_FAILURE_PROVENANCE')
+    return r
+
+
+def finalize_unowned(path,a,state):
+    # attempt.lock prevents a delayed run-first from claiming while its own secret
+    # is removed. The immutable marker rejects that delayed start after lock release.
+    # Terminal histories may be covered by an older reconciliation inventory.
+    # Never append to them merely because another attempt now owns the state.
+    if any(os.path.lexists(path/n) for n in ('closed.json','recovery.json')):
+        cleanup_credential(a);return
+    if not os.path.lexists(path/'unowned.json'):
+        receipt(path,'unowned',a,status='NO_GLOBAL_RECOVERY',observedStateSha256=digest(encoded(state)))
+    require(bound_receipt(path,a,'unowned').get('status')=='NO_GLOBAL_RECOVERY','ACTIVATION_UNOWNED_RECEIPT')
+    cleanup_credential(a)
+
+
 def recover(ops,layout,path,a,accounts):
     """Attempt all independent safety actions; never hide an incomplete recovery."""
-    state=layout.load();state.update(status='intervention-required',phase='recovering',target=a['releaseId'],runId=a['runId'])
+    require(owns_activation(layout,path,a),'ACTIVATION_NOT_OWNER')
+    state=layout.load();failed_state=dict(state);state.update(status='intervention-required',phase='recovering',target=a['releaseId'],runId=a['runId'])
     layout.save(state);errors=[]
     def attempt(name,fn):
         try:fn()
         except BaseException:errors.append(name)
+    evidence={}
+    attempt('failure-evidence',lambda:evidence.update(failureSha256=failure_evidence(path,a,failed_state)))
     attempt('services',ops.stop_services)
     attempt('nginx-files',lambda:nginx_files(path,a,True))
     attempt('nginx-reload',lambda:nginx_reload(ops))
@@ -218,7 +318,7 @@ def recover(ops,layout,path,a,accounts):
     attempt('credentials',lambda:cleanup_credential(a))
     prior=private_json(path/'prior-state.json')
     result={'status':'TEMPORARY_PAGE_RESTORED' if not errors else 'INTERVENTION_REQUIRED','failedControls':errors,
-            'schemaRestored':False,'dataPreserved':True}
+            'schemaRestored':False,'dataPreserved':True,'claimSha256':file_digest(path/'claim.json'),**evidence}
     if not errors and 'recoveryProof' in prior:
         # Preserve the origin in the immutable prior-state, never rebind its runId.
         reconciliation_closed(layout,prior,check_guard=False)
@@ -244,7 +344,8 @@ def run(ops,layout,run_id):
     values=dict(line.split('=',1) for line in properties.splitlines() if '=' in line)
     require(values.get('MainPID')==str(os.getpid()) and values.get('Type')=='exec' and values.get('KillMode')=='control-group' and
             values.get('RuntimeMaxUSec') not in (None,'infinity','0') and 'finalize-first --run-id '+run_id in values.get('ExecStopPost',''), 'RECOVERY_UNIT_REQUIRED')
-    with exclusive_lock(layout.state/'operation.lock'):
+    with attempt_lock(layout,run_id), exclusive_lock(layout.state/'operation.lock'):
+        require(not os.path.lexists(path/'unowned.json'),'ACTIVATION_ATTEMPT_CONSUMED')
         release,admin,manifest=layout.installed(a['releaseId'],a['descriptorSha256'])
         deadline=Deadline(authorize(a,manifest));pre_evidence(a,manifest);checked_configs(a)
         state=layout.load();require(state==private_json(path/'prior-state.json'),'ACTIVATION_STATE_CHANGED')
@@ -252,12 +353,11 @@ def run(ops,layout,run_id):
         if proof:
             controller=reconciliation_controller(ops,layout,proof,manifest)
             require(str(controller)+' finalize-first --run-id '+run_id in values.get('ExecStopPost',''),'RECONCILE_FINALIZER_CONTROLLER')
+        require(read_guard(layout)==guard_projection(state),'ACTIVATION_GUARD_DIVERGED')
         layout.current_matches(state);ops.assert_stopped()
         accounts=Accounts(RUN_BASE/run_id/'admin.cnf');db=None
         try:
-            state.update(status='in-progress',target=a['releaseId'],operation='activate-first',runId=run_id,
-                         expiresAt=a['expiresAt'],bootId=ops.boot_id(),pid=os.getpid(),processStart=ops.proc_start(os.getpid()))
-            ops.phase(layout,state,'recovery-armed');receipt(path,'armed',a)
+            claim_activation(ops,layout,path,a,state)
             deadline.check();accounts.unlock();ops.phase(layout,state,'accounts-enabled')
             checked_configs(a)
             # Only the runtime account reaches Prisma; the administrative credential stays
@@ -299,15 +399,26 @@ def run(ops,layout,run_id):
                 receipt(path,'failure',a,status='FAIL',code=code,phase=state.get('phase'),secretsPrinted=False)
             if db is not None:
                 with contextlib.suppress(BaseException):db.close()
-            recover(ops,layout,path,a,accounts)
+            # A pre-claim failure cannot recover another attempt. ExecStopPost
+            # will perform only isolated credential cleanup for the rejected run.
+            if owns_activation(layout,path,a):recover(ops,layout,path,a,accounts)
             raise
 
 def finalize(ops,layout,run_id):
     """ExecStopPost: no expiry gate on safety recovery; no reliance on live controller."""
     ops.native_context(layout);path,a=load(layout,run_id)
+    with attempt_lock(layout,run_id):
+        state=layout.load()
+        # No global lock is needed to discard ONLY this attempt's credential.
+        # This works even while another run holds operation.lock throughout startup.
+        if state.get('runId')!=run_id:
+            finalize_unowned(path,a,state);return
+        _finalize_owned(ops,layout,path,a,run_id)
+
+def _finalize_owned(ops,layout,path,a,run_id):
     with exclusive_lock(layout.state/'operation.lock'):
         if (path/'recovery.json').exists():
-            r=private_json(path/'recovery.json')
+            r=validate_recovery_receipts(path,a)
             require(r.get('status')=='TEMPORARY_PAGE_RESTORED','RECOVERY_INCOMPLETE')
             state=layout.load()
             if 'recoveredStateSha256' in r:
@@ -316,6 +427,7 @@ def finalize(ops,layout,run_id):
                 _,_,manifest=layout.installed(a['releaseId'],a['descriptorSha256'])
                 reconciliation_controller(ops,layout,proof,manifest)
             return
+        require(owns_activation(layout,path,a),'ACTIVATION_NOT_OWNER')
         state=layout.load();verified=False
         try:
             if (path/'verified.json').exists():
@@ -493,6 +605,7 @@ def reconciliation_closed(layout,state,check_guard=True,_seen=()):
                 r.get('authorizationSha256')==file_digest(path/'authorization.json') and
                 r.get('priorStateSha256')==digest(encoded(prior)) and
                 r.get('recoveredStateSha256')==digest(encoded(state)),'RECONCILE_RECOVERY_PROVENANCE')
+        validate_recovery_receipts(path,a)
         q=reconciliation_closed(layout,prior,False,(*_seen,rid))
         require(q is not None,'RECONCILE_ORIGIN_REQUIRED')
     else:
