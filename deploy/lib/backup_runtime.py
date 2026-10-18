@@ -80,6 +80,36 @@ class LinuxOperations:
   rows=src.rows("SELECT JSON_OBJECT('name',migration_name,'sha256',checksum,'finished',finished_at IS NOT NULL,'rolledBack',rolled_back_at IS NOT NULL) FROM _prisma_migrations ORDER BY CAST(migration_name AS BINARY)")
   require([{'name':r['name'],'sha256':r['sha256']} for r in rows]==self.manifest['schema']['migrations'] and
           all(r['finished'] and not r['rolledBack'] for r in rows),'MIGRATION_CHAIN_MISMATCH')
+ def validate_origin(self,p,q):
+  require(q is not None and q['releaseId']==p['releaseId'] and q['descriptorSha256']==p['descriptorSha256'],
+          'MAINTENANCE_RECONCILIATION_BINDING')
+  _,_,origin=self.layout.installed(q['controllerReleaseId'],q['controllerDescriptorSha256'])
+  require(origin['sourceState']=='committed' and origin['schema']==self.manifest['schema'],
+          'MAINTENANCE_RECONCILIATION_CONTROLLER')
+ def published_proof(self,p,state):
+  import activation_window as window
+  from activation_contract import POST,post_evidence
+  require(state.get('phase')=='complete' and state.get('current')==p['releaseId'],'MAINTENANCE_PUBLISHED_PROOF')
+  path=window.run_directory(self.layout,state['runId'])
+  require(not any((path/n).exists() for n in ('failure.json','recovery.json','unowned.json')),'MAINTENANCE_PUBLISHED_CONTRADICTION')
+  a=window.reconciliation_json(path/'authorization.json')
+  prior=window.reconciliation_json(path/'prior-state.json')
+  self.validate_origin(p,window.reconciliation_closed(self.layout,prior,check_guard=False))
+  require(state['recoveryProof']==prior['recoveryProof'] and a['runId']==state['runId'] and
+          a['releaseId']==p['releaseId'] and a['descriptorSha256']==p['descriptorSha256'],
+          'MAINTENANCE_PUBLISHED_BINDING')
+  claim=window.validate_claim(path,a)
+  require(state.get('activationClaimSha256')==file_digest(path/'claim.json') and
+          all(state.get(k)==claim['claimedState'].get(k) for k in ('bootId','pid','processStart','expiresAt')),
+          'MAINTENANCE_PUBLISHED_CLAIM')
+  verified=window.bound_receipt(path,a,'verified');closed=window.bound_receipt(path,a,'closed')
+  require(verified.get('status')==closed.get('status')=='ACTIVATION_VERIFIED' and verified.get('disconnected') is True and
+          closed.get('credentialsRemoved') is True and not (window.RUN_BASE/a['runId']).exists() and
+          utc(verified['at'])<=utc(closed['at']) and utc(verified['at'])<utc(a['expiresAt']),
+          'MAINTENANCE_PUBLISHED_CLOSURE')
+  cutover=utc(window.bound_receipt(path,a,'cutover')['at'])
+  require(all(post_evidence(window.reconciliation_json(path/(kind+'.json')),a,kind,cutover,utc(verified['at']))==
+              verified['postEvidence'][kind] for kind in POST),'MAINTENANCE_PUBLISHED_EVIDENCE')
  def validate_prior(self,p,state,mode,check_guard=True):
   import activation_window as window
   if check_guard:self.coherent();self.layout.current_matches(state)
@@ -87,14 +117,10 @@ class LinuxOperations:
   if state.get('status')==window.RECONCILED_STATUS:
    require(mode=='supervised','RECONCILED_SUPERVISION_REQUIRED')
    q=window.reconciliation_closed(self.layout,state,check_guard=check_guard)
-   require(q is not None and q['releaseId']==p['releaseId'] and q['descriptorSha256']==p['descriptorSha256'],
-           'MAINTENANCE_RECONCILIATION_BINDING')
-   _,_,origin=self.layout.installed(q['controllerReleaseId'],q['controllerDescriptorSha256'])
-   require(origin['sourceState']=='committed' and origin['schema']==self.manifest['schema'],
-           'MAINTENANCE_RECONCILIATION_CONTROLLER')
+   self.validate_origin(p,q)
   else:
-   require(state.get('status')=='idle' and 'recoveryProof' not in state and
-           state.get('phase')!='first-recovery-reconciled-v2','MAINTENANCE_RECOVERY_REQUIRED')
+   require(state.get('status')=='idle' and state.get('phase')!=window.RECONCILED_PHASE,'MAINTENANCE_RECOVERY_REQUIRED')
+   if 'recoveryProof' in state:self.published_proof(p,state)
   if state.get('current') is None:
    require(state.get('previous') is None and state.get('web') is None and not state.get('history') and
            state.get('phase') in ('migration-complete','migration-recovered','first-activation-recovered',

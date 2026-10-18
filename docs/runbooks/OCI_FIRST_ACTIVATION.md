@@ -930,3 +930,11 @@ política, zerar ledger ou remover slots para obter execução. Após a captura,
 comprovar o novo conjunto externo/readback e restore integral em destino descartável,
 incluindo todos os registros atuais; o backup histórico permanece preservado.
 Nada nesta validação local concede PASS OCI ou autoriza activate-first.
+
+Após uma primeira ativação bem-sucedida, `idle/complete` pode preservar `recoveryProof`.
+Nesse caso, a manutenção publicada valida o prior-state reconciliado e sua origem,
+o claim do run atual, `verified.json`, `closed.json`, desconexão, remoção de credencial
+e os três postchecks oficiais dentro da janela original. A mera presença de uma
+prova ou de `idle` não basta. O timer pode então operar sob sua política já aprovada,
+sem descartar a proveniência e sem alterar o controlador de ativação. Estado publicado
+sem conclusão íntegra continua recusado. Isso não habilita o timer automaticamente.

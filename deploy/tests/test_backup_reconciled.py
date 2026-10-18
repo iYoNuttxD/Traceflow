@@ -156,6 +156,48 @@ class ProvenanceTests(unittest.TestCase):
   # Reuse the complete launch/claim/failure/recovery fixture, not invented receipts.
   self.h.test_full_reconciliation_then_authorized_activation_failure_and_next_attempt()
   self.validate(self.layout.load())
+ def published(self):
+  new=copy.deepcopy(self.h.a);new['runId']='2'*32;new['nonce']='3'*32
+  new['nginx']['candidateDirectory']='/etc/traceflow/activation-candidates/'+new['runId']
+  with self.h.launch_fixture(window,new) as (args,_):window.launch(reconciliation.ops,self.layout,args)
+  self.h.h.a=new;self.h.h.path=window.run_directory(self.layout,new['runId']);self.h.h.run_flow()
+  path=self.h.h.path
+  # These filesystem receipts are real; operational postcheck source IO is mocked,
+  # exactly as in the full activation fixture. No production approval is produced.
+  self.stack=__import__('contextlib').ExitStack();self.addCleanup(self.stack.close)
+  self.stack.enter_context(mock.patch.object(reconciliation.contract,'ref',side_effect=lambda ref:
+   reconciliation.previous.observation(private_json(path/(ref['path'].split('/')[-1]+'.json')))))
+  with mock.patch.object(window,'load',return_value=(path,new)),mock.patch.object(window,'cleanup_credential'):
+   window.finalize(reconciliation.ops,self.layout,new['runId'])
+  self.state=self.layout.load();return path
+ def test_published_success_retains_proof_and_allows_timer_preflight(self):
+  path=self.published();self.assertIn('recoveryProof',self.state)
+  self.validate(mode='timer');self.assertEqual(self.state,self.layout.load());self.assertTrue((path/'closed.json').exists())
+  h=fixtures.MaintenanceTests();h.setUp();self.addCleanup(h.tearDown)
+  h.p.update(releaseId=self.p['releaseId'],descriptorSha256=self.p['descriptorSha256'])
+  h.ops.state=copy.deepcopy(self.state)
+  h.ops.validate_prior=lambda p,state,mode,check_guard=True:self.adapter.validate_prior(self.p,state,mode,check_guard)
+  def inspect(p,mode='timer'):
+   h.ops.validate_prior(p,h.ops.load_state(),mode);return h.ops.load_state(),True
+  h.ops.inspect=inspect
+  first=h.run_cycle();h.timer_authority(first);second=h.cycle.run(h.p,'timer')
+  self.assertEqual(first['status'],second['status']);self.assertEqual(second['status'],'COMPLETE')
+  self.assertEqual(h.ops.state,self.state);self.assertEqual(self.layout.load(),self.state)
+ def test_published_contradictory_failure_refused(self):
+  path=self.published();(path/'failure.json').write_bytes(b'{}\n')
+  with self.assertRaisesRegex(Refused,'MAINTENANCE_PUBLISHED_CONTRADICTION'):self.validate(mode='timer')
+ def test_published_missing_closure_refused(self):
+  path=self.published();(path/'closed.json').unlink()
+  with self.assertRaises((Refused,FileNotFoundError)):self.validate(mode='timer')
+ def test_published_postcheck_tamper_refused(self):
+  path=self.published();p=path/'github.json';v=private_json(p);v['checks']['signatureAccepted']=False;p.write_bytes(encoded(v))
+  with self.assertRaises(Refused):self.validate(mode='timer')
+ def test_published_wrong_recovery_provenance_refused(self):
+  self.published();self.state['recoveryProof']['runId']='8'*32;self.layout.save(self.state)
+  with self.assertRaises(Refused):self.validate(mode='timer')
+ def test_published_forged_claim_hash_refused(self):
+  self.published();self.state['activationClaimSha256']='0'*64;self.layout.save(self.state)
+  with self.assertRaisesRegex(Refused,'MAINTENANCE_PUBLISHED_CLAIM'):self.validate(mode='timer')
  def test_unlocked_account_or_unexpected_session_refuses_preflight(self):
   for phase in ('account','session'):
    account=mock.Mock();source=mock.Mock()
