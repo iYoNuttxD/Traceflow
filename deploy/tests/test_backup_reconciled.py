@@ -1,5 +1,5 @@
 """Local custody/FSM tests; MySQL, services, secret access and OCI are simulated."""
-import copy,json,sys,unittest
+import copy,json,sys,unittest,subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -204,5 +204,17 @@ class ControllerReferenceTests(unittest.TestCase):
   a,p,_,_=self.adapter();a.load_state=lambda:{'status':'in-progress','operation':'backup-maintenance','runId':'9'*32}
   a.stop=mock.Mock();a.save_state=mock.Mock();a.emergency('SYNTHETIC',None);a.emergency('SYNTHETIC','8'*32)
   a.stop.assert_not_called();a.save_state.assert_not_called()
+
+class MaintenanceCliTests(unittest.TestCase):
+ def invoke(self,*args):
+  # argparse must exit before root/native context, credentials or any operational IO.
+  return subprocess.run([sys.executable,'-I','-B',str(Path(__file__).parents[1]/'scripts/recovery-maintenance.py'),*args],
+                        stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=10)
+ def test_help_is_success_and_does_not_enter_maintenance(self):
+  p=self.invoke('--help');self.assertEqual(p.returncode,0);self.assertIn('--mode {timer,supervised}',p.stdout)
+  self.assertNotIn('FAIL',p.stdout);self.assertEqual(p.stderr,'')
+ def test_invalid_mode_refused_before_operational_io(self):
+  p=self.invoke('run','--mode','invalid-synthetic-mode');self.assertEqual(p.returncode,2)
+  self.assertIn('invalid choice',p.stderr);self.assertNotIn('COMPLETE',p.stdout)
 
 if __name__=='__main__':unittest.main()

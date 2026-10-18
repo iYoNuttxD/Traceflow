@@ -45,6 +45,7 @@ if __name__=='__main__':
  def stop(*_):raise RuntimeError('signal')
  signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
  try:result=main()
+ except SystemExit:raise  # argparse help/errors already have their intended exit code.
  except BaseException as e:
   print(encoded({'status':'FAIL','code':public_code(e),'secretsPrinted':False}).decode(),end='');sys.exit(1)
 
