@@ -879,3 +879,54 @@ com chamadas systemd, HTTPS e MySQL simuladas; não representam uma nova execuç
 na OCI. Após revisão, versionamento, empacotamento, instalação e um novo preflight
 exigem suas autorizações próprias. Não executar `reconcile-first`, ativar serviços
 ou habilitar o timer com base somente nos testes locais. Produção permanece BLOCKED.
+
+### Captura supervisionada após recuperação `reconciled-v2`
+
+A captura pré-ativação pelo ciclo oficial aceita `reconciled-v2` exclusivamente
+em `--mode supervised`, com autorização específica vigente de até 600 segundos.
+O caminho direto `recovery-backup.py capture` não recebe exceção de estado.
+Não executar `prepare-guard` nesse estado: o guard dedicado deve já existir e
+corresponder exatamente ao estado; ausência, divergência ou `.write-*` bloqueiam.
+
+Antes de reservar ciclo, os dois locks oficiais protegem a validação da política,
+do replay e do orçamento, seguida da elegibilidade completa: cadeia imutável de
+reconciliação/recuperações (`recoveryProof`, inclusive failure/claim/applied),
+release e controlador de origem íntegros, state/guard coerentes, ausência de
+current/previous/web e histórico ativo, serviços parados com PID zero demonstrado,
+contas bloqueadas, auditoria administrativa, sessões ausentes e 68 migrations.
+A exclusão de escritores externos exige coordenação efetiva do operador durante
+toda a execução; ausência de processos locais não a demonstra por si só.
+
+A política continua vinculada à release da APLICAÇÃO. Um controlador separado
+somente é aceito se seu par instalado/catálogo for íntegro, committed, com schema
+idêntico, proveniência de repack da release/descritor exatos da política e todos
+os arquivos fora de deploy/ (aplicação e dependências) idênticos. Não trocar
+policyId, hash da política, ledger ou limites para acomodar um controlador novo.
+A identidade desse controlador será aprovada no GO operacional de instalação;
+essa compatibilidade não concede autorização para instalar ou executar.
+
+Depois da elegibilidade, revalidar prazo/replay/orçamento e reservar exatamente
+um slot, antes de iniciar qualquer alteração de manutenção. Falha no preflight
+não reserva slot; falha/interrupção após reserva nunca devolve ou reutiliza slot,
+mesmo que a captura não chegue a produzir payload. Resíduo de gravação do ledger
+ou journal exige revisão, sem limpeza automática. A reserva e o journal não são
+uma única transação: interrupção entre ambos pode consumir um slot sem captura,
+mas nunca autoriza repetir a mesma autorização nem iniciar uma aplicação.
+
+O priorState e seu hash são vinculados ao prepared.json protegido; a proveniência
+é revalidada antes da captura e da recuperação. O ciclo pode publicar estado
+transitório backup-maintenance sob os locks, mas o término seguro restaura
+EXATAMENTE o estado anterior, incluindo recoveryProof, runId, status e fase.
+O guard volta à projeção correspondente. Sucesso ou falha segura pré-ativação
+não desbloqueia contas nem inicia serviços. Falha na recuperação mantém bloqueio
+e alerta, preserva o priorState no journal e não fabrica reconciled-v2.
+Divergência state/guard não é reparada implicitamente; contenção independe de
+conseguir publicar um novo estado. Um preflight recusado não contém outra execução.
+
+Instalação isolada, execução supervisionada, publicação/readback e restauração
+isolada exigem GO próprio após revisão dos artefatos. O timer continua desabilitado.
+O ensaio consome um dos ciclos restantes somente após elegibilidade; nunca renovar
+política, zerar ledger ou remover slots para obter execução. Após a captura,
+comprovar o novo conjunto externo/readback e restore integral em destino descartável,
+incluindo todos os registros atuais; o backup histórico permanece preservado.
+Nada nesta validação local concede PASS OCI ou autoriza activate-first.

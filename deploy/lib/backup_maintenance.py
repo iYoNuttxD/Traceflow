@@ -60,7 +60,10 @@ class Lease:
           state.get('status')=='in-progress' and state.get('phase')=='backup-capturing','MAINTENANCE_CAPTURE_STATE')
   require(a==self.run['captureAuthorization'] and a['releaseId']==self.policy['releaseId'] and
           self.run['policySha256']==self.policy_sha and time.time()<utc(a['expiresAt']),'MAINTENANCE_CAPTURE_LEASE')
-  require(self.prior['status']=='idle','MAINTENANCE_PRIOR_STATE')
+  require(self.prior==self.run['priorState'] and digest(encoded(self.prior))==self.run['priorStateSha256'],
+          'MAINTENANCE_PRIOR_INTEGRITY')
+  require(self.prior['status']=='idle' or self.run['mode']=='supervised' and
+          self.prior['status']=='reconciled-v2','MAINTENANCE_PRIOR_STATE')
 
 class Cycle:
  """All calls occur with release.operation.lock and recovery.operation.lock held.
@@ -68,7 +71,7 @@ class Cycle:
 Operations are supplied by the reviewed Linux adapter; fixtures implement the same
 boundary. SIGKILL/reboot recovery reloads the journal, never replays capture/upload.
  """
- def __init__(self,ops,root):self.ops=ops;self.root=Path(root)
+ def __init__(self,ops,root):self.ops=ops;self.root=Path(root);self.run_id=None
  def save(self,r):atomic_json(self.root/'active.json',r)
  def event(self,r,event,**fields):
   d={'formatVersion':1,'runId':r['runId'],'policySha256':r['policySha256'],'event':event,'at':timestamp(),**fields}
@@ -83,8 +86,9 @@ boundary. SIGKILL/reboot recovery reloads the journal, never replays capture/upl
              target=r['releaseId'],phase=phase,pid=os.getpid(),bootId=self.ops.boot_id(),
              processStart=self.ops.process_start(),expiresAt=r['recoverUntil'])
   self.ops.save_state(state)
- def reserve(self,p,policy_sha,mode,supervised):
+ def reserve(self,p,policy_sha,mode,supervised,consume=True):
   wall=self.ops.wall();validate_policy(p,wall)
+  require(not any(self.root.glob('.write-*')),'MAINTENANCE_PERSISTENCE_RESIDUE')
   active=self.root/'active.json'
   if active.exists():require(private_json(active)['status'] in TERMINAL,'MAINTENANCE_RECOVERY_REQUIRED')
   ledger=self.root/('policy-'+p['policyId']+'.json')
@@ -111,15 +115,20 @@ boundary. SIGKILL/reboot recovery reloads the journal, never replays capture/upl
            0<utc(supervised['expiresAt'])-utc(supervised['issuedAt'])<=600,'SUPERVISED_AUTHORIZATION')
    slot='supervised-'+supervised['authorizationId']
   require(slot not in used['slots'],'MAINTENANCE_REPLAY')
-  # Consume before any mutation; failures never refund/reuse the slot.
-  used['slots'].append(slot);atomic_json(ledger,used);return wall
+  # Validation is repeated under both official locks after eligibility. Only then
+  # reserve before the first maintenance mutation; never refund/reuse a slot.
+  if consume:
+   used['slots'].append(slot);atomic_json(ledger,used)
+  return wall
  def run(self,p,mode,supervised=None):
-  policy_sha=digest(encoded(p));wall=self.reserve(p,policy_sha,mode,supervised)
-  prior,was_running=self.ops.inspect(p)
+  policy_sha=digest(encoded(p));self.reserve(p,policy_sha,mode,supervised,consume=False)
+  prior,was_running=self.ops.inspect(p,mode)
   require(mode=='supervised' or was_running,'TIMER_REQUIRES_PUBLISHED_APP')
-  run_id=uuid.uuid4().hex;folder=self.root/'runs'/run_id;folder.mkdir(mode=0o700);fsync_dir(folder.parent)
+  wall=self.reserve(p,policy_sha,mode,supervised)
+  self.run_id=run_id=uuid.uuid4().hex
+  folder=self.root/'runs'/run_id;folder.mkdir(mode=0o700);fsync_dir(folder.parent)
   r={'formatVersion':1,'runId':run_id,'mode':mode,'policy':p,'policySha256':policy_sha,'releaseId':p['releaseId'],
-     'priorState':prior,'wasRunning':was_running,'startedAt':stamp(wall),
+     'priorState':prior,'priorStateSha256':digest(encoded(prior)),'wasRunning':was_running,'startedAt':stamp(wall),
      'captureExpiresAt':stamp(min(wall+600,utc(p['expiresAt']),utc(p['capacity']['expiresAt']))),
      'recoverUntil':stamp(wall+1200),'status':'IN_PROGRESS','phase':'prepared','backupVerified':False,
      'applicationRestored':False,'credentialClosed':False,'captureAuthorization':None}
@@ -160,7 +169,15 @@ boundary. SIGKILL/reboot recovery reloads the journal, never replays capture/upl
   state=self.ops.load_state()
   require(state==r['priorState'] or state.get('operation')=='backup-maintenance' and
           state.get('runId')==r['runId'],'MAINTENANCE_STATE_CONFLICT')
+  self.run_id=r['runId']
   try:
+   require(not any(self.root.glob('.write-*')),'MAINTENANCE_PERSISTENCE_RESIDUE')
+   prepared=private_json(self.root/'runs'/r['runId']/'prepared.json')
+   immutable=('formatVersion','runId','mode','policy','policySha256','releaseId','priorState',
+              'priorStateSha256','wasRunning','startedAt','captureExpiresAt','recoverUntil')
+   require(all(r[k]==prepared[k] for k in immutable) and
+           r['priorStateSha256']==digest(encoded(r['priorState'])),'MAINTENANCE_PRIOR_INTEGRITY')
+   self.ops.validate_prior(p,r['priorState'],r['mode'],check_guard=False)
    self.transition(r,'backup-recovering');self.ops.stop();self.ops.drain();self.ops.lock_accounts()
    self.ops.verify_quiescent(p);self.ops.cleanup_run(r)
    if r['wasRunning']:
@@ -189,5 +206,8 @@ boundary. SIGKILL/reboot recovery reloads the journal, never replays capture/upl
     except BaseException:errors.append(name)
    r['containmentFailures']=errors;self.save(r)
    blocked=dict(r['priorState'],status='intervention-required',phase='backup-recovery-incomplete',operation='backup-maintenance',runId=r['runId'],target=r['releaseId'])
-   self.ops.save_state(blocked);self.alert(r,r['recoveryFailure'])
+   try:self.ops.save_state(blocked)
+   except BaseException:
+    r['statePublicationFailed']=True;self.save(r)
+   self.alert(r,r['recoveryFailure'])
    atomic_json(self.root/'runs'/r['runId']/'result.json',r);return r

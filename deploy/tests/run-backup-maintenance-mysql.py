@@ -41,7 +41,7 @@ def main():
  def account_state(locked):require(query("SELECT JSON_ARRAY(User,account_locked) FROM mysql.user WHERE User IN ('"+"','".join(users)+"') ORDER BY User",2)==[[u,'Y' if locked else 'N'] for u in sorted(users)],'LAB_ACCOUNT_STATE')
  class DB(Fake):
   def __init__(self,base,mode,running):super().__init__(running);self.base=base;self.mode=mode;self.clock=NOW;self.env=lab.env
-  def inspect(self,p):account_state(not self.running);return super().inspect(p)
+  def inspect(self,p,mode='timer'):account_state(not self.running);return super().inspect(p,mode)
   def lock_accounts(self):super().lock_accounts();mutate(True);account_state(True)
   def unlock_accounts(self):super().unlock_accounts();mutate(False);account_state(False)
   def verify_quiescent(self,p):super().verify_quiescent(p);account_state(True)

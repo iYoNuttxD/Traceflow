@@ -19,7 +19,7 @@ class Native(Fake):
  def wall(self):return time.time()
  def save_state(self,v):self.state=v;atomic_json(self.base/'state.json',v)
  def load_state(self):return private_json(self.base/'state.json')
- def inspect(self,p):self.call('inspect');return self.load_state(),self.settings['running']
+ def inspect(self,p,mode='timer'):self.call('inspect');return self.load_state(),self.settings['running']
  def stop(self):
   self.call('stop')
   for unit in self.units:command(['systemctl','stop',unit])
@@ -39,7 +39,7 @@ class Native(Fake):
   require(all(raw not in x.encode() for x in sys.argv) and all(raw not in v.encode() for k,v in os.environ.items()),'LAB_SECRET_EXPOSED')
   require((self.base/'objects').is_dir(),'LAB_OBJECT_STORE')
   private_write(self.base/'capture-entered',b'entered')
-  mode=self.settings['mode']
+  mode=self.settings['mode'].removeprefix('reconciled-')
   if mode=='killed':os.kill(os.getpid(),signal.SIGKILL)
   if mode=='timeout':time.sleep(60)
   if mode=='failed':raise m.Refused('LAB_CAPTURE_FAILURE')
@@ -75,7 +75,8 @@ def main():
   require(dec.returncode==0 and dec.stdout==plain,'LAB_CREDENTIAL_ROUNDTRIP');results.append({'test':'host_credential_encryption_roundtrip','status':'PASS'})
   generated=subprocess.run(['/opt/traceflow-tools/age-1.3.2/age-keygen','-o',str(parent/'age-key')],capture_output=True,timeout=10);require(generated.returncode==0,'LAB_AGE_KEYGEN')
   recipient=command(['/opt/traceflow-tools/age-1.3.2/age-keygen','-y',str(parent/'age-key')])
-  for mode,running in [('success',True),('initial',False),('failed',True),('term',True),('killed',True),('timeout',True)]:
+  for mode,running in [('success',True),('initial',False),('failed',True),('term',True),('killed',True),('timeout',True),
+                       ('reconciled-success',False),('reconciled-failed',False),('reconciled-term',False),('reconciled-killed',False),('reconciled-timeout',False)]:
    base=parent/mode;base.mkdir(mode=0o700);(base/'maintenance').mkdir(mode=0o700);(base/'maintenance'/'runs').mkdir(mode=0o700);(base/'objects').mkdir(mode=0o700)
    writer_units=['tf-maint-'+run+'-'+mode+'-'+x+'.service' for x in ('api','worker')];unit='tf-maint-'+run+'-'+mode+'.service';units.extend([unit,*writer_units])
    for writer in writer_units:
@@ -83,7 +84,11 @@ def main():
     private_write(path,raw);unit_files[path]=hashlib.sha256(raw).hexdigest()
    command(['systemctl','daemon-reload'])
    settings={'mode':mode,'running':running,'units':writer_units,'secretHash':hashlib.sha256(plain).hexdigest(),'recipient':recipient};atomic_json(base/'settings.json',settings)
-   prior=Fake(running).state;atomic_json(base/'state.json',prior)
+   prior=Fake(running).state
+   if mode.startswith('reconciled-'):
+    prior.update(status='reconciled-v2',phase='first-recovery-reconciled-v2',runId='a'*32,
+                 recoveryProof={'kind':'activation-recovery','runId':'a'*32})
+   atomic_json(base/'state.json',prior)
    p=policy();now=time.time();p['issuedAt']=m.stamp(now-1);p['expiresAt']=p['capacity']['expiresAt']=m.stamp(now+3600)
    p['capacity']['month']=time.strftime('%Y-%m',time.gmtime(now));atomic_json(base/'policy.json',p)
    a=authorization(p);a['issuedAt']=m.stamp(now-1);a['expiresAt']=m.stamp(now+599);atomic_json(base/'authorization.json',a)
@@ -91,12 +96,12 @@ def main():
    if running:ops.start_api();ops.start_worker()
    script=str(Path(__file__).resolve());finish='/usr/bin/python3 -I -B '+script+' child '+str(base)+' recover'
    command(['systemd-run','--quiet','--unit='+unit,'--property=Type=exec','--property=LoadCredentialEncrypted=synthetic-admin:'+str(cipher),
-     '--property=KillMode=control-group','--property=RuntimeMaxSec='+('3' if mode=='timeout' else '60'),'--property=TimeoutStopSec=30',
+     '--property=KillMode=control-group','--property=RuntimeMaxSec='+('3' if mode.endswith('timeout') else '60'),'--property=TimeoutStopSec=30',
      '--property=LimitCORE=0','--property=ExecStopPost='+finish,'/usr/bin/python3','-I','-B',script,'child',str(base),'run'])
    end=time.monotonic()+65
    while not (base/'child-recover.json').exists() and time.monotonic()<end:time.sleep(.1)
    require((base/'child-recover.json').exists(),'LAB_FINALIZER_MISSING')
-   r=private_json(base/'maintenance'/'active.json');expected='COMPLETE' if mode in ('success','initial') else 'BACKUP_FAILED_APPLICATION_RESTORED'
+   r=private_json(base/'maintenance'/'active.json');expected='COMPLETE' if mode in ('success','initial','reconciled-success') else ('BACKUP_FAILED_APPLICATION_RESTORED' if running else 'BACKUP_FAILED_PREACTIVATION_SAFE')
    print(json.dumps({'scenario':mode,'status':r['status'],'failure':r.get('failure'),'recoveryFailure':r.get('recoveryFailure'),'phase':r['phase']}),flush=True)
    require(r['status']==expected and r['credentialClosed'] and r['applicationRestored']==running,'LAB_RECOVERY_STATE')
    require(private_json(base/'state.json')==prior,'LAB_STATE_RESTORED')
@@ -104,12 +109,12 @@ def main():
     require((props(w)['MainPID']!='0')==running,'LAB_WRITER_STATE');command(['systemctl','stop',w])
     group=props(w)['ControlGroup'];cg=Path('/sys/fs/cgroup')/group.lstrip('/')/'cgroup.procs' if group else None
     require(cg is None or not cg.exists() or not cg.read_text().strip(),'LAB_DESCENDANT_REMAINS')
-   if mode in ('success','initial'):
+   if mode in ('success','initial','reconciled-success'):
     recovered=subprocess.run(['/opt/traceflow-tools/age-1.3.2/age','-d','-i',str(parent/'age-key'),str(base/'objects'/'payload.age')],capture_output=True,timeout=10)
     require(recovered.returncode==0 and recovered.stdout==b'SYNTHETIC DISPOSABLE DATA\n','LAB_RESTORE_INTEGRITY')
    journal=command(['journalctl','-u',unit,'--no-pager','--output=cat']);require(secret.decode() not in journal and plain.decode() not in journal,'LAB_SECRET_LOGGED')
    results.append({'test':mode,'status':'PASS','final':r['status'],'writersRestored':running,'cgroupEmptyAfterCleanup':True,'credentialLeak':False})
-  return {'status':'LINUX_MAINTENANCE_LAB_PASS','platform':platform.machine(),'os':Path('/etc/oracle-release').read_text().strip(),'checks':results,'productionConnections':False,'limitations':['Synthetic writers and object store; no HeatWave or OCI connection.','No actual machine reboot; independent recovery after SIGKILL/timeout was executed.']}
+  return {'status':'LINUX_MAINTENANCE_LAB_PASS','platform':platform.machine(),'os':Path('/etc/oracle-release').read_text().strip(),'checks':results,'productionConnections':False,'limitations':['Synthetic writers and object store; no HeatWave or OCI connection.','No actual machine reboot; independent recovery after SIGKILL/timeout was executed.', 'Reconciled provenance is synthetic in this process lab; the full real receipt protocol is covered by Python filesystem integration tests.']}
  finally:
   for unit in units:command(['systemctl','stop',unit],False);require(props(unit)['MainPID']=='0','LAB_CLEANUP_PROCESS');command(['systemctl','reset-failed',unit],False)
   for path,sha in unit_files.items():

@@ -30,7 +30,12 @@ class LinuxOperations:
  def boot_id(self):return self.ops.boot_id()
  def process_start(self):return self.ops.proc_start(os.getpid())
  def load_state(self):return self.layout.load()
- def save_state(self,state):self.layout.save(state)
+ def save_state(self,state):
+  self.coherent();self.layout.save(state)
+ def coherent(self):
+  import activation_window as window
+  window.persistence_clean(self.layout)
+  require(window.read_guard(self.layout)==window.guard_projection(self.load_state()),'MAINTENANCE_GUARD_DIVERGED')
  def credential(self,p):
   from backup_secrets import fetch
   raw=fetch(p,self.backup_policy)
@@ -45,7 +50,20 @@ class LinuxOperations:
   return self.accounts
  def references(self,p):
   runtime,admin,manifest=self.layout.installed(p['releaseId'],p['descriptorSha256'])
-  require(runtime==self.release and file_digest(runtime/'manifest.json')==p['runtimeManifestSha256'],'MAINTENANCE_RELEASE')
+  require(file_digest(runtime/'manifest.json')==p['runtimeManifestSha256'],'MAINTENANCE_RELEASE')
+  # The unchanged policy authorizes the APPLICATION. A separately installed,
+  # committed controller must prove verified-reuse of precisely that pair.
+  if runtime!=self.release:
+   controller,_,cm=self.layout.installed(self.release.name)
+   require(controller==self.release and cm['sourceState']=='committed' and cm['schema']==manifest['schema'],
+           'MAINTENANCE_CONTROLLER_IDENTITY')
+   reuse=cm.get('reuse',{})
+   require(reuse.get('releaseId')==p['releaseId'] and reuse.get('descriptorSha256')==p['descriptorSha256'] and
+           reuse.get('unchangedApplicationSources') is True and reuse.get('unchangedDependencies') is True,
+           'MAINTENANCE_CONTROLLER_PROVENANCE')
+   application=lambda m:{k:v for k,v in m['files'].items() if not k.startswith('deploy/')}
+   require(application(cm)==application(manifest),'MAINTENANCE_CONTROLLER_APPLICATION')
+  self.application=runtime
   require(manifest['sourceState']=='committed' and len(manifest['schema']['migrations'])==68,'MAINTENANCE_SOURCE')
   for name in CONFIGS:require(digest(secure_read('/etc/traceflow/'+name,0,65536,0o600))==p['configurationSha256'][name],'MAINTENANCE_CONFIGURATION_CHANGED')
   raw=secure_read(p['backupPolicy']['path'],0,65536,0o600)
@@ -56,24 +74,43 @@ class LinuxOperations:
   require(self.ops.command(['getenforce']).stdout.strip()=='Enforcing','SELINUX_REQUIRED')
   self.manifest,self.backup_policy=manifest,backup
   return manifest
- def source(self):return self.backup.Source(self.accounts,self.manifest,self.release)
+ def source(self):return self.backup.Source(self.accounts,self.manifest,self.application)
  def ledger(self):
   src=self.source();src.identity()
   rows=src.rows("SELECT JSON_OBJECT('name',migration_name,'sha256',checksum,'finished',finished_at IS NOT NULL,'rolledBack',rolled_back_at IS NOT NULL) FROM _prisma_migrations ORDER BY CAST(migration_name AS BINARY)")
   require([{'name':r['name'],'sha256':r['sha256']} for r in rows]==self.manifest['schema']['migrations'] and
           all(r['finished'] and not r['rolledBack'] for r in rows),'MIGRATION_CHAIN_MISMATCH')
- def inspect(self,p):
-  self.references(p);self.credential(p);state=self.load_state();self.layout.current_matches(state)
-  require(state['status']=='idle','MAINTENANCE_RECOVERY_REQUIRED')
-  values=[self.ops.service_state(u) for u in UNITS]
-  active=all(v.get('ActiveState')=='active' and int(v.get('MainPID','0'))>0 for v in values)
-  off=all(v.get('ActiveState')=='inactive' and v.get('MainPID')=='0' for v in values)
-  if state.get('current') is None:
-   require(off and state.get('previous') is None and not state.get('history') and
-           state.get('phase') in ('migration-complete','migration-recovered','first-activation-recovered'),'PREACTIVATION_STATE')
-   self.accounts.state(True,True);self.accounts.audit(True)
+ def validate_prior(self,p,state,mode,check_guard=True):
+  import activation_window as window
+  if check_guard:self.coherent();self.layout.current_matches(state)
+  require('reconciliationId' not in state,'MAINTENANCE_LEGACY_PROOF')
+  if state.get('status')==window.RECONCILED_STATUS:
+   require(mode=='supervised','RECONCILED_SUPERVISION_REQUIRED')
+   q=window.reconciliation_closed(self.layout,state,check_guard=check_guard)
+   require(q is not None and q['releaseId']==p['releaseId'] and q['descriptorSha256']==p['descriptorSha256'],
+           'MAINTENANCE_RECONCILIATION_BINDING')
+   _,_,origin=self.layout.installed(q['controllerReleaseId'],q['controllerDescriptorSha256'])
+   require(origin['sourceState']=='committed' and origin['schema']==self.manifest['schema'],
+           'MAINTENANCE_RECONCILIATION_CONTROLLER')
   else:
-   require(state['current']==p['releaseId'] and active,'MAINTENANCE_RUNTIME_STATE')
+   require(state.get('status')=='idle' and 'recoveryProof' not in state and
+           state.get('phase')!='first-recovery-reconciled-v2','MAINTENANCE_RECOVERY_REQUIRED')
+  if state.get('current') is None:
+   require(state.get('previous') is None and state.get('web') is None and not state.get('history') and
+           state.get('phase') in ('migration-complete','migration-recovered','first-activation-recovered',
+                                 window.RECONCILED_PHASE),'PREACTIVATION_STATE')
+  else:require(state['current']==p['releaseId'],'MAINTENANCE_RUNTIME_STATE')
+ def inspect(self,p,mode='timer'):
+  self.references(p);state=self.load_state();self.validate_prior(p,state,mode)
+  values=[self.ops.service_state(u) for u in UNITS]
+  active=all(v.get('ActiveState')=='active' and v.get('MainPID','').isdigit() and int(v['MainPID'])>0 for v in values)
+  off=all(v.get('ActiveState')=='inactive' and v.get('MainPID')=='0' for v in values)
+  require((state.get('current') is None and off) or (state.get('current') is not None and active),
+          'MAINTENANCE_RUNTIME_STATE')
+  self.credential(p)
+  if state.get('current') is None:
+   self.accounts.state(True,True);self.accounts.audit(True);self.source().quiescent()
+  else:
    self.accounts.state(False,False);self.accounts.audit(False);self.verify_running(p)
   self.ledger();return state,active
  def stop(self):self.ops.stop_services()
@@ -89,6 +126,7 @@ class LinuxOperations:
  def verify_quiescent(self,p):
   self.references(p);self.backup.stopped();self.accounts.state(True,True);self.accounts.audit(True);self.ledger();self.source().quiescent()
  def capture(self,p,auth_path,lease):
+  self.validate_prior(p,lease.prior,lease.run['mode'],check_guard=False)
   a=private_json(auth_path);folder=Path('/run/traceflow-recovery')/a['backupId']
   folder.parent.mkdir(mode=0o700,exist_ok=True);trusted_path(folder.parent,directory=True,uid=0)
   folder.mkdir(mode=0o700);private_write(folder/'admin.cnf',secure_read(self.credential_path,0,4096,0o600))
@@ -137,7 +175,7 @@ class LinuxOperations:
  def start_worker(self):
   self.started=int(time.time()*1000);self.ops.command(['systemctl','start',UNITS[1]],timeout=60)
  def verify_running(self,p):
-  for u in UNITS:self.ops.process_release(u,self.release)
+  for u in UNITS:self.ops.process_release(u,self.application)
   for route in ('/health/live','/health/ready'):
    status,body=self.ops.local_probe(route);require(status==200 and isinstance(json.loads(body),dict),'MAINTENANCE_HEALTH')
   end=time.monotonic()+75
@@ -155,12 +193,15 @@ class LinuxOperations:
  def alert(self,code):
   # Local durable alert + critical system journal. No email/webhook without approval.
   with contextlib.suppress(Exception):tool(['/usr/bin/logger','-p','daemon.crit','-t','traceflow-recovery','TraceFlow backup requires operator review: '+code],timeout=5)
- def emergency(self,code):
+ def emergency(self,code,run_id=None):
   state=self.load_state()
-  if state.get('operation')!='backup-maintenance' or state.get('status')=='idle':return
-  state.update(status='intervention-required',phase='backup-recovery-incomplete');self.save_state(state)
+  if run_id is None or state.get('runId')!=run_id or state.get('operation')!='backup-maintenance' or state.get('status')=='idle':return
+  state.update(status='intervention-required',phase='backup-recovery-incomplete')
+  # Containment is independent of an interrupted state/guard publication. Never
+  # repair a divergent guard implicitly just to record a blocked state.
   with contextlib.suppress(BaseException):self.stop()
   with contextlib.suppress(BaseException):self.drain();self.lock_accounts()
   with contextlib.suppress(BaseException):self.close_credential()
+  with contextlib.suppress(BaseException):self.save_state(state)
   atomic_json(ROOT/'ALERT.json',{'status':'INTERVENTION_REQUIRED','code':code,'at':stamp(self.wall()),'runId':state.get('runId')})
   self.alert(code)

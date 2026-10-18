@@ -31,7 +31,8 @@ class Fake:
  def process_start(self):return '123'
  def save_state(self,v):self.state=copy.deepcopy(v)
  def load_state(self):return copy.deepcopy(self.state)
- def inspect(self,p):self.call('inspect');return self.load_state(),self.running
+ def inspect(self,p,mode='timer'):self.call('inspect');return self.load_state(),self.running
+ def validate_prior(self,p,state,mode,check_guard=True):self.call('prior')
  def stop(self):self.call('stop');self.running=False
  def drain(self):self.call('drain')
  def lock_accounts(self):self.call('lock');self.locked=True

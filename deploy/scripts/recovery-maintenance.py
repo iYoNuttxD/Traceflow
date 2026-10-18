@@ -37,7 +37,7 @@ def main():
   except BaseException as e:
    code=public_code(e)
    # Never erase an incomplete run or recover over a different operation.
-   with contextlib.suppress(BaseException):ops.emergency(code)
+   with contextlib.suppress(BaseException):ops.emergency(code,cycle.run_id)
    raise
   finally:
    with contextlib.suppress(BaseException):ops.close_credential()
