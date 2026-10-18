@@ -9,10 +9,29 @@ import test_activation_window as previous
 from test_activation_window import ops,window,c,contract,manifest,stamp,ROOT
 from operational_io import private_write
 
+# Sanitized, unmodified OCI-07.16A observation. No MainPID exists for this timer.
+TIMER_EVIDENCE=json.loads((Path(__file__).parent/'fixtures/reconciliation-systemd-timer.json').read_text())
+TIMER_NAME=TIMER_EVIDENCE['timer']
+TIMER_PROPERTIES=dict(TIMER_EVIDENCE['officialServiceStateResult'])
+TIMER_PROPERTIES.update(dict(line.split('=',1) for line in TIMER_EVIDENCE['extraReadOnlyProperties'].splitlines()))
+TIMER_FIELDS=('LoadState','ActiveState','SubState','UnitFileState','Triggers')
+REAL_ENVIRONMENT=window.reconciliation_environment
+
+def timer_output():
+    # Project only the properties requested by the new read-only query, unchanged values.
+    return ''.join(k+'='+TIMER_PROPERTIES[k]+'\n' for k in TIMER_FIELDS)
+
+def timer_fixture():
+    return {'type':'timer','loadState':TIMER_PROPERTIES['LoadState'],'state':TIMER_PROPERTIES['ActiveState'],
+            'subState':TIMER_PROPERTIES['SubState'],'unitFileState':TIMER_PROPERTIES['UnitFileState'],
+            'triggers':TIMER_PROPERTIES['Triggers']}
+
 def environment_fixture(a):
-    state={'state':'inactive','pid':'0'}
-    return {'services':{n:dict(state) for n in ops.SERVICES},'units':{n:dict(state) for n in (
-        'traceflow-first-'+a['runId']+'.service','traceflow-recovery-backup.service','traceflow-recovery-reconcile.service','traceflow-recovery-backup.timer')},
+    state={'type':'service','state':'inactive','pid':'0'}
+    units={n:dict(state) for n in ('traceflow-first-'+a['runId']+'.service',
+           'traceflow-recovery-backup.service','traceflow-recovery-reconcile.service')}
+    units[TIMER_NAME]=timer_fixture()
+    return {'services':{n:dict(state) for n in ops.SERVICES},'units':units,
         'configurationSha256':a['configurationSha256'],'nginxSha256':a['nginx']['before'],
         'localPageSha256':a['nginx']['temporaryPageSha256'],'public':{'status':200,'sha256':a['nginx']['temporaryPageSha256'],'bytes':356},
         'selinux':'Enforcing','linksAbsent':True,'nginxTestExitCode':0}
@@ -347,6 +366,47 @@ class ReconciliationTests(unittest.TestCase):
             else:obs[3]['result']['remainingSessions']=[123]
             with self.subTest(mutation=mutation),self.assertRaises(c.Refused):window.validate_observations(obs,self.q,self.a,intent)
 
+    def test_real_timer_receipt_is_sealed_and_typed_tampering_refused(self):
+        with mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout=timer_output())):
+            self.env.return_value['units'][TIMER_NAME]=window.reconciliation_timer_state(ops)
+        self.run_flow()
+        done=c.private_json(self.folder/'complete.json');audit=c.private_json(self.folder/done['auditFile'])
+        intent=c.private_json(self.folder/'intent.json')
+        window.validate_observations(audit['observations'],self.q,self.a,intent)
+        for obs in (audit['observations'][0],audit['observations'][2]):
+            self.assertEqual(obs['result']['units'][TIMER_NAME],timer_fixture())
+            self.assertNotIn('pid',obs['result']['units'][TIMER_NAME])
+        for change in ('timer-as-service','service-as-timer','legacy-timer','legacy-service','extra-pid',
+                       'enabled','missing-disabled','unknown-type','swapped-names','substate','load-state','trigger'):
+            observations=copy.deepcopy(audit['observations']);env=observations[0]['result'];timer=env['units'][TIMER_NAME]
+            if change=='timer-as-service':timer['type']='service'
+            elif change=='service-as-timer':env['services'][ops.SERVICES[0]]=timer_fixture()
+            elif change=='legacy-timer':env['units'][TIMER_NAME]={'state':'inactive','pid':'0'}
+            elif change=='legacy-service':env['services'][ops.SERVICES[0]].pop('type')
+            elif change=='extra-pid':timer['pid']='0'
+            elif change=='enabled':timer['unitFileState']='enabled'
+            elif change=='missing-disabled':timer.pop('unitFileState')
+            elif change=='unknown-type':timer['type']='socket'
+            elif change=='swapped-names':
+                env['units'][TIMER_NAME],env['units']['traceflow-recovery-backup.service']=env['units']['traceflow-recovery-backup.service'],timer
+            elif change=='substate':timer['subState']='waiting'
+            elif change=='load-state':timer['loadState']='not-found'
+            else:timer['triggers']='other.service'
+            with self.subTest(change=change),self.assertRaisesRegex(c.Refused,'UNIT_OBSERVATION'):
+                window.validate_observations(observations,self.q,self.a,intent)
+        self.assertEqual(self.history(),self.before)
+        window.reconciliation_closed(self.layout,self.layout.load())
+
+    def test_invalid_timer_is_refused_before_credential_sql_or_receipt(self):
+        before_guard=self.layout.guard.read_bytes()
+        self.env.side_effect=REAL_ENVIRONMENT
+        with mock.patch.object(ops,'assert_stopped'),mock.patch.object(ops,'service_state',return_value={'ActiveState':'inactive','MainPID':'0'}), \
+             mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout=timer_output().replace('UnitFileState=disabled','UnitFileState=enabled'))):
+            with self.assertRaisesRegex(c.Refused,'RECONCILE_TIMER_STATE'):self.run_flow()
+        self.credentials.assert_not_called();self.db.assert_not_called();self.account.state.assert_not_called()
+        self.assert_unchanged();self.assertEqual(self.layout.guard.read_bytes(),before_guard)
+        self.assertFalse(self.folder.exists())
+
     def test_after_applied_before_result_is_historical_noop(self):
         with mock.patch.object(ops,'emit',side_effect=OSError('synthetic')),self.assertRaises(OSError):self.run_flow()
         before={p.name:p.read_bytes() for p in self.folder.iterdir()};self.db.reset_mock()
@@ -423,6 +483,7 @@ class BoundaryTests(unittest.TestCase):
             stopped=stack.enter_context(mock.patch.object(ops,'assert_stopped'))
             state=stack.enter_context(mock.patch.object(ops,'service_state',return_value={'ActiveState':'inactive','MainPID':'0'}))
             cmd=stack.enter_context(mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout='Enforcing',returncode=0)))
+            cmd.side_effect=lambda argv,**kw: SimpleNamespace(stdout=timer_output(),returncode=0) if argv[:2]==['systemctl','show'] else cmd.return_value
             stack.enter_context(mock.patch.object(window,'checked_configs',return_value=a['configurationSha256']))
             stack.enter_context(mock.patch.object(window.os.path,'lexists',side_effect=exists))
             read=stack.enter_context(mock.patch.object(window,'secure_read',return_value=raw))
@@ -453,6 +514,93 @@ class BoundaryTests(unittest.TestCase):
                 else:source.rows.return_value[0]['sha256']='b'*64
                 with self.subTest(change=change),self.assertRaisesRegex(c.Refused,'MIGRATION_CHAIN_MISMATCH'):
                     window.reconciliation_database(ops,Path('/synthetic'),m,account)
+
+
+class UnitContractTests(unittest.TestCase):
+    def test_oci_timer_without_pid_passes_exact_readonly_query(self):
+        self.assertNotIn('MainPID',TIMER_PROPERTIES)
+        self.assertEqual(TIMER_EVIDENCE['officialServiceStateResult'],{'LoadState':'loaded','ActiveState':'inactive','SubState':'dead'})
+        with mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout=timer_output())) as command:
+            value=window.reconciliation_timer_state(ops)
+        self.assertEqual(value,timer_fixture());self.assertNotIn('pid',value)
+        expected=['systemctl','show',TIMER_NAME]
+        for field in TIMER_FIELDS:expected.extend(('-p',field))
+        command.assert_called_once_with(expected,timeout=10)
+        self.assertNotIn('MainPID',expected)
+
+    def test_timer_rejects_active_unknown_disabled_and_trigger_discrepancies(self):
+        cases={'LoadState':['not-found','masked','error',''],
+               'ActiveState':['active','activating','failed','unknown',''],
+               'SubState':['waiting','elapsed','running','failed',''],
+               'UnitFileState':['enabled','enabled-runtime','static','masked',''],
+               'Triggers':['other.service','traceflow-recovery-backup.service other.service','']}
+        for key,values in cases.items():
+            for value in values:
+                rows={k:TIMER_PROPERTIES[k] for k in TIMER_FIELDS};rows[key]=value
+                raw=''.join(k+'='+v+'\n' for k,v in rows.items())
+                with self.subTest(key=key,value=value),mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout=raw)):
+                    with self.assertRaisesRegex(c.Refused,'RECONCILE_TIMER_STATE'):window.reconciliation_timer_state(ops)
+
+    def test_timer_rejects_every_missing_property(self):
+        for missing in TIMER_FIELDS:
+            raw=''.join(k+'='+TIMER_PROPERTIES[k]+'\n' for k in TIMER_FIELDS if k!=missing)
+            with self.subTest(missing=missing),mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout=raw)):
+                with self.assertRaisesRegex(c.Refused,'TIMER_PROPERTIES'):window.reconciliation_timer_state(ops)
+
+    def test_timer_rejects_duplicate_extra_pid_and_malformed_output(self):
+        for raw in ('',timer_output()+'ActiveState=inactive\n',timer_output()+'MainPID=0\n',timer_output()+'unknown=x\n',
+                    timer_output()+'broken\n',timer_output()+'\n'):
+            with self.subTest(raw=raw),mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout=raw)):
+                with self.assertRaisesRegex(c.Refused,'TIMER_PROPERTIES'):window.reconciliation_timer_state(ops)
+
+    def test_timer_query_failure_cannot_approve(self):
+        for error in (c.Refused('COMMAND_FAILED_systemctl'),subprocess.TimeoutExpired('synthetic',10)):
+            with self.subTest(error=type(error).__name__),mock.patch.object(ops,'command',side_effect=error):
+                with self.assertRaises(type(error)):window.reconciliation_timer_state(ops)
+
+    def test_services_require_demonstrable_zero_pid_and_stopped_state(self):
+        for state in ('inactive','failed'):
+            window.validate_reconciliation_unit('traceflow-api.service',{'type':'service','state':state,'pid':'0'})
+        for value in (None,0,False,True,'','00','-1','1','123','0\n'):
+            with self.subTest(pid=value),self.assertRaisesRegex(c.Refused,'UNIT_OBSERVATION'):
+                window.validate_reconciliation_unit('traceflow-api.service',{'type':'service','state':'inactive','pid':value})
+        for state in ('active','activating','deactivating','reloading','unknown',None):
+            with self.subTest(state=state),self.assertRaisesRegex(c.Refused,'UNIT_OBSERVATION'):
+                window.validate_reconciliation_unit('traceflow-api.service',{'type':'service','state':state,'pid':'0'})
+        with self.assertRaisesRegex(c.Refused,'UNIT_OBSERVATION'):
+            window.validate_reconciliation_unit('traceflow-api.service',{'type':'service','state':'inactive'})
+
+    def test_unit_name_binds_type_no_generic_missing_pid_exception(self):
+        for name,value in [('traceflow-api.service',timer_fixture()),(TIMER_NAME,{'type':'service','state':'inactive','pid':'0'}),
+                           ('other.timer',timer_fixture()),('traceflow.socket',{'type':'service','state':'inactive','pid':'0'})]:
+            with self.subTest(name=name),self.assertRaisesRegex(c.Refused,'UNIT_OBSERVATION'):
+                window.validate_reconciliation_unit(name,value)
+
+    def test_full_environment_collects_real_timer_without_querying_service_pid(self):
+        a=previous.auth();raw=b'synthetic';sha=c.digest(raw)
+        a['nginx']['before']={k:sha for k in contract.NGINX};a['nginx']['temporaryPageSha256']=sha
+        layout=SimpleNamespace(app=Path('/synthetic/app'),web=Path('/synthetic/web'))
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(ops,'assert_stopped'))
+            states=stack.enter_context(mock.patch.object(ops,'service_state',return_value={'ActiveState':'inactive','MainPID':'0'}))
+            commands=stack.enter_context(mock.patch.object(ops,'command',side_effect=lambda argv,**kw:
+                SimpleNamespace(stdout=timer_output() if argv[:2]==['systemctl','show'] else 'Enforcing',returncode=0)))
+            stack.enter_context(mock.patch.object(window,'checked_configs',return_value=a['configurationSha256']))
+            stack.enter_context(mock.patch.object(window.os.path,'lexists',side_effect=lambda p:str(p) in contract.NGINX))
+            stack.enter_context(mock.patch.object(window,'secure_read',return_value=raw))
+            stack.enter_context(mock.patch.object(window,'temporary_probe',return_value={'status':200,'sha256':sha,'bytes':356}))
+            result=window.reconciliation_environment(ops,layout,a)
+            self.assertEqual(result['units'][TIMER_NAME],timer_fixture())
+            self.assertEqual(result['services']['traceflow-api.service'],{'type':'service','state':'inactive','pid':'0'})
+            self.assertEqual(len(states.call_args_list),5)
+            self.assertTrue(all(call.args[0].endswith('.service') for call in states.call_args_list))
+            self.assertEqual([call.args[0] for call in commands.call_args_list][0][:3],['systemctl','show',TIMER_NAME])
+            for bad in ({'ActiveState':'inactive'},{'ActiveState':'active','MainPID':'0'},
+                        {'ActiveState':'inactive','MainPID':'19'},{'ActiveState':'inactive','MainPID':0}):
+                states.return_value=bad;commands.reset_mock()
+                with self.subTest(service=bad),self.assertRaisesRegex(c.Refused,'RECONCILE_UNIT_RUNNING'):
+                    window.reconciliation_environment(ops,layout,a)
+                commands.assert_not_called()
 
 
 class AtomicReceiptTests(unittest.TestCase):

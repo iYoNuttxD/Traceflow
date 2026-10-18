@@ -709,19 +709,56 @@ def reconciliation_baseline(layout,q):
     return path,a,after
 
 
+RECONCILIATION_TIMER='traceflow-recovery-backup.timer'
+
+
+def validate_reconciliation_unit(name,value,code='RECONCILE_UNIT_OBSERVATION'):
+    """The approved unit name determines its type, never an untrusted receipt tag."""
+    from activation_contract import exact
+    if name==RECONCILIATION_TIMER:
+        exact(value,{'type','loadState','state','subState','unitFileState','triggers'},code)
+        require(value=={'type':'timer','loadState':'loaded','state':'inactive','subState':'dead',
+                       'unitFileState':'disabled','triggers':'traceflow-recovery-backup.service'},code)
+    else:
+        require(name.endswith('.service'),code)
+        exact(value,{'type','state','pid'},code)
+        require(value['type']=='service' and value['state'] in ('inactive','failed') and value['pid']=='0',code)
+
+
+def reconciliation_timer_state(ops):
+    # Timer units do not expose MainPID. Query actual timer properties only;
+    # the triggered service is independently required to have MainPID=0.
+    fields=('LoadState','ActiveState','SubState','UnitFileState','Triggers')
+    argv=['systemctl','show',RECONCILIATION_TIMER]
+    for field in fields:argv.extend(('-p',field))
+    raw=ops.command(argv,timeout=10).stdout
+    props={}
+    for line in raw.splitlines():
+        pair=line.split('=',1)
+        require(len(pair)==2 and pair[0] not in props,'RECONCILE_TIMER_PROPERTIES')
+        props[pair[0]]=pair[1]
+    require(set(props)==set(fields),'RECONCILE_TIMER_PROPERTIES')
+    value={'type':'timer','loadState':props['LoadState'],'state':props['ActiveState'],
+           'subState':props['SubState'],'unitFileState':props['UnitFileState'],'triggers':props['Triggers']}
+    validate_reconciliation_unit(RECONCILIATION_TIMER,value,'RECONCILE_TIMER_STATE')
+    return value
+
+
 def reconciliation_environment(ops,layout,a):
     ops.assert_stopped()
     services={name:ops.service_state(name) for name in ops.SERVICES}
     units={name:ops.service_state(name) for name in (
         'traceflow-first-'+a['runId']+'.service','traceflow-recovery-backup.service',
-        'traceflow-recovery-reconcile.service','traceflow-recovery-backup.timer')}
+        'traceflow-recovery-reconcile.service')}
     def normalized(values):
         result={}
         for name,props in values.items():
-            require(props.get('ActiveState') in ('inactive','failed') and props.get('MainPID')=='0','RECONCILE_UNIT_RUNNING')
-            result[name]={'state':props['ActiveState'],'pid':props['MainPID']}
+            value={'type':'service','state':props.get('ActiveState'),'pid':props.get('MainPID')}
+            validate_reconciliation_unit(name,value,'RECONCILE_UNIT_RUNNING')
+            result[name]=value
         return result
     services=normalized(services);units=normalized(units)
+    units[RECONCILIATION_TIMER]=reconciliation_timer_state(ops)
     absent=not any(os.path.lexists(p) for p in (layout.app/'current',layout.web/'current',
         layout.app/'previous',layout.web/'previous',RUN_BASE/a['runId']))
     require(absent,'RECONCILE_RESIDUAL_RESOURCE')
@@ -773,9 +810,8 @@ def validate_observations(observations,q,a,intent):
             for field,names in (('services',('traceflow-api.service','traceflow-github-worker.service')),('units',(
                     'traceflow-first-'+q['runId']+'.service','traceflow-recovery-backup.service','traceflow-recovery-reconcile.service','traceflow-recovery-backup.timer'))):
                 exact(r[field],names,'RECONCILE_UNIT_OBSERVATION')
-                for value in r[field].values():
-                    exact(value,{'state','pid'},'RECONCILE_UNIT_OBSERVATION')
-                    require(value['state'] in ('inactive','failed') and value['pid']=='0','RECONCILE_UNIT_OBSERVATION')
+                for unit,value in r[field].items():
+                    validate_reconciliation_unit(unit,value)
             exact(r['public'],{'status','sha256','bytes'},'RECONCILE_PUBLIC_OBSERVATION')
             require(type(r['public']['status']) is int and r['public']['status']==200 and r['public']['sha256']==r['localPageSha256'] and
                     type(r['public']['bytes']) is int and 0<r['public']['bytes']<=2*1024*1024,'RECONCILE_PUBLIC_OBSERVATION')

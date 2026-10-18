@@ -836,3 +836,46 @@ qual processo e fase os produziram e obter autorização específica para qualqu
 tratamento. Esta seção não autoriza excluir, promover, reaproveitar ou sobrescrever
 arquivos, nem iniciar serviços. Locks são cooperativos; observações de filesystem
 não constituem garantia contra root ou escritores externos fora do protocolo.
+
+### OCI-07.16A — contrato de unidades na reconciliação
+
+O preflight real encontrou `LoadState=loaded`, `ActiveState=inactive` e
+`SubState=dead` para `traceflow-recovery-backup.timer`, sem propriedade `MainPID`.
+A exigência genérica de PID zero recusava esse timer antes de credencial ou SQL.
+A evidência sanitizada está incluída como fixture de testes em
+`deploy/tests/fixtures/reconciliation-systemd-timer.json`; os relatórios originais
+em `build/oci-reconciliation-preflight/` permanecem imutáveis.
+
+A coleta e a validação dos recibos distinguem os tipos pelo **nome esperado da
+unidade**, não por um tipo declarado livremente no documento:
+
+- Serviços `.service`: observação fechada `{type, state, pid}`, com
+  `type: service`, `state: inactive` ou `failed` e `pid: "0"` efetivamente retornado
+  por `MainPID`. PID ausente, numérico, inválido ou diferente de zero é recusado.
+- Somente `traceflow-recovery-backup.timer`: observação fechada
+  `{type, loadState, state, subState, unitFileState, triggers}`, exigindo exatamente
+  `timer`, `loaded`, `inactive`, `dead`, `disabled` e
+  `traceflow-recovery-backup.service`, respectivamente. Não há campo `pid`.
+  O serviço acionado continua sendo auditado separadamente como serviço, com PID zero.
+
+O timer é consultado com `systemctl show` e as cinco propriedades explícitas
+`LoadState`, `ActiveState`, `SubState`, `UnitFileState` e `Triggers`, com timeout de
+10 segundos. Erro do comando, propriedade ausente, duplicada ou inesperada,
+saída malformada, estado ativo/desconhecido, habilitação ou vínculo divergente
+impedem a auditoria. Não se usa `MainPID` com valor padrão e não se modifica a
+implementação genérica de `service_state()` nem o estado das unidades.
+
+Esse contrato vale para as duas observações de ambiente, inicial e final, e para
+a validação da cadeia completa. A autorização v2, prazo de 600 segundos, hashes,
+ordem das observações, publicação exclusiva, titularidade, lock, resíduos e
+verificações MySQL permanecem inalterados. Os tipos explícitos fazem parte dos
+bytes selados nos recibos. Um serviço não pode ser interpretado como timer nem
+vice-versa. O formato antigo que atribuía `pid: "0"` ao timer não é convertido ou
+aceito como evidência tipada: uma cadeia antiga com esse formato exige revisão
+específica, sem sobrescrita. Nenhuma reconciliação real existia no preflight.
+
+A correção é exclusivamente local. Os testes usam as propriedades reais registradas,
+com chamadas systemd, HTTPS e MySQL simuladas; não representam uma nova execução
+na OCI. Após revisão, versionamento, empacotamento, instalação e um novo preflight
+exigem suas autorizações próprias. Não executar `reconcile-first`, ativar serviços
+ou habilitar o timer com base somente nos testes locais. Produção permanece BLOCKED.
