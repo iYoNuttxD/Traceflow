@@ -765,3 +765,74 @@ depois de `armed`, aquisição parcial entre estado/guard, limpeza interrompida,
 replay e hashes da cadeia v2. Não comprovam execução nativa do systemd, falha física
 de energia ou recuperação na OCI. Produção permanece **BLOCKED**; nenhuma ativação,
 reconciliação, autorização operacional ou instalação decorre desta revisão local.
+
+### Resíduos `.write-*` — início, contenção e conclusão
+
+A revisão confirmou que `atomic_json()` pode deixar seu temporário após SIGKILL,
+`os._exit()` ou perda de energia, pois essas interrupções não executam `finally`.
+A exceção Python tratada normalmente remove apenas o temporário criado por aquela
+chamada. A escrita de `state.json` e de `release-guard.json` ocorre em duas operações;
+não constitui uma transação atômica entre os dois arquivos.
+
+Os diretórios autoritativos inspecionados são:
+
+- `/opt/traceflow/shared/release-state`, para `state.json` e também recibos de
+  migrations. Um nome `.write-*` nesse diretório não comprova sozinho sua origem.
+- `/opt/traceflow/shared/release-guard`, para `release-guard.json`.
+
+A detecção comum examina entradas `.write-*`, incluindo diretórios e symlinks,
+sem seguir links, interpretar conteúdo ou remover arquivos. Ela usa leitura
+explícita do diretório: impossibilidade de inspecioná-lo não equivale a ausência.
+As evidências de contenção registram apenas escopo, quantidade e hash dos nomes,
+vinculados ao estado observado e à tentativa; não copiam o conteúdo temporário.
+O destino e a fase exatos de uma escrita interrompida desconhecida exigem revisão.
+Temporários de catálogo, generation ou backup pertencem a outros protocolos e
+não são tratados como resíduos dos dois arquivos autoritativos nesta correção.
+
+**Início:** `launch`, `run` e a aquisição do claim recusam resíduos antes de iniciar
+uma nova ativação. `reconciliation_closed` também os recusa ao validar o estado
+operacional atual, mesmo que os recibos v2 estejam completos. A validação da cadeia
+histórica, feita com `check_guard=False`, não transforma resíduos atuais em motivo
+para impedir a contenção de um proprietário comprovado.
+
+**Contenção:** `recover` continua exigindo titularidade. Quando há resíduo ou falha
+na persistência inicial, tenta as ações independentes já autorizadas de parada,
+restauração do Nginx/página, bloqueio de contas, links pertencentes à tentativa e
+limpeza de sua credencial. Não substitui estado ou guard ambíguos para declarar a
+recuperação concluída. Registra `state-persistence`, `INTERVENTION_REQUIRED` e
+`formalRecovery: false`. Se existe `recovery.json`, uma nova tentativa de contenção
+usa recibo exclusivo `containment-<id>.json`, preservando o recibo anterior.
+Erro de inspeção também bloqueia conclusão e não impede essas ações independentes,
+desde que a titularidade ainda seja demonstrável pelo estado e claim íntegros.
+
+O finalizador não proprietário mantém a limpeza exclusivamente local à sua
+tentativa; ele não repara nem altera estado, guard ou resíduos da proprietária e
+não necessita tomar seu lock global. Sem prova de titularidade, não há contenção
+global. Uma repetição de contenção incompleta pode registrar novas observações;
+não é uma aprovação idempotente nem renovação de autorização.
+
+**Conclusão:** não se publica sucesso ou se aprova recuperação com resíduos
+conhecidos. A recuperação já registrada exige também estado final esperado e guard
+coerente. Uma interrupção depois do recibo de recuperação, mas antes da conclusão
+de estado/guard, não se torna concluída só porque esse recibo existe. `reconcile`
+continua recusando resíduos, inclusive em repetição de uma reconciliação v2 já
+concluída. Não há limpeza automática, flag de bypass ou reparação genérica adicional.
+
+**Compatibilidade e limite comprovado:** a `401f130` não conhece o detector. Um teste
+local de seu código demonstra que ela pode submeter uma ativação a partir de um
+estado legado `idle` mesmo com `.write-*`. Estados `reconciled-v2` continuam recusados
+pelo controlador antigo, conforme o protocolo anterior. Não se altera um estado
+legado ambíguo apenas para fabricar um bloqueio que o código antigo reconheça.
+Root pode executar deliberadamente esse código; sem alterar a instalação/custódia,
+a implementação nova não oferece prevenção absoluta. Antes de qualquer futura
+operação, a revisão deve exigir caminho, descritor, manifesto e seleção efetiva do
+controlador revisado para launcher, `run-first` e `ExecStopPost`, além de conferência
+dos dois diretórios. Não usar `401f130` para retomada. Esses controles operacionais
+não foram aplicados nesta tarefa; produção permanece **BLOCKED**.
+
+A investigação preserva temporários e recibos. Uma intervenção futura deve
+inventariar sob custódia os resíduos, comparar estado/guard/claim e recibos, verificar
+qual processo e fase os produziram e obter autorização específica para qualquer
+tratamento. Esta seção não autoriza excluir, promover, reaproveitar ou sobrescrever
+arquivos, nem iniciar serviços. Locks são cooperativos; observações de filesystem
+não constituem garantia contra root ou escritores externos fora do protocolo.

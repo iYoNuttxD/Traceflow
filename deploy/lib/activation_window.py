@@ -134,6 +134,20 @@ def systemd_command(controller,run_id,seconds):
             '--property=Restart=no','--property=StandardOutput=null','--property=StandardError=null',
             '--property=ExecStopPost='+final,'/usr/bin/python3','-I','-B',str(controller),'run-first','--run-id',run_id]
 
+def persistence_residues(layout):
+    """Names only; never interpret, follow or remove interrupted state writes."""
+    result={}
+    for scope,parent in (('state',layout.state),('guard',layout.guard.parent)):
+        trusted_path(parent,directory=True,uid=os.geteuid())
+        names=sorted(p.name for p in parent.iterdir() if p.name.startswith('.write-'))
+        if names:result[scope]={'count':len(names),'namesSha256':digest(encoded(names))}
+    return result
+
+
+def persistence_clean(layout,code='ACTIVATION_PERSISTENCE_RESIDUE'):
+    require(not persistence_residues(layout),code)
+
+
 def launch(ops,layout,args):
     ops.native_context(layout);resource.setrlimit(resource.RLIMIT_CORE,(0,0));os.umask(0o077)
     rid=release_id(args.release_id);a=private_json(Path(args.authorization).absolute())
@@ -150,6 +164,7 @@ def launch(ops,layout,args):
     for service in ops.SERVICES:
         require(ops.command(['systemctl','show',service,'-p','LimitCORE','--value']).stdout.strip()=='0','CORE_LIMIT_REQUIRED')
     with exclusive_lock(layout.state/'operation.lock'):
+        persistence_clean(layout)
         state=layout.load();proof=reconciliation_closed(layout,state)
         controller=reconciliation_controller(ops,layout,proof,manifest) if proof else release/'deploy/scripts/release.py'
         layout.current_matches(state);ops.assert_stopped()
@@ -243,6 +258,7 @@ def owns_activation(layout,path,a,state=None):
 
 
 def claim_activation(ops,layout,path,a,state):
+    persistence_clean(layout)
     require(not any(os.path.lexists(path/n) for n in ('claim.json','unowned.json','closed.json','recovery.json','failure.json')),
             'ACTIVATION_ATTEMPT_CONSUMED')
     require(bound_receipt(path,a,'prepared').get('expiresAt')==a['expiresAt'],'ACTIVATION_PREPARATION_REQUIRED')
@@ -291,14 +307,27 @@ def finalize_unowned(path,a,state):
     cleanup_credential(a)
 
 
-def recover(ops,layout,path,a,accounts):
+def recover(ops,layout,path,a,accounts,observed_persistence=None):
     """Attempt all independent safety actions; never hide an incomplete recovery."""
     require(owns_activation(layout,path,a),'ACTIVATION_NOT_OWNER')
     state=layout.load();failed_state=dict(state);state.update(status='intervention-required',phase='recovering',target=a['releaseId'],runId=a['runId'])
-    layout.save(state);errors=[]
+    errors=[]
     def attempt(name,fn):
         try:fn()
         except BaseException:errors.append(name)
+    # Containment does not depend on publication of another state. Keep an
+    # ambiguous state/guard untouched and preserve the original temporary files.
+    def observed_residues():
+        try:return persistence_residues(layout)
+        except BaseException:
+            if 'state-persistence' not in errors:errors.append('state-persistence')
+            return {'unverified':True}
+    # An earlier observation in this finalizer cannot disappear from the audit
+    # merely because a later scan succeeds or an external writer removes a file.
+    residues=observed_persistence or observed_residues()
+    if residues:
+        if 'state-persistence' not in errors:errors.append('state-persistence')
+    else:attempt('state-persistence',lambda:layout.save(state))
     evidence={}
     attempt('failure-evidence',lambda:evidence.update(failureSha256=failure_evidence(path,a,failed_state)))
     attempt('services',ops.stop_services)
@@ -316,9 +345,17 @@ def recover(ops,layout,path,a,accounts):
             require(target==allowed,'RECOVERY_LINK_CHANGED');link.unlink();fsync_dir(link.parent)
         attempt('links',unlink_owned)
     attempt('credentials',lambda:cleanup_credential(a))
+    final_residues=observed_residues()
+    if final_residues and 'state-persistence' not in errors:errors.append('state-persistence')
     prior=private_json(path/'prior-state.json')
     result={'status':'TEMPORARY_PAGE_RESTORED' if not errors else 'INTERVENTION_REQUIRED','failedControls':errors,
             'schemaRestored':False,'dataPreserved':True,'claimSha256':file_digest(path/'claim.json'),**evidence}
+    if 'state-persistence' in errors:
+        # Append only: a prior recovery receipt is never overwritten on retry.
+        event='containment-'+os.urandom(16).hex() if os.path.lexists(path/'recovery.json') else 'recovery'
+        receipt(path,event,a,**result,persistence={'initial':residues,'final':final_residues,
+                'observedStateSha256':digest(encoded(layout.load()))},formalRecovery=False)
+        return result
     if not errors and 'recoveryProof' in prior:
         # Preserve the origin in the immutable prior-state, never rebind its runId.
         reconciliation_closed(layout,prior,check_guard=False)
@@ -328,13 +365,16 @@ def recover(ops,layout,path,a,accounts):
               'descriptorSha256':a['descriptorSha256'],'authorizationSha256':file_digest(path/'authorization.json'),
               'at':timestamp(),**result}
         publish_reconciliation(path/'recovery.json',data)
+        persistence_clean(layout)
         layout.save(after)  # Old controllers reject this status, even after completion.
     else:
         if not errors:
             after=dict(prior,status='idle',phase='first-activation-recovered',runId=a['runId'],target=a['releaseId'])
         else:after=dict(state,status='intervention-required',phase='recovery-incomplete')
         receipt(path,'recovery',a,**result)
+        persistence_clean(layout)
         layout.save(after)
+    persistence_clean(layout)
     return result
 
 def run(ops,layout,run_id):
@@ -345,6 +385,7 @@ def run(ops,layout,run_id):
     require(values.get('MainPID')==str(os.getpid()) and values.get('Type')=='exec' and values.get('KillMode')=='control-group' and
             values.get('RuntimeMaxUSec') not in (None,'infinity','0') and 'finalize-first --run-id '+run_id in values.get('ExecStopPost',''), 'RECOVERY_UNIT_REQUIRED')
     with attempt_lock(layout,run_id), exclusive_lock(layout.state/'operation.lock'):
+        persistence_clean(layout)
         require(not os.path.lexists(path/'unowned.json'),'ACTIVATION_ATTEMPT_CONSUMED')
         release,admin,manifest=layout.installed(a['releaseId'],a['descriptorSha256'])
         deadline=Deadline(authorize(a,manifest));pre_evidence(a,manifest);checked_configs(a)
@@ -385,12 +426,15 @@ def run(ops,layout,run_id):
             ops.smoke(layout,a['releaseId'],state,a,db,started)
             db.close();db=None;deadline.check();ops.phase(layout,state,'database-disconnected')
             # Final success is durable only after every real postcheck and DB disconnect.
+            persistence_clean(layout)
             receipt(path,'verified',a,status='ACTIVATION_VERIFIED',postEvidence=proofs,disconnected=True,
                     schemaFingerprint=before['fingerprint'])
             deadline.check()
             state['history'].setdefault(a['releaseId'],{})['lastActivated']=ops.now()
             state.update(status='idle',phase='complete',current=a['releaseId'],previous=None)
+            persistence_clean(layout)
             layout.save(state)
+            persistence_clean(layout)
         except BaseException as failure:
             # Preserve a bounded primary code before cleanup can itself fail. Never
             # serialize SQL, URLs, credentials, exception messages or tracebacks.
@@ -416,16 +460,30 @@ def finalize(ops,layout,run_id):
         _finalize_owned(ops,layout,path,a,run_id)
 
 def _finalize_owned(ops,layout,path,a,run_id):
+    # Instantiation of Accounts remains lazy, so unreadable credentials cannot
+    # prevent independent service/ingress containment for a proven owner.
+    class LazyAccounts:
+        def relock(self):return Accounts(RUN_BASE/run_id/'admin.cnf').relock()
     with exclusive_lock(layout.state/'operation.lock'):
+        try:observed=persistence_residues(layout)
+        except (OSError,Refused):observed={'unverified':True}
+        if observed:
+            if layout.load().get('activationClaimSha256'):
+                recover(ops,layout,path,a,LazyAccounts(),observed_persistence=observed)
+            raise Refused('ACTIVATION_PERSISTENCE_RESIDUE')
         if (path/'recovery.json').exists():
             r=validate_recovery_receipts(path,a)
             require(r.get('status')=='TEMPORARY_PAGE_RESTORED','RECOVERY_INCOMPLETE')
-            state=layout.load()
+            state=layout.load();prior=private_json(path/'prior-state.json')
+            expected=recovered_state(prior,a) if 'recoveryProof' in prior else dict(
+                prior,status='idle',phase='first-activation-recovered',runId=a['runId'],target=a['releaseId'])
+            require(state==expected and read_guard(layout)==guard_projection(state),'RECOVERY_STATE_INCOMPLETE')
             if 'recoveredStateSha256' in r:
                 require(digest(encoded(state))==r['recoveredStateSha256'],'RECOVERY_STATE_INCOMPLETE')
                 proof=reconciliation_closed(layout,state)
                 _,_,manifest=layout.installed(a['releaseId'],a['descriptorSha256'])
                 reconciliation_controller(ops,layout,proof,manifest)
+            persistence_clean(layout)
             return
         require(owns_activation(layout,path,a),'ACTIVATION_NOT_OWNER')
         state=layout.load();verified=False
@@ -450,14 +508,13 @@ def _finalize_owned(ops,layout,path,a,run_id):
                 require(closed.get('runId')==run_id and closed.get('credentialsRemoved') is True and not (RUN_BASE/run_id).exists(),'CLOSURE_INTEGRITY')
                 return
             try:
+                persistence_clean(layout)
                 cleanup_credential(a);receipt(path,'closed',a,status='ACTIVATION_VERIFIED',credentialsRemoved=True)
                 return
             except BaseException:
                 verified=False
         if not verified:
             # A missing/invalid credential must not prevent service and ingress recovery.
-            class LazyAccounts:
-                def relock(self):return Accounts(RUN_BASE/run_id/'admin.cnf').relock()
             accounts=LazyAccounts()
             result=recover(ops,layout,path,a,accounts)
             require(result['status']=='TEMPORARY_PAGE_RESTORED','RECOVERY_INCOMPLETE')
@@ -585,6 +642,7 @@ def reconciliation_controller(ops,layout,q,manifest):
 
 def reconciliation_closed(layout,state,check_guard=True,_seen=()):
     """Follow immutable origin proofs instead of combining IDs from different runs."""
+    if check_guard:persistence_clean(layout)
     require('reconciliationId' not in state,'RECONCILE_LEGACY_STATE_REVIEW')
     if 'recoveryProof' not in state:
         require(state.get('status')!=RECONCILED_STATUS,'RECONCILE_PROOF_REQUIRED');return None
@@ -799,7 +857,7 @@ def reconcile(ops,layout,args):
     auth_sha=digest(encoded(q));folder=reconciliation_folder(layout,q)
     with exclusive_lock(layout.state/'operation.lock'):
         path,a,after=reconciliation_baseline(layout,q);state=layout.load();guard=read_guard(layout)
-        require(not any(layout.state.glob('.write-*')) and not any(layout.guard.parent.glob('.write-*')),'RECONCILE_STATE_RESIDUE')
+        persistence_clean(layout,'RECONCILE_STATE_RESIDUE')
         reconciliation_inventory(folder)
         if (folder/'authorization.json').exists():require(reconciliation_json(folder/'authorization.json')==q,'RECONCILE_DOCUMENT_CHANGED')
         if (folder/'applied.json').exists():
