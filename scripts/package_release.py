@@ -14,14 +14,18 @@ import sys
 import tempfile
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"deploy/lib"))
-from release_contract import Refused, require, digest, encoded, file_digest, inventory, pack, schema_contract, extract_verified
+from release_contract import Refused, require, digest, encoded, file_digest, inventory, pack, schema_contract, extract_verified, descriptor, read_json
 
 ROOT=Path(__file__).resolve().parents[1]
 ALLOW=("backend/src/","backend/prisma/","frontend/src/","frontend/public/")
 FILES={"backend/package.json","backend/package-lock.json","frontend/package.json","frontend/package-lock.json",
        "frontend/index.html","frontend/vite.config.js","frontend/production-contract.js","deploy/scripts/validate-service-environment.mjs"}
 RECIPES=("scripts/package-release.mjs","scripts/package_release.py","deploy/lib/release_contract.py",
-         "deploy/scripts/artifact-smoke.mjs","deploy/scripts/release.py","deploy/scripts/release-database.mjs","deploy/scripts/lib/migration-contract.mjs")
+         "deploy/scripts/artifact-smoke.mjs","deploy/scripts/release.py","deploy/scripts/release-database.mjs","deploy/scripts/lib/migration-contract.mjs",
+         "deploy/lib/operational_io.py","deploy/lib/runtime_grants.py","deploy/lib/activation_contract.py",
+         "deploy/lib/activation_accounts.py","deploy/lib/activation_window.py","deploy/lib/recovery_policy.py",
+         "deploy/lib/recovery_snapshot.py","deploy/lib/recovery_archive.py","deploy/scripts/recovery-backup.py",
+         "deploy/systemd/traceflow-recovery-backup.service","deploy/systemd/traceflow-recovery-backup.timer")
 def command(args,cwd=None,env=None):
     r=subprocess.run(args,cwd=cwd,env=env,capture_output=True)
     require(r.returncode==0,"COMMAND_FAILED_"+Path(args[0]).name)
@@ -156,11 +160,81 @@ def build(args):
             extract_verified(output/(kind+".tar.gz"),dest,kind,artifacts[kind]["manifestSha256"])
         command(["node",str(work/"extracted-runtime/deploy/scripts/artifact-smoke.mjs"),str(work/"extracted-runtime")],work,env)
         print(json.dumps({"releaseId":rid,"descriptorSha256":file_digest(output/"release.json"),"artifacts":artifacts,"extractedSmoke":"PASS"}))
+def validate_reuse_sources(source, old_source, expected, old_expected):
+    proof=read_json(source/"source.json");old=read_json(old_source/"source.json")
+    require(file_digest(source/"source.json")==expected and file_digest(old_source/"source.json")==old_expected,"SOURCE_TRUST")
+    for root,record in ((source,proof),(old_source,old)):
+        actual=inventory(root);actual.pop("source.json",None)
+        require(actual==record["files"],"SOURCE_INTEGRITY")
+    unchanged=lambda name:name.startswith(ALLOW) or name in FILES
+    current={k:v for k,v in proof["files"].items() if unchanged(k)}
+    previous={k:v for k,v in old["files"].items() if unchanged(k)}
+    require(current==previous,"APPLICATION_REBUILD_REQUIRED")
+    return proof
+
+def repack(args):
+    """Controller-only rebuild; never substitutes macOS modules for Linux artifacts."""
+    require(platform.system()=="Linux" and platform.machine() in {"aarch64","arm64"},"NATIVE_LINUX_ARM64_REQUIRED")
+    require("9.8" in Path("/etc/oracle-release").read_text(),"ORACLE98_REQUIRED")
+    source=Path(args.source).resolve();old_source=Path(args.previous_source).resolve()
+    previous=descriptor(Path(args.previous_descriptor).absolute(),args.previous_digest)
+    output=Path(args.output).absolute();require(not output.exists(),"OUTPUT_EXISTS")
+    stamp=dt.datetime.fromtimestamp(args.epoch,dt.timezone.utc)
+    require(2026<=stamp.year<=2100 and len(args.build_id)==12 and all(c in "abcdef0123456789" for c in args.build_id),"BUILD_ID")
+    with build_workspace(args.build_id) as temp:
+        work=Path(temp);trees={}
+        for kind in ("runtime","admin"):
+            tree=work/kind;tree.mkdir()
+            extract_verified(Path(args.previous_descriptor).parent/previous["artifacts"][kind]["file"],tree,kind,previous["artifacts"][kind]["manifestSha256"])
+            trees[kind]=tree
+        old=read_json(trees["runtime"]/"manifest.json")
+        require(old["sourceState"]=="committed" and old["releaseId"]==previous["releaseId"] and
+                read_json(trees["admin"]/"manifest.json")["schema"]==old["schema"],"REUSE_PROVENANCE")
+        proof=validate_reuse_sources(source,old_source,args.source_sha256,old["sourceSha256"])
+        for name,record in proof["files"].items():
+            if name.startswith(("backend/src/","backend/prisma/")) or name in ("backend/package.json","backend/package-lock.json"):
+                require(file_digest(trees["runtime"]/name)==record["sha256"],"RUNTIME_SOURCE_MISMATCH")
+        before={kind:inventory(tree) for kind,tree in trees.items()}
+        for name in [*RECIPES[2:],"deploy/scripts/validate-service-environment.mjs"]:
+            dst=trees["runtime"]/name;dst.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(source/name,dst);dst.chmod(0o644)
+        require(schema_contract(trees["runtime"])==old["schema"] and schema_contract(trees["admin"],"admin")==old["schema"],"MIGRATION_INTEGRITY")
+        after={kind:inventory(tree) for kind,tree in trees.items()}
+        changed={name for name in set(before["runtime"])|set(after["runtime"]) if before["runtime"].get(name)!=after["runtime"].get(name)}
+        require(changed<=set(RECIPES[2:]) and before["admin"]==after["admin"],"UNEXPECTED_REPACK_CHANGE")
+        env={"PATH":os.environ["PATH"],"HOME":"/nonexistent","LANG":"C.UTF-8","TZ":"UTC",
+             "CHECKPOINT_DISABLE":"1","PRISMA_HIDE_UPDATE_MESSAGE":"1"}
+        node=command(["node","-p","process.versions.node"],env=env).decode().strip()
+        require(node==old["nodeVersion"]=="22.23.2","NODE_VERSION")
+        result=json.loads(command(["node",str(trees["runtime"]/"deploy/scripts/artifact-smoke.mjs"),str(trees["runtime"])],work,env))
+        require(result["artifactSmoke"]=="PASS","ARTIFACT_SMOKE")
+        rid=stamp.strftime("%Y%m%dT%H%M%SZ")+"-"+proof["commitSha"]+"-"+args.build_id
+        common={k:v for k,v in old.items() if k not in ("files","kind")}
+        common.update(releaseId=rid,commitSha=proof["commitSha"],sourceState=proof["sourceState"],
+                      buildTimestampUtc=stamp.isoformat().replace("+00:00","Z"),buildId=args.build_id,
+                      sourceSha256=args.source_sha256,recipeSha256=proof["recipeSha256"],
+                      reuse={"descriptorSha256":args.previous_digest,"releaseId":previous["releaseId"],
+                             "unchangedApplicationSources":True,"unchangedDependencies":True,"changedFiles":sorted(changed)},
+                      checks={"nativeSmoke":result,"schemaValidated":True,"frontendBuild":"verified-reuse"})
+        output.mkdir(mode=0o700)
+        artifacts={kind:pack(tree,output/(kind+".tar.gz"),dict(common,kind=kind)) for kind,tree in trees.items()}
+        desc={"formatVersion":1,"releaseId":rid,"commitSha":proof["commitSha"],"artifacts":artifacts}
+        (output/"release.json").write_bytes(encoded(desc))
+        for kind,record in artifacts.items():
+            dest=work/("verified-"+kind);dest.mkdir()
+            extract_verified(output/record["file"],dest,kind,record["manifestSha256"])
+        command(["node",str(work/"verified-runtime/deploy/scripts/artifact-smoke.mjs"),str(work/"verified-runtime")],work,env)
+        print(json.dumps({"releaseId":rid,"sourceState":proof["sourceState"],"descriptorSha256":file_digest(output/"release.json"),"artifacts":artifacts,"extractedSmoke":"PASS","changedFiles":sorted(changed)}))
+
 def main():
     p=argparse.ArgumentParser();sub=p.add_subparsers(dest="action",required=True)
     e=sub.add_parser("export");e.add_argument("--commit",required=True);e.add_argument("--output",required=True);e.add_argument("--candidate",action="store_true")
     b=sub.add_parser("build");b.add_argument("--source",required=True);b.add_argument("--source-sha256",required=True);b.add_argument("--output",required=True);b.add_argument("--epoch",required=True,type=int);b.add_argument("--build-id",required=True)
-    args=p.parse_args();export(args) if args.action=="export" else build(args)
+    r=sub.add_parser("repack-controller")
+    for name in ("source","source-sha256","previous-source","previous-descriptor","previous-digest","output","build-id"):r.add_argument("--"+name,required=True)
+    r.add_argument("--epoch",required=True,type=int)
+    args=p.parse_args()
+    {"export":export,"build":build,"repack-controller":repack}[args.action](args)
 if __name__=="__main__":
     try:main()
     except (Refused,OSError,ValueError,KeyError) as e:

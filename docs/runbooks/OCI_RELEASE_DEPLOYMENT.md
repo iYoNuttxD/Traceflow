@@ -374,7 +374,6 @@ até restaurar uma release compatível. Manter recibos/partes/arquivos confirmad
 migration automática. Backup/restore abrange DB e arquivos consistentes. Reter assets antigos
 continua necessário. Ver [recuperação de uploads](OCI_RESUMABLE_UPLOADS.md).
 
-
 ## OCI-DEPLOY-07.1 — separação de readiness do banco e da aplicação
 
 A inicialização exige exatamente a cadeia atual de 68 migrations, runtime/admin íntegros e correspondentes,
@@ -392,3 +391,11 @@ A receita inclui `deploy/scripts/lib/migration-contract.mjs`. Um pacote anterior
 por cópia avulsa; gerar no futuro uma release completa revisada, com novo manifesto/digest. Candidatos
 com receita não commitada continuam não promovíveis pelo contrato existente. Nenhum pacote foi gerado
 nesta entrega e não há autorização para commit ou publicação.
+
+## OCI-DEPLOY-07.10 — janela da primeira publicação
+
+A primeira ativação passa a usar o contrato específico `activate-first`, com recuperação
+independente, evidências públicas posteriores ao startup e desconexão antes de complete.
+O fluxo normal de upgrade não perdeu gates. Candidatos continuam não deployáveis.
+O procedimento único, contratos e limites estão em [primeira ativação](OCI_FIRST_ACTIVATION.md).
+Esta atualização não autoriza execução nem altera as evidências históricas acima.

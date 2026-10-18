@@ -70,7 +70,7 @@ class Layout:
         return private_json(self.state/"state.json")
     def save(self,state):
         atomic_json(self.state/"state.json",state)
-        guard={k:state.get(k) for k in ("status","phase","current","target","bootId","pid","processStart")}
+        guard={k:state.get(k) for k in ("status","phase","current","target","bootId","pid","processStart","expiresAt","runId","operation")}
         atomic_json(self.guard,guard,0o644)
     def installed(self,rid,expected=None):
         release_id(rid)
@@ -134,11 +134,14 @@ def authorization(layout,path,operation,rid,expected):
     return auth
 
 class Database:
-    def __init__(self,release,admin,auth,mode):
+    def __init__(self,release,admin,auth,mode,runtime_value=None):
         allowed=(("TEST_DATABASE_URL","MIGRATION_DATABASE_URL","TF_RELEASE_LAB_TOKEN") if mode=="migrate" else
                  ("TEST_RUNTIME_DATABASE_URL","RUNTIME_DATABASE_URL","TF_RELEASE_LAB_TOKEN"))
         require(not os.environ.get("DATABASE_URL"),"AMBIGUOUS_DATABASE_URL")
         env={k:os.environ[k] for k in allowed if k in os.environ}
+        if runtime_value is not None:
+            require(mode=="read" and not env,"RUNTIME_CREDENTIAL_CONFLICT")
+            env["RUNTIME_DATABASE_URL"]=runtime_value
         env.update(PATH="/usr/bin:/bin",HOME="/nonexistent",LANG="C.UTF-8",TZ="UTC")
         self.p=subprocess.Popen(["/usr/bin/node",str(release/"deploy/scripts/release-database.mjs"),
             str(release),str(admin),str(Path(auth).absolute()),mode],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,bufsize=1,env=env)
@@ -184,8 +187,12 @@ def assert_stopped():
         except (FileNotFoundError,ProcessLookupError):continue
         require(not any(x.endswith((b"/src/server.js",b"/src/github-worker.js")) for x in args),"UNMANAGED_WRITER")
 def stop_services():
-    for name in SERVICES:command(["systemctl","stop",name],timeout=100)
+    failures=[]
+    for name in SERVICES:
+        try:command(["systemctl","stop",name],timeout=100)
+        except Exception:failures.append(name)
     assert_stopped()
+    require(not failures,"SERVICE_STOP_INCOMPLETE")
 def switch_link(link,target):
     require(not os.path.lexists(link) or link.is_symlink(),"CURRENT_NOT_SYMLINK")
     temporary=link.parent/(".link-"+uuid.uuid4().hex)
@@ -270,7 +277,7 @@ def frontend_probe(layout,auth,web):
         require(get(path)[0]==404,"PRIVATE_OR_MISSING_FILE_PUBLIC")
     status,headers,body=get("/api/auth/me")
     require(status==401 and "application/json" in headers.get("content-type","") and json.loads(body).get("code")=="AUTHENTICATION_REQUIRED","API_PROXY_SMOKE")
-def smoke(layout,rid,state,auth,db,started):
+def smoke(layout,rid,state,auth,db,started,public=True):
     path=layout.releases/rid
     api_pid=process_release(SERVICES[0],path);process_release(SERVICES[1],path)
     listeners=command(["ss","-ltnp"]).stdout.splitlines()
@@ -283,11 +290,17 @@ def smoke(layout,rid,state,auth,db,started):
     hb=db.ask("heartbeat",since=started-60000,startedAt=started)
     require(hb["count"]==1 and hb["fresh"],"WORKER_HEARTBEAT")
     check_generation(layout,state["web"],rid)
-    frontend_probe(layout,auth,layout.generations/state["web"]/"dist")
+    if public:frontend_probe(layout,auth,layout.generations/state["web"]/"dist")
 def phase(layout,state,name):
     state["phase"]=name;layout.save(state)
+    if state.get("operation")=="activate-first":
+        from operational_io import private_write
+        directory=layout.state/"activations"/state["runId"]/"events"
+        directory.mkdir(mode=0o700,exist_ok=True)
+        private_write(directory/(uuid.uuid4().hex+".json"),encoded({"phase":name,"runId":state["runId"],"at":now()}))
+        fsync_dir(directory)
     emit("release_phase",phase=name,releaseId=state.get("target"))
-def start_services(layout,state,rid,auth,db):
+def start_services(layout,state,rid,auth,db,public=True):
     phase(layout,state,"starting-api")
     command(["systemctl","reset-failed",*SERVICES],check=False)
     command(["systemctl","start",SERVICES[0]])
@@ -308,7 +321,8 @@ def start_services(layout,state,rid,auth,db):
         if hb["fresh"]:break
         require(time.monotonic()<deadline,"WORKER_HEARTBEAT_TIMEOUT")
         time.sleep(.5)
-    smoke(layout,rid,state,auth,db,started)
+    smoke(layout,rid,state,auth,db,started,public=public)
+    return started
 def active_guard(service):
     require(service in SERVICES,"GUARD_SERVICE")
     g=read_json(Path("/opt/traceflow/release-guard.json"))
@@ -321,7 +335,11 @@ def active_guard(service):
     if g["status"]!="idle":
         require(g["status"]=="in-progress" and g.get("bootId")==boot_id() and proc_start(g["pid"])==g["processStart"],"INTERRUPTED_OPERATION")
         allowed={"starting-api","starting-worker"}
-        require(g.get("phase") in allowed and (service!=SERVICES[1] or g["phase"]=="starting-worker"),"GUARD_PHASE")
+        if g.get("operation")=="activate-first":
+            from activation_contract import utc
+            require(time.time()<utc(g["expiresAt"]),"ACTIVATION_WINDOW_EXPIRED")
+            allowed.update({"public-cutover","postchecks-pending","database-disconnected"})
+        require(g.get("phase") in allowed and (service!=SERVICES[1] or g["phase"]!="starting-api"),"GUARD_PHASE")
 
 def activate(layout,args,operation):
     native_context(layout);rid=release_id(args.release_id)
@@ -344,6 +362,7 @@ def activate(layout,args,operation):
         release,admin,manifest=layout.installed(rid,args.digest)
         require(layout.lab or manifest["sourceState"]=="committed","CANDIDATE_NOT_DEPLOYABLE")
         require(operation=="recover" or rid!=state.get("current") or state.get("phase") in ("migration-complete","migration-recovered"),"ALREADY_ACTIVE_USE_SMOKE")
+        require(layout.lab or previous is not None,"FIRST_ACTIVATION_WINDOW_REQUIRED")
         with Database(release,admin,args.authorization,"read") as db:
             # Read-only checks, including drift, before stopping the active release.
             before=db.ask("compatible")
@@ -363,6 +382,7 @@ def activate(layout,args,operation):
                 phase(layout,state,"switched")
                 layout.installed(rid,args.digest);db.ask("compatible")
                 start_services(layout,state,rid,auth,db)
+                db.close()  # Never publish success before disconnect succeeds.
                 state["history"].setdefault(rid,{})["lastActivated"]=now()
                 state.update(status="idle",current=rid,previous=previous if previous!=rid else old.get("previous"),phase="complete")
                 layout.save(state);emit("release_activated",releaseId=rid,schemaFingerprint=before["fingerprint"])
@@ -492,6 +512,12 @@ def main():
     for name in ("activate","rollback","recover","migrate","migrate-initial","smoke","inspect-schema","inspect-initial-schema","recover-migration"):
         s=sub.add_parser(name);s.add_argument("--release-id",required=True);s.add_argument("--digest",required=True);s.add_argument("--authorization",required=True)
     s=sub.add_parser("prune");s.add_argument("--days",type=int,default=7);s.add_argument("--keep",type=int,default=3);s.add_argument("--apply",action="store_true")
+    s=sub.add_parser("activate-first")
+    s.add_argument("--release-id",required=True);s.add_argument("--digest",required=True);s.add_argument("--authorization",required=True)
+    for name in ("run-first","finalize-first","record-activation-check"):
+        s=sub.add_parser(name);s.add_argument("--run-id",required=True)
+        if name=="record-activation-check":
+            s.add_argument("--kind",required=True,choices=["github","upload","functional"]);s.add_argument("--evidence",required=True)
     args=p.parse_args()
     if args.action=="guard":active_guard(args.service);return
     if args.action=="verify":
@@ -502,6 +528,14 @@ def main():
                 extract_verified(Path(args.descriptor).parent/d["artifacts"][k]["file"],dest,k,d["artifacts"][k]["manifestSha256"])
         emit("artifact_verified",releaseId=d["releaseId"]);return
     layout=Layout(args.root)
+    if args.action in ("activate-first","run-first","finalize-first","record-activation-check"):
+        import activation_window as window
+        ops=sys.modules[__name__]
+        if args.action=="activate-first":window.launch(ops,layout,args)
+        elif args.action=="run-first":window.run(ops,layout,args.run_id)
+        elif args.action=="finalize-first":window.finalize(ops,layout,args.run_id)
+        else:window.record(layout,args.run_id,args.kind,args.evidence)
+        return
     if args.action=="init":layout.initialize();emit("layout_initialized");return
     if args.action=="status":emit("release_status",**layout.load());return
     if args.action=="stage":stage(layout,args.descriptor,args.digest);return

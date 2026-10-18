@@ -1,0 +1,22 @@
+# TEMPLATE ONLY. Installing/enabling requires a separate operational approval.
+[Unit]
+Description=TraceFlow authorized maintenance backup (encrypted, no automatic deletion)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=root
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -I -B /opt/traceflow/current/deploy/scripts/recovery-backup.py periodic --policy /etc/traceflow/recovery-policy.json --authorization /run/traceflow-recovery/authorization.json
+RuntimeMaxSec=900
+TimeoutStopSec=30
+KillMode=control-group
+LimitCORE=0
+Restart=no
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+StandardOutput=journal
+StandardError=null

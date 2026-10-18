@@ -119,11 +119,11 @@ Não reconstruir o JSON manualmente para contornar os alvos permitidos. `run-per
 
 R01–R03: schema vazio + banco/arquivos coordenados + smoke funcional. R04 incompleto; R05 corrupção e corrupção com hash externo recalculado; R06 chave incorreta; R07 cadeia incompatível; R08 backup envelhecido mas de schema exato; R09 evidência ausente; R10 SIGTERM real após DDL parcial; R11 reexecução; R12 alvo protegido. Também testados: backup interrompido, concorrência do mesmo flock, permissões, falha de criptografia, espaço insuficiente (unitário), links e arquivos maliciosos (unitários).
 
-| Restore de integridade | Tempo medido, fixture sintética |
-| --- | ---: |
-| MySQL 8.4.8 / macOS ARM64 | 4,519 s |
-| MySQL 26.7.0 / macOS ARM64 | 4,317 s |
-| MySQL 26.7.0 / Oracle Linux ARM64 | 2,283 s |
+| Restore de integridade            | Tempo medido, fixture sintética |
+| --------------------------------- | ------------------------------: |
+| MySQL 8.4.8 / macOS ARM64         |                         4,519 s |
+| MySQL 26.7.0 / macOS ARM64        |                         4,317 s |
+| MySQL 26.7.0 / Oracle Linux ARM64 |                         2,283 s |
 
 61 tabelas, 116 FKs, uma evidência confirmada e dois registros de upload no snapshot; o smoke retoma a parte pendente e confirma conteúdo/idempotência. Não são benchmarks de volume real. O cronômetro de restore inclui verificação/decriptação/importação/integridade/publicação, mas não provisionamento, obtenção de chaves, transferência externa, aprovação, smoke e cutover. Verificar datas UTC nas evidências.
 
@@ -187,7 +187,6 @@ por esta documentação. DR, retenção, recuperação de segredos e restore rea
 antes de aceitar dados reais; a primeira migration precisa resolver separadamente o gate de
 backup obrigatório do job atual. Nenhum backup/restore real foi executado nesta preparação.
 
-
 ## OCI-DEPLOY-07.1 — exceção delimitada para o primeiro schema vazio
 
 O fluxo `migrate-initial` não exige dump lógico anterior quando a ausência de todos os objetos e do
@@ -205,3 +204,13 @@ Após as 68 migrations existe histórico e há a linha inicial de EvidenceUpload
 não se aplica mais. Migrations posteriores exigem backup/restore; a ativação da aplicação mantém sua
 recuperação obrigatória. O primeiro job não comprova DR de produção, RPO/RTO, restauração gerenciada,
 retenção nem backup de arquivos. Ver o procedimento exato em [OCI_MIGRATIONS.md](OCI_MIGRATIONS.md#oci-deploy-071--primeira-inicialização).
+
+## OCI-DEPLOY-07.9/07.10 — evidências reais e rotina preparada
+
+A07.9 comprovou backup cifrado, cópia externa/readback e restore isolado do conjunto
+76e9f5a5b2394fcab7f189b4aac93dbc, com61tabelas/116FKs/68migrations e igualdade dos dados,
+estruturas e configurações. Os registros anteriores desta página são históricos.
+A07.10 prepara o adaptador de manutenção e templates de agendamento, sem instalação ou
+aprovação operacional automática. Não é backup online nem comprovação de RPO24h.
+Consultar [o procedimento consolidado](OCI_FIRST_ACTIVATION.md#backup-operacional-preparado-ainda-não-instalado)
+para custódia, capacidade, retenção sem exclusão, readback, restore e pendências reais.
