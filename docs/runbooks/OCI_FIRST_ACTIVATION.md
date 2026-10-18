@@ -435,3 +435,16 @@ Formatos parciais, campos extras, divergências e operações pendentes são rec
 O guard legado e o state não são reescritos; a nova projeção é criada apenas no
 diretório dedicado, com criação/repetição verificável. O formato completo atual
 continua exigindo igualdade integral.
+
+### Representação de CURRENT_ROLE no JSON MySQL26.7
+
+O ensaio supervisionado foi recusado no preflight por `BACKUP_SERVER_IDENTITY`,
+antes da captura/transição de contas. A comparação isolada mostrou que UUID,
+versão, porta, schema, conta e UTC coincidiam; apenas a role divergira.
+O laboratório MySQL Community26.7 reproduziu `JSON_ARRAY(CURRENT_ROLE())` como
+`base64:type15:...`, tanto para `NONE` quanto para uma role ativa sintética.
+`CAST(CURRENT_ROLE() AS CHAR)` devolveu o texto esperado sem warnings.
+A consulta de leitura no HeatWave confirmou identidade completa e role exatas
+com a conversão. O capturador restaura o CAST já usado na captura v3 da OCI-07.9;
+a comparação permanece exata e a expansão/auditoria dos grants continua obrigatória.
+Não decodificar representações alternativas, aceitar roles extras nem ignorar a falha.

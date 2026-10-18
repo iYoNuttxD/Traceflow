@@ -37,6 +37,46 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(mode,0o600);self.assertEqual(Path(p).stat().st_mode&0o777,0o600);return Path(p).read_bytes()
         with mock.patch.object(ops,'STATE',self.root),mock.patch.object(ops,'oci',side_effect=self.api),mock.patch.object(ops,'secure_read',side_effect=read):
             return ops.publish({},self.ident)
+    def identity_source(self):
+        source=ops.Source(mock.Mock(),{'schema':{}},self.root)
+        row=[ops.TARGET['serverUuid'],'26.7.0-cloud',3306,'traceflow','traceflow_admin@%','`administrator`@`%`',0]
+        return source,row
+    def test_identity_casts_mysql_role_before_json_serialization(self):
+        source,row=self.identity_source()
+        with mock.patch.object(source,'rows',return_value=[row]) as rows, \
+             mock.patch.object(source,'query',return_value=['synthetic grant']) as query, \
+             mock.patch.object(ops,'tool',return_value=b'') as tool:
+            source.identity()
+        self.assertEqual(rows.call_args.args[0],"SELECT JSON_ARRAY(@@server_uuid,VERSION(),@@port,DATABASE(),CURRENT_USER(),CAST(CURRENT_ROLE() AS CHAR),TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(),NOW()))")
+        query.assert_called_once_with("SHOW GRANTS FOR CURRENT_USER USING 'administrator'@'%'")
+        self.assertIn('validateMetadataVisibility',tool.call_args.args[0][-1])
+        self.assertEqual(json.loads(tool.call_args.kwargs['input']),['synthetic grant'])
+    def test_identity_rejects_every_mismatched_field_before_grant_expansion(self):
+        source,row=self.identity_source()
+        for index,value in enumerate(['other-uuid','26.7.1-cloud',3307,'another_schema','traceflow_admin@other','`unexpected`@`%`',-10800]):
+            with self.subTest(index=index):
+                changed=row.copy();changed[index]=value
+                with mock.patch.object(source,'rows',return_value=[changed]),mock.patch.object(source,'query') as query:
+                    with self.assertRaisesRegex(c.Refused,'BACKUP_SERVER_IDENTITY'):source.identity()
+                    query.assert_not_called()
+    def test_identity_refuses_binary_role_none_additional_roles_and_bad_shapes(self):
+        source,row=self.identity_source()
+        # MySQL26.7 encodes raw CURRENT_ROLE as base64:type15 inside JSON_ARRAY.
+        # Do not decode/accept that representation: the SQL cast must yield exact text.
+        import base64
+        roles=['base64:type15:'+base64.b64encode(row[5].encode()).decode(),'NONE','`administrator`@`%`,`public`@`%`',None,{}]
+        bad=[[],[row,row],[row[:-1]],[row+[None]]]
+        for role in roles:
+            changed=row.copy();changed[5]=role;bad.append([changed])
+        for rows in bad:
+            with self.subTest(rows=rows),mock.patch.object(source,'rows',return_value=rows),mock.patch.object(source,'query') as query:
+                with self.assertRaisesRegex(c.Refused,'BACKUP_SERVER_IDENTITY'):source.identity()
+                query.assert_not_called()
+    def test_identity_still_requires_metadata_privileges_after_role_match(self):
+        source,row=self.identity_source()
+        with mock.patch.object(source,'rows',return_value=[row]),mock.patch.object(source,'query',return_value=['insufficient']), \
+             mock.patch.object(ops,'tool',side_effect=c.Refused('METADATA_NOT_DEMONSTRATED')):
+            with self.assertRaisesRegex(c.Refused,'METADATA_NOT_DEMONSTRATED'):source.identity()
     def test_cli_progress_allowance_is_bound_to_operation(self):
         for operation,progress,response in [('put',b'Uploading object\n',b'{"etag":"synthetic"}'),('get',b'Downloading object\n',b''),('list',b'',b'{"data":[]}')]:
             with mock.patch.object(ops,'tool',return_value=response) as invoke:

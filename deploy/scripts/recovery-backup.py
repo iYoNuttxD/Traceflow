@@ -49,7 +49,7 @@ class Source:
         return lines[2:-3]
     def rows(self,sql):return [unique(x) for x in self.query(sql)]
     def identity(self):
-        rows=self.rows("SELECT JSON_ARRAY(@@server_uuid,VERSION(),@@port,DATABASE(),CURRENT_USER(),CURRENT_ROLE(),TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(),NOW()))")
+        rows=self.rows("SELECT JSON_ARRAY(@@server_uuid,VERSION(),@@port,DATABASE(),CURRENT_USER(),CAST(CURRENT_ROLE() AS CHAR),TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(),NOW()))")
         require(rows==[[TARGET['serverUuid'],'26.7.0-cloud',3306,'traceflow','traceflow_admin@%','`administrator`@`%`',0]],'BACKUP_SERVER_IDENTITY')
         grants=self.query("SHOW GRANTS FOR CURRENT_USER USING 'administrator'@'%'")
         js="import {validateMetadataVisibility} from "+json.dumps(str(self.release/'deploy/scripts/lib/migration-contract.mjs'))+";let s='';for await(const b of process.stdin)s+=b;try{validateMetadataVisibility(JSON.parse(s),{inspectorAccount:'traceflow_admin@%',inspectorRoles:[{user:'administrator',host:'%'}]},'traceflow','`administrator`@`%`');}catch{process.exitCode=1;}"
