@@ -542,6 +542,8 @@ def main():
         s=sub.add_parser(name);s.add_argument("--run-id",required=True)
         if name=="record-activation-check":
             s.add_argument("--kind",required=True,choices=["github","upload","functional"]);s.add_argument("--evidence",required=True)
+    s=sub.add_parser("reconcile-first")
+    s.add_argument("--run-id",required=True);s.add_argument("--authorization",required=True)
     args=p.parse_args()
     if args.action=="guard":active_guard(args.service);return
     if args.action=="verify":
@@ -552,12 +554,19 @@ def main():
                 extract_verified(Path(args.descriptor).parent/d["artifacts"][k]["file"],dest,k,d["artifacts"][k]["manifestSha256"])
         emit("artifact_verified",releaseId=d["releaseId"]);return
     layout=Layout(args.root)
-    if args.action in ("activate-first","run-first","finalize-first","record-activation-check"):
+    if args.action in ("activate-first","run-first","finalize-first","record-activation-check","reconcile-first"):
         import activation_window as window
         ops=sys.modules[__name__]
         if args.action=="activate-first":window.launch(ops,layout,args)
         elif args.action=="run-first":window.run(ops,layout,args.run_id)
         elif args.action=="finalize-first":window.finalize(ops,layout,args.run_id)
+        elif args.action=="reconcile-first":
+            try:window.reconcile(ops,layout,args)
+            except Refused as e:
+                # Only fixed diagnostic codes can reach operational stdout.
+                code=str(e)
+                raise Refused(code if re.fullmatch(r'[A-Z][A-Z0-9_]{0,95}',code) else 'RECONCILE_REFUSED') from None
+            except Exception:raise Refused('RECONCILE_FAILED') from None
         else:window.record(layout,args.run_id,args.kind,args.evidence)
         return
     if args.action=="init":layout.initialize();emit("layout_initialized");return

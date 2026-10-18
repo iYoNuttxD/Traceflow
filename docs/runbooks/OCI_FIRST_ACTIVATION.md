@@ -448,3 +448,118 @@ A consulta de leitura no HeatWave confirmou identidade completa e role exatas
 com a conversão. O capturador restaura o CAST já usado na captura v3 da OCI-07.9;
 a comparação permanece exata e a expansão/auditoria dos grants continua obrigatória.
 Não decodificar representações alternativas, aceitar roles extras nem ignorar a falha.
+
+### Reconciliação explícita da primeira recuperação incompleta
+
+Na tentativa `ebf3b86d74664e048b2dfb82eb98ee37`, o controlador recusou
+`FRONTEND_SMOKE` na fase `public-cutover`. A recuperação registrou somente
+`public-page` como controle incompleto. A investigação confirmou que o Cloudflare
+acrescentava o beacon de Web Analytics ao HTML, inclusive à página temporária:
+723 bytes entregues contra 356 bytes originais. Após a alteração autorizada para
+**Enable with JS Snippet installation**, sem instalar snippet, as duas respostas
+HTTPS verificadas passaram a ter os 356 bytes e o SHA-256 original
+`813c28209cbe1fdd2f1744dc5968906f3c982a912f7f5913c11422a97202809f`.
+Isso comprova a causa da divergência do controle `public-page`. O recibo genérico
+`FRONTEND_SMOKE` não identifica isoladamente qual de suas condições falhou durante
+o cutover; não apresentar essa hipótese como uma segunda causa comprovada.
+DNS, TLS, WAF, cache e outras configurações não fazem parte dessa correção.
+
+O novo comando manual `reconcile-first` trata exclusivamente esse tipo de falha:
+primeira publicação, sem release anterior, falha `FRONTEND_SMOKE/public-cutover`,
+recuperação `INTERVENTION_REQUIRED` com `failedControls: ["public-page"]`,
+`dataPreserved: true` e `schemaRestored: false`. Outros casos continuam bloqueados.
+Não executar esse comando da árvore de desenvolvimento na VM. A implementação
+local precisa de revisão, autorização de uma nova versão committed do controlador
+e instalação isolada antes de qualquer uso operacional. A release `401f130` e o
+estado de produção não são modificados pela implementação ou por seus testes.
+
+**Autorização própria e curta.** O documento root `0600`, em caminho absoluto com
+ancestrais protegidos, tem exatamente os seguintes campos, sem duplicatas:
+
+| Campo                                          | Contrato                                                                                                             |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `formatVersion`                                | Inteiro `1`                                                                                                          |
+| `operation`                                    | `reconcile-first`                                                                                                    |
+| `authorizationId`, `reconciliationId`, `runId` | Identificadores hexadecimais de 32 caracteres; `runId` é o da tentativa interrompida                                 |
+| `operatorId`                                   | Responsável identificado, 3–80 caracteres do conjunto alfanumérico, ponto, sublinhado, arroba e hífen                |
+| `releaseId`, `descriptorSha256`                | Release histórica e descritor exatos, cuja instalação será verificada novamente                                      |
+| `issuedAt`, `expiresAt`                        | UTC com `Z`, sem futuro, duração máxima de 600 segundos                                                              |
+| `historySha256`                                | SHA-256 do inventário canônico de caminhos relativos e hashes dos bytes de todos os arquivos históricos da tentativa |
+| `stateSha256`                                  | SHA-256 do estado autoritativo codificado pelo `encoded()` oficial                                                   |
+| `externalWritersExcluded`                      | `true` somente após exclusão operacional efetiva de outros escritores                                                |
+
+Não existe `force`, `skip`, desbloqueio ou autorização automática. Não reutilizar a
+autorização antiga da ativação: ela é validada somente como evidência histórica.
+A autorização de reconciliação não autoriza ativação nem renova backup ou política.
+
+Sob o mesmo `operation.lock` usado pelos outros procedimentos, o comando exige:
+
+- integridade do par instalado e de todo o histórico, sem symlinks/hardlinks,
+  alterações, recibos contraditórios ou sucesso anterior;
+- API/worker parados, ausência de escritores Node não gerenciados, serviços da
+  janela/backup/reconciliação e timer inativos, sem PID;
+- ausência dos links `current`/`previous` e da credencial temporária da ativação;
+- hashes originais dos ambientes, cinco arquivos Nginx e página temporária,
+  `nginx -t`, SELinux Enforcing e HTML HTTPS **exatamente** igual ao original;
+- auditoria administrativa somente leitura: CA/DNS/TLS/hostname/UUID/versão,
+  visibilidade de metadados, privilégios das contas runtime, quatro contas
+  bloqueadas, nenhuma sessão runtime ou outro cliente usando o schema e os 68
+  registros Prisma com nomes/checksums exatos, finalizados e sem rollback;
+- repetição das condições externas, expiração/concorrência/histórico e integridade
+  antes de gravar o resultado, com encerramento dos clientes e remoção comprovada
+  da credencial volátil primeiro.
+
+A senha existente é digitada somente no TTY protegido. O processo requer root,
+Oracle Linux ARM64 nativo, core dump desabilitado e `memory.swap.max=0` do cgroup.
+Usa exclusivamente `/run/traceflow-reconciliation/<reconciliationId>/admin.cnf`,
+com diretório `0700`, arquivo exclusivo `0600`, sem senha em argv, ambiente ou logs.
+Não consulta o Vault nem altera a custódia permanente. SIGTERM/timeout fecham os
+subprocessos e passam pela limpeza; um resíduo de SIGKILL é recusado sem reutilizar
+ou apagar automaticamente o arquivo. Exige revisão de custódia pelo operador.
+
+**Histórico imutável e repetição.** Os arquivos em `activations/<runId>/` são somente
+lidos. A reconciliação cria novos documentos em
+`reconciliations/<runId>/<reconciliationId>/`: cópia da autorização, intenção,
+recibos de auditoria exclusivos e conclusão. Os vínculos usam SHA-256 da codificação
+JSON canônica; alterações semânticas, campos desconhecidos e duplicatas são
+recusados. Os hashes do histórico, por sua vez, abrangem os bytes originais.
+A escrita exclusiva e `fsync` precedem a transição do estado e de seu guard dedicado.
+Nenhum arquivo Nginx, link, dado, migration ou recibo histórico é reescrito.
+
+Se houver interrupção entre intenção, estado, guard e conclusão, uma nova execução
+com a mesma autorização ainda válida repete toda a auditoria antes de completar.
+O marcador `reconciliationId` impede `activate-first` enquanto conclusão, auditoria,
+histórico e guard não coincidirem. Autorização expirada ou arquivo residual mantém
+o bloqueio; não há limpeza artificial. Uma operação já concluída é um no-op com
+`freshAudit: false`, inclusive após expiração: comprova somente a conclusão
+histórica, não a segurança atual nem autorização para iniciar a aplicação.
+
+**Procedimento futuro, ainda não autorizado nesta entrega:** revisar o diff e os
+testes, versionar/instalar um controlador aprovado sem substituir a release antiga,
+conferir condições reais, preparar os hashes e a autorização específica e executar
+manualmente o comando abaixo por Terminal protegido. Os valores entre `<...>`
+precisam ser substituídos por caminhos/identificadores revisados; não são um script
+pronto para execução e nenhum documento de autorização real foi gerado agora.
+
+```text
+sudo systemd-run --pty --wait --collect \
+  --unit=traceflow-reconcile-<reconciliationId> \
+  --property=MemorySwapMax=0 --property=LimitCORE=0 \
+  --property=RuntimeMaxSec=600 --property=KillMode=control-group \
+  --property=UMask=0077 \
+  /usr/bin/python3 -I -B <controlador-aprovado>/deploy/scripts/release.py \
+  reconcile-first --run-id <runId-historico> \
+  --authorization <arquivo-absoluto-root-0600>
+```
+
+Conferir o resultado sanitizado, os novos recibos e a preservação do inventário
+histórico. Não iniciar automaticamente nova ativação. Uma próxima publicação exige
+nova janela, gates atuais, backup recuperável correspondente e autorização própria.
+Não habilitar timer nem consumir ciclos de backup na reconciliação.
+
+A exclusão de outros operadores é uma premissa operacional, não um snapshot atômico
+entre MySQL, sistema de arquivos e HTTPS. Um administrador externo pode introduzir
+mudança após a última observação; o lock local não impede ações externas. Os testes
+locais usam sistema de arquivos/locks reais e fronteiras MySQL/systemd/HTTPS
+simuladas. Eles não homologam a nova operação no Linux de produção. Falhas de
+observação, interrupções e discrepâncias continuam impedindo a conclusão.
