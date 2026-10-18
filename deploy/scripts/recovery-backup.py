@@ -58,7 +58,7 @@ class Source:
         stopped();self.accounts.state(True,True)
         require(self.query("SELECT COUNT(*) FROM performance_schema.threads WHERE TYPE='FOREGROUND' AND PROCESSLIST_ID<>CONNECTION_ID() AND PROCESSLIST_DB='traceflow'")==['0'],'BACKUP_OTHER_SESSIONS')
 
-def capture(policy,auth_path):
+def capture(policy,auth_path,*,_maintenance=None):
     a=private_json(Path(auth_path).absolute())
     exact(a,{'formatVersion','backupId','issuedAt','expiresAt','releaseId','runtimeManifestSha256','configurationSha256',
              'operatorId','externalWritersControlled','maintenanceAuthorized','preActivation'},'BACKUP_AUTH_FIELDS')
@@ -72,8 +72,12 @@ def capture(policy,auth_path):
     release_id(a['releaseId']);manifest=verify_tree(release,'runtime',sha(a['runtimeManifestSha256']))
     require(manifest['sourceState']=='committed' and len(manifest['schema']['migrations'])==68,'BACKUP_RELEASE')
     state=private_json(Path('/opt/traceflow/shared/release-state/state.json'))
-    require(state['status']=='idle' and (state['current']==a['releaseId'] or
-            a['preActivation'] and state['current'] is None and state['phase'] in ('migration-complete','migration-recovered','first-activation-recovered')),'BACKUP_RELEASE_STATE')
+    if _maintenance is None:
+        require(state['status']=='idle' and (state['current']==a['releaseId'] or
+                a['preActivation'] and state['current'] is None and state['phase'] in ('migration-complete','migration-recovered','first-activation-recovered')),'BACKUP_RELEASE_STATE')
+    else:
+        from backup_maintenance import Lease
+        require(type(_maintenance) is Lease,'MAINTENANCE_LOCK_LEASE');_maintenance.check(a,state)
     if state['current']:
         require(os.readlink('/opt/traceflow/current')==str(release),'BACKUP_CURRENT_CHANGED')
     exact(a['configurationSha256'],CONFIGS,'BACKUP_CONFIG_INVENTORY')
@@ -82,7 +86,7 @@ def capture(policy,auth_path):
     destination=STATE/'sets'/a['backupId'];destination.mkdir(mode=0o700)
     scratch=Path('/run')/('traceflow-recovery-'+a['backupId']);scratch.mkdir(mode=0o700)
     try:
-        with exclusive_lock(Path('/opt/traceflow/shared/release-state/operation.lock')):
+        with (exclusive_lock(Path('/opt/traceflow/shared/release-state/operation.lock')) if _maintenance is None else contextlib.nullcontext()):
             require(private_json(Path('/opt/traceflow/shared/release-state/state.json'))==state,'BACKUP_STATE_CHANGED')
             source.quiescent();accounts.audit(True);before=snapshot_impl(source);deadline.check()
             require(sum(x['count'] for x in before['data'].values())<=100000,'BACKUP_DATASET_REVIEW')

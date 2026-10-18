@@ -1,22 +1,27 @@
-# TEMPLATE ONLY. Installing/enabling requires a separate operational approval.
+# Install only from a verified release; replace @TRACEFLOW_RELEASE@ with its absolute path.
+# Timer remains disabled until a real supervised receipt and recurring-window approval.
 [Unit]
-Description=TraceFlow authorized maintenance backup (encrypted, no automatic deletion)
+Description=TraceFlow bounded recurring backup maintenance
 After=network-online.target
 Wants=network-online.target
+OnFailure=traceflow-recovery-alert.service
 
 [Service]
 Type=exec
 User=root
 UMask=0077
-Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/bin/python3 -I -B /opt/traceflow/current/deploy/scripts/recovery-backup.py periodic --policy /etc/traceflow/recovery-policy.json --authorization /run/traceflow-recovery/authorization.json
-RuntimeMaxSec=900
-TimeoutStopSec=30
+LoadCredentialEncrypted=oci-api-key:/etc/credstore.encrypted/traceflow-backup-oci-api-key
+ExecStart=/usr/bin/python3 -I -B @TRACEFLOW_RELEASE@/deploy/scripts/recovery-maintenance.py run
+ExecStopPost=/usr/bin/python3 -I -B @TRACEFLOW_RELEASE@/deploy/scripts/recovery-maintenance.py finalize
+RuntimeMaxSec=600
+TimeoutStopSec=600
 KillMode=control-group
 LimitCORE=0
 Restart=no
 NoNewPrivileges=yes
 ProtectHome=yes
 PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/traceflow/shared/release-state /opt/traceflow/shared/release-guard /var/lib/traceflow-recovery /run
 StandardOutput=journal
 StandardError=null

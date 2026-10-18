@@ -32,6 +32,30 @@ class ReleaseTests(unittest.TestCase):
         self.layout=ops.Layout(str(self.root));self.layout.initialize()
     def tearDown(self):
         self.env.stop();self.temp.cleanup()
+    def test_dedicated_guard_is_atomic_and_legacy_preserved(self):
+        state=self.layout.load();state['phase']='migration-complete';self.layout.save(state)
+        self.assertEqual(self.layout.guard,self.layout.app/'shared/release-guard/release-guard.json')
+        legacy=self.layout.app/'release-guard.json';legacy.write_bytes(self.layout.guard.read_bytes());legacy.chmod(0o644)
+        before=legacy.read_bytes();self.layout.guard.unlink();self.layout.prepare_guard()
+        self.assertEqual(legacy.read_bytes(),before);self.assertEqual(self.layout.guard.read_bytes(),before)
+        self.layout.prepare_guard();self.assertEqual(legacy.read_bytes(),before)
+        state['phase']='later';self.layout.save(state)
+        self.assertEqual(legacy.read_bytes(),before);self.assertEqual(c.read_json(self.layout.guard)['phase'],'later')
+    def test_guard_relocation_refuses_diverged_legacy(self):
+        c.atomic_json(self.layout.app/'release-guard.json',{'status':'wrong'},0o644)
+        with self.assertRaisesRegex(c.Refused,'LEGACY_GUARD_DIVERGED'):self.layout.prepare_guard()
+    def test_guard_relocation_refuses_pending_operation(self):
+        state=self.layout.load();state['status']='in-progress';self.layout.save(state)
+        with self.assertRaisesRegex(c.Refused,'GUARD_OPERATION_ACTIVE'):self.layout.prepare_guard()
+    def test_missing_guard_directory_never_changes_state(self):
+        before=(self.layout.state/'state.json').read_bytes();self.layout.guard.unlink();self.layout.guard.parent.rmdir()
+        with self.assertRaises(c.Refused):self.layout.save({'status':'unexpected'})
+        self.assertEqual((self.layout.state/'state.json').read_bytes(),before)
+    def test_guard_symlink_refused_before_state_write(self):
+        before=(self.layout.state/'state.json').read_bytes();folder=self.layout.guard.parent;self.layout.guard.unlink();folder.rmdir()
+        alternative=self.layout.app/'alternate';alternative.mkdir();folder.symlink_to(alternative)
+        with self.assertRaisesRegex(c.Refused,'SYMLINK_PATH'):self.layout.save({'status':'unexpected'})
+        self.assertEqual((self.layout.state/'state.json').read_bytes(),before)
     def fixture(self,n=1,asset=None):
         rid="20261014T210000Z-"+"a"*40+"-"+f"{n:012x}"
         source=self.root/f"fixture-{n}";runtime=source/"runtime";admin=source/"admin"

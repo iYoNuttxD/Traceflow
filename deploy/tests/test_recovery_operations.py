@@ -101,7 +101,10 @@ class RecoveryTests(unittest.TestCase):
         with self.assertRaisesRegex(archive.Refused,'TARGET_EXISTS'):archive.unpack(p,self.root/'restore-synthetic',outer)
     def test_timer_is_only_a_template_and_requires_fresh_maintenance(self):
         service=(ROOT/'deploy/systemd/traceflow-recovery-backup.service').read_text()
-        self.assertIn('--authorization /run/traceflow-recovery/authorization.json',service)
+        self.assertIn('recovery-maintenance.py run',service)
+        self.assertNotIn('ReadWritePaths=/opt/traceflow ',service)
+        self.assertIn('/opt/traceflow/shared/release-guard ',service)
+        self.assertIn('ExecStopPost=',service)
         self.assertNotIn('systemctl stop',service);self.assertNotIn('ACCOUNT UNLOCK',service)
         self.assertIn('Persistent=false',(ROOT/'deploy/systemd/traceflow-recovery-backup.timer').read_text())
 if __name__=='__main__':unittest.main()

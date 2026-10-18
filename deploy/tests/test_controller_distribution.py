@@ -25,7 +25,17 @@ class DistributionTests(unittest.TestCase):
         (self.root/'new/deploy/scripts/release.py').write_text('tampered')
         with self.assertRaisesRegex(c.Refused,'SOURCE_INTEGRITY'):self.validate()
     def test_all_operational_helpers_are_distributed(self):
-        for name in ('activation_contract','activation_window','activation_accounts','runtime_grants','operational_io','recovery_policy','recovery_snapshot','recovery_archive'):
+        for name in ('activation_contract','activation_window','activation_accounts','runtime_grants','operational_io','recovery_policy','recovery_snapshot','recovery_archive','backup_maintenance','backup_runtime','backup_secrets'):
             self.assertIn('deploy/lib/'+name+'.py',p.RECIPES)
         self.assertIn('deploy/scripts/recovery-backup.py',p.RECIPES)
+    def test_maintenance_and_recovery_cannot_write_release_parent(self):
+        expected='/opt/traceflow/shared/release-state /opt/traceflow/shared/release-guard /var/lib/traceflow-recovery /run'
+        for name in ('traceflow-recovery-backup.service','traceflow-recovery-reconcile.service'):
+            text=(ROOT/'deploy/systemd'/name).read_text()
+            with self.subTest(unit=name):
+                self.assertIn('ProtectSystem=strict\n',text)
+                self.assertIn('ReadWritePaths='+expected+'\n',text)
+                self.assertNotIn('ReadWritePaths=/opt/traceflow ',text)
+                self.assertIn('LimitCORE=0\n',text)
+                self.assertIn('LoadCredentialEncrypted=oci-api-key:',text)
 if __name__=='__main__':unittest.main()

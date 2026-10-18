@@ -54,12 +54,12 @@ class Layout:
         self.app=self.root/"opt/traceflow";self.releases=self.app/"releases"
         self.admin=self.app/"administration";self.state=self.app/"shared/release-state"
         self.catalog=self.state/"catalog";self.web=self.root/"var/www/traceflow"
-        self.generations=self.web/"generations";self.guard=self.app/"release-guard.json"
+        self.generations=self.web/"generations";self.guard=self.app/"shared/release-guard/release-guard.json"
     def initialize(self):
         # Existing OCI-04 parents must already be protected. No broad chmod/chown.
         for p in (self.app,self.releases,self.app/"shared",self.web):
             trusted_path(p,directory=True,uid=os.geteuid())
-        for p,mode in ((self.admin,0o700),(self.state,0o700),(self.catalog,0o700),(self.generations,0o755)):
+        for p,mode in ((self.admin,0o700),(self.state,0o700),(self.catalog,0o700),(self.generations,0o755),(self.guard.parent,0o755)):
             p.mkdir(exist_ok=True,mode=mode);trusted_path(p,directory=True,uid=os.geteuid())
             require(p.stat().st_mode&0o777==mode,"DIRECTORY_MODE")
         if not (self.state/"state.json").exists():
@@ -69,9 +69,25 @@ class Layout:
         trusted_path(self.state,directory=True,uid=os.geteuid())
         return private_json(self.state/"state.json")
     def save(self,state):
+        trusted_path(self.guard.parent,directory=True,uid=os.geteuid())
+        require(self.guard.parent.stat().st_mode&0o777==0o755,"GUARD_DIRECTORY_MODE")
         atomic_json(self.state/"state.json",state)
         guard={k:state.get(k) for k in ("status","phase","current","target","bootId","pid","processStart","expiresAt","runId","operation")}
         atomic_json(self.guard,guard,0o644)
+    def prepare_guard(self):
+        # Explicit installation step. Never overwrite the old release's guard.
+        with exclusive_lock(self.state/"operation.lock"):
+            state=self.load();require(state['status']=='idle','GUARD_OPERATION_ACTIVE')
+            self.current_matches(state)
+            expected={k:state.get(k) for k in ("status","phase","current","target","bootId","pid","processStart","expiresAt","runId","operation")}
+            legacy=self.app/"release-guard.json"
+            if legacy.exists():
+                trusted_path(legacy,uid=os.geteuid());require(read_json(legacy)==expected,'LEGACY_GUARD_DIVERGED')
+            parent=self.guard.parent;parent.mkdir(mode=0o755,exist_ok=True)
+            trusted_path(parent,directory=True,uid=os.geteuid());require(parent.stat().st_mode&0o777==0o755,'GUARD_DIRECTORY_MODE')
+            if self.guard.exists():require(read_json(self.guard)==expected,'GUARD_DIVERGED')
+            else:atomic_json(self.guard,expected,0o644)
+            return expected
     def installed(self,rid,expected=None):
         release_id(rid)
         rec=private_json(self.catalog/(rid+".json"))
@@ -325,7 +341,7 @@ def start_services(layout,state,rid,auth,db,public=True):
     return started
 def active_guard(service):
     require(service in SERVICES,"GUARD_SERVICE")
-    g=read_json(Path("/opt/traceflow/release-guard.json"))
+    g=read_json(Path("/opt/traceflow/shared/release-guard/release-guard.json"))
     require(g.get("phase") not in ("migration-complete","migration-recovered"),"POST_MIGRATION_ACTIVATION_REQUIRED")
     current=Path("/opt/traceflow/current")
     require(current.is_symlink(),"GUARD_CURRENT")
@@ -335,10 +351,11 @@ def active_guard(service):
     if g["status"]!="idle":
         require(g["status"]=="in-progress" and g.get("bootId")==boot_id() and proc_start(g["pid"])==g["processStart"],"INTERRUPTED_OPERATION")
         allowed={"starting-api","starting-worker"}
-        if g.get("operation")=="activate-first":
+        if g.get("operation") in ("activate-first","backup-maintenance"):
             from activation_contract import utc
             require(time.time()<utc(g["expiresAt"]),"ACTIVATION_WINDOW_EXPIRED")
-            allowed.update({"public-cutover","postchecks-pending","database-disconnected"})
+            if g.get("operation")=="activate-first":
+                allowed.update({"public-cutover","postchecks-pending","database-disconnected"})
         require(g.get("phase") in allowed and (service!=SERVICES[1] or g["phase"]!="starting-api"),"GUARD_PHASE")
 
 def activate(layout,args,operation):
@@ -505,7 +522,7 @@ def prune(layout,args):
 def main():
     p=argparse.ArgumentParser();p.add_argument("--root",default="/")
     sub=p.add_subparsers(dest="action",required=True)
-    sub.add_parser("init");sub.add_parser("status")
+    sub.add_parser("init");sub.add_parser("status");sub.add_parser("prepare-guard")
     guard=sub.add_parser("guard");guard.add_argument("service")
     for name in ("verify","stage"):
         s=sub.add_parser(name);s.add_argument("--descriptor",required=True);s.add_argument("--digest",required=True)
@@ -537,6 +554,8 @@ def main():
         else:window.record(layout,args.run_id,args.kind,args.evidence)
         return
     if args.action=="init":layout.initialize();emit("layout_initialized");return
+    if args.action=="prepare-guard":
+        native_context(layout);layout.prepare_guard();emit("guard_prepared",legacyPreserved=True);return
     if args.action=="status":emit("release_status",**layout.load());return
     if args.action=="stage":stage(layout,args.descriptor,args.digest);return
     if args.action=="prune":prune(layout,args);return

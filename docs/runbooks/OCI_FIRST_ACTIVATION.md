@@ -338,3 +338,88 @@ replay foi recusado antes de nova escrita, sem devolver a reserva de requests. O
 objetos sintéticos das duas tentativas com upload permanecem no bucket, sem exclusão,
 e ocupam menos de 1 MiB. São identificados no relatório; não substituem o backup real
 76e9f5a5b2394fcab7f189b4aac93dbc nem justificam gates de restauração adicionais.
+
+## Correção do ciclo periódico de manutenção
+
+O timer passa a invocar `recovery-maintenance.py run`, e não `periodic` diretamente.
+`periodic` continua sendo a captura/publicação para uma janela já preparada; sozinho
+não para escritores, administra contas nem recupera o estado anterior.
+
+O novo ciclo usa os locks oficiais de operação da release e de recuperação, nessa
+ordem. Registra a reserva da execução e o journal antes de parar API/worker; audita
+identidade e permissões, aguarda o encerramento das sessões, bloqueia as contas de
+runtime e repete as verificações de quiescência. A autorização de captura é derivada
+da política assinada operacionalmente pelo operador, vinculada aos hashes reais
+sob custódia root, e não de evidência fictícia de backup. A captura mantém o formato
+v3, age, publicação privada e download de conferência existentes. Não altera schema.
+
+A recuperação independente (`finalize`/`recover`) consulta o journal, contém
+processos, audita novamente contas/estado/cadeia e só reinicia serviços que estavam
+ativos antes do ciclo. A primeira publicação, ainda sem `current`, permanece parada
+com contas bloqueadas. Falhas na recuperação deixam o guard bloqueado, um `ALERT.json`
+durável e mensagem crítica no journal; não executam rollback de schema. Scratch de
+captura interrompida ou autorização de capacidade residual exigem revisão explícita,
+sem limpeza por prefixo. Dois snapshots não comprovam ausência de escritores externos;
+a exclusão operacional desses escritores continua sendo uma premissa autorizada.
+
+### Custódia para autenticação recorrente
+
+A senha MySQL não fica em `.env` ou credencial cifrada persistente na VM. O mecanismo
+aprovado é um segredo versionado do OCI Secret Management, obtido sob demanda por
+usuário IAM dedicado, sem senha de Console, com leitura de **um único OCID de segredo**.
+O instance principal existente permanece exclusivo do acesso ao bucket. Não há novo
+acesso ao segredo pelo dynamic group nem alteração de IMDS/firewall: agentes OCI não
+root são consumidores legítimos de IMDS.
+
+A API signing key técnica é persistida cifrada por `systemd-creds` e entregue como
+`oci-api-key` via `LoadCredentialEncrypted`. Sem TPM, root pode decifrar essa chave e
+obter o segredo; isso não é isolamento contra root comprometido. A chave privada age
+de recuperação permanece fora da VM. A senha obtida é mantida apenas em memória e
+arquivo root `0600` sob `/run`, fechado/removido ao terminar; os limites de core e a
+sanitização operacional permanecem obrigatórios. O processo não imprime o bundle,
+a senha ou stderr bruto. Revogar a API key ou a policy interrompe novas obtenções.
+
+A referência na política possui campos fechados: `provider: oci-secret-api-key`,
+`secretId`, `versionNumber` positivo e `identity` com `userId`, `tenancyId` e
+`fingerprint`. O bundle deve corresponder exatamente ao OCID/versão; seu conteúdo
+BASE64 decodifica JSON estrito com `formatVersion: 1`, `user: traceflow_admin` e
+`password`. Duplicatas, campos adicionais, caracteres de controle, versão/identidade
+incorretas e ausência da credencial systemd são recusados. Não há fallback para
+instance principal ou outra fonte de senha.
+
+### Instalação e execução manual antes do timer
+
+Ainda requer release committed, staging verificado e autorização operacional. Não
+copiar um controlador solto por cima da release instalada. Depois de instalar a nova
+release, executar seu `release.py prepare-guard`: ele prepara exclusivamente
+`/opt/traceflow/shared/release-guard/release-guard.json`, mantendo o guard legado e
+recusando divergência/estado não idle. O serviço escreve somente nos diretórios de
+estado, guard dedicado, recuperação e `/run`; releases, administration e current
+continuam somente leitura na sandbox.
+
+Instalar os templates de backup, recuperação e alerta com o caminho absoluto da
+nova release. Manter o timer desabilitado. A política root `0600` em
+`/etc/traceflow/maintenance-policy.json` deve vincular release/manifestos, configurações,
+política de backup, identidade IAM e versão do segredo. A autorização aprovada nesta
+etapa permite até sete ciclos, às 03:00 UTC, janela de início de 300 segundos,
+captura/publicação de até 600 segundos e recuperação de até 600 segundos adicionais.
+Não equivale a delegação ilimitada ou renovação automática; renovar a política requer
+revisão explícita, sem nova entrada semanal de senha.
+
+O ensaio supervisionado usa uma unidade separada `traceflow-recovery-supervised.service`
+com a mesma custódia/sandbox, executando `recovery-maintenance.py run --mode supervised
+--authorization /caminho/absoluto/root/authorization.json`. A autorização é específica,
+ligada ao hash da política e válida por no máximo dez minutos. Cada operação exige
+invocação manual; não gerar aprovação operacional de ensaio que não aconteceu.
+
+O timer só pode ser habilitado após recibo real `COMPLETE` do ensaio sob a mesma
+política, `backupVerified: true`, `credentialClosed: true` e autorização de janela.
+Também exige aplicação já publicada no início da execução recorrente; nunca a inicia
+antecipadamente. `ExecStopPost` finaliza interrupções e a unidade reconcile trata
+journal pendente após boot. Falha de encerramento não concede PASS.
+
+Os limites existentes permanecem: 8 GiB, 16 conjuntos de no máximo 512 MiB,
+1.000 requests/mês e retenção de 14 dias sujeita a revisão. Não há exclusão automática
+nem permissão OCI de DELETE/overwrite. Ao atingir capacidade, recusar e alertar;
+não prometer backup indefinido sem revisão de retenção. Recibos de fixtures e ensaios
+locais não substituem o ciclo real supervisionado nem a homologação da publicação.

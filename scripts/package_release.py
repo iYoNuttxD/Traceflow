@@ -25,6 +25,9 @@ RECIPES=("scripts/package-release.mjs","scripts/package_release.py","deploy/lib/
          "deploy/lib/operational_io.py","deploy/lib/runtime_grants.py","deploy/lib/activation_contract.py",
          "deploy/lib/activation_accounts.py","deploy/lib/activation_window.py","deploy/lib/recovery_policy.py",
          "deploy/lib/recovery_snapshot.py","deploy/lib/recovery_archive.py","deploy/scripts/recovery-backup.py",
+         "deploy/lib/backup_maintenance.py","deploy/lib/backup_runtime.py","deploy/lib/backup_secrets.py",
+         "deploy/scripts/recovery-maintenance.py",
+         "deploy/systemd/traceflow-recovery-reconcile.service","deploy/systemd/traceflow-recovery-alert.service",
          "deploy/systemd/traceflow-recovery-backup.service","deploy/systemd/traceflow-recovery-backup.timer")
 def command(args,cwd=None,env=None):
     r=subprocess.run(args,cwd=cwd,env=env,capture_output=True)
