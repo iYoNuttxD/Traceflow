@@ -423,3 +423,15 @@ Os limites existentes permanecem: 8 GiB, 16 conjuntos de no máximo 512 MiB,
 nem permissão OCI de DELETE/overwrite. Ao atingir capacidade, recusar e alertar;
 não prometer backup indefinido sem revisão de retenção. Recibos de fixtures e ensaios
 locais não substituem o ciclo real supervisionado nem a homologação da publicação.
+
+### Compatibilidade do guard histórico na instalação
+
+O preflight real encontrou o guard da OCI-07.4 com exatamente sete campos:
+`status`, `phase`, `current`, `target`, `bootId`, `pid` e `processStart`.
+`prepare-guard` reconhece esse formato fechado somente se todos esses valores
+coincidirem com o estado autoritativo `idle` e os três campos novos
+(`expiresAt`, `runId`, `operation`) estiverem ausentes/nulos nesse estado.
+Formatos parciais, campos extras, divergências e operações pendentes são recusados.
+O guard legado e o state não são reescritos; a nova projeção é criada apenas no
+diretório dedicado, com criação/repetição verificável. O formato completo atual
+continua exigindo igualdade integral.

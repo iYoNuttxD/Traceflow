@@ -82,7 +82,14 @@ class Layout:
             expected={k:state.get(k) for k in ("status","phase","current","target","bootId","pid","processStart","expiresAt","runId","operation")}
             legacy=self.app/"release-guard.json"
             if legacy.exists():
-                trusted_path(legacy,uid=os.geteuid());require(read_json(legacy)==expected,'LEGACY_GUARD_DIVERGED')
+                trusted_path(legacy,uid=os.geteuid());observed=read_json(legacy)
+                # OCI-07.4 wrote exactly these seven fields. New operation fields
+                # may be absent only in that complete historical shape and only
+                # when the authoritative idle state has no values for them.
+                additions={'expiresAt','runId','operation'}
+                historical={k:v for k,v in expected.items() if k not in additions}
+                require(observed==expected or observed==historical and
+                        all(expected[k] is None for k in additions),'LEGACY_GUARD_DIVERGED')
             parent=self.guard.parent;parent.mkdir(mode=0o755,exist_ok=True)
             trusted_path(parent,directory=True,uid=os.geteuid());require(parent.stat().st_mode&0o777==0o755,'GUARD_DIRECTORY_MODE')
             if self.guard.exists():require(read_json(self.guard)==expected,'GUARD_DIVERGED')

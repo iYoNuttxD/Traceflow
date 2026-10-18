@@ -41,6 +41,52 @@ class ReleaseTests(unittest.TestCase):
         self.layout.prepare_guard();self.assertEqual(legacy.read_bytes(),before)
         state['phase']='later';self.layout.save(state)
         self.assertEqual(legacy.read_bytes(),before);self.assertEqual(c.read_json(self.layout.guard)['phase'],'later')
+    def historical_guard(self):
+        state=self.layout.load();state['phase']='migration-complete';self.layout.save(state)
+        expected=c.read_json(self.layout.guard)
+        historical={k:v for k,v in expected.items() if k not in ('expiresAt','runId','operation')}
+        self.layout.guard.unlink();self.layout.guard.parent.rmdir()
+        legacy=self.layout.app/'release-guard.json';c.atomic_json(legacy,historical,0o644)
+        return legacy,historical,expected
+    def test_guard_relocation_accepts_exact_seven_field_historical_shape(self):
+        legacy,historical,expected=self.historical_guard()
+        before=legacy.read_bytes();state=(self.layout.state/'state.json').read_bytes()
+        self.assertEqual(len(historical),7)
+        self.assertEqual(self.layout.prepare_guard(),expected)
+        self.assertEqual(c.read_json(self.layout.guard),expected)
+        self.assertEqual(legacy.read_bytes(),before)
+        self.assertEqual((self.layout.state/'state.json').read_bytes(),state)
+        self.layout.prepare_guard();self.assertEqual(legacy.read_bytes(),before)
+    def test_historical_guard_rejects_divergence_in_every_legacy_field(self):
+        legacy,historical,_=self.historical_guard()
+        for key in historical:
+            with self.subTest(key=key):
+                c.atomic_json(legacy,dict(historical,**{key:'unexpected'}),0o644)
+                with self.assertRaisesRegex(c.Refused,'LEGACY_GUARD_DIVERGED'):self.layout.prepare_guard()
+                self.assertFalse(self.layout.guard.parent.exists())
+    def test_historical_guard_rejects_missing_extra_or_partial_shapes(self):
+        legacy,historical,_=self.historical_guard()
+        variants=[{k:v for k,v in historical.items() if k!=removed} for removed in historical]
+        variants += [dict(historical,unknown=None)]
+        variants += [dict(historical,**{key:None}) for key in ('expiresAt','runId','operation')]
+        for value in variants:
+            with self.subTest(value=value):
+                c.atomic_json(legacy,value,0o644)
+                with self.assertRaisesRegex(c.Refused,'LEGACY_GUARD_DIVERGED'):self.layout.prepare_guard()
+                self.assertFalse(self.layout.guard.parent.exists())
+    def test_historical_guard_cannot_hide_operation_fields(self):
+        legacy,_,_=self.historical_guard();state=self.layout.load()
+        for key,value in (('expiresAt','2026-10-18T03:00:00Z'),('runId','a'*32),('operation','backup-maintenance')):
+            with self.subTest(key=key):
+                c.atomic_json(self.layout.state/'state.json',dict(state,**{key:value}))
+                with self.assertRaisesRegex(c.Refused,'LEGACY_GUARD_DIVERGED'):self.layout.prepare_guard()
+                self.assertFalse(self.layout.guard.parent.exists())
+    def test_historical_guard_refuses_conflicting_new_guard_without_overwrite(self):
+        legacy,_,_=self.historical_guard();before=legacy.read_bytes()
+        self.layout.guard.parent.mkdir(mode=0o755);c.atomic_json(self.layout.guard,{'status':'wrong'},0o644)
+        new_before=self.layout.guard.read_bytes()
+        with self.assertRaisesRegex(c.Refused,'GUARD_DIVERGED'):self.layout.prepare_guard()
+        self.assertEqual(legacy.read_bytes(),before);self.assertEqual(self.layout.guard.read_bytes(),new_before)
     def test_guard_relocation_refuses_diverged_legacy(self):
         c.atomic_json(self.layout.app/'release-guard.json',{'status':'wrong'},0o644)
         with self.assertRaisesRegex(c.Refused,'LEGACY_GUARD_DIVERGED'):self.layout.prepare_guard()
