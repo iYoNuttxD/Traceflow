@@ -269,3 +269,72 @@ Os adaptadores OCI seguem as opções oficiais de
 [download](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/os/object/get.html).
 A documentação não substitui o teste do binário instalado. Evidências e resultados desta
 entrega ficam em `build/oci-deploy-07-10/REPORT.txt`; histórico07.9 preservado integralmente.
+
+## Atualização OCI-07.11 — ensaios operacionais e staging
+
+Os registros da 07.10 acima descrevem aquela entrega. A 07.11 validou o transporte
+incremental em MySQL Community 26.7.0 novo e descartável no Mac, com identidade própria,
+TLS estrito, contas sintéticas, transições LOCK/UNLOCK, erro SQL, interrupção, timeout,
+relock em nova sessão e ausência de sessões remanescentes. Foram 24 verificações reais.
+Não houve acesso ao HeatWave nem desbloqueio de contas de produção.
+
+O ensaio revelou duas falhas no encerramento: a corrida entre saída do cliente e
+sinalização do grupo no macOS e o flush de stdin após interrupção. O controlador agora
+exige comprovação de término antes de aceitar a corrida, mantém falha para processo vivo
+não encerrável, sanitiza o pipe quebrado e não deixa o fechamento de um pipe já rompido
+ocultar a falha primária. Nenhum erro SQL passa a ser sucesso.
+
+O Nginx 1.20.1 foi exercitado no Lima Oracle Linux 9.8 aarch64 com o binário público de
+mesmo hash da VM, templates revisados e funções reais snapshot/test/cutover/recover.
+Foram 44 verificações: recuperação antes e depois dos links, troca parcial dos arquivos,
+antes do reload, após cutover, falha de testes públicos, morte do controlador e recusa de
+candidato inválido. HTTP/TLS/proxy eram reais e exclusivamente loopback; páginas, API,
+worker, conta e sentinelas de banco/evidências eram sintéticos. A chamada independente
+de recuperação complementa os quatro ensaios systemd da 07.10; não representa um
+webhook, upload funcional, Cloudflare ou rollback de schema em produção.
+
+Com autorização específica foram instalados age 1.3.2 e OCI CLI 3.95.0 em diretórios
+isolados `/opt/traceflow-tools/age-1.3.2` e `/opt/traceflow-tools/oci-3.95.0`, primeiro no
+Lima e depois na VM. As dependências foram fixadas, transportadas por hash e instaladas
+offline na VM, sem atualizar Python global. O dynamic group `traceflow-recovery-writer`
+seleciona somente a instância traceflow-app. A política `traceflow-recovery-object-storage`
+permite consultar o bucket/listar objetos e criar/ler somente `backups/*`, sem excluir ou
+sobrescrever. Instance principal pertence à instância: não isola processos por usuário
+Unix. A chave privada de recuperação continua fora da VM. Não há novo PAR nem API key.
+
+A CLI 3.95.0 em protocolo de pipes escreve rótulos estáticos de progresso em stderr.
+`oci()` aceita somente `Uploading object\n` para object put e `Downloading object\n`
+para object get, além de stderr vazio, com exit zero. Qualquer byte adicional, mensagem
+em outra operação ou saída não zero é recusado. O restante de `tool()` continua recusando
+stderr por padrão. ETag, SHA-256, tamanho, no-overwrite, no-multipart, orçamento e retenção
+continuam obrigatórios. Testes não devem substituir warnings reais por um rótulo aceito.
+
+Os resultados finais, hashes, IDs sintéticos e limites efetivamente consumidos estão em
+`build/oci-deploy-07-11/REPORT.txt`. Objetos de ensaio são cifrados e identificados como
+sintéticos; não são backups de produção nem recibos de restauração do banco. A tentativa
+que criou um objeto e falhou antes do recibo continua FAIL. Não apagar objetos parciais
+nem reutilizar seu ID automaticamente. Listagem/colisão impedem publicação duplicada.
+
+A release 4f0ae9 é preservada, mas não deve ser ativada sem as correções mínimas da 07.11.
+O staging deve usar novo par committed após revisão e commit local especificamente
+autorizado. A receita repack-controller valida igualdade das fontes da aplicação e
+reutiliza os componentes ARM64 íntegros; não altera Prisma, schema ou as 68 migrations.
+Checksums e release ID definitivos são os do relatório 07.11, nunca os da candidata.
+
+Antes da publicação, executar o procedimento único desta página com o controlador do
+novo staging e autorização fresca. Não executar migrations, init ou activate legado.
+Conferir readiness/heartbeat antes do cutover, depois HTTPS/SPA/assets/negações públicas;
+GitHub, upload/download de 100 MiB em partes e smoke funcional exigem evidências reais
+na janela. Ausência de evidência, prazo encerrado ou desconexão incompleta exige
+recuperação. O staging e os ensaios não autorizam activate-first, desbloqueio ou testes
+funcionais em produção. Timer/política de backup de manutenção continuam sujeitos à
+aprovação operacional; a instalação das ferramentas não habilitou rotina periódica.
+
+O ensaio real do adaptador terminou com 12 verificações aprovadas no Oracle Linux ARM64
+mais a decriptação dos dois readbacks no Mac com chave sintética externa. A primeira
+falha revelou somente os rótulos de progresso acima; uma fixture subsequente com ID
+inválido foi recusada antes do upload. O conjunto final usou ID novo, gerado como UUID;
+replay foi recusado antes de nova escrita, sem devolver a reserva de requests. Os quatro
+objetos sintéticos das duas tentativas com upload permanecem no bucket, sem exclusão,
+e ocupam menos de 1 MiB. São identificados no relatório; não substituem o backup real
+76e9f5a5b2394fcab7f189b4aac93dbc nem justificam gates de restauração adicionais.

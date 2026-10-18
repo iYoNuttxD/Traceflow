@@ -97,7 +97,8 @@ class TextSession:
         self.closed=False
     def query(self,plan):
         end=('TF_W02_'+plan[-1]['id']+'_END\t').encode();data=bytearray()
-        self.p.stdin.write(sql_frames(plan).encode());self.p.stdin.flush()
+        try:self.p.stdin.write(sql_frames(plan).encode());self.p.stdin.flush()
+        except (BrokenPipeError,ConnectionResetError):require(False,'ADMIN_SESSION_FAILED')
         deadline=time.monotonic()+30
         while True:
             require(time.monotonic()<deadline,'ADMIN_SESSION_TIMEOUT')
@@ -117,11 +118,22 @@ class TextSession:
         finally:self.terminate()
     def terminate(self):
         if self.closed:return
-        if self.p.returncode is None:
-            with contextlib.suppress(ProcessLookupError):os.killpg(self.p.pid,signal.SIGKILL)
+        # Do not signal a group after its leader has been reaped/reused.
+        if self.p.poll() is None:
+            try:os.killpg(self.p.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            except PermissionError:
+                # Darwin may return EPERM after the group has disappeared while
+                # waitpid(WNOHANG) still reports no exit. Accept only a proved exit;
+                # a live/unreapable process remains a hard failure.
+                try:self.p.wait(5)
+                except subprocess.TimeoutExpired:require(False,'ADMIN_SESSION_TERMINATION')
             self.p.wait(5)
         self.selector.close();self.p.stdout.close();self.p.stderr.close()
-        if not self.p.stdin.closed:self.p.stdin.close()
+        if not self.p.stdin.closed:
+            # Abort cleanup may flush buffered input after the child has exited.
+            # This is never the normal close path and cannot turn a query into success.
+            with contextlib.suppress(BrokenPipeError,ConnectionResetError):self.p.stdin.close()
         self.closed=True
     def __enter__(self):return self
     def __exit__(self,kind,*_):

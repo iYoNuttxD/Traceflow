@@ -144,8 +144,11 @@ def capture(policy,auth_path):
         secure_read(credentials,0,4096,0o600);credentials.unlink();fsync_dir(credentials.parent)
 
 def oci(policy,args):
+    # OCI CLI 3.95.0 + Click emits exactly these static labels on piped stderr.
+    # Accept only a complete byte match on successful exit; never arbitrary warnings.
+    progress={('object','put'):b'Uploading object\n',('object','get'):b'Downloading object\n'}.get(tuple(args[:2]),b'')
     raw=tool([policy['oci'],'--auth','instance_principal','--region',REGION,'--no-retry','--connection-timeout','10',
-                        '--read-timeout','60','os',*args,'--namespace-name',NAMESPACE,'--bucket-name',BUCKET],timeout=90,maximum=2*1024*1024)
+                        '--read-timeout','60','os',*args,'--namespace-name',NAMESPACE,'--bucket-name',BUCKET],timeout=90,maximum=2*1024*1024,benign_stderr=progress)
     if args[:2]==['object','get']:
         require(not raw.strip() or unique(raw)=={'output':None},'OBJECT_GET_UNEXPECTED_OUTPUT');return None
     return unique(raw)

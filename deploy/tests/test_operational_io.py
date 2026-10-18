@@ -18,6 +18,20 @@ class IOTests(unittest.TestCase):
         for code in ('import sys; sys.stderr.write("synthetic-secret");sys.exit(1)','import sys;sys.stderr.write("synthetic-secret")'):
             with self.assertRaises(Refused) as error:tool([sys.executable,'-c',code])
             self.assertNotIn('synthetic-secret',str(error.exception))
+    def test_only_exact_reviewed_progress_is_accepted(self):
+        label=b'Uploading object\n'
+        for stderr,exitcode,allowed in [(label,0,True),(b'',0,True),(label+b'warning',0,False),(label,1,False),(b'Downloading object\n',0,False)]:
+            with self.subTest(stderr=stderr,exitcode=exitcode):
+                code='import sys;sys.stdout.write("{}\\n");sys.stderr.buffer.write('+repr(stderr)+');sys.exit('+str(exitcode)+')'
+                if allowed:self.assertEqual(tool([sys.executable,'-c',code],benign_stderr=label),b'{}\n')
+                else:
+                    with self.assertRaises(Refused):tool([sys.executable,'-c',code],benign_stderr=label)
+        with self.assertRaises(Refused):tool([sys.executable,'-c','import sys;sys.stderr.write("Uploading object\\n")'])
+    def test_bad_progress_contract_never_spawns(self):
+        for bad in ('Uploading object',b'x'*129):
+            with mock.patch('operational_io.subprocess.Popen') as spawn,self.assertRaisesRegex(Refused,'STDERR_CONTRACT'):
+                tool(['not-executed'],benign_stderr=bad)
+            spawn.assert_not_called()
     def test_limit_and_timeout(self):
         with self.assertRaisesRegex(Refused,'TOOL_OUTPUT_LIMIT'):tool([sys.executable,'-c','print("x"*1000)'],maximum=10)
         started=time.monotonic()
@@ -79,4 +93,45 @@ for line in sys.stdin:
             with self.assertRaisesRegex(Refused,'MUTATION_IDENTITY'):account.change('traceflow_api',False)
         self.assertEqual(session.query.call_count,1)
         self.assertNotIn('ALTER',str(session.query.call_args))
+    def test_text_session_exited_group_race_is_reaped(self):
+        client=TextSession.__new__(TextSession);client.closed=False
+        client.p=mock.Mock();client.p.poll.return_value=None
+        client.p.stdin.closed=False;client.selector=mock.Mock()
+        with mock.patch('activation_accounts.os.killpg',side_effect=PermissionError):client.terminate()
+        self.assertTrue(client.closed);client.p.wait.assert_called_with(5)
+        client.p.stdin.close.assert_called_once()
+    def test_text_session_live_unreapable_group_is_refused(self):
+        import subprocess
+        client=TextSession.__new__(TextSession);client.closed=False
+        client.p=mock.Mock();client.p.poll.return_value=None
+        client.p.wait.side_effect=subprocess.TimeoutExpired('synthetic',5);client.selector=mock.Mock()
+        with mock.patch('activation_accounts.os.killpg',side_effect=PermissionError),self.assertRaisesRegex(Refused,'ADMIN_SESSION_TERMINATION'):
+            client.terminate()
+        self.assertFalse(client.closed)
+    def test_text_session_reaped_pid_is_never_signaled(self):
+        client=TextSession.__new__(TextSession);client.closed=False
+        client.p=mock.Mock();client.p.poll.return_value=1
+        client.p.stdin.closed=False;client.selector=mock.Mock()
+        with mock.patch('activation_accounts.os.killpg') as kill:client.terminate()
+        kill.assert_not_called();self.assertTrue(client.closed)
+    def test_abort_broken_stdin_does_not_hide_primary_error(self):
+        client=TextSession.__new__(TextSession);client.closed=False
+        client.p=mock.Mock();client.p.poll.return_value=1
+        client.p.stdin.closed=False;client.p.stdin.close.side_effect=BrokenPipeError('synthetic secret')
+        client.selector=mock.Mock()
+        with self.assertRaisesRegex(Refused,'PRIMARY_SQL_FAILURE'):
+            with client:raise Refused('PRIMARY_SQL_FAILURE')
+        self.assertTrue(client.closed)
+    def test_dead_client_query_is_sanitized(self):
+        client=TextSession.__new__(TextSession);client.p=mock.Mock()
+        client.p.stdin.write.side_effect=BrokenPipeError('synthetic secret')
+        with self.assertRaisesRegex(Refused,'^ADMIN_SESSION_FAILED$'):client.query([MODEL['plan'][0]])
+    def test_real_client_sql_error_does_not_escape_cleanup(self):
+        script=self.root/'failed.py';script.write_text('import sys; sys.stdin.readline(); sys.stderr.write("synthetic SQL error"); sys.exit(1)')
+        fd=os.open(script,os.O_RDONLY)
+        try:
+            with self.assertRaisesRegex(Refused,'^ADMIN_SESSION_FAILED$'):
+                with TextSession([sys.executable,'-B',str(script)],fd) as client:client.query([MODEL['plan'][0]])
+        finally:os.close(fd)
+        self.assertTrue(client.closed);self.assertIsNotNone(client.p.returncode)
 if __name__=='__main__':unittest.main()

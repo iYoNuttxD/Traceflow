@@ -37,6 +37,13 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(mode,0o600);self.assertEqual(Path(p).stat().st_mode&0o777,0o600);return Path(p).read_bytes()
         with mock.patch.object(ops,'STATE',self.root),mock.patch.object(ops,'oci',side_effect=self.api),mock.patch.object(ops,'secure_read',side_effect=read):
             return ops.publish({},self.ident)
+    def test_cli_progress_allowance_is_bound_to_operation(self):
+        for operation,progress,response in [('put',b'Uploading object\n',b'{"etag":"synthetic"}'),('get',b'Downloading object\n',b''),('list',b'',b'{"data":[]}')]:
+            with mock.patch.object(ops,'tool',return_value=response) as invoke:
+                ops.oci({'oci':'/synthetic/oci'},['object',operation])
+            self.assertEqual(invoke.call_args.kwargs['benign_stderr'],progress)
+        with mock.patch.object(ops,'tool',return_value=b'{}') as invoke:ops.oci({'oci':'/synthetic/oci'},['bucket','get'])
+        self.assertEqual(invoke.call_args.kwargs['benign_stderr'],b'')
     def test_encrypted_upload_readback_catalog_and_no_delete(self):
         r=self.publish();self.assertEqual(r['status'],'BACKUP_EXTERNAL_READBACK_PASS');self.assertEqual(r['restore'],'NOT_REHEARSED')
         self.assertEqual([x[:2] for x in self.calls],[['bucket','get'],['object','list'],['object','put'],['object','get'],['object','put'],['object','get']])

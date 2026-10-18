@@ -38,7 +38,8 @@ def secure_read(path,uid=0,maximum=2*1024*1024,mode=None):
   require(len(data)<=maximum and identity_stat(before)==identity_stat(after)==identity_stat(path.lstat()),'SOURCE_CHANGED');return data
  except BaseException:raise
 
-def tool(args,input=None,timeout=60,pass_fds=(),output=None,maximum=16*1024**2):
+def tool(args,input=None,timeout=60,pass_fds=(),output=None,maximum=16*1024**2,benign_stderr=b''):
+ require(isinstance(benign_stderr,bytes) and len(benign_stderr)<=128,'TOOL_STDERR_CONTRACT')
  require(input is None or isinstance(input,bytes) and len(input)<=128*1024,'TOOL_INPUT_LIMIT')
  p=subprocess.Popen([str(x) for x in args],stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=ENV,pass_fds=pass_fds,start_new_session=True)
  sel=selectors.DefaultSelector();sel.register(p.stdout,selectors.EVENT_READ,'out');sel.register(p.stderr,selectors.EVENT_READ,'err')
@@ -68,7 +69,7 @@ def tool(args,input=None,timeout=60,pass_fds=(),output=None,maximum=16*1024**2):
      else:data+=b
   p.wait(timeout=max(1,deadline-time.monotonic()))
   group_pending=False
-  if p.returncode!=0 or err:
+  if p.returncode!=0 or bytes(err) not in (b'',benign_stderr):
    error=Refused('TOOL_FAILED_'+Path(args[0]).name.upper().replace('-','_'))
    if Path(args[0]).name in ('mysql','mysqldump'):
     found=re.search(rb'^ERROR ([1-9][0-9]{0,4}) \([A-Z0-9]{5}\)',bytes(err),re.M)
