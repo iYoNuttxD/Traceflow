@@ -9,6 +9,20 @@ import test_activation_window as previous
 from test_activation_window import ops,window,c,contract,manifest,stamp,ROOT
 from operational_io import private_write
 
+def environment_fixture(a):
+    state={'state':'inactive','pid':'0'}
+    return {'services':{n:dict(state) for n in ops.SERVICES},'units':{n:dict(state) for n in (
+        'traceflow-first-'+a['runId']+'.service','traceflow-recovery-backup.service','traceflow-recovery-reconcile.service','traceflow-recovery-backup.timer')},
+        'configurationSha256':a['configurationSha256'],'nginxSha256':a['nginx']['before'],
+        'localPageSha256':a['nginx']['temporaryPageSha256'],'public':{'status':200,'sha256':a['nginx']['temporaryPageSha256'],'bytes':356},
+        'selinux':'Enforcing','linksAbsent':True,'nginxTestExitCode':0}
+
+def database_fixture(m):
+    return {'serverIdentity':[contract.TARGET['serverUuid'],'26.7.0-cloud',3306,'traceflow','traceflow_admin@%','`administrator`@`%`',0],
+        'runtimeAudits':[{'account':u+'@10.20.1.184','tls':'TLSv1.3','privileges':'USAGE_GLOBAL_AND_SCHEMA_CRUD_ONLY','roleState':'ABSENT',
+        'accountLocked':True,'sourceCount':15,'warnings':0,'stateSha256':'a'*64} for u in ('traceflow_api','traceflow_worker')],
+        'migrations':{'count':68,'chainSha256':c.digest(c.encoded(m['schema']['migrations']))},'remainingSessions':[]}
+
 class ReconciliationTests(unittest.TestCase):
     def setUp(self):
         self.h=previous.WindowTests();self.h.setUp();self.layout=self.h.layout;self.path=self.h.path;self.a=self.h.a
@@ -17,11 +31,11 @@ class ReconciliationTests(unittest.TestCase):
         self.layout.save(self.state)
         window.receipt(self.path,'failure',self.a,status='FAIL',code='FRONTEND_SMOKE',phase='public-cutover')
         window.receipt(self.path,'recovery',self.a,status='INTERVENTION_REQUIRED',failedControls=['public-page'],dataPreserved=True,schemaRestored=False)
-        self.q={'formatVersion':1,'operation':'reconcile-first','authorizationId':'d'*32,'reconciliationId':'e'*32,
+        self.q={'formatVersion':2,'operation':'reconcile-first','authorizationId':'d'*32,'reconciliationId':'e'*32,
                 'operatorId':'fixture-operator','runId':self.a['runId'],'releaseId':self.a['releaseId'],
                 'descriptorSha256':self.a['descriptorSha256'],'issuedAt':stamp(time.time()-1),'expiresAt':stamp(time.time()+590),
                 'historySha256':window.recovery_history(self.path),'stateSha256':c.digest(c.encoded(self.state)),
-                'externalWritersExcluded':True}
+                'externalWritersExcluded':True,'controllerReleaseId':self.a['releaseId'],'controllerDescriptorSha256':self.a['descriptorSha256']}
         self.auth=self.h.root/'reconcile-auth.json';private_write(self.auth,c.encoded(self.q))
         self.args=SimpleNamespace(run_id=self.a['runId'],authorization=str(self.auth))
         self.folder=window.reconciliation_folder(self.layout,self.q);self.before=self.history()
@@ -29,10 +43,11 @@ class ReconciliationTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(ops,'native_context'))
         self.stack.enter_context(mock.patch.object(ops,'emit'))
         self.stack.enter_context(mock.patch.object(window.resource,'setrlimit'))
+        self.controller=self.stack.enter_context(mock.patch.object(window,'reconciliation_controller',return_value=self.layout.releases/self.a['releaseId']/'deploy/scripts/release.py'))
         self.stack.enter_context(mock.patch.object(self.layout,'installed',return_value=(self.layout.releases/self.a['releaseId'],None,manifest())))
-        self.env=self.stack.enter_context(mock.patch.object(window,'reconciliation_environment'))
-        self.db=self.stack.enter_context(mock.patch.object(window,'reconciliation_database'))
-        self.account=mock.Mock();self.closed=False
+        self.env=self.stack.enter_context(mock.patch.object(window,'reconciliation_environment',return_value=environment_fixture(self.a)))
+        self.db=self.stack.enter_context(mock.patch.object(window,'reconciliation_database',return_value=database_fixture(manifest())))
+        self.account=mock.Mock();self.account.state.return_value=[];self.closed=False
         @contextlib.contextmanager
         def accounts(_):
             try:yield self.account
@@ -43,7 +58,7 @@ class ReconciliationTests(unittest.TestCase):
     def rewrite_auth(self):self.auth.write_bytes(c.encoded(self.q))
     def assert_unchanged(self):
         self.assertEqual(self.layout.load(),self.state);self.assertEqual(self.history(),self.before)
-        self.assertFalse((self.folder/'complete.json').exists())
+        self.assertFalse((self.folder/'applied.json').exists())
     def test_integrated_success_preserves_history_and_does_not_operate_services_or_accounts(self):
         with mock.patch.object(ops,'command') as command,mock.patch.object(ops,'start_services') as start,mock.patch.object(ops,'stop_services') as stop:
             save=self.layout.save
@@ -51,7 +66,7 @@ class ReconciliationTests(unittest.TestCase):
             with mock.patch.object(self.layout,'save',side_effect=checked_save):self.run_flow()
             command.assert_not_called();start.assert_not_called();stop.assert_not_called()
         self.account.unlock.assert_not_called();self.account.relock.assert_not_called();self.account.change.assert_not_called()
-        self.assertEqual(self.history(),self.before);self.assertEqual(self.layout.load()['phase'],'first-activation-recovered')
+        self.assertEqual(self.history(),self.before);self.assertEqual(self.layout.load()['phase'],window.RECONCILED_PHASE)
         window.reconciliation_closed(self.layout,self.layout.load())
         self.assertEqual(len(list(self.folder.glob('audit-*.json'))),1)
     def test_replay_is_noop_not_fresh_audit_even_after_expiration(self):
@@ -126,7 +141,7 @@ class ReconciliationTests(unittest.TestCase):
         self.assert_unchanged()
         self.db.side_effect=lambda *_:self.layout.save(dict(self.state,unexpected=True))
         with self.assertRaisesRegex(c.Refused,'STATE_RACE'):self.run_flow()
-        self.assertFalse((self.folder/'complete.json').exists())
+        self.assertFalse((self.folder/'applied.json').exists())
     def test_interruption_before_state_save_reaudits_and_completes(self):
         with mock.patch.object(self.layout,'save',side_effect=OSError('synthetic')):
             with self.assertRaises(OSError):self.run_flow()
@@ -140,16 +155,17 @@ class ReconciliationTests(unittest.TestCase):
         self.db.reset_mock();self.run_flow();self.db.assert_called_once();window.reconciliation_closed(self.layout,self.layout.load())
         self.assertEqual(self.history(),self.before)
     def test_completion_write_failure_is_not_replayed_as_success(self):
-        original=window.private_write
+        original=window.publish_reconciliation
         def write(p,data):
             if p.name=='complete.json':raise OSError('synthetic')
             return original(p,data)
-        with mock.patch.object(window,'private_write',side_effect=write):
+        with mock.patch.object(window,'publish_reconciliation',side_effect=write):
             with self.assertRaises(OSError):self.run_flow()
-        with self.assertRaises((FileNotFoundError,c.Refused)):window.reconciliation_closed(self.layout,self.layout.load())
+        self.assertEqual(self.layout.load(),self.state)
+        self.assertFalse(window.first_activation_eligible(self.layout.load()))
         self.env.side_effect=c.Refused('LATE_UNSAFE')
         with self.assertRaisesRegex(c.Refused,'LATE_UNSAFE'):self.run_flow()
-        self.assertFalse((self.folder/'complete.json').exists())
+        self.assertFalse((self.folder/'applied.json').exists())
     def test_expired_partial_reconciliation_cannot_complete(self):
         with mock.patch.object(self.layout,'save',side_effect=OSError('synthetic')):
             with self.assertRaises(OSError):self.run_flow()
@@ -165,10 +181,11 @@ class ReconciliationTests(unittest.TestCase):
         audit=self.folder/done['auditFile'];raw=audit.read_bytes();audit.unlink()
         with self.assertRaises(FileNotFoundError):self.run_flow()
         private_write(audit,raw+b' ')
-        # JSON whitespace is not material; semantic checks and canonical hashes are.
-        self.run_flow()
-        d=json.loads(raw);d['checks']['accountsLocked']=False;audit.write_bytes(c.encoded(d))
+        # Completion also seals byte hashes of every new document.
         with self.assertRaisesRegex(c.Refused,'INCOMPLETE'):self.run_flow()
+        audit.write_bytes(raw)
+        d=json.loads(raw);d['observations'][1]['result']['runtimeAudits'][0]['accountLocked']=False;audit.write_bytes(c.encoded(d))
+        with self.assertRaisesRegex(c.Refused,'AUDIT_CHANGED'):self.run_flow()
         audit.write_bytes(raw);done['auditFile']='../complete.json';complete.write_bytes(c.encoded(done))
         with self.assertRaisesRegex(c.Refused,'AUDIT_PATH'):self.run_flow()
     def test_completion_cannot_be_rebound_to_another_reconciliation(self):
@@ -187,11 +204,204 @@ class ReconciliationTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):self.run_flow()
         for p in self.h.root.rglob('*.json'):self.assertNotIn(secret,p.read_text())
 
+    @contextlib.contextmanager
+    def launch_fixture(self,module,a):
+        storage=self.h.evidence;storage.chmod(0o700)
+        auth=self.h.root/('activation-'+a['runId']+'.json');private_write(auth,c.encoded(a))
+        args=SimpleNamespace(release_id=a['releaseId'],digest=a['descriptorSha256'],authorization=str(auth))
+        def command(argv,**kw):
+            if argv[0]=='getenforce':value='Enforcing'
+            elif argv[0]=='getsebool':value=argv[1]+' --> off'
+            elif argv[0]=='semanage':value='traceflow_api_port_t tcp 3001'
+            elif 'LimitCORE' in argv:value='0'
+            elif 'LoadState' in argv:value='not-found'
+            else:value=''
+            return SimpleNamespace(stdout=value,returncode=0)
+        real_path=Path
+        with contextlib.ExitStack() as stack:
+            old_mask=os.umask(0o077);os.umask(old_mask);stack.callback(os.umask,old_mask)
+            stack.enter_context(mock.patch.object(module,'systemd_command',side_effect=lambda controller,run,seconds:['systemd-run','python3',str(controller),'run-first','--run-id',run]))
+            stack.enter_context(mock.patch.object(module,'Path',side_effect=lambda p,*v:storage if str(p)=='/var/lib/traceflow/test-evidence' else real_path(p,*v)))
+            stack.enter_context(mock.patch.object(module.pwd,'getpwnam',return_value=SimpleNamespace(pw_uid=os.geteuid())))
+            stack.enter_context(mock.patch.object(module,'RUN_BASE',self.h.root/'volatile'))
+            stack.enter_context(mock.patch.object(module,'trusted_path',side_effect=lambda p,**kw:c.trusted_path(p,directory=kw.get('directory'),uid=os.geteuid())))
+            for name in ('pre_evidence','checked_configs','snapshot_nginx','test_candidate'):
+                stack.enter_context(mock.patch.object(module,name))
+            stack.enter_context(mock.patch.object(module,'authorize',return_value=time.time()+590))
+            stack.enter_context(mock.patch.object(module.resource,'setrlimit'))
+            stack.enter_context(mock.patch.object(module.sys.stdin,'isatty',return_value=True))
+            stack.enter_context(mock.patch.object(module.sys.stderr,'isatty',return_value=True))
+            stack.enter_context(mock.patch.object(module.getpass,'getpass',return_value='synthetic-only'))
+            stack.enter_context(mock.patch.object(ops,'assert_stopped'))
+            cmd=stack.enter_context(mock.patch.object(ops,'command',side_effect=command))
+            yield args,cmd
+
+    def test_full_reconciliation_then_authorized_activation_failure_and_next_attempt(self):
+        self.run_flow();origin_state=self.layout.load();original_files=self.history()
+        old_path=self.h.path
+        new=copy.deepcopy(self.a);new['runId']='1'*32;new['nonce']='2'*32;new['nginx']['candidateDirectory']='/etc/traceflow/activation-candidates/'+new['runId']
+        with self.launch_fixture(window,new) as (args,cmd):window.launch(ops,self.layout,args)
+        submitted=[call.args[0] for call in cmd.call_args_list if call.args[0][0]=='systemd-run']
+        self.assertEqual(len(submitted),1)
+        self.assertEqual(submitted[0][-4],str(self.controller.return_value))
+        self.h.a=new;self.h.path=window.run_directory(self.layout,new['runId'])
+        self.assertEqual(c.private_json(self.h.path/'prior-state.json'),origin_state)
+        with self.assertRaisesRegex(c.Refused,'SYNTHETIC_FAILURE'):self.h.run_flow(fail='public-cutover')
+        state=self.layout.load();self.assertEqual(state['runId'],new['runId'])
+        self.assertEqual(state['recoveryProof'],{'kind':'activation-recovery','runId':new['runId']})
+        self.assertNotIn('reconciliationId',state)
+        self.assertEqual(window.reconciliation_closed(self.layout,state),self.q)
+        self.assertTrue(window.first_activation_eligible(state))
+        with mock.patch.object(window,'load',return_value=(self.h.path,new)):
+            window.finalize(ops,self.layout,new['runId'])
+        third=copy.deepcopy(new);third['runId']='3'*32
+        with self.launch_fixture(window,third) as (args,_):window.launch(ops,self.layout,args)
+        self.assertEqual(c.private_json(window.run_directory(self.layout,third['runId'])/'prior-state.json'),state)
+        self.assertEqual(original_files,self.history());self.assertEqual(self.path,old_path)
+
+    def test_launch_submits_selected_controller_not_historical_runtime(self):
+        self.run_flow();new=copy.deepcopy(self.a);new['runId']='1'*32
+        selected=Path('/opt/traceflow/releases')/('20261018T060000Z-'+'f'*40+'-'+'e'*12)/'deploy/scripts/release.py'
+        self.controller.return_value=selected
+        with self.launch_fixture(window,new) as (args,cmd):window.launch(ops,self.layout,args)
+        submitted=[call.args[0] for call in cmd.call_args_list if call.args[0][0]=='systemd-run']
+        self.assertEqual(submitted[0][-4],str(selected))
+        real=window.systemd_command(selected,new['runId'],120)
+        self.assertIn('--property=ExecStopPost=/usr/bin/python3 -I -B '+str(selected)+' finalize-first --run-id '+new['runId'],real)
+        self.assertEqual(real[-4],str(selected))
+
+    def test_legacy_controller_refuses_completed_v2_state(self):
+        import importlib.util
+        source=subprocess.check_output(['git','show','401f130461c87c254075f4b0a3a40e1a2feca40b:deploy/lib/activation_window.py'],cwd=ROOT)
+        path=self.h.root/'legacy.py';private_write(path,source)
+        spec=importlib.util.spec_from_file_location('legacy_activation_fixture',path);legacy=importlib.util.module_from_spec(spec);spec.loader.exec_module(legacy)
+        self.run_flow();new=copy.deepcopy(self.a);new['runId']='1'*32
+        with self.launch_fixture(legacy,new) as (args,cmd),self.assertRaisesRegex(c.Refused,'FIRST_ACTIVATION_ONLY'):
+            legacy.launch(ops,self.layout,args)
+        self.assertFalse(any(call.args[0][0]=='systemd-run' for call in cmd.call_args_list))
+
+    def test_initial_guard_missing_divergent_malformed_and_extra_never_repaired(self):
+        original=self.layout.guard.read_bytes()
+        for bad in (None,b'{}',b'{',c.encoded(dict(window.guard_projection(self.state),extra=True)),c.encoded(dict(window.guard_projection(self.state),status='idle'))):
+            with self.subTest(bad=bad):
+                if bad is None:self.layout.guard.unlink()
+                else:self.layout.guard.write_bytes(bad)
+                self.db.reset_mock()
+                with self.assertRaises((c.Refused,FileNotFoundError,ValueError)):self.run_flow()
+                self.db.assert_not_called();self.assertEqual(self.layout.load(),self.state)
+                self.assertEqual(self.layout.guard.read_bytes() if self.layout.guard.exists() else None,bad)
+                self.layout.guard.write_bytes(original);self.layout.guard.chmod(0o644)
+
+    def test_known_guard_repair_has_its_own_bound_receipt(self):
+        def partial(state):c.atomic_json(self.layout.state/'state.json',state);raise OSError('synthetic')
+        with mock.patch.object(self.layout,'save',side_effect=partial),self.assertRaises(OSError):self.run_flow()
+        self.assertEqual(self.layout.load()['status'],window.RECONCILED_STATUS)
+        self.assertTrue((self.folder/'complete.json').exists());self.assertFalse((self.folder/'applied.json').exists())
+        self.run_flow();repairs=list(self.folder.glob('guard-repair-*.json'));self.assertEqual(len(repairs),1)
+        r=c.private_json(repairs[0]);self.assertEqual(r['reason'],'KNOWN_STATE_BEFORE_GUARD_INTERRUPTION')
+        self.assertEqual(r['fromGuardSha256'],c.digest(c.encoded(window.guard_projection(self.state))))
+        self.assertEqual(r['toGuardSha256'],c.digest(c.encoded(window.guard_projection(self.layout.load()))))
+        self.assertEqual(r['completeSha256'],c.digest(c.encoded(c.private_json(self.folder/'complete.json'))))
+
+    def test_guard_divergence_after_known_partial_still_refused(self):
+        def partial(state):c.atomic_json(self.layout.state/'state.json',state);raise OSError('synthetic')
+        with mock.patch.object(self.layout,'save',side_effect=partial),self.assertRaises(OSError):self.run_flow()
+        self.layout.guard.write_bytes(c.encoded(dict(window.guard_projection(self.state),pid=998)))
+        self.db.reset_mock()
+        with self.assertRaisesRegex(c.Refused,'GUARD_DIVERGED'):self.run_flow()
+        self.db.assert_not_called();self.assertFalse(list(self.folder.glob('guard-repair-*.json')))
+
+    def test_every_observation_is_required_and_derived(self):
+        self.env.return_value=None
+        with self.assertRaisesRegex(c.Refused,'ENV_OBSERVATION'):self.run_flow()
+        self.assert_unchanged();self.env.return_value=environment_fixture(self.a)
+        self.db.return_value=None
+        with self.assertRaisesRegex(c.Refused,'DB_OBSERVATION'):self.run_flow()
+        self.assert_unchanged();self.db.return_value=database_fixture(manifest())
+        self.run_flow();done=c.private_json(self.folder/'complete.json');audit=c.private_json(self.folder/done['auditFile'])
+        self.assertNotIn('checks',audit)
+        self.assertEqual([v['kind'] for v in audit['observations']],list(window.OBSERVATION_ORDER))
+        self.assertEqual(audit['observations'][0]['result'],self.env.return_value)
+        self.assertEqual(audit['observations'][1]['result'],self.db.return_value)
+        intent=c.private_json(self.folder/'intent.json')
+        for mutation in ('missing','reorder','future','unknown','warning','excessive','sessions'):
+            obs=copy.deepcopy(audit['observations'])
+            if mutation=='missing':obs.pop()
+            elif mutation=='reorder':obs.reverse()
+            elif mutation=='future':obs[1]['finishedAt']=stamp(time.time()+900)
+            elif mutation=='unknown':obs[0]['result']['unknown']=True
+            elif mutation=='warning':obs[1]['result']['runtimeAudits'][0]['warnings']=1
+            elif mutation=='excessive':obs[1]['result']['runtimeAudits'][0]['privileges']='ALL'
+            else:obs[3]['result']['remainingSessions']=[123]
+            with self.subTest(mutation=mutation),self.assertRaises(c.Refused):window.validate_observations(obs,self.q,self.a,intent)
+
+    def test_after_applied_before_result_is_historical_noop(self):
+        with mock.patch.object(ops,'emit',side_effect=OSError('synthetic')),self.assertRaises(OSError):self.run_flow()
+        before={p.name:p.read_bytes() for p in self.folder.iterdir()};self.db.reset_mock()
+        self.run_flow();self.db.assert_not_called()
+        self.assertEqual(before,{p.name:p.read_bytes() for p in self.folder.iterdir()})
+
+    def test_state_or_guard_temporary_residue_requires_intervention(self):
+        for directory in (self.layout.state,self.layout.guard.parent):
+            p=directory/'.write-synthetic';private_write(p,b'partial synthetic state')
+            with self.assertRaisesRegex(c.Refused,'STATE_RESIDUE'):self.run_flow()
+            self.assertEqual(p.read_bytes(),b'partial synthetic state');self.assert_unchanged()
+            p.unlink()  # Fixture-only cleanup; production code never removes the residue.
+
+    def test_forged_guard_ahead_of_state_is_not_known_interruption(self):
+        with mock.patch.object(self.layout,'save',side_effect=OSError('synthetic')),self.assertRaises(OSError):self.run_flow()
+        intent=c.private_json(self.folder/'intent.json')
+        self.layout.guard.write_bytes(c.encoded(window.guard_projection(intent['afterState'])))
+        self.db.reset_mock()
+        with self.assertRaisesRegex(c.Refused,'GUARD_DIVERGED'):self.run_flow()
+        self.db.assert_not_called();self.assertEqual(self.layout.load(),self.state)
+
+    def test_incomplete_publication_blocks_current_controller_launch(self):
+        original=window.publish_reconciliation
+        def publish(path,value):
+            if path.name=='applied.json':raise OSError('synthetic')
+            return original(path,value)
+        with mock.patch.object(window,'publish_reconciliation',side_effect=publish),self.assertRaises(OSError):self.run_flow()
+        self.assertEqual(self.layout.load()['status'],window.RECONCILED_STATUS)
+        new=copy.deepcopy(self.a);new['runId']='1'*32
+        with self.launch_fixture(window,new) as (args,cmd),self.assertRaises(FileNotFoundError):window.launch(ops,self.layout,args)
+        self.assertFalse(any(call.args[0][0]=='systemd-run' for call in cmd.call_args_list))
+
+    def test_partial_receipt_blocks_without_overwriting_evidence(self):
+        original=window.private_write
+        def write(path,raw):
+            if path.name.startswith('.pending-intent.json'):
+                original(path,raw[:17]);raise OSError('synthetic power loss')
+            return original(path,raw)
+        with mock.patch.object(window,'private_write',side_effect=write),self.assertRaises(OSError):self.run_flow()
+        residuals={p.name:p.read_bytes() for p in self.folder.iterdir()};self.db.reset_mock()
+        with self.assertRaisesRegex(c.Refused,'PUBLICATION_RESIDUE'):self.run_flow()
+        self.db.assert_not_called();self.assertEqual(self.layout.load(),self.state)
+        self.assertEqual(residuals,{p.name:p.read_bytes() for p in self.folder.iterdir()})
+
+
 class BoundaryTests(unittest.TestCase):
     def test_cli_is_manual_and_exposes_no_bypass(self):
         p=subprocess.run([sys.executable,'-I','-B',str(ROOT/'deploy/scripts/release.py'),'reconcile-first','--help'],capture_output=True,text=True)
         self.assertEqual(p.returncode,0);self.assertIn('--authorization',p.stdout)
         for token in ('--force','--skip','--password','--unlock'):self.assertNotIn(token,p.stdout)
+    def test_controller_requires_pinned_verified_source_and_matching_schema(self):
+        q={'controllerReleaseId':previous.RID,'controllerDescriptorSha256':'d'*64}
+        root=Path('/synthetic/releases')/previous.RID;entry=root/'deploy/scripts/release.py';module=root/'deploy/lib/activation_window.py'
+        layout=mock.Mock();cm=manifest();layout.installed.return_value=(root,None,cm)
+        runner=SimpleNamespace(__file__=str(entry))
+        with mock.patch.object(window,'__file__',str(module)):
+            self.assertEqual(window.reconciliation_controller(runner,layout,q,manifest()),entry)
+            layout.installed.assert_called_with(q['controllerReleaseId'],q['controllerDescriptorSha256'])
+            runner.__file__='/other/release.py'
+            with self.assertRaisesRegex(c.Refused,'CONTROLLER_SELECTION'):window.reconciliation_controller(runner,layout,q,manifest())
+            runner.__file__=str(entry);cm['sourceState']='candidate'
+            with self.assertRaisesRegex(c.Refused,'CONTROLLER_SCHEMA'):window.reconciliation_controller(runner,layout,q,manifest())
+            cm['sourceState']='committed';cm['schema']={'different':True}
+            with self.assertRaisesRegex(c.Refused,'CONTROLLER_SCHEMA'):window.reconciliation_controller(runner,layout,q,manifest())
+        layout.installed.return_value=(root,None,manifest())
+        with self.assertRaisesRegex(c.Refused,'CONTROLLER_SELECTION'):window.reconciliation_controller(runner,layout,q,manifest())
+
     def test_environment_checks_reject_each_live_discrepancy(self):
         from test_activation_window import auth
         a=auth();layout=SimpleNamespace(app=Path('/synthetic/app'),web=Path('/synthetic/web'))
@@ -200,8 +410,8 @@ class BoundaryTests(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stopped=stack.enter_context(mock.patch.object(ops,'assert_stopped'))
             state=stack.enter_context(mock.patch.object(ops,'service_state',return_value={'ActiveState':'inactive','MainPID':'0'}))
-            cmd=stack.enter_context(mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout='Enforcing')))
-            stack.enter_context(mock.patch.object(window,'checked_configs'))
+            cmd=stack.enter_context(mock.patch.object(ops,'command',return_value=SimpleNamespace(stdout='Enforcing',returncode=0)))
+            stack.enter_context(mock.patch.object(window,'checked_configs',return_value=a['configurationSha256']))
             stack.enter_context(mock.patch.object(window.os.path,'lexists',side_effect=exists))
             read=stack.enter_context(mock.patch.object(window,'secure_read',return_value=raw))
             probe=stack.enter_context(mock.patch.object(window,'temporary_probe'))
@@ -217,7 +427,8 @@ class BoundaryTests(unittest.TestCase):
     def test_textual_database_audit_is_readonly_and_requires_exact_chain(self):
         m=manifest();m['schema']['migrations']=[{'name':str(i),'sha256':'a'*64} for i in range(68)]
         rows=[dict(r,finished=1,rolledBack=0) for r in m['schema']['migrations']];source=mock.Mock();source.rows.return_value=rows
-        account=mock.Mock()
+        account=mock.Mock();account.audit.return_value=database_fixture(m)['runtimeAudits'];account.state.return_value=[]
+        source.rows.side_effect=lambda sql: [database_fixture(m)['serverIdentity']] if sql.startswith('SELECT JSON_ARRAY') else source.rows.return_value
         with mock.patch('backup_runtime.load_module',return_value=SimpleNamespace(Source=mock.Mock(return_value=source))):
             window.reconciliation_database(ops,Path('/synthetic'),m,account)
             self.assertTrue(source.identity.called);self.assertTrue(source.quiescent.called);account.audit.assert_called_with(True)
@@ -230,6 +441,82 @@ class BoundaryTests(unittest.TestCase):
                 else:source.rows.return_value[0]['sha256']='b'*64
                 with self.subTest(change=change),self.assertRaisesRegex(c.Refused,'MIGRATION_CHAIN_MISMATCH'):
                     window.reconciliation_database(ops,Path('/synthetic'),m,account)
+
+
+class AtomicReceiptTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.tmp=tempfile.TemporaryDirectory(prefix='tf-reconcile-atomic-',dir=ROOT/'build');self.addCleanup(self.tmp.cleanup)
+        self.root=Path(self.tmp.name)
+    def test_success_is_exclusive_and_never_overwrites(self):
+        p=self.root/'complete.json';window.publish_reconciliation(p,{'a':1});raw=p.read_bytes()
+        self.assertEqual(p.stat().st_nlink,1);self.assertEqual(p.stat().st_mode&0o777,0o600)
+        with self.assertRaises(FileExistsError):window.publish_reconciliation(p,{'a':2})
+        self.assertEqual(p.read_bytes(),raw);self.assertTrue(list(self.root.glob('.pending-*')))
+    def test_every_document_and_persistence_boundary(self):
+        for name in ('authorization.json','intent.json','audit-'+'a'*32+'.json','complete.json','applied.json'):
+            for boundary in ('before-create','empty','partial','before-file-fsync','before-link','after-link','after-unlink'):
+                with self.subTest(name=name,boundary=boundary):
+                    folder=self.root/(name+'-'+boundary);folder.mkdir(mode=0o700);dest=folder/name
+                    raw=c.encoded({'synthetic':'complete-value'});original=window.private_write;original_link=os.link;original_unlink=Path.unlink
+                    def writer(p,data):
+                        if boundary=='before-create':raise OSError('synthetic')
+                        if boundary in ('empty','partial'):
+                            original(p,b'' if boundary=='empty' else data[:8]);raise OSError('synthetic')
+                        original(p,data)
+                    def link(src,dst,**kw):
+                        if boundary=='before-link':raise OSError('synthetic')
+                        original_link(src,dst,**kw)
+                        if boundary=='after-link':raise OSError('synthetic')
+                    def unlink(p,*args,**kw):
+                        original_unlink(p,*args,**kw)
+                        if boundary=='after-unlink':raise OSError('synthetic')
+                    with contextlib.ExitStack() as stack:
+                        stack.enter_context(mock.patch.object(window,'private_write',side_effect=writer))
+                        stack.enter_context(mock.patch.object(window.os,'link',side_effect=link))
+                        stack.enter_context(mock.patch.object(Path,'unlink',unlink))
+                        if boundary=='before-file-fsync':stack.enter_context(mock.patch.object(os,'fsync',side_effect=OSError('synthetic')))
+                        with self.assertRaises(OSError):window.publish_reconciliation(dest,{'synthetic':'complete-value'})
+                    if dest.exists():self.assertEqual(dest.read_bytes(),raw)
+                    leftovers=list(folder.glob('.pending-*'))
+                    if boundary not in ('before-create','after-unlink'):self.assertTrue(leftovers)
+                    if boundary=='after-link':self.assertEqual(dest.stat().st_nlink,2)
+                    if boundary=='after-unlink':
+                        self.assertEqual(dest.stat().st_nlink,1);window.reconciliation_inventory(folder)
+                    elif boundary!='before-create':
+                        with self.assertRaises(c.Refused):window.reconciliation_inventory(folder)
+    def test_real_child_interruption_preserves_unpublished_partial_receipt(self):
+        code="""import os,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+import activation_window as w
+p=Path(sys.argv[2])
+def interrupted(path,raw):
+    fd=os.open(path,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+    os.write(fd,raw[:5])
+    os._exit(17)
+w.private_write=interrupted
+w.publish_reconciliation(p,{'synthetic':'not a production receipt'})
+"""
+        p=self.root/'complete.json'
+        child=subprocess.run([sys.executable,'-I','-B','-c',code,str(ROOT/'deploy/lib'),str(p)],
+                             capture_output=True,timeout=5,env={'PATH':'/usr/bin:/bin'})
+        self.assertEqual(child.returncode,17);self.assertEqual(child.stdout+child.stderr,b'')
+        self.assertFalse(p.exists());residue=list(self.root.glob('.pending-*'));self.assertEqual(len(residue),1)
+        saved=residue[0].read_bytes()
+        with self.assertRaisesRegex(c.Refused,'PUBLICATION_RESIDUE'):window.reconciliation_inventory(self.root)
+        self.assertEqual(saved,residue[0].read_bytes())
+
+    def test_final_directory_fsync_failure_is_revalidated(self):
+        p=self.root/'complete.json';original=window.fsync_dir;calls=[]
+        def sync(path):
+            calls.append(path)
+            if len(calls)==2:raise OSError('synthetic')
+            original(path)
+        with mock.patch.object(window,'fsync_dir',side_effect=sync),self.assertRaises(OSError):window.publish_reconciliation(p,{'a':1})
+        self.assertEqual(json.loads(p.read_bytes()),{'a':1})
+        with mock.patch.object(window,'fsync_dir',wraps=original) as check:window.reconciliation_inventory(self.root)
+        check.assert_called_once_with(self.root)
 
 
 class CredentialCustodyTests(unittest.TestCase):

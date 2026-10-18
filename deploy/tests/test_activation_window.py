@@ -157,7 +157,7 @@ class WindowTests(unittest.TestCase):
             self.assertIs(kwargs['public'],False)
             phase(self.layout,args[1],'starting-api');phase(self.layout,args[1],'starting-worker');return int(time.time()*1000)
         native=mock.Mock()
-        command=mock.Mock(return_value=SimpleNamespace(stdout='MainPID='+str(os.getpid())+'\nType=exec\nKillMode=control-group\nRuntimeMaxUSec=10min\nExecStopPost=finalize-first --run-id '+self.a['runId']))
+        command=mock.Mock(return_value=SimpleNamespace(stdout='MainPID='+str(os.getpid())+'\nType=exec\nKillMode=control-group\nRuntimeMaxUSec=10min\nExecStopPost=/usr/bin/python3 -I -B '+str(self.layout.releases/RID/'deploy/scripts/release.py')+' finalize-first --run-id '+self.a['runId']))
         with contextlib.ExitStack() as stack:
             for name,value in {'native_context':native,'command':command,'assert_stopped':mock.Mock(),'stop_services':mock.Mock(),
                 'boot_id':mock.Mock(return_value='test-boot'),'proc_start':mock.Mock(return_value='123'),

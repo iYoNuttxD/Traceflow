@@ -451,6 +451,10 @@ Não decodificar representações alternativas, aceitar roles extras nem ignorar
 
 ### Reconciliação explícita da primeira recuperação incompleta
 
+> Histórico da proposta v1, substituída pela revisão v2 abaixo. O contrato e a
+> ordem de persistência desta seção não devem ser usados operacionalmente.
+> Nenhuma reconciliação v1 foi aplicada à produção nesta correção.
+
 Na tentativa `ebf3b86d74664e048b2dfb82eb98ee37`, o controlador recusou
 `FRONTEND_SMOKE` na fase `public-cutover`. A recuperação registrou somente
 `public-page` como controle incompleto. A investigação confirmou que o Cloudflare
@@ -563,3 +567,124 @@ mudança após a última observação; o lock local não impede ações externas
 locais usam sistema de arquivos/locks reais e fronteiras MySQL/systemd/HTTPS
 simuladas. Eles não homologam a nova operação no Linux de produção. Falhas de
 observação, interrupções e discrepâncias continuam impedindo a conclusão.
+
+### Revisão da reconciliação — contrato v2 vigente, somente implementação local
+
+A revisão encontrou cinco problemas reais na proposta v1: propagação de um
+`reconciliationId` ligado ao `runId` mutável, publicação prematura de estado `idle`,
+recibos criados diretamente no nome final, ausência de comparação inicial do guard
+e resultados constantes no recibo de auditoria. A versão v2 substitui esses pontos.
+Não modifica o histórico da tentativa, a release instalada ou o banco. O estado
+operacional da OCI continua bloqueado até uma intervenção futura autorizada.
+
+**Identidade e proveniência.** O estado passa a ter `recoveryProof`, uma referência
+fechada com `kind: reconciliation`, `runId` de origem e `reconciliationId`. Não usa
+mais o campo solto `reconciliationId`. Após uma nova tentativa que falhe e seja
+recuperada, a referência muda para `kind: activation-recovery` e o `runId` dessa
+nova tentativa. O `prior-state.json` imutável preserva a origem; o novo recibo de
+recuperação vincula os hashes do estado anterior e do estado recuperado. A validação
+percorre essa cadeia, recusa ciclos/referências trocadas e limita a 64 origens. Não
+reatribui os recibos da primeira reconciliação à nova tentativa. Um estado legado
+v1 contendo o campo solto é recusado para revisão, sem conversão automática.
+
+**Compatibilidade intencionalmente restrita.** Mesmo após concluir a reconciliação,
+o estado é `status: reconciled-v2`, `phase: first-recovery-reconciled-v2`. Nunca é
+`idle` intermediário. O fluxo normal de primeira ativação da `401f130` exige `idle`
+e recusa esse estado; o teste local executa seu código histórico em fronteiras
+simuladas para comprovar a recusa. O controlador novo somente aceita esse estado
+após validar integralmente a cadeia, a conclusão aplicada e o guard. `idle` por si
+só não comprova reconciliação.
+
+A autorização v2 mantém todos os campos anteriores, a janela máxima de 600 segundos
+e a custódia root, mas exige `formatVersion: 2` e dois campos adicionais:
+`controllerReleaseId` e `controllerDescriptorSha256`. Eles identificam um controlador
+committed, instalado e íntegro, com o mesmo contrato de schema da release alvo.
+O caminho executado de `release.py` e o módulo `activation_window.py` precisam
+pertencer exatamente a esse controlador. O caminho usado por `run-first` e
+`ExecStopPost ... finalize-first` também é o controlador selecionado, não o
+controlador antigo da release da aplicação. Não há bypass por flag ou ambiente.
+
+Antes de uma execução futura, o operador deverá conferir os dois descritores,
+manifestos, hashes, caminhos absolutos, unidades/transientes existentes e o
+`ExecStopPost` gerado. Não usar o `release.py` instalado na `401f130` para essa
+operação. Não alterar nem substituir aquela release para fazer o caminho coincidir.
+A instalação de um novo controlador e sua autorização estão fora desta entrega.
+Um operador root pode deliberadamente editar arquivos, fabricar autorizações ou
+chamar código antigo fora do fluxo normal. A implementação **não** oferece proteção
+contra esse bypass voluntário; custódia root, seleção verificada do controlador e
+revisão da janela continuam sendo controles operacionais necessários.
+
+**Ordem durável e exclusiva.** A sequência é:
+
+1. Validar estado e guard existentes, autorização, histórico e controlador.
+2. Executar e validar as observações reais de recuperação somente leitura.
+3. Publicar `authorization.json`, `intent.json`, `audit-<id>.json` e `complete.json`.
+   A intenção contém o estado anterior, sua projeção de guard, o estado esperado e
+   hashes do manifesto/cadeia de migrations. A conclusão é
+   `AUDIT_COMPLETE_STATE_PENDING`: ainda não habilita ativação.
+4. Persistir o estado `reconciled-v2` e seu guard dedicado.
+5. Publicar `applied.json`, vinculando conclusão, auditoria, estado, guard e um
+   inventário SHA-256 dos bytes de **todos** os documentos anteriores da reconciliação.
+6. Revalidar a cadeia antes de emitir o resultado sanitizado.
+
+Cada recibo é escrito em `.pending-...` exclusivo `0600`, com `fsync` do arquivo,
+verificação integral dos bytes e `fsync` do diretório. A publicação usa `link()` no
+mesmo filesystem, que recusa destino existente, seguida da remoção somente daquele
+nome temporário e de novo `fsync` do diretório. Não se usa `replace()` para recibos.
+O nome final nunca contém uma escrita parcial. Interrupções deixam o temporário
+preservado; interrupção entre link e unlink deixa dois hardlinks e é recusada.
+Nenhum resíduo é apagado automaticamente. Arquivos completos são revalidados e
+sincronizados novamente na retomada antes de confiar na publicação.
+
+Um `.pending-*`, JSON parcial, hardlink, arquivo inesperado ou `.write-*` de estado/
+guard exige intervenção explícita. Não apagar o resíduo para obter PASS. Preservar
+bytes, nomes, permissões e hashes, comparar com a intenção e a autorização e submeter
+um procedimento específico à revisão; esta entrega não cria um comando de limpeza.
+Se a publicação falhar antes de criar qualquer temporário, a mesma operação pode ser
+repetida dentro da janela. A intenção/conclusão completas nunca são sobrescritas.
+
+**Guard e transição interrompida.** Na entrada inicial, o guard deve existir e ser
+exatamente a projeção do estado autoritativo. Guard ausente, parcial, desconhecido
+ou divergente é recusado antes da credencial e da auditoria. `layout.save()` não é
+usado para corrigir uma divergência inicial. A única reparação automática permitida
+é a combinação comprovada: intenção e conclusão íntegras, estado novo exato já
+persistido e guard ainda igual à projeção do estado anterior. Isso corresponde à
+ordem conhecida de `layout.save()`; guard adiantado em relação ao estado não é
+aceito. A retomada exige autorização ainda válida, nova auditoria completa e recibo
+`guard-repair-<id>.json` com os hashes anterior/posterior, conclusão e auditoria
+antes de reparar. Esse recibo também entra no inventário selado de `applied.json`.
+
+Sem `applied.json` íntegro, o controlador novo recusa a ativação. O antigo recusa o
+estado `reconciled-v2`. A recuperação de uma tentativa posterior também publica seu
+recibo antes de tornar o estado elegível; interrupções que impeçam comprovar essa
+transição permanecem bloqueadas para intervenção. Uma repetição concluída é
+somente consulta histórica (`freshAudit: false`), sem nova credencial, auditoria,
+renovação de prazo ou gravação de conteúdo. Não autoriza ativação automaticamente.
+
+**Observações auditáveis.** O recibo não copia `RECONCILIATION_CHECKS`. Ele vincula
+seis observações ordenadas, cada qual com início/fim UTC e resultado validado:
+`ENVIRONMENT_INITIAL`, `DATABASE`, `ENVIRONMENT_FINAL`, `ACCOUNTS_FINAL`,
+`CREDENTIAL_CLOSED` e `INTEGRITY_FINAL`. São persistidos somente estados/PIDs dos
+serviços controlados, hashes de configurações/Nginx/página, código de saída de
+`nginx -t`, status/tamanho/hash HTTPS, SELinux, identidade administrativa esperada,
+resumos sanitizados dos grants com TLS/fontes/warnings/hashes, quantidade/hash da
+cadeia Prisma e ausência de sessões/credencial. Não há SQL bruto, senha, URL
+credenciada, dados de negócio, mensagem de servidor ou stack trace operacional.
+
+Resultados ausentes, fora de ordem, divergentes, sem fontes obrigatórias ou fora da
+janela são recusados. As observações vêm do retorno dos verificadores que executam
+os controles; um verificador que retorna `None` não produz aprovação. Os hashes
+vinculam os documentos, mas não são uma assinatura independente de root. A auditoria
+não é atômica entre MySQL, HTTPS e arquivos e não comprova ausência de mudanças por
+operadores externos entre observações; a exclusão operacional continua obrigatória.
+
+**Validação e limite do parecer.** A suíte local cobre o ciclo reconciliação → nova
+ativação simulada → falha → recuperação → preparação seguinte, controlador antigo,
+seleção do controlador, guard, expiração, replay, concorrência, adulteração, todas as
+fronteiras de publicação, um processo filho realmente interrompido antes da
+publicação e preservação do histórico. MySQL, HTTPS, systemd e os serviços são
+simulados; arquivos, locks, hashes, permissões e interrupções de processos usam
+recursos descartáveis locais. `fsync` local não equivale a um ensaio de perda de
+energia no filesystem da VM. Testes operacionais Linux/OCI, nova release,
+reconciliação real e ativação **não foram executados**. Os logs e o diff desta revisão
+ficam em `build/oci-reconciliation-review/`.

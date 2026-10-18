@@ -44,8 +44,9 @@ def runtime_url():
     return value
 
 def checked_configs(a):
-    for name in CONFIGS:
-        require(digest(secure_read('/etc/traceflow/'+name,0,65536,0o600))==a['configurationSha256'][name],'ENVIRONMENT_CHANGED')
+    observed={name:digest(secure_read('/etc/traceflow/'+name,0,65536,0o600)) for name in CONFIGS}
+    require(observed==a['configurationSha256'],'ENVIRONMENT_CHANGED')
+    return observed
 
 def snapshot_nginx(path,a):
     dest=path/'nginx';dest.mkdir(mode=0o700)
@@ -111,6 +112,7 @@ def temporary_probe(a):
         conn.request('GET','/?recovery='+a['runId'],headers={'Cache-Control':'no-cache'})
         r=conn.getresponse();body=r.read(2*1024*1024+1)
         require(r.status==200 and digest(body)==a['nginx']['temporaryPageSha256'],'TEMPORARY_PUBLIC_PROBE')
+        return {'status':r.status,'sha256':digest(body),'bytes':len(body)}
     finally:conn.close()
 
 def receipt(path,event,a,**fields):
@@ -148,9 +150,10 @@ def launch(ops,layout,args):
     for service in ops.SERVICES:
         require(ops.command(['systemctl','show',service,'-p','LimitCORE','--value']).stdout.strip()=='0','CORE_LIMIT_REQUIRED')
     with exclusive_lock(layout.state/'operation.lock'):
-        state=layout.load();reconciliation_closed(layout,state);layout.current_matches(state);ops.assert_stopped()
-        require(state['status']=='idle' and state['current'] is None and state.get('previous') is None and
-                not state['history'] and state.get('phase') in ('migration-complete','migration-recovered','first-activation-recovered'), 'FIRST_ACTIVATION_ONLY')
+        state=layout.load();proof=reconciliation_closed(layout,state)
+        controller=reconciliation_controller(ops,layout,proof,manifest) if proof else release/'deploy/scripts/release.py'
+        layout.current_matches(state);ops.assert_stopped()
+        require(first_activation_eligible(state), 'FIRST_ACTIVATION_ONLY')
         parent=layout.state/'activations';parent.mkdir(mode=0o700,exist_ok=True);trusted_path(parent,directory=True,uid=0)
         path=run_directory(layout,a['runId']);path.mkdir(mode=0o700)  # Refuse reuse, even after failure.
         private_write(path/'authorization.json',encoded(a));private_write(path/'prior-state.json',encoded(state))
@@ -173,7 +176,7 @@ def launch(ops,layout,args):
         # Unit is started only after the lock is released; no DB mutation occurs in launcher.
     try:
         seconds=math.floor(expires-time.time());require(seconds>0,'ACTIVATION_WINDOW_EXPIRED')
-        ops.command(systemd_command(release/'deploy/scripts/release.py',a['runId'],seconds),timeout=15)
+        ops.command(systemd_command(controller,a['runId'],seconds),timeout=15)
     except BaseException:
         # If systemd accepted the job but the caller lost its reply, keep its recovery
         # credential. finalize-first is the sole cleanup owner after a submitted job.
@@ -213,15 +216,25 @@ def recover(ops,layout,path,a,accounts):
             require(target==allowed,'RECOVERY_LINK_CHANGED');link.unlink();fsync_dir(link.parent)
         attempt('links',unlink_owned)
     attempt('credentials',lambda:cleanup_credential(a))
-    if not errors:
-        prior=private_json(path/'prior-state.json')
-        prior.update(status='idle',phase='first-activation-recovered',runId=a['runId'],target=a['releaseId'])
-        layout.save(prior)
-    else:
-        state.update(status='intervention-required',phase='recovery-incomplete');layout.save(state)
+    prior=private_json(path/'prior-state.json')
     result={'status':'TEMPORARY_PAGE_RESTORED' if not errors else 'INTERVENTION_REQUIRED','failedControls':errors,
             'schemaRestored':False,'dataPreserved':True}
-    receipt(path,'recovery',a,**result)
+    if not errors and 'recoveryProof' in prior:
+        # Preserve the origin in the immutable prior-state, never rebind its runId.
+        reconciliation_closed(layout,prior,check_guard=False)
+        after=recovered_state(prior,a)
+        result.update(priorStateSha256=digest(encoded(prior)),recoveredStateSha256=digest(encoded(after)))
+        data={'formatVersion':1,'event':'recovery','runId':a['runId'],'releaseId':a['releaseId'],
+              'descriptorSha256':a['descriptorSha256'],'authorizationSha256':file_digest(path/'authorization.json'),
+              'at':timestamp(),**result}
+        publish_reconciliation(path/'recovery.json',data)
+        layout.save(after)  # Old controllers reject this status, even after completion.
+    else:
+        if not errors:
+            after=dict(prior,status='idle',phase='first-activation-recovered',runId=a['runId'],target=a['releaseId'])
+        else:after=dict(state,status='intervention-required',phase='recovery-incomplete')
+        receipt(path,'recovery',a,**result)
+        layout.save(after)
     return result
 
 def run(ops,layout,run_id):
@@ -235,6 +248,10 @@ def run(ops,layout,run_id):
         release,admin,manifest=layout.installed(a['releaseId'],a['descriptorSha256'])
         deadline=Deadline(authorize(a,manifest));pre_evidence(a,manifest);checked_configs(a)
         state=layout.load();require(state==private_json(path/'prior-state.json'),'ACTIVATION_STATE_CHANGED')
+        proof=reconciliation_closed(layout,state)
+        if proof:
+            controller=reconciliation_controller(ops,layout,proof,manifest)
+            require(str(controller)+' finalize-first --run-id '+run_id in values.get('ExecStopPost',''),'RECONCILE_FINALIZER_CONTROLLER')
         layout.current_matches(state);ops.assert_stopped()
         accounts=Accounts(RUN_BASE/run_id/'admin.cnf');db=None
         try:
@@ -291,7 +308,14 @@ def finalize(ops,layout,run_id):
     with exclusive_lock(layout.state/'operation.lock'):
         if (path/'recovery.json').exists():
             r=private_json(path/'recovery.json')
-            require(r.get('status')=='TEMPORARY_PAGE_RESTORED','RECOVERY_INCOMPLETE');return
+            require(r.get('status')=='TEMPORARY_PAGE_RESTORED','RECOVERY_INCOMPLETE')
+            state=layout.load()
+            if 'recoveredStateSha256' in r:
+                require(digest(encoded(state))==r['recoveredStateSha256'],'RECOVERY_STATE_INCOMPLETE')
+                proof=reconciliation_closed(layout,state)
+                _,_,manifest=layout.installed(a['releaseId'],a['descriptorSha256'])
+                reconciliation_controller(ops,layout,proof,manifest)
+            return
         state=layout.load();verified=False
         try:
             if (path/'verified.json').exists():
@@ -337,8 +361,9 @@ def record(layout,run_id,kind,source):
 
 # Explicit reconciliation of the observed first-publication/public-page failure.
 # These files are siblings of activations/, never replacements of historical receipts.
-RECONCILIATION_CHECKS={'servicesStopped':True,'accountsLocked':True,'runtimeSessions':0,
-    'migrationCount':68,'nginxRestored':True,'publicHtmlExact':True,'linksAbsent':True,'credentialRemoved':True}
+RECONCILED_STATUS='reconciled-v2'
+RECONCILED_PHASE='first-recovery-reconciled-v2'
+GUARD_FIELDS=('status','phase','current','target','bootId','pid','processStart','expiresAt','runId','operation')
 def reconciliation_json(path):
     from operational_io import unique
     return unique(secure_read(Path(path),os.geteuid(),2*1024*1024,0o600))
@@ -362,14 +387,14 @@ def reconciliation_authorize(q,run_id,wall=None):
     from activation_contract import exact,sha
     exact(q,{'formatVersion','operation','authorizationId','reconciliationId','operatorId',
              'runId','releaseId','descriptorSha256','issuedAt','expiresAt','historySha256',
-             'stateSha256','externalWritersExcluded'},'RECONCILE_AUTH_FIELDS')
-    require(type(q['formatVersion']) is int and q['formatVersion']==1 and q['operation']=='reconcile-first' and
+             'stateSha256','externalWritersExcluded','controllerReleaseId','controllerDescriptorSha256'},'RECONCILE_AUTH_FIELDS')
+    require(type(q['formatVersion']) is int and q['formatVersion']==2 and q['operation']=='reconcile-first' and
             q['runId']==run_id and q['externalWritersExcluded'] is True,'RECONCILE_AUTH_KIND')
     for k in ('authorizationId','reconciliationId','runId'):
         require(isinstance(q[k],str) and re.fullmatch(r'[a-f0-9]{32}',q[k]),'RECONCILE_AUTH_ID')
     require(isinstance(q['operatorId'],str) and re.fullmatch(r'[A-Za-z0-9._@-]{3,80}',q['operatorId']),'OPERATOR_ID')
-    release_id(q['releaseId'])
-    for k in ('descriptorSha256','historySha256','stateSha256'):sha(q[k])
+    release_id(q['releaseId']);release_id(q['controllerReleaseId'])
+    for k in ('descriptorSha256','historySha256','stateSha256','controllerDescriptorSha256'):sha(q[k])
     issued,expires=utc(q['issuedAt']),utc(q['expiresAt'])
     require(0<expires-issued<=600,'RECONCILE_WINDOW')
     if wall is not None:require(issued<=wall<expires,'RECONCILE_AUTH_EXPIRED')
@@ -380,35 +405,113 @@ def reconciliation_folder(layout,q):
     return layout.state/'reconciliations'/q['runId']/q['reconciliationId']
 
 
-def reconciliation_closed(layout,state):
-    """A crash between state/guard writes and completion must not open activation."""
-    if 'reconciliationId' not in state:return
-    require(re.fullmatch(r'[a-f0-9]{32}',state.get('runId','')) and
-            re.fullmatch(r'[a-f0-9]{32}',state['reconciliationId']),'RECONCILE_STATE_ID')
-    folder=layout.state/'reconciliations'/state['runId']/state['reconciliationId']
-    intent=reconciliation_json(folder/'intent.json');done=reconciliation_json(folder/'complete.json')
-    from activation_contract import exact
-    q=reconciliation_json(folder/'authorization.json');reconciliation_authorize(q,state['runId'])
-    require(q['reconciliationId']==state['reconciliationId'] and q['releaseId']==state.get('target') and
-            state.get('status')=='idle' and state.get('phase')=='first-activation-recovered' and
-            state.get('current') is None and state.get('previous') is None and not state.get('history'),
-            'RECONCILE_COMPLETION_BINDING')
-    exact(done,{'formatVersion','status','intentSha256','stateSha256','auditFile','auditSha256'},'RECONCILE_COMPLETION_FIELDS')
-    require(isinstance(done['auditFile'],str) and re.fullmatch(r'audit-[a-f0-9]{32}\.json',done['auditFile']),'RECONCILE_AUDIT_PATH')
-    audit=reconciliation_json(folder/done['auditFile'])
-    exact(audit,{'formatVersion','observedAt','authorizationSha256','historySha256','checks'},'RECONCILE_AUDIT_FIELDS')
-    require(done['formatVersion']==1 and done['status']=='RECOVERY_RECONCILED' and
-            done['intentSha256']==digest(encoded(intent)) and done['stateSha256']==digest(encoded(state)) and
-            intent=={'formatVersion':1,'authorizationSha256':digest(encoded(q)),'historySha256':q['historySha256'],
-                     'beforeStateSha256':q['stateSha256'],'afterState':state} and
-            done['auditSha256']==digest(encoded(audit)) and audit['formatVersion']==1 and
-            audit['authorizationSha256']==digest(encoded(q)) and audit['historySha256']==q['historySha256'] and
-            encoded(audit['checks'])==encoded(RECONCILIATION_CHECKS) and utc(q['issuedAt'])<=utc(audit['observedAt'])<utc(q['expiresAt']),
-            'RECONCILE_INCOMPLETE')
-    require(recovery_history(run_directory(layout,state['runId']))==q['historySha256'],'RECONCILE_HISTORY_CHANGED')
+def first_activation_eligible(state):
+    phase_ok=(state.get('status')=='idle' and state.get('phase') in
+              ('migration-complete','migration-recovered','first-activation-recovered')) or (
+              state.get('status')==RECONCILED_STATUS and state.get('phase')==RECONCILED_PHASE and 'recoveryProof' in state)
+    return phase_ok and state.get('current') is None and state.get('previous') is None and not state.get('history')
+
+
+def guard_projection(state):return {k:state.get(k) for k in GUARD_FIELDS}
+
+
+def read_guard(layout):
     from operational_io import unique
-    guard={k:state.get(k) for k in ('status','phase','current','target','bootId','pid','processStart','expiresAt','runId','operation')}
-    require(unique(secure_read(layout.guard,os.geteuid(),65536,0o644))==guard,'RECONCILE_GUARD_DIVERGED')
+    return unique(secure_read(layout.guard,os.geteuid(),65536,0o644))
+
+
+def publish_reconciliation(path,value):
+    """Publish complete JSON exclusively; leave every interrupted temporary for review.
+
+    link() is the portable same-filesystem NOREPLACE publication primitive. A crash
+    before unlink leaves two links and is refused by secure_read; never overwritten.
+    """
+    path=Path(path);trusted_path(path.parent,directory=True,uid=os.geteuid())
+    require(not any(path.parent.glob('.pending-*')),'RECONCILE_PUBLICATION_RESIDUE')
+    raw=encoded(value);temp=path.parent/('.pending-'+path.name+'-'+os.urandom(16).hex())
+    private_write(temp,raw)  # O_EXCL, 0600, complete write, fsync(file)
+    require(secure_read(temp,os.geteuid(),2*1024*1024,0o600)==raw,'RECONCILE_PUBLICATION_CHANGED')
+    fsync_dir(path.parent)
+    os.link(temp,path,follow_symlinks=False)  # Fails if destination exists; no replacement.
+    temp.unlink();fsync_dir(path.parent)
+
+
+def reconciliation_inventory(folder):
+    if not folder.exists():return
+    trusted_path(folder,directory=True,uid=os.geteuid())
+    require(not any(folder.glob('.pending-*')),'RECONCILE_PUBLICATION_RESIDUE')
+    for p in folder.iterdir():
+        require(p.name in ('authorization.json','intent.json','complete.json','applied.json') or
+                re.fullmatch(r'(audit|guard-repair)-[a-f0-9]{32}\.json',p.name),'RECONCILE_UNEXPECTED_FILE')
+        reconciliation_json(p)  # Reject partial, malformed, duplicate or substituted files.
+        fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW)
+        try:os.fsync(fd)
+        finally:os.close(fd)
+    fsync_dir(folder)  # Re-establish durability after an interrupted final directory fsync.
+
+
+def reconciliation_documents(folder):
+    return digest(encoded({p.name:digest(secure_read(p,os.geteuid(),2*1024*1024,0o600))
+        for p in sorted(folder.iterdir()) if p.name!='applied.json'}))
+
+
+def recovered_state(prior,a):
+    result=dict(prior,status=RECONCILED_STATUS,phase=RECONCILED_PHASE,runId=a['runId'],target=a['releaseId'])
+    result['recoveryProof']={'kind':'activation-recovery','runId':a['runId']}
+    return result
+
+
+def reconciliation_controller(ops,layout,q,manifest):
+    require(isinstance(q,dict),'RECONCILE_CONTROLLER_REQUIRED')
+    controller,_,cm=layout.installed(q['controllerReleaseId'],q['controllerDescriptorSha256'])
+    entry=controller/'deploy/scripts/release.py'
+    require(cm['sourceState']=='committed' and cm['schema']==manifest['schema'],'RECONCILE_CONTROLLER_SCHEMA')
+    require(Path(ops.__file__).absolute()==entry and Path(__file__).absolute()==controller/'deploy/lib/activation_window.py',
+            'RECONCILE_CONTROLLER_SELECTION')
+    return entry
+
+
+def reconciliation_closed(layout,state,check_guard=True,_seen=()):
+    """Follow immutable origin proofs instead of combining IDs from different runs."""
+    require('reconciliationId' not in state,'RECONCILE_LEGACY_STATE_REVIEW')
+    if 'recoveryProof' not in state:
+        require(state.get('status')!=RECONCILED_STATUS,'RECONCILE_PROOF_REQUIRED');return None
+    from activation_contract import exact
+    proof=state['recoveryProof'];require(isinstance(proof,dict),'RECONCILE_PROOF_FIELDS')
+    rid=proof.get('runId');require(isinstance(rid,str) and re.fullmatch(r'[a-f0-9]{32}',rid),'RECONCILE_STATE_ID')
+    require(rid not in _seen and len(_seen)<64,'RECONCILE_PROVENANCE_CYCLE')
+    require(state.get('status')==RECONCILED_STATUS and state.get('phase')==RECONCILED_PHASE and
+            state.get('current') is None and state.get('previous') is None and not state.get('history'),'RECONCILE_COMPLETION_BINDING')
+    if proof.get('kind')=='activation-recovery':
+        exact(proof,{'kind','runId'},'RECONCILE_PROOF_FIELDS')
+        path=run_directory(layout,rid);a=reconciliation_json(path/'authorization.json')
+        prior=reconciliation_json(path/'prior-state.json');r=reconciliation_json(path/'recovery.json')
+        require(a['runId']==rid and state==recovered_state(prior,a) and r.get('event')=='recovery' and
+                r.get('status')=='TEMPORARY_PAGE_RESTORED' and r.get('failedControls')==[] and
+                r.get('schemaRestored') is False and r.get('dataPreserved') is True and
+                all(r.get(k)==a[k] for k in ('runId','releaseId','descriptorSha256')) and
+                r.get('authorizationSha256')==file_digest(path/'authorization.json') and
+                r.get('priorStateSha256')==digest(encoded(prior)) and
+                r.get('recoveredStateSha256')==digest(encoded(state)),'RECONCILE_RECOVERY_PROVENANCE')
+        q=reconciliation_closed(layout,prior,False,(*_seen,rid))
+        require(q is not None,'RECONCILE_ORIGIN_REQUIRED')
+    else:
+        exact(proof,{'kind','runId','reconciliationId'},'RECONCILE_PROOF_FIELDS')
+        require(proof['kind']=='reconciliation' and isinstance(proof['reconciliationId'],str) and
+                re.fullmatch(r'[a-f0-9]{32}',proof['reconciliationId']),'RECONCILE_STATE_ID')
+        folder=reconciliation_folder(layout,proof);reconciliation_inventory(folder)
+        q=reconciliation_json(folder/'authorization.json');reconciliation_authorize(q,rid)
+        require(q['reconciliationId']==proof['reconciliationId'],'RECONCILE_COMPLETION_BINDING')
+        intent,done=completion_evidence(layout,folder,q)
+        applied=reconciliation_json(folder/'applied.json')
+        exact(applied,{'formatVersion','completeSha256','auditFile','auditSha256','stateSha256','guardSha256','documentsSha256'},'RECONCILE_APPLIED_FIELDS')
+        validate_audit_file(folder,applied,q,intent)
+        require(intent['afterState']==state and applied['formatVersion']==2 and
+                applied['completeSha256']==digest(encoded(done)) and applied['stateSha256']==digest(encoded(state)) and
+                applied['guardSha256']==digest(encoded(guard_projection(state))) and
+                applied['documentsSha256']==reconciliation_documents(folder),'RECONCILE_INCOMPLETE')
+    if check_guard:require(read_guard(layout)==guard_projection(state),'RECONCILE_GUARD_DIVERGED')
+    return q
 
 
 def reconciliation_baseline(layout,q):
@@ -429,41 +532,126 @@ def reconciliation_baseline(layout,q):
     require(prior.get('status')=='idle' and prior.get('current') is None and prior.get('previous') is None and
             not prior.get('history') and prior.get('phase') in ('migration-complete','migration-recovered','first-activation-recovered'),
             'RECONCILE_PRIOR_STATE')
-    after=dict(prior,status='idle',phase='first-activation-recovered',runId=q['runId'],
-               target=q['releaseId'],reconciliationId=q['reconciliationId'])
+    require('reconciliationId' not in prior and 'recoveryProof' not in prior,'RECONCILE_PRIOR_PROOF_REVIEW')
+    after=dict(prior,status=RECONCILED_STATUS,phase=RECONCILED_PHASE,runId=q['runId'],
+               target=q['releaseId'],recoveryProof={'kind':'reconciliation','runId':q['runId'],'reconciliationId':q['reconciliationId']})
     return path,a,after
 
 
 def reconciliation_environment(ops,layout,a):
     ops.assert_stopped()
-    require(not any(os.path.lexists(p) for p in (layout.app/'current',layout.web/'current',
-            layout.app/'previous',layout.web/'previous',RUN_BASE/a['runId'])),'RECONCILE_RESIDUAL_RESOURCE')
-    for unit in ('traceflow-first-'+a['runId']+'.service','traceflow-recovery-backup.service',
-                 'traceflow-recovery-reconcile.service','traceflow-recovery-backup.timer'):
-        props=ops.service_state(unit)
-        require(props.get('ActiveState') in ('inactive','failed') and props.get('MainPID','0')=='0','RECONCILE_UNIT_RUNNING')
-    checked_configs(a)
-    require(ops.command(['getenforce']).stdout.strip()=='Enforcing','SELINUX_REQUIRED')
-    for name,expected in a['nginx']['before'].items():
-        actual=digest(secure_read(name,0,1024*1024,0o644)) if os.path.lexists(name) else None
-        require(actual==expected,'RECONCILE_NGINX_DIVERGED')
-    require(digest(secure_read('/var/www/traceflow/index.html',0,2*1024*1024,0o644))==a['nginx']['temporaryPageSha256'],
-            'TEMPORARY_PAGE_CHANGED')
-    ops.command(['/usr/sbin/nginx','-t'],timeout=10)
-    temporary_probe(a)  # Exact HTTPS bytes. No stripping, UA fallback or relaxed hash.
+    services={name:ops.service_state(name) for name in ops.SERVICES}
+    units={name:ops.service_state(name) for name in (
+        'traceflow-first-'+a['runId']+'.service','traceflow-recovery-backup.service',
+        'traceflow-recovery-reconcile.service','traceflow-recovery-backup.timer')}
+    def normalized(values):
+        result={}
+        for name,props in values.items():
+            require(props.get('ActiveState') in ('inactive','failed') and props.get('MainPID')=='0','RECONCILE_UNIT_RUNNING')
+            result[name]={'state':props['ActiveState'],'pid':props['MainPID']}
+        return result
+    services=normalized(services);units=normalized(units)
+    absent=not any(os.path.lexists(p) for p in (layout.app/'current',layout.web/'current',
+        layout.app/'previous',layout.web/'previous',RUN_BASE/a['runId']))
+    require(absent,'RECONCILE_RESIDUAL_RESOURCE')
+    configs=checked_configs(a);selinux=ops.command(['getenforce']).stdout.strip()
+    require(selinux=='Enforcing','SELINUX_REQUIRED')
+    nginx={name:digest(secure_read(name,0,1024*1024,0o644)) if os.path.lexists(name) else None for name in a['nginx']['before']}
+    require(nginx==a['nginx']['before'],'RECONCILE_NGINX_DIVERGED')
+    local=digest(secure_read('/var/www/traceflow/index.html',0,2*1024*1024,0o644))
+    require(local==a['nginx']['temporaryPageSha256'],'TEMPORARY_PAGE_CHANGED')
+    syntax=ops.command(['/usr/sbin/nginx','-t'],timeout=10).returncode
+    require(type(syntax) is int and syntax==0,'RECONCILE_NGINX_SYNTAX')
+    public=temporary_probe(a)
+    return {'services':services,'units':units,'configurationSha256':configs,'nginxSha256':nginx,
+            'localPageSha256':local,'public':public,'selinux':selinux,'linksAbsent':absent,'nginxTestExitCode':syntax}
 
 
 def reconciliation_database(ops,release,manifest,accounts):
-    """All SQL is read-only; never calls unlock, relock, change or a migration."""
+    """Only fixed read-only SQL. Persist bounded validated metadata, not SQL or secrets."""
     from backup_runtime import load_module
     backup=load_module('reconcile_backup_reader',Path(ops.__file__).with_name('recovery-backup.py'))
     source=backup.Source(accounts,manifest,release)
-    source.identity();source.quiescent();accounts.audit(True)
+    source.identity();source.quiescent();audits=accounts.audit(True)
+    identity=source.rows("SELECT JSON_ARRAY(@@server_uuid,VERSION(),@@port,DATABASE(),CURRENT_USER(),CAST(CURRENT_ROLE() AS CHAR),TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(),NOW()))")
+    require(identity==[[TARGET['serverUuid'],'26.7.0-cloud',3306,'traceflow','traceflow_admin@%','`administrator`@`%`',0]],'BACKUP_SERVER_IDENTITY')
     rows=source.rows("SELECT JSON_OBJECT('name',migration_name,'sha256',checksum,'finished',finished_at IS NOT NULL,'rolledBack',rolled_back_at IS NOT NULL) FROM _prisma_migrations ORDER BY CAST(migration_name AS BINARY)")
-    require([{'name':r['name'],'sha256':r['sha256']} for r in rows]==manifest['schema']['migrations'] and
-            len(rows)==68 and all(type(r['finished']) in (bool,int) and r['finished']==1 for r in rows) and
+    chain=[{'name':r['name'],'sha256':r['sha256']} for r in rows]
+    require(chain==manifest['schema']['migrations'] and len(rows)==68 and
+            all(type(r['finished']) in (bool,int) and r['finished']==1 for r in rows) and
             all(type(r['rolledBack']) in (bool,int) and r['rolledBack']==0 for r in rows),'MIGRATION_CHAIN_MISMATCH')
-    source.quiescent();accounts.state(True,True)
+    source.quiescent();sessions=accounts.state(True,True)
+    return {'serverIdentity':identity[0],'runtimeAudits':audits,'migrations':{'count':len(rows),'chainSha256':digest(encoded(chain))},'remainingSessions':sessions}
+
+
+OBSERVATION_ORDER=('ENVIRONMENT_INITIAL','DATABASE','ENVIRONMENT_FINAL','ACCOUNTS_FINAL','CREDENTIAL_CLOSED','INTEGRITY_FINAL')
+def validate_observations(observations,q,a,intent):
+    from activation_contract import exact,sha
+    require(isinstance(observations,list) and len(observations)==len(OBSERVATION_ORDER),'RECONCILE_OBSERVATIONS_MISSING')
+    last=utc(q['issuedAt'])
+    for name,item in zip(OBSERVATION_ORDER,observations):
+        exact(item,{'kind','startedAt','finishedAt','result'},'RECONCILE_OBSERVATION_FIELDS')
+        start,end=utc(item['startedAt']),utc(item['finishedAt'])
+        require(item['kind']==name and last<=start<=end<utc(q['expiresAt']),'RECONCILE_OBSERVATION_ORDER');last=end
+        r=item['result']
+        if name.startswith('ENVIRONMENT_'):
+            exact(r,{'services','units','configurationSha256','nginxSha256','localPageSha256','public','selinux','linksAbsent','nginxTestExitCode'},'RECONCILE_ENV_OBSERVATION')
+            require(r['configurationSha256']==a['configurationSha256'] and r['nginxSha256']==a['nginx']['before'] and
+                    r['localPageSha256']==a['nginx']['temporaryPageSha256'] and r['selinux']=='Enforcing' and r['linksAbsent'] is True and
+                    type(r['nginxTestExitCode']) is int and r['nginxTestExitCode']==0,'RECONCILE_ENV_OBSERVATION')
+            for field,names in (('services',('traceflow-api.service','traceflow-github-worker.service')),('units',(
+                    'traceflow-first-'+q['runId']+'.service','traceflow-recovery-backup.service','traceflow-recovery-reconcile.service','traceflow-recovery-backup.timer'))):
+                exact(r[field],names,'RECONCILE_UNIT_OBSERVATION')
+                for value in r[field].values():
+                    exact(value,{'state','pid'},'RECONCILE_UNIT_OBSERVATION')
+                    require(value['state'] in ('inactive','failed') and value['pid']=='0','RECONCILE_UNIT_OBSERVATION')
+            exact(r['public'],{'status','sha256','bytes'},'RECONCILE_PUBLIC_OBSERVATION')
+            require(type(r['public']['status']) is int and r['public']['status']==200 and r['public']['sha256']==r['localPageSha256'] and
+                    type(r['public']['bytes']) is int and 0<r['public']['bytes']<=2*1024*1024,'RECONCILE_PUBLIC_OBSERVATION')
+        elif name=='DATABASE':
+            exact(r,{'serverIdentity','runtimeAudits','migrations','remainingSessions'},'RECONCILE_DB_OBSERVATION')
+            require(r['serverIdentity']==[TARGET['serverUuid'],'26.7.0-cloud',3306,'traceflow','traceflow_admin@%','`administrator`@`%`',0] and r['remainingSessions']==[],'RECONCILE_DB_OBSERVATION')
+            exact(r['migrations'],{'count','chainSha256'},'RECONCILE_MIGRATION_OBSERVATION')
+            require(type(r['migrations']['count']) is int and r['migrations']['count']==68 and r['migrations']['chainSha256']==intent['migrationChainSha256'],'RECONCILE_MIGRATION_OBSERVATION')
+            require(isinstance(r['runtimeAudits'],list) and len(r['runtimeAudits'])==2,'RECONCILE_GRANTS_OBSERVATION')
+            for user,d in zip(('traceflow_api','traceflow_worker'),r['runtimeAudits']):
+                exact(d,{'account','tls','privileges','roleState','accountLocked','sourceCount','warnings','stateSha256'},'RECONCILE_GRANTS_OBSERVATION')
+                require(d['account']==user+'@10.20.1.184' and d['tls'] in ('TLSv1.2','TLSv1.3') and d['privileges']=='USAGE_GLOBAL_AND_SCHEMA_CRUD_ONLY' and
+                        d['roleState']=='ABSENT' and d['accountLocked'] is True and type(d['sourceCount']) is int and d['sourceCount']==15 and
+                        type(d['warnings']) is int and d['warnings']==0,'RECONCILE_GRANTS_OBSERVATION');sha(d['stateSha256'])
+        elif name=='ACCOUNTS_FINAL':require(r=={'remainingSessions':[]},'RECONCILE_SESSION_OBSERVATION')
+        elif name=='CREDENTIAL_CLOSED':require(r=={'credentialRemoved':True},'RECONCILE_CREDENTIAL_OBSERVATION')
+        else:
+            exact(r,{'stateSha256','guardSha256','historySha256','manifestSha256'},'RECONCILE_INTEGRITY_OBSERVATION')
+            require(r['stateSha256'] in (q['stateSha256'],digest(encoded(intent['afterState']))) and
+                    r['guardSha256'] in (digest(encoded(intent['beforeGuard'])),digest(encoded(guard_projection(intent['afterState'])))) and
+                    r['historySha256']==q['historySha256'] and r['manifestSha256']==intent['manifestSha256'],'RECONCILE_INTEGRITY_OBSERVATION')
+
+
+def validate_audit_file(folder,reference,q,intent):
+    from activation_contract import exact
+    require(isinstance(reference['auditFile'],str) and re.fullmatch(r'audit-[a-f0-9]{32}\.json',reference['auditFile']),'RECONCILE_AUDIT_PATH')
+    audit=reconciliation_json(folder/reference['auditFile'])
+    exact(audit,{'formatVersion','authorizationSha256','intentSha256','observations'},'RECONCILE_AUDIT_FIELDS')
+    require(type(audit['formatVersion']) is int and audit['formatVersion']==2 and audit['authorizationSha256']==digest(encoded(q)) and
+            audit['intentSha256']==digest(encoded(intent)) and reference['auditSha256']==digest(encoded(audit)),'RECONCILE_AUDIT_CHANGED')
+    a=reconciliation_json(folder.parents[2]/'activations'/q['runId']/'authorization.json')
+    validate_observations(audit['observations'],q,a,intent)
+    return audit
+
+
+def completion_evidence(layout,folder,q):
+    from activation_contract import exact
+    intent=reconciliation_json(folder/'intent.json');done=reconciliation_json(folder/'complete.json')
+    exact(intent,{'formatVersion','authorizationSha256','historySha256','beforeState','beforeGuard','afterState','manifestSha256','migrationChainSha256'},'RECONCILE_INTENT_FIELDS')
+    _,_,after=reconciliation_baseline(layout,q)
+    require(intent['formatVersion']==2 and intent['authorizationSha256']==digest(encoded(q)) and intent['historySha256']==q['historySha256'] and
+            digest(encoded(intent['beforeState']))==q['stateSha256'] and intent['beforeGuard']==guard_projection(intent['beforeState']) and intent['afterState']==after,'RECONCILE_INTENT_CHANGED')
+    exact(done,{'formatVersion','status','intentSha256','stateSha256','auditFile','auditSha256'},'RECONCILE_COMPLETION_FIELDS')
+    require(done['formatVersion']==2 and done['status']=='AUDIT_COMPLETE_STATE_PENDING' and done['intentSha256']==digest(encoded(intent)) and
+            done['stateSha256']==digest(encoded(after)),'RECONCILE_INCOMPLETE')
+    validate_audit_file(folder,done,q,intent)
+    return intent,done
 
 
 @contextlib.contextmanager
@@ -492,66 +680,104 @@ def reconciliation_accounts(q):
 
 
 def reconcile(ops,layout,args):
-    """Manual, read-only audit followed by one local journal transition. No activation."""
+    """Audit -> immutable completion -> incompatible recovered state -> applied proof."""
     ops.native_context(layout);resource.setrlimit(resource.RLIMIT_CORE,(0,0))
     q=reconciliation_json(Path(args.authorization).absolute());reconciliation_authorize(q,args.run_id)
     auth_sha=digest(encoded(q));folder=reconciliation_folder(layout,q)
     with exclusive_lock(layout.state/'operation.lock'):
-        path,a,after=reconciliation_baseline(layout,q);state=layout.load()
-        if (folder/'complete.json').exists():
-            intent=reconciliation_json(folder/'intent.json')
-            require(intent['authorizationSha256']==auth_sha and intent['afterState']==after and state==after,'RECONCILE_REPLAY_DIVERGED')
-            reconciliation_closed(layout,state)
+        path,a,after=reconciliation_baseline(layout,q);state=layout.load();guard=read_guard(layout)
+        require(not any(layout.state.glob('.write-*')) and not any(layout.guard.parent.glob('.write-*')),'RECONCILE_STATE_RESIDUE')
+        reconciliation_inventory(folder)
+        if (folder/'authorization.json').exists():require(reconciliation_json(folder/'authorization.json')==q,'RECONCILE_DOCUMENT_CHANGED')
+        if (folder/'applied.json').exists():
+            require(state==after,'RECONCILE_REPLAY_DIVERGED')
+            proof=reconciliation_closed(layout,state)
+            require(proof==q,'RECONCILE_REPLAY_DIVERGED')
+            _,_,manifest=layout.installed(q['releaseId'],q['descriptorSha256'])
+            reconciliation_controller(ops,layout,q,manifest)
             ops.emit('recovery_already_reconciled',runId=q['runId'],reconciliationId=q['reconciliationId'],freshAudit=False)
             return
         expires=reconciliation_authorize(q,args.run_id,time.time());deadline=Deadline(expires)
         release,_,manifest=layout.installed(q['releaseId'],q['descriptorSha256'])
-        authorize(a,manifest,utc(a['issuedAt']))  # Validate historical contract, not revive its window.
-        require(utc(a['issuedAt'])<=time.time(),'RECONCILE_HISTORY_FUTURE')
-        intent=None
-        if (folder/'intent.json').exists():
-            intent=reconciliation_json(folder/'intent.json')
-            require(intent.get('authorizationSha256')==auth_sha and intent.get('historySha256')==q['historySha256'] and
-                    intent.get('beforeStateSha256')==q['stateSha256'] and intent.get('afterState')==after,'RECONCILE_INTENT_CHANGED')
-        original=digest(encoded(state))==q['stateSha256'] and state.get('status')=='intervention-required' and state.get('phase')=='recovery-incomplete'
-        require((original or intent is not None and state==after) and state.get('runId')==q['runId'] and
-                state.get('target')==q['releaseId'] and state.get('current') is None and state.get('previous') is None and
-                not state.get('history'),'RECONCILE_STATE_DIVERGED')
-        # Every retry before completion re-audits live conditions, including after a partial save.
+        reconciliation_controller(ops,layout,q,manifest)
+        authorize(a,manifest,utc(a['issuedAt']));require(utc(a['issuedAt'])<=time.time(),'RECONCILE_HISTORY_FUTURE')
+        intent=reconciliation_json(folder/'intent.json') if (folder/'intent.json').exists() else None
+        done=None
+        if (folder/'complete.json').exists():intent,done=completion_evidence(layout,folder,q)
+        if intent is None:
+            require(digest(encoded(state))==q['stateSha256'] and state.get('status')=='intervention-required' and state.get('phase')=='recovery-incomplete' and
+                    state.get('runId')==q['runId'] and state.get('target')==q['releaseId'] and state.get('current') is None and
+                    state.get('previous') is None and not state.get('history'),'RECONCILE_STATE_DIVERGED')
+            require(guard==guard_projection(state),'RECONCILE_GUARD_DIVERGED')
+            intent={'formatVersion':2,'authorizationSha256':auth_sha,'historySha256':q['historySha256'],'beforeState':state,
+                    'beforeGuard':guard,'afterState':after,'manifestSha256':digest(encoded(manifest)),
+                    'migrationChainSha256':digest(encoded(manifest['schema']['migrations']))}
+        else:
+            expected={'formatVersion':2,'authorizationSha256':auth_sha,'historySha256':q['historySha256'],'beforeState':intent.get('beforeState'),
+                      'beforeGuard':guard_projection(intent.get('beforeState',{})),'afterState':after,
+                      'manifestSha256':digest(encoded(manifest)),'migrationChainSha256':digest(encoded(manifest['schema']['migrations']))}
+            require(intent==expected and digest(encoded(intent['beforeState']))==q['stateSha256'],'RECONCILE_INTENT_CHANGED')
+            require(state==intent['beforeState'] or done is not None and state==after,'RECONCILE_STATE_DIVERGED')
+            allowed=[guard_projection(state)]
+            if done is not None and state==after:allowed.append(intent['beforeGuard'])
+            require(guard in allowed,'RECONCILE_GUARD_DIVERGED')
+        repair=guard!=guard_projection(state)
         old_alarm=signal.getsignal(signal.SIGALRM)
         def expired(*_):raise Refused('RECONCILE_TIMEOUT')
         signal.signal(signal.SIGALRM,expired);signal.setitimer(signal.ITIMER_REAL,deadline.check())
+        observations=[]
+        def observe(kind,fn):
+            deadline.check();start=timestamp();value=fn();end=timestamp();deadline.check()
+            observations.append({'kind':kind,'startedAt':start,'finishedAt':end,'result':value})
         try:
-            reconciliation_environment(ops,layout,a);deadline.check()
+            observe('ENVIRONMENT_INITIAL',lambda:reconciliation_environment(ops,layout,a))
             with reconciliation_accounts(q) as accounts:
-                reconciliation_database(ops,release,manifest,accounts);deadline.check()
-                reconciliation_environment(ops,layout,a);accounts.state(True,True);deadline.check()
-            # Credential cleanup and query subprocess closure are prerequisites of commit.
-            deadline.check();require(layout.load()==state,'RECONCILE_STATE_RACE')
-            require(recovery_history(path)==q['historySha256'],'RECONCILE_HISTORY_CHANGED')
-            layout.installed(q['releaseId'],q['descriptorSha256']);deadline.check()
+                observe('DATABASE',lambda:reconciliation_database(ops,release,manifest,accounts))
+                observe('ENVIRONMENT_FINAL',lambda:reconciliation_environment(ops,layout,a))
+                observe('ACCOUNTS_FINAL',lambda:{'remainingSessions':accounts.state(True,True)})
+            def closed():
+                absent=not os.path.lexists(Path('/run/traceflow-reconciliation')/q['reconciliationId'])
+                require(absent,'RECONCILE_CREDENTIAL_RESIDUAL');return {'credentialRemoved':absent}
+            observe('CREDENTIAL_CLOSED',closed)
+            def integrity():
+                current=layout.load();current_guard=read_guard(layout)
+                require(current==state and current_guard==guard,'RECONCILE_STATE_RACE')
+                history=recovery_history(path);require(history==q['historySha256'],'RECONCILE_HISTORY_CHANGED')
+                _,_,latest=layout.installed(q['releaseId'],q['descriptorSha256']);reconciliation_controller(ops,layout,q,latest)
+                require(latest==manifest,'RECONCILE_RELEASE_CHANGED')
+                return {'stateSha256':digest(encoded(current)),'guardSha256':digest(encoded(current_guard)),
+                        'historySha256':history,'manifestSha256':digest(encoded(latest))}
+            observe('INTEGRITY_FINAL',integrity)
+            validate_observations(observations,q,a,intent)
             for parent in (layout.state/'reconciliations',folder.parent,folder):
                 parent.mkdir(mode=0o700,exist_ok=True);trusted_path(parent,directory=True,uid=os.geteuid())
-                require(parent.stat().st_mode&0o777==0o700,'RECONCILE_DIRECTORY_MODE')
-            audit={'formatVersion':1,'authorizationSha256':auth_sha,'historySha256':q['historySha256'],
-                   'beforeStateSha256':q['stateSha256'],'afterState':after}
-            auth_copy=folder/'authorization.json'
-            if auth_copy.exists():require(reconciliation_json(auth_copy)==q,'RECONCILE_AUTH_CHANGED')
-            else:private_write(auth_copy,encoded(q));fsync_dir(folder)
-            if intent is None:private_write(folder/'intent.json',encoded(audit));fsync_dir(folder)
-            else:require(intent==audit,'RECONCILE_INTENT_CHANGED')
-            # Evidence of each successful live audit is append-only; no previous receipt is edited.
+                require(parent.stat().st_mode&0o777==0o700,'RECONCILE_DIRECTORY_MODE');fsync_dir(parent.parent)
+            for name,value in (('authorization.json',q),('intent.json',intent)):
+                if os.path.lexists(folder/name):require(reconciliation_json(folder/name)==value,'RECONCILE_DOCUMENT_CHANGED')
+                else:publish_reconciliation(folder/name,value)
             audit_name='audit-'+os.urandom(16).hex()+'.json'
-            checked={'formatVersion':1,'observedAt':timestamp(),'authorizationSha256':auth_sha,
-                     'historySha256':q['historySha256'],'checks':RECONCILIATION_CHECKS}
-            private_write(folder/audit_name,encoded(checked));fsync_dir(folder);deadline.check()
-            layout.save(after)
-            # If save/guard/fsync/complete is interrupted, activation refuses the missing completion.
-            private_write(folder/'complete.json',encoded({'formatVersion':1,'status':'RECOVERY_RECONCILED',
-                'intentSha256':digest(encoded(audit)),'stateSha256':digest(encoded(after)),
-                'auditFile':audit_name,'auditSha256':digest(encoded(checked))}));fsync_dir(folder)
+            audit={'formatVersion':2,'authorizationSha256':auth_sha,'intentSha256':digest(encoded(intent)),'observations':observations}
+            publish_reconciliation(folder/audit_name,audit)
+            audit_ref={'auditFile':audit_name,'auditSha256':digest(encoded(audit))}
+            if done is None:
+                done={'formatVersion':2,'status':'AUDIT_COMPLETE_STATE_PENDING','intentSha256':digest(encoded(intent)),
+                      'stateSha256':digest(encoded(after)),**audit_ref}
+                publish_reconciliation(folder/'complete.json',done)
+            # Both controllers still see BLOCKED before this point. The new non-idle
+            # status is intentionally incompatible with legacy normal activation.
+            if repair:
+                publish_reconciliation(folder/('guard-repair-'+os.urandom(16).hex()+'.json'),{
+                    'formatVersion':2,'completeSha256':digest(encoded(done)),**audit_ref,
+                    'fromGuardSha256':digest(encoded(guard)),'toGuardSha256':digest(encoded(guard_projection(after))),
+                    'stateSha256':digest(encoded(state)),'reason':'KNOWN_STATE_BEFORE_GUARD_INTERRUPTION'})
+            deadline.check();require(layout.load()==state and read_guard(layout)==guard,'RECONCILE_STATE_RACE')
+            layout.save(after);deadline.check()
+            require(layout.load()==after and read_guard(layout)==guard_projection(after),'RECONCILE_SAVE_INCOMPLETE')
+            publish_reconciliation(folder/'applied.json',{'formatVersion':2,'completeSha256':digest(encoded(done)),**audit_ref,
+                'stateSha256':digest(encoded(after)),'guardSha256':digest(encoded(guard_projection(after))),
+                'documentsSha256':reconciliation_documents(folder)})
             reconciliation_closed(layout,after)
-            ops.emit('recovery_reconciled',runId=q['runId'],reconciliationId=q['reconciliationId'],
-                     servicesStarted=False,accountsChanged=False,historicalReceiptsPreserved=True)
+            ops.emit('recovery_reconciled',runId=q['runId'],reconciliationId=q['reconciliationId'],servicesStarted=False,
+                     accountsChanged=False,historicalReceiptsPreserved=True)
         finally:
             signal.setitimer(signal.ITIMER_REAL,0);signal.signal(signal.SIGALRM,old_alarm)
