@@ -74,7 +74,7 @@ export function createNotificationService({
   clock = () => new Date(),
   configuration = env
 } = {}) {
-  async function overdueForProject(projectId, { now, timeZone, range, dryRun }) {
+  async function overdueForProject(projectId, { now, timeZone, range, dryRun, signal }) {
     const counts = emptyCounts();
     const tasks = await repository.findOverdueCandidates(projectId, range);
 
@@ -149,18 +149,33 @@ export function createNotificationService({
       decisions: part.map((entry) => entry.decision)
     }));
     let created = 0;
+    let finishedRows = 0;
+    let startedUnits = 0;
     let failure = null;
-    for (const wave of chunked(units, OVERDUE_UNIT_CONCURRENCY))
-      for (const result of await Promise.allSettled(
-        wave.map((unit) =>
-          repository.persistOverdueUnit(projectId, { ...unit, decidedAt: now, current })
-        )
-      ))
-        if (result.status === 'fulfilled') created += result.value;
-        else failure ??= result.reason;
+    for (const wave of chunked(units, OVERDUE_UNIT_CONCURRENCY)) {
+      const running = [];
+      for (const unit of wave) {
+        if (signal?.aborted) break;
+        startedUnits += 1;
+        running.push(
+          repository
+            .persistOverdueUnit(projectId, { ...unit, decidedAt: now, current })
+            .then((count) => ({ count, rows: unit.rows.length }))
+        );
+      }
+      for (const result of await Promise.allSettled(running))
+        if (result.status === 'fulfilled') {
+          created += result.value.count;
+          finishedRows += result.value.rows;
+        } else failure ??= result.reason;
+      if (signal?.aborted) break;
+    }
     if (failure) throw failure;
     counts.created = created;
-    counts.alreadyNotified = rows.length - created;
+    if (startedUnits < units.length) {
+      counts.alreadyNotified = finishedRows - created;
+      counts.interrupted = true;
+    } else counts.alreadyNotified = rows.length - created;
     return counts;
   }
 
@@ -248,15 +263,22 @@ export function createNotificationService({
       const totals = emptyCounts();
       const projectIds = await repository.listActiveProjectIds(projectId);
       let failed = 0;
-      let processed = 0;
+      let completed = 0;
+      let interrupted = false;
       for (const id of projectIds) {
-        if (signal?.aborted) break;
-        processed += 1;
+        if (signal?.aborted) {
+          interrupted = true;
+          break;
+        }
         try {
-          const counts = await overdueForProject(id, { now, timeZone, range, dryRun });
+          const counts = await overdueForProject(id, { now, timeZone, range, dryRun, signal });
           for (const key of ['scanned', 'eligible', 'created', 'alreadyNotified', 'wouldCreate'])
             totals[key] += counts[key];
           for (const reason of JOB_EXCLUSIONS) totals.excluded[reason] += counts.excluded[reason];
+          if (counts.interrupted) {
+            interrupted = true;
+            break;
+          }
         } catch (error) {
           failed += 1;
           log.error('Falha ao processar os vencimentos de um projeto.', {
@@ -265,6 +287,7 @@ export function createNotificationService({
             errorCode: errorCodeOf(error)
           });
         }
+        completed += 1;
       }
 
       const { wouldCreate, ...counts } = totals;
@@ -276,8 +299,8 @@ export function createNotificationService({
         ...(dryRun ? { wouldCreate } : {}),
         updated: 'NOT_APPLICABLE',
         failed,
-        ...(processed < projectIds.length
-          ? { interrupted: true, pendingProjects: projectIds.length - processed }
+        ...(interrupted
+          ? { interrupted: true, pendingProjects: projectIds.length - completed }
           : {}),
         durationMs: Date.now() - startedAt
       };

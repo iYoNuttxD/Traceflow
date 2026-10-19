@@ -16,10 +16,16 @@ export function createTraceabilityNoticeService({
   log = logger,
   clock = () => new Date()
 } = {}) {
-  async function dispatchProject(projectId) {
+  async function dispatchProject(projectId, { signal = null } = {}) {
     const alerts = await repository.pendingAlerts(projectId);
-    const report = { alerts: alerts.length, batches: 0, summaries: 0, created: 0 };
-    for (const batch of noticeBatches(alerts)) {
+    const report = { alerts: 0, batches: 0, summaries: 0, created: 0 };
+    const batches = noticeBatches(alerts);
+    for (const [index, batch] of batches.entries()) {
+      if (signal?.aborted) {
+        Object.assign(report, { interrupted: true, pendingBatches: batches.length - index });
+        break;
+      }
+      report.alerts += batch.alerts.length;
       const recipientIds = (await repository.activeRecipients(projectId, batch.detectedAt))
         .filter(({ preference }) => preferenceAllowsEvent(preference, batch.detectedAt))
         .map(({ userId }) => userId);
@@ -35,9 +41,9 @@ export function createTraceabilityNoticeService({
     return report;
   }
 
-  async function dispatchSafely(projectId, trigger) {
+  async function dispatchSafely(projectId, trigger, { signal = null } = {}) {
     try {
-      const report = await dispatchProject(projectId);
+      const report = await dispatchProject(projectId, { signal });
       if (report.alerts)
         log.info('Avisos de inconsistência despachados.', {
           event: 'traceability_notices_dispatched',
@@ -64,15 +70,30 @@ export function createTraceabilityNoticeService({
     async dispatchAll({ projectId = null, trigger = 'JOB', signal = null } = {}) {
       const projects = await repository.projectsWithPendingNotices(projectId);
       const report = { projects: projects.length, alerts: 0, created: 0, failed: 0 };
-      for (const id of projects) {
-        if (signal?.aborted) break;
-        const result = await dispatchSafely(id, trigger);
+      for (const [index, id] of projects.entries()) {
+        if (signal?.aborted) {
+          Object.assign(report, {
+            interrupted: true,
+            pendingProjects: projects.length - index,
+            pendingBatches: 0
+          });
+          break;
+        }
+        const result = await dispatchSafely(id, trigger, { signal });
         if (!result) {
           report.failed += 1;
           continue;
         }
         report.alerts += result.alerts;
         report.created += result.created;
+        if (result.interrupted) {
+          Object.assign(report, {
+            interrupted: true,
+            pendingProjects: projects.length - index,
+            pendingBatches: result.pendingBatches
+          });
+          break;
+        }
       }
       return report;
     }

@@ -267,8 +267,12 @@ export function createGithubEventNotificationService({
     const projects = new Set();
     const seen = [];
     const batches = dryRun ? 1 : maxBatches;
-    for (let batch = 0; batch < batches; batch += 1) {
-      if (signal?.aborted) break;
+    let pendingEvents = null;
+    for (let batch = 0; batch < batches && pendingEvents === null; batch += 1) {
+      if (signal?.aborted) {
+        pendingEvents = 0;
+        break;
+      }
       const due = await repository.findDueEventIds({
         projectId,
         now: clock(),
@@ -276,7 +280,11 @@ export function createGithubEventNotificationService({
         exclude: seen
       });
       if (!due.length) break;
-      for (const { id, projectId: eventProjectId } of due) {
+      for (const [index, { id, projectId: eventProjectId }] of due.entries()) {
+        if (signal?.aborted) {
+          pendingEvents = due.length - index;
+          break;
+        }
         seen.push(id);
         projects.add(eventProjectId);
         report.scanned += 1;
@@ -284,6 +292,7 @@ export function createGithubEventNotificationService({
         else await dispatchOne(id, eventProjectId, report);
       }
     }
+    if (pendingEvents !== null) Object.assign(report, { interrupted: true, pendingEvents });
 
     const now = clock();
     const [failedStock, queue] = await Promise.all([
