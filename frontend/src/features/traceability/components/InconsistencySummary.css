@@ -18,12 +18,15 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.trace-inconsistency-summary__metrics dt {
-  overflow-wrap: anywhere;
+.trace-inconsistency-summary__metrics a {
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
 }
 
-.trace-inconsistency-summary__metrics a {
-  color: var(--color-accent-text);
+.trace-inconsistency-summary__metrics a:hover,
+.trace-inconsistency-summary__metrics a:focus-visible {
+  text-decoration: underline;
 }
 
 .trace-inconsistency-summary__body {

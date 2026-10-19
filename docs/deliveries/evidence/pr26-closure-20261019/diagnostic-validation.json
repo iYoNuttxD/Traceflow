@@ -1,0 +1,20 @@
+{
+  "prHead": "b5bda6cea6bcc68f3a73cdc92a1798faba2d7c5b",
+  "ociHead": "9bc3dad199566afc6fa43d67abba400665d843ea",
+  "regression": {
+    "oldAllowlist": "FAIL_EXPECTED",
+    "correctedAllowlist": "PASS"
+  },
+  "sourceExport": {
+    "files": 41,
+    "sourceSha256": "4d6cb3c2813e96678104254d19a4d35a5ce59f423ba9dd2c05c2dc7a626e73b7"
+  },
+  "runtimeFileCount": 39,
+  "prismaClientSourceCount": 9,
+  "schemaIncludesOciUploads": true,
+  "schemaMatchesReviewed83MigrationComposition": true,
+  "nativeBuild": "NOT_EXECUTED_NO_LINUX_ARM64_BUILDER",
+  "heatwaveHomologation": "NOT_EXECUTED",
+  "devAccessed": false,
+  "ociAccessed": false
+}

@@ -2,12 +2,14 @@
 
 - **Estado:** aceita pelo autor (João) em 17/10/2026, com o aval das recomendações do
   `PR26_PROMPT_CORRECOES_REVISAO_2.md` (não versionado), e revista em 18/10/2026 depois da terceira
-  revisão independente (`PR26_PROMPT_CORRECOES_REVISAO_3.md`, não versionado). A aprovação
-  arquitetural do Daniel está pendente e não é presumida. Revê a proposta de 15/10/2026 depois da
+  revisão independente (`PR26_PROMPT_CORRECOES_REVISAO_3.md`, não versionado). Daniel aprovou o
+  desenho em 19/10/2026, condicionado ao pacote diagnóstico integrado e à homologação
+  ARM64/HeatWave/TLS, recuperação, reinício e saturação antes do merge. Revê a proposta de
+  15/10/2026 depois da
   segunda revisão (TF-REV-005, TF-REV-006 e a decisão 2 do parecer). A homologação em ARM64,
   HeatWave e TLS é etapa à parte, com autorização própria (D10).
 - **Data:** 15/10/2026 (proposta); 17/10/2026 (revisão e aceite do autor); 18/10/2026 (revisão pela
-  terceira revisão: TF-REV-013, TF-REV-015 e TF-REV-016)
+  terceira revisão: TF-REV-013, TF-REV-015 e TF-REV-016); 19/10/2026 (aceite condicionado de Daniel)
 - **Responsáveis:** João Vitor S. Hernandes
 - **Relação:** revê a operação do [ADR-019](ADR-019-ESPERA-DE-TRAVA.md) e do
   [ADR-020](ADR-020-PRAZO-DAS-TRANSACOES.md), complementa o
@@ -55,8 +57,10 @@ O que a branch OCI espera (`origin/daniel-dev` em `ecb3f34`, lida em 17/10/2026)
    S202-F33 e S203-A01.
    - **Decisão explícita (18/10/2026).** O João, como autor, mantém a guarda em todas as transações
      interativas, e não só nas que optarem por ela. Condições: a recuperação e o encerramento com
-     prazo (D4 e D5), a fonte única do pool (D2) e a homologação (D10), que continua pendente. A
-     aprovação arquitetural do Daniel é pedida na resposta ao terceiro parecer.
+     prazo (D4 e D5), a fonte única do pool (D2) e a homologação (D10), que continua pendente.
+     Daniel confirmou em 19/10/2026: “Aprovo a arquitetura com essas condições”. O aceite abrange a guarda global com
+     recuperação limitada, uma conexão auxiliar por processo e os jobs no worker existente. Não
+     autoriza acesso à OCI, alteração de privilégios nem dispensa a homologação antes do merge.
 2. **Orçamento de conexões (D2).**
    - **Fonte única.** O `connection_limit` da `DATABASE_URL` define o pool do cliente da aplicação
      em cada processo. É o parâmetro que o preflight da OCI valida. O `DATABASE_POOL_LIMIT` saiu em
@@ -265,6 +269,6 @@ O que a branch OCI espera (`origin/daniel-dev` em `ecb3f34`, lida em 17/10/2026)
 | TF-REV-015: lotes novos depois do cancelamento | o sinal é conferido antes de cada unidade nova nos jobs, com relatório parcial (D7) |
 | TF-REV-016: override do pool contorna a validação da OCI | fonte única no `connection_limit` da URL, teto por função e recusa do `DATABASE_POOL_LIMIT` (D2) |
 | TF-REV-005: pacote diagnóstico sem as dependências | o fechamento continua em 9 arquivos; o `SOURCES` com os 7 arquivos, o manifesto, os builds e o smoke ARM64 cabem ao dono da branch OCI, e o achado só fecha com esse artefato (D6) |
-| A guarda global exige decisão explícita do responsável | decisão do autor registrada no D1; a aprovação arquitetural do Daniel continua pendente |
+| A guarda global exige decisão explícita do responsável | aceite condicionado de Daniel registrado no D1 em 19/10/2026; pacote diagnóstico e homologação antes do merge continuam pendentes |
 | Pool auxiliar condicionado a testes de saturação | teste com API, worker e comando no mesmo banco, cada um no seu teto |
 | Atualização interna das inconsistências (UX-R3-03) | varredura de todos os projetos ativos, gatilho `SCHEDULED` e tentativa registrada antes (D7) |
