@@ -454,7 +454,10 @@ describe('PR #26 painel de notificações (TF-REV-008, UX-D01)', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('dialog', { name: 'Notificações' })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Notificações' });
+    await waitFor(() =>
+      expect(within(dialog).getByRole('heading', { name: 'Notificações' })).toHaveFocus()
+    );
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Notificações' })).toBeNull());
     expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
