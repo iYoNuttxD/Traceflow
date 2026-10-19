@@ -1022,15 +1022,28 @@ describe('S2-02 bateria de integração — orçamento de desempenho (⚑5)', ()
       await prisma.task.createMany({ data: rows.slice(start, start + 1000) });
   }
 
+  async function removeBulk(projectIds) {
+    const where = { projectId: { in: projectIds } };
+    await prisma.notificationDecision.deleteMany({ where });
+    await prisma.notification.deleteMany({ where });
+    await prisma.task.deleteMany({ where });
+  }
+
   it('NT-J-08 job ≤ 1 s por 10.000 tarefas num projeto (10.000 e 50.000)', async () => {
     const timings = {};
-    for (const count of [10000, 50000]) {
-      const project = await createProject(prisma);
-      const responsible = await person(project.id);
-      await bulkTasks(project.id, responsible.id, count);
-      const started = performance.now();
-      await job({ projectId: project.id, now: at('2026-10-20T12:00:00.000Z') });
-      timings[count] = performance.now() - started;
+    const projectIds = [];
+    try {
+      for (const count of [10000, 50000]) {
+        const project = await createProject(prisma);
+        projectIds.push(project.id);
+        const responsible = await person(project.id);
+        await bulkTasks(project.id, responsible.id, count);
+        const started = performance.now();
+        await job({ projectId: project.id, now: at('2026-10-20T12:00:00.000Z') });
+        timings[count] = performance.now() - started;
+      }
+    } finally {
+      await removeBulk(projectIds);
     }
 
     expect(timings[10000]).toBeLessThanOrEqual(1000);

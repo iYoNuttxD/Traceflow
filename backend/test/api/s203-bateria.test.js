@@ -1,7 +1,7 @@
 import { appendFileSync } from 'node:fs';
 import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -36,15 +36,23 @@ const PROJECT_CREATED_AT = new Date('2026-08-01T12:00:00.000Z');
 
 let app;
 let prisma;
+let eventNotifications;
+let dispatchAfterSync;
 let sequence = 0;
 
 beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
   ({ prisma } = await import('../../src/database/prismaClient.js'));
+  ({ githubEventNotificationService: eventNotifications } =
+    await import('../../src/modules/notifications/github-event-notification.service.js'));
   const { default: expressApp } = await import('../../src/app.js');
   app = await startTestServer(expressApp);
   await cleanTestDatabase(prisma);
 }, 60000);
+
+beforeEach(() => {
+  dispatchAfterSync = vi.spyOn(eventNotifications, 'dispatchAfterSync');
+});
 
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -203,12 +211,21 @@ async function finishedRun(actor, project) {
   await vi.waitFor(
     async () => {
       const status = await actor.agent.get(`/api/projects/${project.id}/github/sync/status`);
+      expect(status.status, JSON.stringify(status.body)).toBe(200);
       run = status.body.run;
-      expect(['SUCCEEDED', 'FAILED']).toContain(run?.status);
+      expect(['SUCCEEDED', 'FAILED'], JSON.stringify(run)).toContain(run?.status);
     },
-    { timeout: 15000, interval: 20 }
+    { timeout: 15000, interval: 100 }
   );
   return run;
+}
+
+async function afterSyncHooks(callsBefore) {
+  await vi.waitFor(
+    () => expect(dispatchAfterSync.mock.results.length).toBeGreaterThan(callsBefore),
+    { timeout: 15000, interval: 20 }
+  );
+  await dispatchAfterSync.mock.results[callsBefore].value;
 }
 
 async function settled(project) {
@@ -231,9 +248,11 @@ async function syncVia(actor, project, spec = {}) {
     issuePages: spec.issuePages || [spec.issues || []],
     pullRequestPages: spec.pullRequestPages || [spec.pullRequests || []]
   });
+  const hooks = dispatchAfterSync.mock.calls.length;
   const started = await actor.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
   expect(started.status, JSON.stringify(started.body)).toBe(202);
   const run = await finishedRun(actor, project);
+  await afterSyncHooks(hooks);
   await settled(project);
   return run;
 }
@@ -1027,6 +1046,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
     boundary.client = githubDouble(project, {
       issuePages: [numbers.map((number) => rawIssue(number, 'closed'))]
     });
+    const hooks = dispatchAfterSync.mock.calls.length;
     const requestedAt = Date.now();
     expect(
       (await manager.mutate('post', `/api/projects/${project.id}/github/sync`).send({})).status
@@ -1046,6 +1066,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
       { timeout: 15000, interval: 10 }
     );
     const notifiedAt = Date.now();
+    await afterSyncHooks(hooks);
 
     expect(run.status).toBe('SUCCEEDED');
     observe('EV-S-01 intervalo', {
@@ -1131,6 +1152,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
       issueGate
     });
 
+    const hooks = dispatchAfterSync.mock.calls.length;
     const first = await manager.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
     await vi.waitFor(() => expect(boundary.client.listIssuePages).toHaveBeenCalledTimes(1), {
       timeout: 15000,
@@ -1143,6 +1165,7 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
     });
     openGate();
     await finishedRun(manager, project);
+    await afterSyncHooks(hooks);
     await settled(project);
 
     expect([first.status, second.status]).toEqual([202, 202]);
