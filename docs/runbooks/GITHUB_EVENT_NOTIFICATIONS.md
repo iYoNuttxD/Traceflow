@@ -140,3 +140,14 @@ O `stdout` traz só o relatório, em JSON. Os logs vão para `stderr`, uma linha
 - Validar por amostra que o participante vê a notificação em `/notifications`, com "Abrir no GitHub"
   apontando para o artefato, e que quem não participa da tarefa não a vê.
 - Registrar a evidência sem dado pessoal.
+
+### Ensaio da leitura completa em volume
+
+Fora da suíte, contra o banco de teste: `npm run test:ensaio` (por padrão, 10 mil e 50 mil eventos;
+`ENSAIO_EVENTOS=20000` escolhe outro tamanho). O ensaio monta um repositório sintético pelo dublê
+do GitHub, com um quarto dos eventos em cada tipo (issue fechada, issue reaberta, PR mesclada e o
+fechamento do merge) e 10% dos artefatos vinculados, e mede a etapa de eventos da sincronização na
+primeira leitura e na releitura: o tempo total, o tempo sob a trava do projeto (a transação de
+`record`, com limite de 120 s) e as linhas gravadas. A saída é um JSON no `stdout`.
+
+O ensaio local não substitui o do Always Free, que fica para a homologação (ADR-023).
