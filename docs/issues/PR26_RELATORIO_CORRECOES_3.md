@@ -374,7 +374,7 @@ menu visível (`14-…`).
   (`07-…-ampliacao-botao-expandir.png`). A gaveta começa no mesmo ponto desde a segunda revisão;
   com o menu sem tom, o corte aparece mais. O botão está inerte enquanto o painel está aberto. Há
   duas saídas, e as duas mexem no shell do Daniel: esconder o botão com o painel aberto ou deslocar
-  a gaveta pelo que o botão sobra.
+  a gaveta pelo que o botão sobra. **Decisão do João (19/10/2026): deixar como está.**
 - **Borda direita das células.** A borda das células encosta na do cartão (0,8 + 0,8 px), como na
   faixa de requisitos do Daniel: o grupo reproduz o padrão.
 - **Tabela do Repositório.** A 1366, com o menu expandido, a tabela filtrada tem 21 px de rolagem
@@ -395,7 +395,8 @@ VERIFIED até a aprovação do João. A matriz não muda o inventário.
 ## 9. Pendências
 
 - **Do João:** as duas migrations no banco de desenvolvimento; a aprovação visual (G3) e a decisão
-  sobre os três pontos da seção 8; o push, quando pedir; postar a descrição e a resposta.
+  sobre a borda das células e a tabela do Repositório (seção 8; o botão de expandir fica como
+  está); o push, quando pedir; postar a descrição e a resposta.
 - **Do Daniel:** a aprovação arquitetural do ADR-024.
 - **Do dono da branch OCI:** o artefato do diagnóstico com o `SOURCES` acima, o
   `INITIAL_MIGRATION_COUNT` 83 e a composição do encerramento (PR26-F03).
