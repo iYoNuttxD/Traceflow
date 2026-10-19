@@ -19,12 +19,16 @@
     "failed": 0,
     "fixtures": "SYNTHETIC_ARCHIVES",
     "oldAllowlistRegression": "FAIL_EXPECTED",
-    "correctedAllowlistRegression": "PASS"
+    "correctedAllowlistRegression": "PASS",
+    "nativeBuilds": 2,
+    "nativeByteIdentical": true,
+    "nativeSmoke": "PASS",
+    "extractedSharedClientImport": "PASS",
+    "runtimeFileCount": 39
   },
   "architecture": "APPROVED_WITH_CONDITIONS_BY_DANIEL",
   "remaining": [
     "apply companion patch to composed OCI source",
-    "two native reproducible builds and verified extraction",
     "ARM64/HeatWave/TLS recovery restart and saturation homologation before merge"
   ],
   "devAccessed": false,

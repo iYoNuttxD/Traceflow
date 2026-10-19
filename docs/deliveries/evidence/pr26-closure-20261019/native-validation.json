@@ -1,0 +1,42 @@
+{
+  "status": "PASS_LOCAL_NATIVE",
+  "platform": {
+    "status": "RUNTIME_VALID",
+    "node": "22.23.2",
+    "prisma": "6.12.0",
+    "platform": "linux",
+    "architecture": "arm64",
+    "engine": "linux-arm64-openssl-3.0.x",
+    "nativeLoaded": true,
+    "connected": false
+  },
+  "sharedClient": {
+    "status": "CLIENT_IMPORT_VALID",
+    "connected": false
+  },
+  "independentBuilds": 2,
+  "byteIdentical": true,
+  "artifact": {
+    "file": "traceflow-prisma-diagnostic-4d6cb3c2813e9667.tar.gz",
+    "head": "9bc3dad199566afc6fa43d67abba400665d843ea",
+    "manifestSha256": "1cf6df4d5713f5ae569bafdea4b7f7cc64403da87dc69d4037fe6eb23a2de070",
+    "packageId": "traceflow-prisma-diagnostic-4d6cb3c2813e9667",
+    "productionRelease": false,
+    "sha256": "a502029d3dc48154d744ea097a9fc9599774b7020ecc7c27d98c864a3913bf46",
+    "size": 7539865,
+    "sourceSha256": "4d6cb3c2813e96678104254d19a4d35a5ce59f423ba9dd2c05c2dc7a626e73b7",
+    "verifierSha256": "dfc8de049c0bf2538e5f406932893c9441437d7f7d45e6d035e80a206a5fb0cc"
+  },
+  "runtimeFiles": 39,
+  "heatwaveHomologation": "NOT_EXECUTED",
+  "databaseConnection": false,
+  "builder": {
+    "distribution": "Oracle Linux 9.8",
+    "virtualization": "local Lima VZ",
+    "selinux": "Enforcing",
+    "hostMounts": [],
+    "personalSshKeys": false,
+    "portForwarding": false,
+    "removed": true
+  }
+}

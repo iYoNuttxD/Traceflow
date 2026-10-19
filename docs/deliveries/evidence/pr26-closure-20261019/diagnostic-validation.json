@@ -13,8 +13,10 @@
   "prismaClientSourceCount": 9,
   "schemaIncludesOciUploads": true,
   "schemaMatchesReviewed83MigrationComposition": true,
-  "nativeBuild": "NOT_EXECUTED_NO_LINUX_ARM64_BUILDER",
+  "nativeBuild": "PASS_LOCAL_NATIVE",
   "heatwaveHomologation": "NOT_EXECUTED",
   "devAccessed": false,
-  "ociAccessed": false
+  "ociAccessed": false,
+  "nativeEvidence": "native-validation.json",
+  "nativePackageSha256": "a502029d3dc48154d744ea097a9fc9599774b7020ecc7c27d98c864a3913bf46"
 }
