@@ -79,7 +79,8 @@ de novo. O parecer pediu:
    fechamento par dele:
    - existe `merged` da mesma PR a até 5 s;
    - nenhum `reopened` da mesma PR está entre os dois na sequência: o instante e, no mesmo segundo,
-     o `id` do evento no GitHub, comparado como número;
+     o `id` do evento no GitHub, comparado como número. Sem `id` numérico, a ordem no mesmo segundo
+     é desconhecida, e um `reopened` nesse segundo impede a absorção;
    - cada `merged` absorve no máximo um `closed`, o mais próximo.
 
    Quando o merge só aparece no retrato da PR (`mergedAtGithub`, sem evento), o intervalo é fechado

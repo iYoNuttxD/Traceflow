@@ -5,6 +5,7 @@ import {
   issueEventTypeOf,
   lifecycleOccurrenceKey,
   linkedTasksAt,
+  mergeClosingsOf,
   nextAttemptAfterFailure,
   normalizeIssueState,
   openedOccurrenceKey,
@@ -61,24 +62,29 @@ function idsByTask(rows, userField) {
   return grouped;
 }
 
-async function mergedInstants(tx, projectId, pullRequests) {
+async function mergeClosings(tx, projectId, pullRequests) {
   const closedIds = unique(
     pullRequests.filter((event) => event.eventType === 'CLOSED').map((event) => event.artifact.id)
   );
-  const instants = new Map(closedIds.map((id) => [id, []]));
-  if (!closedIds.length) return instants;
-  for (const event of pullRequests)
-    if (instants.has(event.artifact.id) && event.artifact.mergedAtGithub)
-      instants.get(event.artifact.id).push(new Date(event.artifact.mergedAtGithub).getTime());
-  const merged = await tx.pullRequestLifecycleEvent.findMany({
-    where: { projectId, pullRequestId: { in: closedIds }, eventType: 'MERGED' },
-    select: { pullRequestId: true, occurredAt: true }
+  const absorbed = new Set();
+  if (!closedIds.length) return absorbed;
+  const history = await tx.pullRequestLifecycleEvent.findMany({
+    where: { projectId, pullRequestId: { in: closedIds } },
+    select: { pullRequestId: true, eventType: true, occurredAt: true, providerEventId: true }
   });
-  for (const row of merged) instants.get(row.pullRequestId).push(row.occurredAt.getTime());
-  return instants;
+  const snapshots = new Map(
+    pullRequests.map((event) => [event.artifact.id, event.artifact.mergedAtGithub])
+  );
+  for (const id of closedIds)
+    for (const key of mergeClosingsOf(
+      history.filter((row) => row.pullRequestId === id),
+      snapshots.get(id)
+    ))
+      absorbed.add(key);
+  return absorbed;
 }
 
-function candidatesOf({ issues, pullRequests, merged, from }) {
+function candidatesOf({ issues, pullRequests, absorbed, from }) {
   return [
     ...issues.map((event) => ({
       event,
@@ -88,7 +94,7 @@ function candidatesOf({ issues, pullRequests, merged, from }) {
     })),
     ...pullRequests.map((event) => ({
       event,
-      type: pullRequestEventTypeOf(event, merged.get(event.artifact.id) ?? []),
+      type: pullRequestEventTypeOf(event, absorbed),
       issueId: null,
       pullRequestId: event.artifact.id
     }))
@@ -169,8 +175,8 @@ export const githubEventRepository = {
       select: { coverageFrom: true }
     });
     const from = (coverage?.coverageFrom ?? detectedAt).getTime();
-    const merged = await mergedInstants(tx, projectId, pullRequests);
-    const candidates = candidatesOf({ issues, pullRequests, merged, from });
+    const absorbed = await mergeClosings(tx, projectId, pullRequests);
+    const candidates = candidatesOf({ issues, pullRequests, absorbed, from });
     if (!candidates.length) return 0;
 
     const periods = await tx.taskArtifactLinkPeriod.findMany({

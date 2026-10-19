@@ -678,3 +678,141 @@ describe('TF-REV-002 — fonte durável dos eventos do RF60 e do RF61', () => {
     expect(elapsed).toBeLessThan(10_000);
   }, 60000);
 });
+
+describe('TF-REV-014 — o fechamento só é absorvido pelo merge que o fechou', () => {
+  const typesOf = async (projectId) =>
+    (await eventsOf(projectId)).map((event) => [event.type, event.occurredAt]);
+
+  it('Q-07 fechada, reaberta e mesclada em 4 s numa leitura: o fechamento distinto e o merge avisam (A3)', async () => {
+    const scenario = await linkedPullRequest();
+    const closedAt = after(2 * SECOND);
+    const mergedAt = after(6 * SECOND);
+
+    const run = await sync(scenario, {
+      pullRequests: [pullRequestItem(9, 'closed', { closedAt: mergedAt, mergedAt })],
+      eventPages: [
+        [
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', closedAt),
+          githubEvent('PULL_REQUEST', 9, 'REOPENED', after(3 * SECOND)),
+          githubEvent('PULL_REQUEST', 9, 'MERGED', mergedAt),
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', mergedAt)
+        ]
+      ]
+    });
+    await dispatch();
+
+    expect(run.status, JSON.stringify(run.error)).toBe('SUCCEEDED');
+    expect(await typesOf(scenario.project.id)).toEqual([
+      ['PULL_REQUEST_CLOSED', closedAt],
+      ['PULL_REQUEST_MERGED', mergedAt]
+    ]);
+    expect(await notificationsOf(scenario.responsible.id)).toEqual([
+      { githubEvent: 'PULL_REQUEST_CLOSED', githubOccurredAt: closedAt, taskId: scenario.task.id },
+      { githubEvent: 'PULL_REQUEST_MERGED', githubOccurredAt: mergedAt, taskId: scenario.task.id }
+    ]);
+  });
+
+  it('Q-07b os quatro eventos no mesmo segundo: a ordem vem do id e o fechamento distinto avisa', async () => {
+    const scenario = await linkedPullRequest();
+    const instant = after(2 * SECOND);
+
+    await sync(scenario, {
+      pullRequests: [pullRequestItem(9, 'closed', { closedAt: instant, mergedAt: instant })],
+      eventPages: [
+        [
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', instant),
+          githubEvent('PULL_REQUEST', 9, 'REOPENED', instant),
+          githubEvent('PULL_REQUEST', 9, 'MERGED', instant),
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', instant)
+        ]
+      ]
+    });
+
+    expect((await eventsOf(scenario.project.id)).map((event) => event.type)).toEqual([
+      'PULL_REQUEST_CLOSED',
+      'PULL_REQUEST_MERGED'
+    ]);
+  });
+
+  it('Q-08 o fechamento que chega atrasado é comparado com a reabertura gravada na leitura anterior', async () => {
+    const scenario = await linkedPullRequest();
+    const closedAt = after(2 * SECOND);
+    const mergedAt = after(6 * SECOND);
+    const lateClosed = githubEvent('PULL_REQUEST', 9, 'CLOSED', closedAt);
+    const snapshot = [pullRequestItem(9, 'closed', { closedAt: mergedAt, mergedAt })];
+
+    await sync(scenario, {
+      pullRequests: snapshot,
+      eventPages: [
+        [
+          githubEvent('PULL_REQUEST', 9, 'REOPENED', after(3 * SECOND)),
+          githubEvent('PULL_REQUEST', 9, 'MERGED', mergedAt),
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', mergedAt)
+        ]
+      ]
+    });
+    const late = await sync(scenario, { pullRequests: snapshot, eventPages: [[lateClosed]] });
+    await dispatch();
+
+    expect(late.status, JSON.stringify(late.error)).toBe('SUCCEEDED');
+    expect(await typesOf(scenario.project.id)).toEqual([
+      ['PULL_REQUEST_CLOSED', closedAt],
+      ['PULL_REQUEST_MERGED', mergedAt]
+    ]);
+  });
+
+  it('Q-08b sem reabertura entre os dois, o merge já gravado absorve só o fechamento mais próximo', async () => {
+    const scenario = await linkedPullRequest();
+    const mergedAt = after(6 * SECOND);
+    const snapshot = [pullRequestItem(9, 'closed', { closedAt: mergedAt, mergedAt })];
+
+    await sync(scenario, {
+      pullRequests: snapshot,
+      eventPages: [
+        [
+          githubEvent('PULL_REQUEST', 9, 'MERGED', mergedAt),
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', mergedAt)
+        ]
+      ]
+    });
+    await sync(scenario, {
+      pullRequests: snapshot,
+      eventPages: [[githubEvent('PULL_REQUEST', 9, 'CLOSED', after(3 * SECOND))]]
+    });
+
+    expect((await eventsOf(scenario.project.id)).map((event) => event.type)).toEqual([
+      'PULL_REQUEST_CLOSED',
+      'PULL_REQUEST_MERGED'
+    ]);
+  });
+
+  it('Q-09 o RF61 conta o fechamento distinto e o merge, com os dois avisos enviados', async () => {
+    const scenario = await linkedPullRequest();
+    const mergedAt = after(6 * SECOND);
+    await sync(scenario, {
+      pullRequests: [pullRequestItem(9, 'closed', { closedAt: mergedAt, mergedAt })],
+      eventPages: [
+        [
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', after(2 * SECOND)),
+          githubEvent('PULL_REQUEST', 9, 'REOPENED', after(3 * SECOND)),
+          githubEvent('PULL_REQUEST', 9, 'MERGED', mergedAt),
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', mergedAt)
+        ]
+      ]
+    });
+    await dispatch();
+
+    const report = await metrics().compute({
+      from: today(),
+      to: today(),
+      projectId: scenario.project.id,
+      timeZone: TIME_ZONE
+    });
+
+    expect(report.requisitos.RF61).toMatchObject({
+      eventos: 2,
+      ocorridos: 2,
+      enviadasCorretamente: 2
+    });
+  });
+});

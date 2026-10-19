@@ -72,13 +72,67 @@ export function issueEventTypeOf(eventType) {
   return ISSUE_EVENT_TYPES.get(eventType) ?? null;
 }
 
-export function pullRequestEventTypeOf({ eventType, occurredAt }, mergedInstants = []) {
+const NUMERIC_EVENT_ID = /^\d{1,30}$/;
+
+function sequenceOf({ occurredAt, providerEventId }) {
+  const id = String(providerEventId ?? '');
+  return {
+    time: asDate(occurredAt).getTime(),
+    id: NUMERIC_EVENT_ID.test(id) ? BigInt(id) : null
+  };
+}
+
+function compareSequence(left, right) {
+  if (left.time !== right.time) return left.time < right.time ? -1 : 1;
+  if (left.id === null || right.id === null || left.id === right.id) return 0;
+  return left.id < right.id ? -1 : 1;
+}
+
+function reopenedBetween(reopenings, closing, merge) {
+  const [start, end] = compareSequence(closing, merge) <= 0 ? [closing, merge] : [merge, closing];
+  return reopenings.some(
+    (reopening) => compareSequence(reopening, start) >= 0 && compareSequence(reopening, end) <= 0
+  );
+}
+
+export function mergeClosingsOf(history, mergedAtGithub = null) {
+  const events = history.map((event) => ({ ...event, sequence: sequenceOf(event) }));
+  const merges = events.filter((event) => event.eventType === 'MERGED');
+  const snapshot = asDate(mergedAtGithub);
+  if (
+    snapshot &&
+    !merges.some(
+      (merge) => Math.abs(merge.sequence.time - snapshot.getTime()) <= MERGE_CLOSE_WINDOW_MS
+    )
+  )
+    merges.push({ sequence: { time: snapshot.getTime(), id: null } });
+  const reopenings = events
+    .filter((event) => event.eventType === 'REOPENED')
+    .map((event) => event.sequence);
+  const closings = events.filter((event) => event.eventType === 'CLOSED');
+  const absorbed = new Set();
+  for (const merge of merges) {
+    const distance = (closing) => Math.abs(closing.sequence.time - merge.sequence.time);
+    const pair = closings
+      .filter(
+        (closing) =>
+          !absorbed.has(String(closing.providerEventId)) &&
+          distance(closing) <= MERGE_CLOSE_WINDOW_MS &&
+          !reopenedBetween(reopenings, closing.sequence, merge.sequence)
+      )
+      .sort(
+        (left, right) =>
+          distance(left) - distance(right) || compareSequence(right.sequence, left.sequence)
+      )[0];
+    if (pair) absorbed.add(String(pair.providerEventId));
+  }
+  return absorbed;
+}
+
+export function pullRequestEventTypeOf({ eventType, providerEventId }, absorbed = new Set()) {
   if (eventType === 'MERGED') return 'PULL_REQUEST_MERGED';
   if (eventType !== 'CLOSED') return null;
-  const instant = asDate(occurredAt).getTime();
-  return mergedInstants.some((merged) => Math.abs(merged - instant) <= MERGE_CLOSE_WINDOW_MS)
-    ? null
-    : 'PULL_REQUEST_CLOSED';
+  return absorbed.has(String(providerEventId)) ? null : 'PULL_REQUEST_CLOSED';
 }
 
 export function linkedTasksAt(periods, occurredAt) {

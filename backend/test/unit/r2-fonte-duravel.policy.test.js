@@ -4,6 +4,7 @@ import {
   issueEventTypeOf,
   lifecycleOccurrenceKey,
   linkedTasksAt,
+  mergeClosingsOf,
   openedOccurrenceKey,
   pullRequestEventTypeOf
 } from '../../src/modules/notifications/github-event.policy.js';
@@ -23,25 +24,30 @@ describe('ADR-023 — regras da fonte durável', () => {
   });
 
   it('absorve o closed a até 5 s do merged da mesma PR, e só ele', () => {
-    const merged = [at('2026-10-17T12:00:00.000Z').getTime()];
-    const closed = (iso) => ({ eventType: 'CLOSED', occurredAt: at(iso) });
+    const merged = {
+      eventType: 'MERGED',
+      occurredAt: at('2026-10-17T12:00:00Z'),
+      providerEventId: '1'
+    };
+    const closed = (iso, providerEventId) => ({
+      eventType: 'CLOSED',
+      occurredAt: at(iso),
+      providerEventId
+    });
+    const typeOf = (closing, history) =>
+      pullRequestEventTypeOf(closing, mergeClosingsOf([...history, closing]));
 
+    expect(pullRequestEventTypeOf(merged)).toBe('PULL_REQUEST_MERGED');
+    expect(typeOf(closed('2026-10-17T12:00:05.000Z', '2'), [merged])).toBeNull();
+    expect(typeOf(closed('2026-10-17T11:59:55.000Z', '3'), [merged])).toBeNull();
+    expect(typeOf(closed('2026-10-17T12:00:05.001Z', '4'), [merged])).toBe('PULL_REQUEST_CLOSED');
+    expect(typeOf(closed('2026-10-17T12:00:00.000Z', '5'), [])).toBe('PULL_REQUEST_CLOSED');
     expect(
-      pullRequestEventTypeOf(
-        { eventType: 'MERGED', occurredAt: at('2026-10-17T12:00:00Z') },
-        merged
-      )
-    ).toBe('PULL_REQUEST_MERGED');
-    expect(pullRequestEventTypeOf(closed('2026-10-17T12:00:05.000Z'), merged)).toBeNull();
-    expect(pullRequestEventTypeOf(closed('2026-10-17T11:59:55.000Z'), merged)).toBeNull();
-    expect(pullRequestEventTypeOf(closed('2026-10-17T12:00:05.001Z'), merged)).toBe(
-      'PULL_REQUEST_CLOSED'
-    );
-    expect(pullRequestEventTypeOf(closed('2026-10-17T12:00:00.000Z'), [])).toBe(
-      'PULL_REQUEST_CLOSED'
-    );
-    expect(
-      pullRequestEventTypeOf({ eventType: 'REOPENED', occurredAt: at('2026-10-17T12:00:00Z') }, [])
+      pullRequestEventTypeOf({
+        eventType: 'REOPENED',
+        occurredAt: at('2026-10-17T12:00:00Z'),
+        providerEventId: '6'
+      })
     ).toBeNull();
   });
 
