@@ -11,6 +11,11 @@ export const githubSearchQuerySchema = strictObject({
 });
 export const githubAppStartBodySchema = strictObject({
   intendedAction: z.enum(['CONNECT_PROJECT', 'CREATE_PROJECT']),
+  flow: z.enum(['authorize', 'install']).optional(),
+  githubInstallationId: z
+    .string()
+    .regex(/^[1-9]\d{0,39}$/)
+    .optional(),
   projectId: positiveInteger('ID do projeto inválido.').optional()
 });
 export const githubInstallationParamsSchema = strictObject({
@@ -25,7 +30,7 @@ export const githubConnectParamsSchema = strictObject({
 export const githubConnectBodySchema = strictObject({
   githubInstallationId: z.string().regex(/^\d+$/, 'ID da instalação inválido.'),
   githubRepositoryId: z
-    .union([z.string(), z.number().int()])
+    .union([z.string(), z.number().int().safe()])
     .transform(String)
     .pipe(z.string().regex(/^\d+$/))
 });

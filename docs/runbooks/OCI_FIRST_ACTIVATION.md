@@ -938,3 +938,56 @@ e os três postchecks oficiais dentro da janela original. A mera presença de um
 prova ou de `idle` não basta. O timer pode então operar sob sua política já aprovada,
 sem descartar a proveniência e sem alterar o controlador de ativação. Estado publicado
 sem conclusão íntegra continua recusado. Isso não habilita o timer automaticamente.
+
+### OCI-07.22: tentativa posterior interrompida e instalação GitHub existente
+
+A reconciliação adicional permanece uma operação separada, com autorização nova
+v2 de até 600 segundos, controlador explicitamente selecionado e auditoria real
+somente leitura. O histórico legado `idle` / `FRONTEND_SMOKE` / `public-cutover`
+continua restrito ao contrato anterior. Para uma tentativa iniciada em
+`reconciled-v2`, aceita-se exclusivamente `OPERATION_INTERRUPTED` em
+`postchecks-pending`, recuperação `INTERVENTION_REQUIRED` cujo único controle
+falho seja `public-page`, dados preservados e nenhum rollback de schema.
+
+Antes de solicitar execução, validar recursivamente o recoveryProof anterior,
+a mesma identidade da aplicação, todos os recibos prepared/submission/claim/
+armed/cutover/pending/failure/recovery, os hashes de claim e failure, a ordem
+cronológica, a titularidade do estado e a ausência de conclusão ou postchecks
+contraditórios. O protocolo publica uma nova reconciliação; não substitui
+nenhum recibo anterior. Interrupções, resíduos, expiração e replay continuam
+sujeitos ao protocolo v2. Não executar o controlador histórico para essa operação.
+A correção local não autoriza instalação, reconciliação nem ativação.
+
+A falha de `temporary_probe` permanece fatal e exige HTTP 200 e o SHA-256 exato,
+com TLS estrito e sem retry. Novas falhas preservam somente categoria de transporte
+ou status/tamanho/digest HTTP, nunca corpo, URL autenticada ou exceção bruta.
+Essa telemetria não permite reconstruir retroativamente uma exceção descartada.
+
+Na próxima homologação GitHub, consultar primeiro as instalações já autorizadas
+no TraceFlow e provar acesso ao repositório usando a credencial efêmera dessa
+instalação. Não iniciar uma instalação nova para esse caso. Se a App existe no
+GitHub mas ainda não foi autorizada no TraceFlow, usar `flow=authorize` (padrão):
+OAuth no callback registrado `/api/auth/github/callback`, state opaco com prefixo
+`authorize.`, usuário/sessão/intenção ativos e acesso comprovado pelo user token.
+Esse fluxo não recebe `installation_id` da query. Uma escolha opcional de
+instalação é vinculada ao hash do state; uma lista ambígua é recusada. A identidade
+de login do TraceFlow não é substituída por essa autorização. O fluxo `install`
+continua disponível para a primeira instalação e exige a validação completa do
+callback, nunca somente o ID da URL. Ambos verificam a instalação e o acesso real
+antes de consumir atomicamente o state; não persistem user token.
+
+IDs GitHub são strings decimais canônicas. O transporte deve preservar os tokens
+inteiros antes de `JSON.parse` perder precisão. Um Number já inseguro é recusado;
+não tentar recuperar dígitos nem alterar IDs persistidos. O auxiliar versionado
+`scripts/oci/github-probe.py` exige `--evidence-dir` exclusivo sob `build/`, contexto
+de uma nova janela e os módulos revisados, incluindo o parser lossless. Para HMAC,
+preservar a representação numérica original do payload; HTTP 2xx isolado não prova
+assinatura. Nunca usar um ensaio sintético para emitir recibos oficiais.
+
+Orçamento da próxima janela: até 450 s de trabalho, 75 s de margem interna,
+limite planejado 525 s e teto absoluto 600 s. Preparar fixture de 100 MiB e hashes
+antes da autorização. Upload em partes de até 8 MiB, pausa/retomada, download com
+SHA-256 e recusa sem autorização; login/projetos/execução/logout e entrega GitHub
+real precisam ocorrer na janela. Latência loopback não homologa GitHub,
+Cloudflare ou transferência pública. Sem tempo suficiente, preservar evidências
+e permitir somente a recuperação oficial, sem extensão da autorização.

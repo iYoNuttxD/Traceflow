@@ -290,6 +290,77 @@ class ReconciliationTests(unittest.TestCase):
                 f.write_bytes(raw);f.chmod(0o600)
         self.assertEqual(window.reconciliation_closed(self.layout,state),self.q)
 
+    def later_failed_attempt(self):
+        self.run_flow();self.origin_q=copy.deepcopy(self.q)
+        self.origin_files={str(p.relative_to(self.h.root)):p.read_bytes() for parent in (self.layout.state/'activations',self.layout.state/'reconciliations') for p in parent.rglob('*.json')}
+        new=copy.deepcopy(self.a);new['runId']='1'*32;new['nonce']='2'*32;new['nginx']['candidateDirectory']='/etc/traceflow/activation-candidates/'+new['runId']
+        with self.launch_fixture(window,new) as (args,_):window.launch(ops,self.layout,args)
+        self.a=new;self.path=window.run_directory(self.layout,new['runId'])
+        with mock.patch.object(ops,'boot_id',return_value='test-boot'),mock.patch.object(ops,'proc_start',return_value='123'):
+            window.claim_activation(ops,self.layout,self.path,new,self.layout.load())
+        window.receipt(self.path,'cutover',new)
+        state=self.layout.load();state['phase']='postchecks-pending';self.layout.save(state)
+        window.receipt(self.path,'pending',new,status='ACTIVATION_PENDING_VALIDATION')
+        window.receipt(self.path,'failure',new,status='FAIL',code='OPERATION_INTERRUPTED',phase='postchecks-pending',secretsPrinted=False)
+        with mock.patch.object(ops,'stop_services'),mock.patch.object(window,'nginx_files'),mock.patch.object(window,'nginx_reload'),mock.patch.object(window,'cleanup_credential'),mock.patch.object(window,'temporary_probe',side_effect=window.PublicPageFailure({'kind':'TIMEOUT'})):
+            window.recover(ops,self.layout,self.path,new,self.account)
+        self.assertEqual(c.private_json(self.path/'recovery.json')['publicPageFailure'],{'kind':'TIMEOUT'})
+        self.state=self.layout.load();self.before=self.history()
+        self.q=dict(self.origin_q,authorizationId='3'*32,reconciliationId='4'*32,runId=new['runId'],
+                    stateSha256=c.digest(c.encoded(self.state)),historySha256=window.recovery_history(self.path))
+        self.rewrite_auth();self.args.run_id=new['runId'];self.folder=window.reconciliation_folder(self.layout,self.q)
+        self.env.return_value=environment_fixture(new);self.credentials.reset_mock();self.db.reset_mock()
+
+    def test_later_reconciliation_preserves_prior_chain_and_replays_without_audit(self):
+        self.later_failed_attempt();self.run_flow()
+        self.assertEqual(window.reconciliation_closed(self.layout,self.layout.load()),self.q)
+        self.assertEqual(self.before,self.history())
+        for name,raw in self.origin_files.items():self.assertEqual((self.h.root/name).read_bytes(),raw)
+        self.db.reset_mock();self.run_flow();self.db.assert_not_called()
+        self.assertTrue(window.first_activation_eligible(self.layout.load()))
+        later=copy.deepcopy(self.a);later['runId']='5'*32;later['nonce']='6'*32
+        later['nginx']['candidateDirectory']='/etc/traceflow/activation-candidates/'+later['runId']
+        with self.launch_fixture(window,later) as (args,_):window.launch(ops,self.layout,args)
+        self.h.a=later;self.h.path=window.run_directory(self.layout,later['runId'])
+        with self.assertRaisesRegex(c.Refused,'SYNTHETIC_FAILURE'):self.h.run_flow(fail='public-cutover')
+        self.assertEqual(window.reconciliation_closed(self.layout,self.layout.load()),self.q)
+        self.assertEqual(self.before,self.history())
+
+    def test_later_reconciliation_refuses_wrong_failure_claim_or_pending(self):
+        self.later_failed_attempt()
+        for name,field,value in [('failure.json','code','OTHER_FAILURE'),('failure.json','phase','public-cutover'),
+                ('recovery.json','claimSha256','0'*64),('pending.json','status','OTHER_STATUS'),
+                ('claim.json','priorStateSha256','0'*64)]:
+            with self.subTest(name=name,field=field):
+                file=self.path/name;raw=file.read_bytes();data=json.loads(raw);data[field]=value;file.write_bytes(c.encoded(data))
+                self.q['historySha256']=window.recovery_history(self.path);self.rewrite_auth()
+                with self.assertRaises(c.Refused):self.run_flow()
+                self.assertEqual(self.state,self.layout.load());self.credentials.assert_not_called()
+                file.write_bytes(raw)
+
+    def test_later_reconciliation_requires_preserved_origin_proof(self):
+        self.later_failed_attempt()
+        origin=window.reconciliation_folder(self.layout,self.origin_q)/'applied.json';raw=origin.read_bytes();origin.write_bytes(b'{}')
+        with self.assertRaises(c.Refused):self.run_flow()
+        self.assert_unchanged();self.credentials.assert_not_called();origin.write_bytes(raw)
+        self.run_flow();self.assertEqual(window.reconciliation_closed(self.layout,self.layout.load()),self.q)
+
+    def test_later_reconciliation_interrupt_before_guard_reaudits(self):
+        self.later_failed_attempt()
+        def partial(state):c.atomic_json(self.layout.state/'state.json',state);raise OSError('synthetic')
+        with mock.patch.object(self.layout,'save',side_effect=partial),self.assertRaises(OSError):self.run_flow()
+        with self.assertRaises((c.Refused,FileNotFoundError)):window.reconciliation_closed(self.layout,self.layout.load())
+        self.db.reset_mock();self.run_flow();self.db.assert_called_once()
+        self.assertEqual(self.before,self.history());window.reconciliation_closed(self.layout,self.layout.load())
+
+    def test_later_origin_change_during_audit_refuses_commit(self):
+        self.later_failed_attempt()
+        file=window.reconciliation_folder(self.layout,self.origin_q)/'applied.json'
+        def change(*_):file.write_bytes(b'{}');return database_fixture(manifest())
+        self.db.side_effect=change
+        with self.assertRaises(c.Refused):self.run_flow()
+        self.assert_unchanged()
+
     def test_launch_submits_selected_controller_not_historical_runtime(self):
         self.run_flow();new=copy.deepcopy(self.a);new['runId']='1'*32
         selected=Path('/opt/traceflow/releases')/('20261018T060000Z-'+'f'*40+'-'+'e'*12)/'deploy/scripts/release.py'

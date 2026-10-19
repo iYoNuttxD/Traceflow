@@ -82,8 +82,9 @@ export const settingsApi = {
       data: { currentPassword, confirmation: true }
     });
   },
-  startGithubInstallation() {
+  startGithubInstallation(flow = 'authorize') {
     return httpClient.post('/github/app/installations/start', {
+      flow,
       intendedAction: 'CREATE_PROJECT'
     });
   },

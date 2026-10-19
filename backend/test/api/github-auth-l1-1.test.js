@@ -259,12 +259,58 @@ describe('API de autenticação GitHub L1.1', () => {
     expect((await local.agent.get('/api/auth/me')).status).toBe(200);
   });
 
+  it('autoriza uma instalação existente pelo callback OAuth sem reinstalar nem trocar a identidade de login', async () => {
+    const local = await registerLocal('existing-app@example.test', 'existing-app');
+    const id = '9007199254740993123';
+    const started = await local.agent
+      .post('/api/github/app/installations/start')
+      .set('X-CSRF-Token', local.csrf)
+      .send({ intendedAction: 'CREATE_PROJECT' });
+    expect(started.status).toBe(200);
+    const url = new URL(started.body.url);
+    expect(url.pathname).toBe('/login/oauth/authorize');
+    expect(url.searchParams.get('redirect_uri')).toBe(
+      'http://localhost:3001/api/auth/github/callback'
+    );
+    const state = url.searchParams.get('state');
+    const metadata = {
+      githubInstallationId: id,
+      accountId: '123',
+      accountLogin: 'octocat',
+      accountType: 'User',
+      installedAt: new Date('2030-01-01T00:00:00Z')
+    };
+    provider.exchangeInstallationUserCode.mockResolvedValue('synthetic-authorization-token');
+    provider.getAuthenticatedUser.mockResolvedValue({ id: '123', login: 'octocat' });
+    provider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
+    provider.getInstallation.mockResolvedValue(metadata);
+    const forged = await local.agent
+      .get('/api/auth/github/callback')
+      .query({ code: 'code', state, installation_id: id });
+    expect(forged.headers.location).toContain('github=error');
+    const callback = await local.agent
+      .get('/api/auth/github/callback')
+      .query({ code: 'code', state });
+    expect(callback.headers.location).toContain('github=connected');
+    expect(callback.headers.location).toContain('installationId=' + id);
+    expect(await prisma.gitHubIdentity.findUnique({ where: { userId: local.user.id } })).toBeNull();
+    const list = await local.agent.get('/api/github/app/installations');
+    expect(list.status).toBe(200);
+    expect(list.body.installations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ githubInstallationId: id })])
+    );
+    const replay = await local.agent
+      .get('/api/auth/github/callback')
+      .query({ code: 'code', state });
+    expect(replay.headers.location).toContain('github=error');
+  });
+
   it('conecta a GitHub App em conta local sem GitHub Identity e preserva o acesso entre sessões', async () => {
     const local = await registerLocal('local-app@example.test', 'local-app');
     const started = await local.agent
       .post('/api/github/app/installations/start')
       .set('X-CSRF-Token', local.csrf)
-      .send({ intendedAction: 'CREATE_PROJECT' });
+      .send({ intendedAction: 'CREATE_PROJECT', flow: 'install' });
     expect(started.status).toBe(200);
     const state = new URL(started.body.url).searchParams.get('state');
     expect(await prisma.gitHubIdentity.findUnique({ where: { userId: local.user.id } })).toBeNull();
