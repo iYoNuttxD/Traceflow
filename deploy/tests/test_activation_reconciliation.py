@@ -290,7 +290,7 @@ class ReconciliationTests(unittest.TestCase):
                 f.write_bytes(raw);f.chmod(0o600)
         self.assertEqual(window.reconciliation_closed(self.layout,state),self.q)
 
-    def later_failed_attempt(self):
+    def later_failed_attempt(self,failure_code='OPERATION_INTERRUPTED',postchecks=False):
         self.run_flow();self.origin_q=copy.deepcopy(self.q)
         self.origin_files={str(p.relative_to(self.h.root)):p.read_bytes() for parent in (self.layout.state/'activations',self.layout.state/'reconciliations') for p in parent.rglob('*.json')}
         new=copy.deepcopy(self.a);new['runId']='1'*32;new['nonce']='2'*32;new['nginx']['candidateDirectory']='/etc/traceflow/activation-candidates/'+new['runId']
@@ -301,7 +301,14 @@ class ReconciliationTests(unittest.TestCase):
         window.receipt(self.path,'cutover',new)
         state=self.layout.load();state['phase']='postchecks-pending';self.layout.save(state)
         window.receipt(self.path,'pending',new,status='ACTIVATION_PENDING_VALIDATION')
-        window.receipt(self.path,'failure',new,status='FAIL',code='OPERATION_INTERRUPTED',phase='postchecks-pending',secretsPrinted=False)
+        if postchecks:
+            for kind in sorted(contract.POST):
+                proof=previous.post(new,kind,time.time())
+                source=self.h.root/('observation-'+kind+'.json')
+                private_write(source,c.encoded(previous.observation(proof)))
+                proof['sources']=[{'path':str(source),'sha256':c.file_digest(source)}]
+                private_write(self.path/(kind+'.json'),c.encoded(proof))
+        window.receipt(self.path,'failure',new,status='FAIL',code=failure_code,phase='postchecks-pending',secretsPrinted=False)
         with mock.patch.object(ops,'stop_services'),mock.patch.object(window,'nginx_files'),mock.patch.object(window,'nginx_reload'),mock.patch.object(window,'cleanup_credential'),mock.patch.object(window,'temporary_probe',side_effect=window.PublicPageFailure({'kind':'TIMEOUT'})):
             window.recover(ops,self.layout,self.path,new,self.account)
         self.assertEqual(c.private_json(self.path/'recovery.json')['publicPageFailure'],{'kind':'TIMEOUT'})
@@ -360,6 +367,87 @@ class ReconciliationTests(unittest.TestCase):
         self.db.side_effect=change
         with self.assertRaises(c.Refused):self.run_flow()
         self.assert_unchanged()
+
+    def test_runtime_failure_with_three_real_bound_observations_reconciles_not_activates(self):
+        self.later_failed_attempt('UNEXPECTED_RUNTIME_SESSION',True);self.run_flow()
+        state=self.layout.load();self.assertEqual(window.reconciliation_closed(self.layout,state),self.q)
+        self.assertEqual(self.before,self.history());self.assertFalse((self.path/'verified.json').exists())
+        self.assertFalse((self.path/'closed.json').exists());self.account.unlock.assert_not_called()
+        for name,raw in self.origin_files.items():self.assertEqual((self.h.root/name).read_bytes(),raw)
+        self.db.reset_mock();self.run_flow();self.db.assert_not_called()
+        # A new attempt needs its own postchecks; these remain bound to the old run.
+        next_auth=dict(self.a,runId='8'*32,nonce='9'*32)
+        old=c.private_json(self.path/'upload.json')
+        with self.assertRaisesRegex(c.Refused,'POST_RECEIPT_BINDING'):
+            contract.post_evidence(old,next_auth,'upload',0,time.time())
+
+    def test_runtime_failure_rejects_missing_tampered_or_success_receipts(self):
+        self.later_failed_attempt('UNEXPECTED_RUNTIME_SESSION',True)
+        for kind in sorted(contract.POST):
+            file=self.path/(kind+'.json');raw=file.read_bytes();file.unlink()
+            self.q['historySha256']=window.recovery_history(self.path);self.rewrite_auth()
+            with self.assertRaises(FileNotFoundError):self.run_flow()
+            self.assertEqual(self.state,self.layout.load());self.credentials.assert_not_called()
+            private_write(file,raw)
+            for key,value in [('runId','0'*32),('nonce','0'*32),('observedAt',self.a['expiresAt'])]:
+                d=json.loads(raw);d[key]=value;file.write_bytes(c.encoded(d))
+                self.q['historySha256']=window.recovery_history(self.path);self.rewrite_auth()
+                with self.assertRaises(c.Refused):self.run_flow()
+                self.credentials.assert_not_called();file.write_bytes(raw)
+        for name in ('verified.json','closed.json','unowned.json'):
+            f=self.path/name;private_write(f,b'{}\n')
+            self.q['historySha256']=window.recovery_history(self.path);self.rewrite_auth()
+            with self.assertRaisesRegex(c.Refused,'CONTRADICTORY_HISTORY'):self.run_flow()
+            self.credentials.assert_not_called();f.unlink()
+        source=self.h.root/'observation-github.json';raw=source.read_bytes();source.write_bytes(raw+b' ')
+        self.q['historySha256']=window.recovery_history(self.path);self.rewrite_auth()
+        with self.assertRaisesRegex(c.Refused,'EVIDENCE_CHANGED'):self.run_flow()
+        self.credentials.assert_not_called()
+
+    def test_runtime_failure_requires_original_claim_scope_and_origin(self):
+        self.later_failed_attempt('UNEXPECTED_RUNTIME_SESSION',True)
+        for name,field,value in [('failure.json','phase','public-cutover'),('failure.json','code','OTHER_FAILURE'),
+                ('claim.json','priorStateSha256','0'*64),('recovery.json','failureSha256','0'*64),
+                ('recovery.json','failedControls',['accounts']),('recovery.json','dataPreserved',False),
+                ('recovery.json','schemaRestored',True)]:
+            file=self.path/name;raw=file.read_bytes();d=json.loads(raw);d[field]=value;file.write_bytes(c.encoded(d))
+            self.q['historySha256']=window.recovery_history(self.path);self.rewrite_auth()
+            with self.assertRaises(c.Refused):self.run_flow()
+            self.credentials.assert_not_called();self.assertEqual(self.state,self.layout.load());file.write_bytes(raw)
+        origin=window.reconciliation_folder(self.layout,self.origin_q)/'applied.json';origin.write_bytes(b'{}')
+        with self.assertRaises(c.Refused):self.run_flow()
+        self.credentials.assert_not_called()
+
+    def test_runtime_failure_interrupted_state_guard_requires_reaudit(self):
+        self.later_failed_attempt('UNEXPECTED_RUNTIME_SESSION',True)
+        def partial(state):c.atomic_json(self.layout.state/'state.json',state);raise OSError('synthetic')
+        with mock.patch.object(self.layout,'save',side_effect=partial),self.assertRaises(OSError):self.run_flow()
+        with self.assertRaises(FileNotFoundError):window.reconciliation_closed(self.layout,self.layout.load())
+        self.db.reset_mock();self.run_flow();self.db.assert_called_once()
+        self.assertEqual(self.before,self.history());window.reconciliation_closed(self.layout,self.layout.load())
+
+    def test_runtime_failure_accepts_schema_compatible_recursive_origin_release(self):
+        self.later_failed_attempt('UNEXPECTED_RUNTIME_SESSION',True)
+        # The full real cross-release chain is separately checked against OCI files.
+        # This boundary test distinguishes the recursive origin's release from the
+        # immediate prior target; the origin validator remains independently tested.
+        origin=dict(self.origin_q,releaseId='20261018T060000Z-'+'f'*40+'-'+'e'*12,descriptorSha256='c'*64)
+        with mock.patch.object(window,'reconciliation_closed',return_value=origin):
+            path,a,after=window.reconciliation_baseline(self.layout,self.q)
+        self.assertEqual(a,self.a);self.assertEqual(after['target'],self.a['releaseId'])
+        self.assertEqual(self.before,self.history());self.credentials.assert_not_called()
+
+    def test_runtime_failure_does_not_bypass_prior_target_or_schema_compatibility(self):
+        self.later_failed_attempt('UNEXPECTED_RUNTIME_SESSION',True)
+        installed=self.layout.installed
+        def different_schema(*args):
+            release,admin,m=installed(*args);m=copy.deepcopy(m)
+            if different_schema.calls:m['schema']['chainSha256']='0'*64
+            different_schema.calls+=1;return release,admin,m
+        different_schema.calls=0
+        with mock.patch.object(self.layout,'installed',side_effect=different_schema),self.assertRaisesRegex(c.Refused,'ORIGIN_SCHEMA'):
+            window.reconciliation_baseline(self.layout,self.q)
+        self.credentials.assert_not_called();self.assertEqual(self.state,self.layout.load())
 
     def test_launch_submits_selected_controller_not_historical_runtime(self):
         self.run_flow();new=copy.deepcopy(self.a);new['runId']='1'*32

@@ -991,3 +991,45 @@ SHA-256 e recusa sem autorização; login/projetos/execução/logout e entrega G
 real precisam ocorrer na janela. Latência loopback não homologa GitHub,
 Cloudflare ou transferência pública. Sem tempo suficiente, preservar evidências
 e permitir somente a recuperação oficial, sem extensão da autorização.
+
+
+### S2-09: recusa de sessão no encerramento após os três postchecks
+
+`UNEXPECTED_RUNTIME_SESSION` em `postchecks-pending` continua fatal. A regra de
+`Accounts.state` não mudou: somente `traceflow_api` e `traceflow_worker`, com
+origem demonstrável `10.20.1.184`, podem permanecer conectados. Contas de diagnóstico
+ou migração, origem ausente ou diferente continuam recusadas; não há KILL,
+exceção temporária nem conversão de origem desconhecida em endereço permitido.
+
+Novas ocorrências registram `runtimeSessionFailure` no recibo de falha: contagens,
+digest canônico das linhas observadas e até 16 sessões recusadas. Cada item contém
+apenas ID numérico da conexão quando válido, nome de conta pertencente à lista
+fixa (ou UNRECOGNIZED), classificação da origem, endereço IP quando interpretável
+e digest da origem. Não registra texto arbitrário de host/usuário, SQL, atributos
+de aplicação, senha, URL ou stack trace. Origem ausente permanece MISSING;
+não identifica automaticamente o processo responsável. Exceções externas não
+podem anexar metadados arbitrários ao recibo.
+
+O histórico da tentativa c73eeec62aa74257afd3392a5462ba42 não contém a linha
+recusada. O código, a fase e os três postchecks não provam a identidade/origem da
+sessão; uma causa específica não pode ser atribuída retroativamente. Enquanto
+não houver causa comprovada e corrigida, não iniciar outra ativação apenas para
+obter esse diagnóstico.
+
+A reconciliação desse cenário aceita exclusivamente a falha acima, após início
+em reconciled-v2, sem verified/closed/unowned, com os três postchecks originais
+válidos na janela histórica. Confere os hashes das fontes, todos os vínculos da
+autorização, nonce e tentativa, a cronologia desde pending até failure e toda a
+cadeia de claim/failure/recovery e recoveryProof. Exige recuperação registrada com
+failedControls=[public-page], dataPreserved=true e schemaRestored=false. A origem
+recursiva pode pertencer a uma release anterior somente se a release imediata
+recuperada já corresponder ao alvo e os manifestos committed tiverem schema e
+cadeia de migrations exatamente iguais. O escopo OPERATION_INTERRUPTED anterior
+continua recusando postchecks. O contrato legado permanece inalterado.
+
+A nova reconciliação publica recibos exclusivos pelo protocolo v2 e exige sua
+própria autorização de até 600 segundos e auditoria real somente leitura. Não
+converte os postchecks antigos em aprovação de outra ativação; novas tentativas
+exigem novas observações. Instalar instrumentação não significa corrigir a causa,
+homologar reconciliação ou autorizar publicação. Resíduos e estado/guard
+incoerentes continuam bloqueios; não reparar manualmente nem limpar evidências.

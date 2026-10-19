@@ -18,7 +18,7 @@ import time
 from urllib.parse import urlsplit
 from activation_contract import (authorize, pre_evidence, post_evidence, Deadline, utc,
     timestamp, NGINX, CONFIGS, POST, TARGET, ref)
-from activation_accounts import Accounts
+from activation_accounts import Accounts, RuntimeSessionFailure
 from operational_io import secure_read, private_write, tool
 from release_contract import (Refused, require, private_json, atomic_json, encoded, digest,
     file_digest, trusted_path, fsync_dir, exclusive_lock, release_id)
@@ -456,7 +456,8 @@ def run(ops,layout,run_id):
             # serialize SQL, URLs, credentials, exception messages or tracebacks.
             code=str(failure) if isinstance(failure,Refused) and re.fullmatch(r'[A-Z][A-Z0-9_]{2,80}',str(failure)) else 'ACTIVATION_FAILED'
             with contextlib.suppress(BaseException):
-                receipt(path,'failure',a,status='FAIL',code=code,phase=state.get('phase'),secretsPrinted=False)
+                diagnostic={'runtimeSessionFailure':failure.observation} if isinstance(failure,RuntimeSessionFailure) else {}
+                receipt(path,'failure',a,status='FAIL',code=code,phase=state.get('phase'),secretsPrinted=False,**diagnostic)
             if db is not None:
                 with contextlib.suppress(BaseException):db.close()
             # A pre-claim failure cannot recover another attempt. ExecStopPost
@@ -713,18 +714,31 @@ def reconciliation_baseline(layout,q,_seen=()):
                 d.get('authorizationSha256')==file_digest(path/'authorization.json'),'RECONCILE_RECEIPT_BINDING')
     require(recovery.get('status')=='INTERVENTION_REQUIRED' and recovery.get('failedControls')==['public-page'] and
             recovery.get('dataPreserved') is True and recovery.get('schemaRestored') is False,'RECONCILE_RECOVERY_SCOPE')
-    require(not any(os.path.lexists(path/n) for n in ('verified.json','closed.json','github.json','upload.json','functional.json','unowned.json')),
+    require(not any(os.path.lexists(path/n) for n in ('verified.json','closed.json','unowned.json')),
             'RECONCILE_CONTRADICTORY_HISTORY')
+    runtime_failure=(prior.get('status')==RECONCILED_STATUS and failure.get('code')=='UNEXPECTED_RUNTIME_SESSION')
+    if not runtime_failure:
+        require(not any(os.path.lexists(path/(k+'.json')) for k in POST),'RECONCILE_CONTRADICTORY_HISTORY')
     if prior.get('status')==RECONCILED_STATUS:
-        # Only the observed postcheck interruption after a proven earlier recovery.
-        # A new reconciliation seals this attempt, never replaces its origin proof.
-        require(failure.get('status')=='FAIL' and failure.get('code')=='OPERATION_INTERRUPTED' and
+        # Two separate, observed scopes; neither treats historical postchecks as
+        # approval of another attempt. A new proof seals, never replaces, its origin.
+        require(failure.get('status')=='FAIL' and failure.get('code') in
+                ('OPERATION_INTERRUPTED','UNEXPECTED_RUNTIME_SESSION') and
                 failure.get('phase')=='postchecks-pending' and failure.get('secretsPrinted') is False,
                 'RECONCILE_FAILURE_SCOPE')
         require(q['runId'] not in _seen and len(_seen)<64,'RECONCILE_PROVENANCE_CYCLE')
         origin=reconciliation_closed(layout,prior,False,(*_seen,q['runId']))
-        require(origin is not None and all(origin[k]==q[k] for k in ('releaseId','descriptorSha256')),
-                'RECONCILE_ORIGIN_REQUIRED')
+        require(origin is not None,'RECONCILE_ORIGIN_REQUIRED')
+        if runtime_failure:
+            # The immediate recovered attempt already targets this application.
+            # Its recursive origin can predate a schema-compatible application release.
+            require(prior.get('target')==a['releaseId'],'RECONCILE_ORIGIN_RELEASE')
+            _,_,current_manifest=layout.installed(a['releaseId'],a['descriptorSha256'])
+            _,_,origin_manifest=layout.installed(origin['releaseId'],origin['descriptorSha256'])
+            require(current_manifest['sourceState']==origin_manifest['sourceState']=='committed' and
+                    current_manifest['schema']==origin_manifest['schema'],'RECONCILE_ORIGIN_SCHEMA')
+        else:
+            require(all(origin[k]==q[k] for k in ('releaseId','descriptorSha256')),'RECONCILE_ORIGIN_REQUIRED')
         claim=validate_claim(path,a);validate_recovery_receipts(path,a)
         claimed=claim['claimedState'];expected=dict(prior)
         for k in ('status','phase','target','operation','runId','expiresAt','bootId','pid','processStart'):
@@ -735,6 +749,14 @@ def reconciliation_baseline(layout,q,_seen=()):
                 events[5].get('status')=='ACTIVATION_PENDING_VALIDATION','RECONCILE_ACTIVATION_CHAIN')
         times=[utc(a['issuedAt']),*[utc(d['at']) for d in events]]
         require(times==sorted(times) and utc(failure['at'])<utc(a['expiresAt']),'RECONCILE_ACTIVATION_TIME')
+        if runtime_failure:
+            # Validate original root observations at the historical failure instant,
+            # not at today's wall clock; all source hashes and attempt bindings apply.
+            for kind in sorted(POST):
+                proof=reconciliation_json(path/(kind+'.json'))
+                post_evidence(proof,a,kind,utc(events[4]['at']),utc(failure['at']))
+                observed=utc(proof['observedAt'])
+                require(utc(events[5]['at'])<=observed,'RECONCILE_POSTCHECK_TIME')
     else:
         # The historical first controller predates claim receipts; retain its exact scope.
         require(failure.get('status')=='FAIL' and failure.get('code')=='FRONTEND_SMOKE' and

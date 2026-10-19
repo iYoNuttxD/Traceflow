@@ -1,5 +1,6 @@
 """Only the two approved runtime accounts may be unlocked or relocked."""
 import contextlib
+import ipaddress
 import os
 import selectors
 import signal
@@ -9,13 +10,37 @@ from pathlib import Path
 import re
 from activation_contract import TARGET
 from operational_io import tool, secure_read, digest, ENV
-from release_contract import require
+from release_contract import Refused, require, encoded
 from runtime_grants import MODEL, plan_for, sql_frames, parse_frames, validate_audit
 
 ACCOUNTS = ('traceflow_api','traceflow_worker')
 GUARDS = (*ACCOUNTS,'traceflow_diag','traceflow_migrator')
 CA = '/etc/pki/traceflow/mysql-ca.pem'
 CA_SHA = '2eaee0e206741bf81b651f1ae33f44f0a92949ed6a99137a4aa8b0013486d295'
+
+def allowed_runtime_session(row):
+    # Keep the existing allowlist and source comparison unchanged.
+    return row[1] in ACCOUNTS and isinstance(row[2],str) and row[2].split(':')[0]=='10.20.1.184'
+
+
+class RuntimeSessionFailure(Refused):
+    """Bounded metadata from the rejected observation, never SQL or raw host text."""
+    def __init__(self, rows):
+        super().__init__('UNEXPECTED_RUNTIME_SESSION')
+        rejected=[r for r in rows if not allowed_runtime_session(r)]
+        observations=[]
+        for cid,user,host in rejected[:16]:
+            source=host.split(':')[0] if isinstance(host,str) else None
+            try:address=str(ipaddress.ip_address(source))
+            except (ValueError,TypeError):address=None
+            observations.append({'connectionId':cid if type(cid) is int and cid>0 else None,
+                'account':user if user in GUARDS else 'UNRECOGNIZED',
+                'accountAllowed':user in ACCOUNTS,'sourceMatches':source=='10.20.1.184',
+                'sourceKind':'IP' if address else ('MISSING' if host is None else 'UNRECOGNIZED'),
+                'sourceIp':address,'sourceSha256':digest(encoded(host))})
+        self.observation={'formatVersion':1,'sessionCount':len(rows),'rejectedCount':len(rejected),
+            'sessionsSha256':digest(encoded(rows)),'truncated':len(rejected)>16,'rejected':observations}
+
 
 class Accounts:
     def __init__(self, credential):
@@ -47,7 +72,8 @@ class Accounts:
               {'id':'SESSIONS','sql':"SELECT JSON_ARRAY(PROCESSLIST_ID,PROCESSLIST_USER,PROCESSLIST_HOST) FROM performance_schema.threads WHERE TYPE='FOREGROUND' AND PROCESSLIST_USER IN ('traceflow_api','traceflow_worker','traceflow_diag','traceflow_migrator') ORDER BY PROCESSLIST_ID",'width':3}]
         rows,_=self.query(plan)
         require(rows['ACCOUNTS']==sorted([[u,'10.20.1.184','Y' if locked or u not in ACCOUNTS else 'N'] for u in GUARDS]),'RUNTIME_ACCOUNT_STATE')
-        require(all(r[1] in ACCOUNTS and isinstance(r[2],str) and r[2].split(':')[0]=='10.20.1.184' for r in rows['SESSIONS']), 'UNEXPECTED_RUNTIME_SESSION')
+        if not all(allowed_runtime_session(r) for r in rows['SESSIONS']):
+            raise RuntimeSessionFailure(rows['SESSIONS'])
         if empty:require(not rows['SESSIONS'],'RUNTIME_SESSIONS_REMAIN')
         return rows['SESSIONS']
     def change(self,user,locked):
