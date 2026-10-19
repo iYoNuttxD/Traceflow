@@ -1,3 +1,4 @@
+import { COVERAGE_MARGIN_MS, linkedTasksAt } from './github-event.policy.js';
 import { dueDateOf, overdueCutoff } from './notification.policy.js';
 
 export const SENT = 'SENT';
@@ -16,6 +17,10 @@ export const UNOBSERVED_EVENTS = 'EVENTOS_NAO_OBSERVADOS';
 export const INCOMPLETE_RECORD = 'REGISTRO_INCOMPLETO';
 export const STATE_COMPARISON_SOURCE = 'FONTE_POR_COMPARACAO_DE_ESTADO';
 export const ACQUISITION_GAP = 'LACUNA_DE_AQUISICAO';
+export const ACQUISITION_MATCH_MS = 5000;
+export const PRESUMED_SOURCE = 'PRESUMIDA';
+export const PRESUMED_SOURCE_RULE =
+  'completo até o início da última leitura completa menos a margem; o GitHub não garante a completude da listagem';
 
 export const TOTAL_FORMULA = 'enviadasCorretamente / ocorridos × 100';
 export const ELIGIBLE_FORMULA =
@@ -199,6 +204,97 @@ export function githubCoverageGaps(coverages, period) {
       });
   }
   return [...before, ...after];
+}
+
+export function presumedSourceCoverage() {
+  return {
+    tipo: PRESUMED_SOURCE,
+    margemMinutos: COVERAGE_MARGIN_MS / 60_000,
+    regra: PRESUMED_SOURCE_RULE
+  };
+}
+
+function groupedBy(rows, keyOf) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = keyOf(row);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return groups;
+}
+
+const artifactKey = (kind, id) => `${kind}:${id}`;
+
+function snapshotsOf({ pullRequests, issues }) {
+  return [
+    ...pullRequests.map((row) => ({
+      kind: 'PULL_REQUEST',
+      id: row.id,
+      projectId: row.projectId,
+      number: row.number,
+      expected: row.mergedAtGithub ? 'MERGED' : 'CLOSED',
+      occurredAt: row.mergedAtGithub ?? row.closedAtGithub
+    })),
+    ...issues.map((row) => ({
+      kind: 'ISSUE',
+      id: row.id,
+      projectId: row.projectId,
+      number: row.number,
+      expected: 'CLOSED',
+      occurredAt: row.closedAtGithub
+    }))
+  ];
+}
+
+const byInstantAndNumber = (left, right) =>
+  left.ocorridoEm.localeCompare(right.ocorridoEm) || left.artefato.numero - right.artefato.numero;
+
+export function acquisitionGaps(source, coverages, period) {
+  const coverageOf = new Map(coverages.map((row) => [row.projectId, row]));
+  const periods = groupedBy(source.periods, (row) =>
+    row.pullRequestId
+      ? artifactKey('PULL_REQUEST', row.pullRequestId)
+      : artifactKey('ISSUE', row.issueId)
+  );
+  const events = groupedBy(
+    [
+      ...source.pullRequestEvents.map((row) => ({
+        ...row,
+        key: artifactKey('PULL_REQUEST', row.pullRequestId)
+      })),
+      ...source.issueEvents.map((row) => ({ ...row, key: artifactKey('ISSUE', row.issueId) }))
+    ],
+    (row) => row.key
+  );
+  const gaps = { PULL_REQUEST: [], ISSUE: [] };
+  for (const snapshot of snapshotsOf(source)) {
+    const instant = snapshot.occurredAt.getTime();
+    const coverage = coverageOf.get(snapshot.projectId);
+    if (!coverage?.completeThrough) continue;
+    if (instant < coverage.coverageFrom.getTime() || instant > coverage.completeThrough.getTime())
+      continue;
+    if (instant < period.start.getTime() || instant >= period.end.getTime()) continue;
+    const key = artifactKey(snapshot.kind, snapshot.id);
+    if (!linkedTasksAt(periods.get(key) ?? [], snapshot.occurredAt).count) continue;
+    const recorded = (events.get(key) ?? []).some(
+      (event) =>
+        event.eventType === snapshot.expected &&
+        Math.abs(event.occurredAt.getTime() - instant) <= ACQUISITION_MATCH_MS
+    );
+    if (recorded) continue;
+    gaps[snapshot.kind].push({
+      motivo: ACQUISITION_GAP,
+      projeto: snapshot.projectId,
+      artefato: { tipo: snapshot.kind, numero: snapshot.number },
+      esperado: snapshot.expected,
+      ocorridoEm: snapshot.occurredAt.toISOString()
+    });
+  }
+  return {
+    RF60: gaps.ISSUE.sort(byInstantAndNumber),
+    RF61: gaps.PULL_REQUEST.sort(byInstantAndNumber)
+  };
 }
 
 export function incompleteRecordGaps(registryStart, retentionHorizon, periodStart) {

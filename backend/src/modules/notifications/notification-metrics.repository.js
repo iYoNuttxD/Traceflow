@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prismaClient.js';
+import { ACQUISITION_MATCH_MS } from './notification-metrics.policy.js';
 
 const DECISIONS_MIGRATION = '20261015120000_notification_decisions';
 const GITHUB_EVENTS_MIGRATION = '20261012010000_github_event_notifications';
@@ -20,6 +21,17 @@ function chunked(values) {
 }
 
 const within = ({ start, end }) => ({ gte: start, lt: end });
+const around = ({ start, end }) => ({
+  gte: new Date(start.getTime() - ACQUISITION_MATCH_MS),
+  lte: new Date(end.getTime() + ACQUISITION_MATCH_MS)
+});
+const linkPeriodSelect = {
+  taskId: true,
+  issueId: true,
+  pullRequestId: true,
+  linkedAt: true,
+  unlinkedAt: true
+};
 
 export const notificationMetricsRepository = {
   async registryStarts() {
@@ -88,6 +100,65 @@ export const notificationMetricsRepository = {
       select: { projectId: true, coverageFrom: true, comparedBefore: true, completeThrough: true },
       orderBy: { projectId: 'asc' }
     });
+  },
+
+  async acquisitionSnapshots(projectIds, period) {
+    const pullRequests = await prisma.pullRequest.findMany({
+      where: {
+        projectId: { in: projectIds },
+        OR: [
+          { mergedAtGithub: within(period) },
+          { mergedAtGithub: null, closedAtGithub: within(period) }
+        ]
+      },
+      select: {
+        id: true,
+        projectId: true,
+        number: true,
+        mergedAtGithub: true,
+        closedAtGithub: true
+      }
+    });
+    const issues = await prisma.issue.findMany({
+      where: { projectId: { in: projectIds }, closedAtGithub: within(period) },
+      select: { id: true, projectId: true, number: true, closedAtGithub: true }
+    });
+    const periods = [];
+    const pullRequestEvents = [];
+    const issueEvents = [];
+    for (const ids of chunked(pullRequests.map((row) => row.id))) {
+      periods.push(
+        ...(await prisma.taskArtifactLinkPeriod.findMany({
+          where: { pullRequestId: { in: ids } },
+          select: linkPeriodSelect
+        }))
+      );
+      pullRequestEvents.push(
+        ...(await prisma.pullRequestLifecycleEvent.findMany({
+          where: {
+            pullRequestId: { in: ids },
+            eventType: { in: ['MERGED', 'CLOSED'] },
+            occurredAt: around(period)
+          },
+          select: { pullRequestId: true, eventType: true, occurredAt: true }
+        }))
+      );
+    }
+    for (const ids of chunked(issues.map((row) => row.id))) {
+      periods.push(
+        ...(await prisma.taskArtifactLinkPeriod.findMany({
+          where: { issueId: { in: ids } },
+          select: linkPeriodSelect
+        }))
+      );
+      issueEvents.push(
+        ...(await prisma.issueLifecycleEvent.findMany({
+          where: { issueId: { in: ids }, eventType: 'CLOSED', occurredAt: around(period) },
+          select: { issueId: true, eventType: true, occurredAt: true }
+        }))
+      );
+    }
+    return { pullRequests, issues, periods, pullRequestEvents, issueEvents };
   },
 
   githubEventsInPeriod(projectIds, period) {

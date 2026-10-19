@@ -24,6 +24,12 @@ const DAY = 86_400_000;
 const DECISIONS_MIGRATION = '20261015120000_notification_decisions';
 const TOTAL_FORMULA = 'enviadasCorretamente / ocorridos × 100';
 const ELIGIBLE_FORMULA = 'enviadasCorretamente / (ocorridos − naoEnviadas − semDestinatario) × 100';
+const SOURCE_COVERAGE = {
+  tipo: 'PRESUMIDA',
+  margemMinutos: 5,
+  regra:
+    'completo até o início da última leitura completa menos a margem; o GitHub não garante a completude da listagem'
+};
 const silent = { info() {}, warn() {}, error() {} };
 
 beforeAll(async () => {
@@ -509,7 +515,8 @@ describe('PR #26 métrica oficial do RF60 e do RF61 (TF-REV-002)', () => {
         ...unavailable('FONTE_POR_COMPARACAO_DE_ESTADO'),
         formula: ELIGIBLE_FORMULA,
         auxiliar: true
-      }
+      },
+      coberturaDaFonte: SOURCE_COVERAGE
     });
     expect(RF61).toMatchObject({
       unidade: 'PAR_EVENTO_PARTICIPANTE',
@@ -522,7 +529,8 @@ describe('PR #26 métrica oficial do RF60 e do RF61 (TF-REV-002)', () => {
       naoObservados: 0,
       lacunas: source,
       coberturaTotal: unavailable('FONTE_POR_COMPARACAO_DE_ESTADO'),
-      coberturaElegivel: unavailable('FONTE_POR_COMPARACAO_DE_ESTADO')
+      coberturaElegivel: unavailable('FONTE_POR_COMPARACAO_DE_ESTADO'),
+      coberturaDaFonte: SOURCE_COVERAGE
     });
 
     await prisma.gitHubEventCoverage.update({

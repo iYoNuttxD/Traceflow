@@ -60,7 +60,10 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
   e `{ "motivo": "LACUNA_DE_AQUISICAO", "projeto": <id>, "completoAte": <instante> }`.
 - **Cobertura presumida (18/10/2026).** O `completeThrough` fica 5 minutos antes do início da
   leitura, por hipótese operacional: o GitHub não garante a completude da listagem. O RF60 e o RF61
-  trazem `coberturaDaFonte: { "tipo": "PRESUMIDA", "margemMinutos": 5 }`.
+  trazem `coberturaDaFonte: { "tipo": "PRESUMIDA", "margemMinutos": 5, "regra": "completo até o
+  início da última leitura completa menos a margem; o GitHub não garante a completude da listagem" }`.
+  O RF30, o RF59 e a `RF60_ASSOCIACAO` não têm esse campo, porque a fonte deles é o próprio
+  TraceFlow.
 - **Conferência da aquisição (18/10/2026).** Para cada projeto, a PR ou a issue vinculada a alguma
   tarefa no instante do retrato, com esse instante dentro do período e do trecho coberto, precisa do
   evento correspondente gravado, a até 5 s:
@@ -73,8 +76,10 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
 
   Faltou, a lacuna é `{ "motivo": "LACUNA_DE_AQUISICAO", "projeto": <id>, "artefato":
   { "tipo": "PULL_REQUEST" | "ISSUE", "numero": <n> }, "esperado": "MERGED" | "CLOSED",
-  "ocorridoEm": <instante> }`, e a cobertura total sai indisponível. O retrato só guarda o último
-  fechamento e o merge: transições anteriores não são conferidas.
+  "ocorridoEm": <instante> }`, e a cobertura total sai indisponível. A lacuna da PR vai para o RF61,
+  e a da issue, para o RF60; elas vêm depois das lacunas comuns, em ordem de `ocorridoEm` e de
+  número. O retrato só guarda o último fechamento e o merge: transições anteriores não são
+  conferidas.
 - **Contagens.** T, E, A, N, X e U saem sempre, mesmo com a cobertura indisponível.
 
 ## Fontes

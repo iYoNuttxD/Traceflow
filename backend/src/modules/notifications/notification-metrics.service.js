@@ -1,12 +1,14 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../shared/logger/index.js';
 import {
+  acquisitionGaps,
   decisionsByEvent,
   githubCoverageGaps,
   githubEventTally,
   incompleteRecordGaps,
   overdueEventKey,
   overdueOccurrences,
+  presumedSourceCoverage,
   requirementReport,
   statusChangeEventKey,
   tallyDecidedEvents
@@ -77,18 +79,28 @@ export function createNotificationMetricsService({
       const horizon = new Date(now.getTime() - configuration.notificationRetentionDays * DAY_MS);
       const registry = await repository.registryStarts();
       const decisionGaps = incompleteRecordGaps(registry.decisions, horizon, period.start);
+      const coverages = await repository.githubEventCoverage(projectIds);
       const githubGaps = [
         ...incompleteRecordGaps(registry.githubEvents, horizon, period.start),
-        ...githubCoverageGaps(await repository.githubEventCoverage(projectIds), period)
+        ...githubCoverageGaps(coverages, period)
       ];
+      const acquisition = acquisitionGaps(
+        await repository.acquisitionSnapshots(projectIds, period),
+        coverages,
+        period
+      );
       const linkGaps = incompleteRecordGaps(registry.issueLinks, horizon, period.start);
       const githubEvents = await repository.githubEventsInPeriod(projectIds, period);
-      const githubReport = (types, gaps = githubGaps) =>
+      const githubReport = (types, gaps) =>
         requirementReport(
           PAIR_UNIT,
           githubEventTally(githubEvents.filter((event) => types.has(event.type))),
           gaps
         );
+      const sourceReport = (types, gaps) => ({
+        ...githubReport(types, gaps),
+        coberturaDaFonte: presumedSourceCoverage()
+      });
 
       const report = {
         periodo: {
@@ -103,9 +115,9 @@ export function createNotificationMetricsService({
         requisitos: {
           RF30: await statusChanges(projectIds, period, decisionGaps),
           RF59: await overdue(projectIds, period, { now, timeZone }, decisionGaps),
-          RF60: githubReport(RF60_EVENTS),
+          RF60: sourceReport(RF60_EVENTS, [...githubGaps, ...acquisition.RF60]),
           RF60_ASSOCIACAO: githubReport(RF60_LINK_EVENTS, linkGaps),
-          RF61: githubReport(RF61_EVENTS)
+          RF61: sourceReport(RF61_EVENTS, [...githubGaps, ...acquisition.RF61])
         }
       };
       log.info('Métrica oficial das notificações calculada.', {
