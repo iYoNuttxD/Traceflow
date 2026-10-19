@@ -140,9 +140,20 @@ describe('maintenance retention against real persisted rows', () => {
     const options = {
       client: prisma,
       now,
-      configuration: { privacyRequestRetentionDays: 30, auditRetentionDays: 365 }
+      configuration: {
+        privacyRequestRetentionDays: 30,
+        auditRetentionDays: 365,
+        notificationRetentionDays: 180
+      }
     };
-    const counts = { auditEvents: 1, privacyRequests: 3, personalDataExports: 1 };
+    const counts = {
+      auditEvents: 1,
+      privacyRequests: 3,
+      personalDataExports: 1,
+      notifications: 0,
+      githubArtifactEvents: 0,
+      notificationDecisions: 0
+    };
     expect(await runPrivacyRetention(options)).toEqual({ mode: 'dry-run', counts });
     expect(await ids(prisma.privacyRequest)).toEqual(requests.map(({ id }) => id));
     expect(await ids(prisma.auditEvent)).toEqual(audits.map(({ id }) => id));
@@ -176,7 +187,14 @@ describe('maintenance retention against real persisted rows', () => {
 
     expect(await runPrivacyRetention({ ...options, apply: true })).toEqual({
       mode: 'apply',
-      counts: { auditEvents: 0, privacyRequests: 0, personalDataExports: 0 }
+      counts: {
+        auditEvents: 0,
+        privacyRequests: 0,
+        personalDataExports: 0,
+        notifications: 0,
+        githubArtifactEvents: 0,
+        notificationDecisions: 0
+      }
     });
     expect(await ids(prisma.privacyRequest)).toEqual(retainedRequests);
     expect(await ids(prisma.personalDataExport)).toEqual([exports[1].id, exports[2].id]);

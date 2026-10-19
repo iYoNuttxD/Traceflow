@@ -19,7 +19,7 @@ export function SituationBadge({ value }) {
     </span>
   );
 }
-export function RequirementSummary({ summary }) {
+export function RequirementSummary({ summary, children }) {
   return (
     <section className="sprints-summary" aria-label="Resumo da rastreabilidade">
       <div className="sprints-summary__heading">
@@ -39,6 +39,7 @@ export function RequirementSummary({ summary }) {
           </div>
         ))}
       </dl>
+      {children}
     </section>
   );
 }

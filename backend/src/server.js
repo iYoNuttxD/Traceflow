@@ -1,9 +1,13 @@
 import app from './app.js';
 import { env } from './config/env.js';
-import { prisma } from './database/prismaClient.js';
+import { enforceConnectionBudget } from './database/connection-budget.js';
+import { disconnectDatabase } from './database/prismaClient.js';
 import { logger } from './shared/logger/index.js';
+import { exitCodeFor, stopWhenEngineUnavailable } from './shared/runtime/engine-exit.js';
 import { createGracefulShutdown } from './shared/runtime/graceful-shutdown.js';
 import { projectEventPublisher } from './shared/events/index.js';
+
+enforceConnectionBudget('api');
 
 const server = app.listen(env.port, () => {
   logger.info('TRACEFLOW backend running.', { port: env.port });
@@ -16,8 +20,9 @@ const server = app.listen(env.port, () => {
 
 const shutdown = createGracefulShutdown({
   server,
-  disconnect: () => prisma.$disconnect(),
-  logger
+  disconnect: disconnectDatabase,
+  logger,
+  exit: (code) => process.exit(exitCodeFor(code))
 });
 
 function shutdownWithStreams(signal) {
@@ -27,3 +32,4 @@ function shutdownWithStreams(signal) {
 
 process.once('SIGINT', () => void shutdownWithStreams('SIGINT'));
 process.once('SIGTERM', () => void shutdownWithStreams('SIGTERM'));
+stopWhenEngineUnavailable(shutdownWithStreams, { logger });

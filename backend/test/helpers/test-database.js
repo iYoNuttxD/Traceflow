@@ -81,6 +81,7 @@ export async function cleanTestDatabase(prisma) {
     // Environment variables alone cannot identify an already initialized client.
     await assertConnectedTestDatabase(tx);
     await tx.gitHubSchedulerWorker.deleteMany();
+    await tx.scheduledJobLease.deleteMany();
     await tx.projectPurgeStorageCleanup.deleteMany();
     await tx.defectHistoryEntry.deleteMany();
     await tx.defectRetest.deleteMany();
@@ -106,10 +107,19 @@ export async function cleanTestDatabase(prisma) {
     await tx.auditEvent.deleteMany();
     await tx.personalDataExport.deleteMany();
     await tx.privacyRequest.deleteMany();
+    await tx.gitHubArtifactEventTask.deleteMany();
+    await tx.gitHubArtifactEvent.deleteMany();
+    await tx.notificationDecision.deleteMany();
+    await tx.notification.deleteMany();
+    await tx.notificationPreference.deleteMany();
+    await tx.traceabilityAlertReconciliation.deleteMany();
+    await tx.traceabilityAlert.deleteMany();
     await tx.taskCommitSuggestion.deleteMany();
     await tx.taskTimeEntry.deleteMany();
     await tx.taskComment.deleteMany();
     await tx.taskCommit.deleteMany();
+    await tx.taskArtifactLinkPeriod.deleteMany();
+    await tx.gitHubEventCoverage.deleteMany();
     await tx.taskIssue.deleteMany();
     await tx.taskHistoryEntry.deleteMany();
     await tx.taskMovement.deleteMany();
@@ -123,6 +133,7 @@ export async function cleanTestDatabase(prisma) {
     await tx.gitBranch.deleteMany();
     await tx.commit.deleteMany();
     await tx.pullRequestLifecycleEvent.deleteMany();
+    await tx.issueLifecycleEvent.deleteMany();
     await tx.pullRequest.deleteMany();
     await tx.issue.deleteMany();
     await tx.project.deleteMany();

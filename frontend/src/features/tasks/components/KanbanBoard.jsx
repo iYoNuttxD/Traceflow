@@ -3,7 +3,8 @@ import { TaskCorrectionBadge } from './TaskCorrectionContext.jsx';
 import { KanbanColumn } from './KanbanColumn.jsx';
 import { TaskMoveMenu } from './TaskMoveMenu.jsx';
 import { formatDate, KANBAN_COLUMNS, priorityLabels } from './kanban-display.js';
-import { formatTraceabilityCounts, getBoardTasks, isTaskOverdue } from './kanban-view.js';
+import { formatTraceabilityLine, getBoardTasks, isTaskOverdue } from './kanban-view.js';
+import { TaskInconsistencyMarker, TaskTraceabilityLine } from './TaskIndications.jsx';
 import { buildEffortChip } from './effort-summary.js';
 import '../styles/task-cards.css';
 import './KanbanBoard.css';
@@ -34,8 +35,10 @@ function KanbanTaskCard({
   showSprint,
   frozen,
   canMove,
+  inconsistent,
   onSelect,
   onHistory,
+  onOpenInconsistency,
   onMove,
   onPointerDown,
   onDragStart,
@@ -44,7 +47,7 @@ function KanbanTaskCard({
   const priority = task.priority || (task.isFrozen ? '' : 'MEDIA');
   const blocked = frozen || moving || !canMove;
   const overdue = isTaskOverdue(task);
-  const traceability = formatTraceabilityCounts(task);
+  const traceability = formatTraceabilityLine(task);
   const effort = buildEffortChip(task, now);
   function stopDrag(event) {
     event.stopPropagation();
@@ -57,6 +60,7 @@ function KanbanTaskCard({
       data-kanban-task-id={task.id}
     >
       <TaskCorrectionBadge task={task} />
+      {inconsistent && <TaskInconsistencyMarker task={task} onOpen={onOpenInconsistency} />}
       <button
         type="button"
         className="kanban-task__body"
@@ -110,7 +114,9 @@ function KanbanTaskCard({
           </span>
           <span className="kanban-task__traceability" title={traceability}>
             <span aria-hidden="true">⛓</span>
-            {traceability}
+            <span>
+              <TaskTraceabilityLine task={task} />
+            </span>
           </span>
           {showSprint && (
             <span
@@ -179,9 +185,11 @@ export function KanbanBoard({
   frozenSprintIds = new Set(),
   filteredEmpty = false,
   canMove = false,
+  openAlertTasks = new Map(),
   boardRef,
   onSelectTask,
   onOpenHistory,
+  onOpenInconsistency,
   onMoveTask,
   onTaskPointerDown = () => {},
   onTaskDragStart,
@@ -258,8 +266,10 @@ export function KanbanBoard({
                           (Boolean(task.sprintId) && frozenSprintIds.has(task.sprintId))
                         }
                         canMove={canMove}
+                        inconsistent={!task.isFrozen && openAlertTasks.has(task.id)}
                         onSelect={onSelectTask}
                         onHistory={onOpenHistory}
+                        onOpenInconsistency={onOpenInconsistency}
                         onMove={onMoveTask}
                         onPointerDown={onTaskPointerDown}
                         onDragStart={onTaskDragStart}

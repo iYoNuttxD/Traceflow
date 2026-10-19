@@ -72,7 +72,12 @@ export function TaskInformation({ details, effortSlot = null }) {
   );
 }
 
-export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade', className = '' }) {
+export function TaskTraceabilityGrid({
+  children,
+  title = 'Rastreabilidade',
+  className = '',
+  lead = null
+}) {
   const titleId = useId();
   return (
     <section
@@ -82,6 +87,7 @@ export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade', clas
       <div className="task-detail-section-heading">
         <h3 id={titleId}>{title}</h3>
       </div>
+      {lead}
       <div className="task-detail-traceability-grid">{children}</div>
     </section>
   );

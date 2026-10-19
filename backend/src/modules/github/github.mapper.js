@@ -1,5 +1,21 @@
+const GITHUB_URL_PREFIX = 'https://github.com/';
+const URL_MAX_LENGTH = 512;
+const TITLE_MAX_LENGTH = 256;
+const BRANCH_MAX_LENGTH = 512;
+const SHORT_TEXT_MAX_LENGTH = 255;
+
 function toDate(value) {
   return value ? new Date(value) : null;
+}
+
+function fitText(value, maxLength) {
+  if (value === null || value === undefined) return null;
+  return Array.from(String(value)).slice(0, maxLength).join('');
+}
+
+function githubUrl(value) {
+  if (typeof value !== 'string' || value.length > URL_MAX_LENGTH) return null;
+  return value.startsWith(GITHUB_URL_PREFIX) ? value : null;
 }
 
 export function mapGithubRepository(item) {
@@ -26,12 +42,12 @@ export function mapGithubCommit(item) {
   return {
     hash: item.sha,
     message: item.commit?.message ?? null,
-    authorName: item.commit?.author?.name ?? null,
-    authorEmail: item.commit?.author?.email ?? null,
+    authorName: fitText(item.commit?.author?.name, SHORT_TEXT_MAX_LENGTH),
+    authorEmail: fitText(item.commit?.author?.email, SHORT_TEXT_MAX_LENGTH),
     authorUsername: item.author?.login ?? null,
     authorGithubUserId: item.author?.id == null ? null : String(item.author.id),
     date: toDate(item.commit?.author?.date),
-    githubUrl: item.html_url ?? null
+    githubUrl: githubUrl(item.html_url)
   };
 }
 
@@ -54,17 +70,45 @@ export function mapGithubPullRequestLifecycleEvent(item) {
   };
 }
 
+const ISSUE_LIFECYCLE_EVENTS = new Set(['closed', 'reopened']);
+
+export function mapGithubIssueLifecycleEvent(item) {
+  if (!item.issue || item.issue.pull_request || !ISSUE_LIFECYCLE_EVENTS.has(item.event)) {
+    return null;
+  }
+  if (item.id == null || !Number.isInteger(item.issue.number) || !item.created_at) {
+    throw new Error('Evento de lifecycle de issue sem identidade ou data do GitHub.');
+  }
+  const occurredAt = new Date(item.created_at);
+  if (Number.isNaN(occurredAt.getTime())) {
+    throw new Error('Evento de lifecycle de issue com data inválida.');
+  }
+  return {
+    providerEventId: String(item.id),
+    number: item.issue.number,
+    eventType: item.event.toUpperCase(),
+    occurredAt
+  };
+}
+
+export function mapGithubRepositoryEvent(item) {
+  const pullRequest = mapGithubPullRequestLifecycleEvent(item);
+  if (pullRequest) return { kind: 'PULL_REQUEST', ...pullRequest };
+  const issue = mapGithubIssueLifecycleEvent(item);
+  return issue ? { kind: 'ISSUE', ...issue } : null;
+}
+
 export function mapGithubPullRequest(item) {
   return {
     githubId: String(item.id),
     number: item.number,
-    title: item.title,
+    title: fitText(item.title, TITLE_MAX_LENGTH),
     description: item.body ?? null,
     state: item.state ?? null,
     authorUsername: item.user?.login ?? null,
-    sourceBranch: item.head?.ref ?? null,
-    targetBranch: item.base?.ref ?? null,
-    githubUrl: item.html_url ?? null,
+    sourceBranch: fitText(item.head?.ref, BRANCH_MAX_LENGTH),
+    targetBranch: fitText(item.base?.ref, BRANCH_MAX_LENGTH),
+    githubUrl: githubUrl(item.html_url),
     createdAtGithub: toDate(item.created_at),
     updatedAtGithub: toDate(item.updated_at),
     closedAtGithub: toDate(item.closed_at),
@@ -88,14 +132,14 @@ export function mapGithubIssue(item) {
   return {
     githubId: String(item.id),
     number: item.number,
-    title: item.title,
+    title: fitText(item.title, TITLE_MAX_LENGTH),
     description: item.body ?? null,
     state: item.state ?? null,
     authorUsername: item.user?.login ?? null,
     assigneeUsername: item.assignee?.login ?? null,
     labels: (item.labels || []).map(mapGithubIssueLabel),
-    milestone: item.milestone?.title ?? null,
-    githubUrl: item.html_url ?? null,
+    milestone: fitText(item.milestone?.title, SHORT_TEXT_MAX_LENGTH),
+    githubUrl: githubUrl(item.html_url),
     createdAtGithub: toDate(item.created_at),
     updatedAtGithub: toDate(item.updated_at),
     closedAtGithub: toDate(item.closed_at)

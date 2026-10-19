@@ -96,7 +96,6 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(screen.getByText('Consolidar frontend')).toBeInTheDocument();
     expect(screen.getByText('Visão geral das tarefas')).toBeInTheDocument();
     expect(screen.queryByText(/Cobertura com/)).toBeNull();
-    expect(screen.queryByText('Rastreabilidade')).toBeNull();
     expect(screen.queryByRole('link', { name: /#15/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
     expect(screen.queryByText('Ver detalhes')).toBeNull();
@@ -104,6 +103,9 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(card.tagName).toBe('ARTICLE');
     expect(within(card).getByRole('heading', { name: 'Consolidar frontend' })).toBeInTheDocument();
     expect(within(card).getByText('Responsável').tagName).toBe('DT');
+    expect(within(card).getByText('Rastreabilidade').tagName).toBe('DT');
+    expect(within(card).getByText('1 PR · 1 commit · 1 issue · 1 req')).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: /Concluída sem commit/ })).toBeNull();
     card.focus();
     await user.keyboard('{Enter}');
     expect(handlers.onOpen).toHaveBeenCalledWith(task, card);
@@ -142,7 +144,7 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(screen.getByRole('heading', { name: 'Em Andamento' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Concluído' })).toBeInTheDocument();
     expect(screen.getByText('#7')).toBeInTheDocument();
-    expect(screen.getByText('1 req · 1 PR · 1 commit · 1 issue')).toBeInTheDocument();
+    expect(screen.getByText('1 PR · 1 commit · 1 issue · 1 req')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ver histórico da tarefa/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mais ações/ })).toBeNull();
   });

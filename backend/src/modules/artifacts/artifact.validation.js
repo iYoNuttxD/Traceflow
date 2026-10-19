@@ -11,5 +11,8 @@ export const artifactQuerySchema = dateRangeSchema.extend({
       error: 'Tipo de artefato inválido.'
     })
     .optional(),
-  branch: z.string().trim().min(1).max(191).optional()
+  branch: z.string().trim().min(1).max(191).optional(),
+  inconsistency: z
+    .enum(['OPEN', 'DISMISSED', 'RESOLVED'], { error: 'Situação de inconsistência inválida.' })
+    .optional()
 });

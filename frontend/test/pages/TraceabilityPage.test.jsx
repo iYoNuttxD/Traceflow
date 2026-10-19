@@ -12,7 +12,8 @@ import { overviewMetrics } from '../../src/features/traceability/model/requireme
 const api = vi.hoisted(() => ({
   getRequirementsTraceability: vi.fn(),
   getRequirementTraceability: vi.fn(),
-  getRequirementSituationHistory: vi.fn()
+  getRequirementSituationHistory: vi.fn(),
+  getTraceabilityAlertSummary: vi.fn()
 }));
 vi.mock('../../src/features/traceability/api/traceability.api.js', () => api);
 vi.mock('../../src/features/traceability/components/TraceabilityFlow.jsx', () => ({
@@ -90,6 +91,46 @@ beforeEach(() => {
   api.getRequirementsTraceability.mockResolvedValue(result());
   api.getRequirementTraceability.mockResolvedValue(graph('Grafo atual'));
   api.getRequirementSituationHistory.mockResolvedValue({ items: [], nextCursor: null });
+  api.getTraceabilityAlertSummary.mockResolvedValue({
+    projectId: 9,
+    open: { total: 0, byType: {} },
+    dismissed: { total: 0 },
+    rules: { taskWithoutCommitActive: true },
+    permissions: { canLink: true, canManage: false }
+  });
+});
+describe('PR #26 resumo de inconsistências no lugar da sub-navegação (TF-REV-008)', () => {
+  it('mostra as inconsistências abertas no resumo, sem a sub-navegação', async () => {
+    api.getTraceabilityAlertSummary.mockResolvedValue({
+      projectId: 9,
+      open: {
+        total: 3,
+        byType: { TASK_CONCLUDED_WITHOUT_COMMIT: 2, ISSUE_CLOSED_WITHOUT_TASK: 1 }
+      },
+      dismissed: { total: 0 },
+      rules: { taskWithoutCommitActive: true, integrationConnected: true },
+      permissions: { canLink: true, canManage: false }
+    });
+    renderPage();
+    const summary = await screen.findByRole('group', { name: 'Inconsistências abertas' });
+    expect(
+      await within(summary).findByRole('link', { name: '2 tarefas concluídas sem commit' })
+    ).toHaveAttribute('href', '/projects/9/tasks?rastreabilidade=SEM_COMMIT');
+    expect(
+      within(summary).getByRole('link', { name: '1 issue fechada sem tarefa' })
+    ).toHaveAttribute('href', '/projects/9/repository?inconsistencia=OPEN&tipo=issue');
+    expect(screen.queryByRole('navigation', { name: 'Seções da rastreabilidade' })).toBeNull();
+  });
+
+  it('falha no resumo de inconsistências não derruba a tela de requisitos', async () => {
+    api.getTraceabilityAlertSummary.mockRejectedValue(new Error('indisponível'));
+    renderPage();
+    const summary = await screen.findByRole('group', { name: 'Inconsistências abertas' });
+    expect(
+      await within(summary).findByRole('button', { name: /Tentar novamente/ })
+    ).toBeInTheDocument();
+    expect(await screen.findByText('Requisito 10')).toBeInTheDocument();
+  });
 });
 describe('Requirement projections and cards', () => {
   it('represents reached phases independently from progress and follows a current regression', () => {

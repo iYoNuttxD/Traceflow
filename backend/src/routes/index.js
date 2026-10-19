@@ -10,6 +10,7 @@ import { githubRoutes } from '../modules/github/index.js';
 import { traceabilityRoutes } from '../modules/traceability/index.js';
 import { auditRoutes } from '../modules/audit/index.js';
 import { settingsRoutes } from '../modules/settings/index.js';
+import { notificationRoutes } from '../modules/notifications/index.js';
 import { indicatorsRoutes } from '../modules/indicators/index.js';
 
 const routes = Router();
@@ -24,6 +25,7 @@ routes.use('/', githubRoutes);
 routes.use('/', traceabilityRoutes);
 routes.use('/', auditRoutes);
 routes.use('/', settingsRoutes);
+routes.use('/', notificationRoutes);
 routes.use('/', indicatorsRoutes);
 
 export default routes;

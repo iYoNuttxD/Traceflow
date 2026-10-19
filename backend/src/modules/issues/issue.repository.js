@@ -1,23 +1,28 @@
 // Repository de Issues importadas do GitHub.
 import { prisma } from '../../database/prismaClient.js';
-import { withActiveProjectWrite } from '../projects/active-project-write.js';
+import { logger } from '../../shared/logger/index.js';
+import { SYNC_WRITE, withActiveProjectWrite } from '../projects/active-project-write.js';
+import { changedFields, lastByKey, selectFields } from '../../shared/persistence/changed-fields.js';
+import {
+  artifactsByNumber,
+  insertInChunks,
+  unseenProviderEvents
+} from '../../shared/persistence/provider-events.js';
 
-function buildIssueUpdate(data) {
-  return {
-    number: data.number,
-    title: data.title,
-    description: data.description,
-    state: data.state,
-    authorUsername: data.authorUsername,
-    assigneeUsername: data.assigneeUsername,
-    labels: data.labels,
-    milestone: data.milestone,
-    githubUrl: data.githubUrl,
-    createdAtGithub: data.createdAtGithub,
-    updatedAtGithub: data.updatedAtGithub,
-    closedAtGithub: data.closedAtGithub
-  };
-}
+const ISSUE_FIELDS = [
+  'number',
+  'title',
+  'description',
+  'state',
+  'authorUsername',
+  'assigneeUsername',
+  'labels',
+  'milestone',
+  'githubUrl',
+  'createdAtGithub',
+  'updatedAtGithub',
+  'closedAtGithub'
+];
 
 export const issueRepository = {
   async findGithubIdsByProjectId(projectId, githubIds) {
@@ -33,27 +38,64 @@ export const issueRepository = {
   },
 
   async upsertMany(data) {
-    if (data.length === 0) {
-      return { created: 0, updated: 0 };
-    }
+    if (data.length === 0) return { created: 0, updated: 0 };
 
-    const projectId = data[0].projectId;
-    return withActiveProjectWrite(projectId, async (tx) => {
-      const existing = await tx.issue.findMany({
-        where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
-        select: { githubId: true }
-      });
-      const existingGithubIds = new Set(existing.map(({ githubId }) => githubId));
-      for (const issue of data) {
-        await tx.issue.upsert({
-          where: { projectId_githubId: { projectId, githubId: issue.githubId } },
-          update: buildIssueUpdate(issue),
-          create: issue
+    const page = lastByKey(data, 'githubId');
+    const projectId = page[0].projectId;
+    return withActiveProjectWrite(
+      projectId,
+      async (tx) => {
+        const existing = await tx.issue.findMany({
+          where: { projectId, githubId: { in: page.map(({ githubId }) => githubId) } },
+          select: { id: true, githubId: true, ...selectFields(ISSUE_FIELDS) }
         });
-      }
-      const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
-      return { created: data.length - updated, updated };
-    });
+        const previous = new Map(existing.map((row) => [row.githubId, row]));
+        const created = page.filter(({ githubId }) => !previous.has(githubId));
+        if (created.length) await tx.issue.createMany({ data: created });
+        let updated = 0;
+        for (const issue of page) {
+          const row = previous.get(issue.githubId);
+          if (!row) continue;
+          const changes = changedFields(row, issue, ISSUE_FIELDS);
+          if (Object.keys(changes).length === 0) continue;
+          updated += 1;
+          await tx.issue.updateMany({ where: { id: row.id }, data: changes });
+        }
+        return { created: created.length, updated };
+      },
+      SYNC_WRITE
+    );
+  },
+
+  async insertLifecycleEvents(tx, projectId, events) {
+    const byNumber = await artifactsByNumber(
+      tx.issue,
+      projectId,
+      events.map(({ number }) => number),
+      { id: true, title: true, githubUrl: true }
+    );
+    const associated = events.filter(({ number }) => byNumber.has(number));
+    const ignoredCount = events.length - associated.length;
+    if (ignoredCount)
+      logger.warn('Eventos de issue sem associação foram ignorados.', {
+        event: 'github_issue_lifecycle_orphan',
+        projectId,
+        ignoredCount
+      });
+    const fresh = await unseenProviderEvents(tx.issueLifecycleEvent, projectId, associated);
+    const count = await insertInChunks(
+      tx.issueLifecycleEvent,
+      fresh.map(({ number, ...event }) => ({
+        ...event,
+        projectId,
+        issueId: byNumber.get(number).id
+      }))
+    );
+    return {
+      count,
+      ignoredCount,
+      inserted: fresh.map(({ number, ...event }) => ({ ...event, artifact: byNumber.get(number) }))
+    };
   },
 
   async listByProjectId(projectId, filters = {}) {

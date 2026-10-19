@@ -6,6 +6,10 @@ Use credenciais próprias, diretório restrito e armazenamento criptografado. Du
 
 ## Backup lógico
 
+Antes do backup e do restore, pare o worker (`systemctl stop traceflow-github-worker`): os jobs
+agendados param junto ([Jobs agendados](SCHEDULED_JOBS.md#pausa-para-backup-migration-e-rollback)).
+Suba o worker no fim.
+
 Com variáveis operacionais fora do histórico do shell:
 
 ```bash

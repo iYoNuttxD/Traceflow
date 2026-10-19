@@ -37,6 +37,24 @@ function parseInteger(value, key, { defaultValue, min = 0, max = Number.MAX_SAFE
   return parsed;
 }
 
+function parseTimeZone(value) {
+  const timeZone = value === undefined || value === '' ? 'America/Sao_Paulo' : String(value);
+  let supported = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/.test(timeZone);
+  if (supported) {
+    try {
+      new Intl.DateTimeFormat('en-CA', { timeZone });
+    } catch {
+      supported = false;
+    }
+  }
+  if (!supported) {
+    throw new ConfigurationError(
+      'Configuração inválida: APP_TIMEZONE deve ser um fuso IANA, como America/Sao_Paulo.'
+    );
+  }
+  return timeZone;
+}
+
 function parseCsv(value, fallback = []) {
   const source = value === undefined || value === '' ? fallback : String(value).split(',');
   return [...new Set(source.map((item) => item.trim()).filter(Boolean))];
@@ -398,6 +416,7 @@ export function createEnvironment(source = {}) {
       'GITHUB_SCHEDULER_ENABLED',
       false
     ),
+    jobsEnabled: parseBoolean(source.JOBS_ENABLED, 'JOBS_ENABLED', true),
     githubSyncIntervalMs: parseInteger(source.GITHUB_SYNC_INTERVAL_MS, 'GITHUB_SYNC_INTERVAL_MS', {
       defaultValue: 30 * 60 * 1000,
       min: 60000,
@@ -547,6 +566,12 @@ export function createEnvironment(source = {}) {
       source.ACCOUNT_DELETION_GRACE_DAYS,
       'ACCOUNT_DELETION_GRACE_DAYS',
       { defaultValue: 30, min: 30, max: 90 }
+    ),
+    appTimeZone: parseTimeZone(source.APP_TIMEZONE),
+    notificationRetentionDays: parseInteger(
+      source.NOTIFICATION_RETENTION_DAYS,
+      'NOTIFICATION_RETENTION_DAYS',
+      { defaultValue: 180, min: 30, max: 3650 }
     ),
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
     githubOAuthCookieName: source.GITHUB_OAUTH_COOKIE_NAME || 'traceflow_github_oauth',

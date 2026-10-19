@@ -183,7 +183,10 @@ export function TaskDetailsPanel({
   onDelete,
   onSave,
   onSaved,
-  projectId
+  projectId,
+  openAlertId,
+  initialSection = null,
+  onAlertsChanged
 }) {
   const [creatingCase, setCreatingCase] = useState(false);
   const [caseBusy, setCaseBusy] = useState(false);
@@ -198,6 +201,7 @@ export function TaskDetailsPanel({
   const formId = useId();
   const titleRef = useRef(null);
   const editButtonRef = useRef(null);
+  const editFocusRef = useRef(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(() => taskDraft(task || {}));
   const [baseline, setBaseline] = useState(() => taskDraft(task || {}));
@@ -256,8 +260,20 @@ export function TaskDetailsPanel({
   }, [editing, task]);
 
   useEffect(() => {
-    if (editing) titleRef.current?.focus();
-  }, [editing]);
+    if (!editing) return;
+    const target = editFocusRef.current;
+    editFocusRef.current = null;
+    if (target === 'commits') {
+      const label = Array.from(
+        document.getElementById(formId)?.querySelectorAll('label') || []
+      ).find((item) => item.textContent.trim().startsWith('Pesquisar commits'));
+      if (label?.control) {
+        label.control.focus();
+        return;
+      }
+    }
+    titleRef.current?.focus();
+  }, [editing, formId]);
 
   if (!task) return null;
 
@@ -265,7 +281,8 @@ export function TaskDetailsPanel({
     window.requestAnimationFrame(() => editButtonRef.current?.focus());
   }
 
-  function enterEditing() {
+  function enterEditing(focusTarget = null) {
+    editFocusRef.current = typeof focusTarget === 'string' ? focusTarget : null;
     const nextDraft = taskDraft(task);
     const nextTraceability = createTaskTraceabilityDraft(task);
     setDraft(nextDraft);
@@ -587,7 +604,24 @@ export function TaskDetailsPanel({
               }
             />
           )}
-          {!editing && <TaskTraceability task={task} projectId={projectId} onNavigate={onClose} />}
+          {!editing && (
+            <TaskTraceability
+              task={task}
+              projectId={projectId}
+              onNavigate={onClose}
+              inconsistency={
+                openAlertId || onAlertsChanged
+                  ? {
+                      openAlertId,
+                      focus: initialSection === 'inconsistency',
+                      canLink: canEdit,
+                      onLinkCommit: () => enterEditing('commits'),
+                      onChanged: onAlertsChanged
+                    }
+                  : null
+              }
+            />
+          )}
           {!editing && !task.isFrozen && (
             <TaskQuality
               key={`${projectId}:${task.id}`}

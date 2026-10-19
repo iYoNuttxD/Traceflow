@@ -4,6 +4,7 @@ import { deleteTask, kanbanApi, tasksApi } from '../api/tasks.api.js';
 import { scheduleApi, sprintStatusKey, sprintStatusKeyLabels } from '../../schedule/index.js';
 import { membersApi } from '../../members/index.js';
 import { ProjectSectionNav, projectsApi, useProjectEvents } from '../../projects/index.js';
+import { useOpenAlertIndex } from '../../traceability/index.js';
 import { useFrozenSprintBoard } from '../hooks/useFrozenSprintBoard.js';
 import { EFFORT_EVENT_TYPES } from '../hooks/useTaskEffort.js';
 import { actualEffortFromSummary } from '../components/effort-summary.js';
@@ -11,6 +12,7 @@ import { FrozenTaskDetails } from '../components/FrozenTaskDetails.jsx';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
 import { KanbanFilters } from '../components/KanbanFilters.jsx';
 import { KanbanSummary } from '../components/KanbanSummary.jsx';
+import { AlertIndexNotice } from '../components/TaskIndications.jsx';
 import { KANBAN_COLUMNS } from '../components/kanban-display.js';
 import {
   countActiveKanbanFilters,
@@ -160,6 +162,9 @@ export function KanbanScreen() {
   const [sprintFilter, setSprintFilter] = useState([]);
   const [filters, setFilters] = useState({ ...EMPTY_KANBAN_FILTERS });
   const [selectedTask, setSelectedTask] = useState(null);
+  const [detailsSection, setDetailsSection] = useState(null);
+  const alertIndex = useOpenAlertIndex(projectId);
+  const reloadAlertIndex = alertIndex.reload;
   const requestedTask = searchParams.get('task');
   useEffect(() => {
     if (!requestedTask || !/^\d+$/.test(requestedTask)) return;
@@ -218,8 +223,8 @@ export function KanbanScreen() {
   );
   const summary = useMemo(() => getKanbanSummary(sprintScopedBoard), [sprintScopedBoard]);
   const visibleBoard = useMemo(
-    () => filterKanbanBoard(sprintScopedBoard, filters),
-    [filters, sprintScopedBoard]
+    () => filterKanbanBoard(sprintScopedBoard, filters, alertIndex.tasks),
+    [alertIndex.tasks, filters, sprintScopedBoard]
   );
   const visibleCount = useMemo(() => getBoardTasks(visibleBoard).length, [visibleBoard]);
   const activeFilterCount = useMemo(() => countActiveKanbanFilters(filters), [filters]);
@@ -472,6 +477,7 @@ export function KanbanScreen() {
       setBoard((current) => updateBoardWithMovedTask(current, movedTask));
       if (returnFocusTarget) focusMovedTask(movedTask.id);
       finishMutation(mutation);
+      void reloadAlertIndex();
       void refreshBoard(movedTask).catch((requestError) => {
         setWarning(
           getErrorMessage(
@@ -522,7 +528,7 @@ export function KanbanScreen() {
     if (task && task.status !== targetStatus) await moveTaskToStatus(task, targetStatus);
   }
 
-  function openTaskDetails(task, trigger) {
+  function openTaskDetails(task, trigger, section = null) {
     if (suppressTaskClickRef.current) {
       suppressTaskClickRef.current = false;
       return;
@@ -531,6 +537,7 @@ export function KanbanScreen() {
     setCurrentTaskError('');
     setCurrentTaskUnavailable(false);
     setOpeningCurrent(false);
+    setDetailsSection(section);
     setSelectedTask(task);
   }
 
@@ -581,6 +588,7 @@ export function KanbanScreen() {
       setSelectedTask(null);
       setHistoryTask(null);
       setSuccess(response.message || 'Tarefa excluída com sucesso.');
+      void reloadAlertIndex();
       try {
         await refreshBoard();
       } catch (requestError) {
@@ -622,6 +630,7 @@ export function KanbanScreen() {
     setWarning(outcome.warning || '');
     setBoard((current) => updateBoardWithMovedTask(current, updatedTask));
     setSelectedTask(updatedTask);
+    void reloadAlertIndex();
     void refreshBoard(updatedTask).catch((requestError) => {
       const refreshWarning = getErrorMessage(
         requestError,
@@ -709,9 +718,13 @@ export function KanbanScreen() {
             activeCount={activeFilterCount}
             visibleCount={visibleCount}
             scopedCount={summary.total}
+            frozen={Boolean(frozenSprint)}
             onChange={(field, value) => setFilters((current) => ({ ...current, [field]: value }))}
             onClear={() => setFilters({ ...EMPTY_KANBAN_FILTERS })}
           />
+          {!frozenSprint && (
+            <AlertIndexNotice error={alertIndex.error} onRetry={reloadAlertIndex} />
+          )}
 
           {frozenView.loading ? (
             <LoadingState message="Carregando quadro congelado..." />
@@ -734,9 +747,13 @@ export function KanbanScreen() {
               frozenSprintIds={frozenSprintIds}
               filteredEmpty={activeFilterCount > 0 && visibleCount === 0 && summary.total > 0}
               canMove={canMoveTasks && !frozenSprint}
+              openAlertTasks={alertIndex.tasks}
               boardRef={boardFocusRef}
               onSelectTask={openTaskDetails}
               onOpenHistory={openTaskHistory}
+              onOpenInconsistency={(task, trigger) =>
+                openTaskDetails(task, trigger, 'inconsistency')
+              }
               onMoveTask={moveTaskToStatus}
               onTaskPointerDown={handleTaskPointerDown}
               onTaskDragStart={handleTaskDragStart}
@@ -787,6 +804,9 @@ export function KanbanScreen() {
               canDelete={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
               deleting={deletingTaskId === selectedTask.id}
               returnFocusRef={detailsReturnFocusRef}
+              openAlertId={alertIndex.tasks.get(selectedTask.id)}
+              initialSection={detailsSection}
+              onAlertsChanged={reloadAlertIndex}
               onClose={() => setSelectedTask(null)}
               onDelete={handleDeleteTask}
               onSave={handleSaveTask}

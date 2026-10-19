@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { useProjectsCatalog } from '../../features/projects/index.js';
+import {
+  NotificationsPanel,
+  unreadBadge,
+  unreadNavLabel,
+  useUnreadNotifications
+} from '../../features/notifications/index.js';
 import { useTheme } from '../theme/ThemeProvider.jsx';
 import {
   MOBILE_QUERY,
@@ -59,6 +65,12 @@ function activeProjectFromPath(pathname) {
 
 function ShellIcon({ name }) {
   const content = {
+    bell: (
+      <>
+        <path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z" />
+        <path d="M10.3 20a1.9 1.9 0 0 0 3.4 0" />
+      </>
+    ),
     chevron: <path d="m15 18-6-6 6-6" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     logout: (
@@ -133,6 +145,7 @@ function TraceflowMark() {
 
 export function AppShell({ user, onLogout, children }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { themePreference, cycleTheme } = useTheme();
   const {
     projects,
@@ -150,6 +163,11 @@ export function AppShell({ user, onLogout, children }) {
     initialPreferenceRef.current ?? (!isMobile && isTablet)
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const shellRef = useRef(null);
+  const bellRef = useRef(null);
+  const mobileBellRef = useRef(null);
+  const restorePanelFocusRef = useRef(false);
   const sidebarRef = useRef(null);
   const closeButtonRef = useRef(null);
   const menuButtonRef = useRef(null);
@@ -157,6 +175,9 @@ export function AppShell({ user, onLogout, children }) {
   const contentRef = useRef(null);
   const previousPathRef = useRef(location.pathname);
   const activeProjectId = activeProjectFromPath(location.pathname);
+  const { unreadCount } = useUnreadNotifications();
+  const notificationBadge = unreadBadge(unreadCount);
+  const notificationLabel = unreadNavLabel(unreadCount);
   const { quickProjects, feedback, togglePinned } = useQuickProjects({
     projects,
     userId: user?.id,
@@ -172,6 +193,37 @@ export function AppShell({ user, onLogout, children }) {
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
+  const openPanel = useCallback(() => {
+    setDrawerOpen(false);
+    setPanelOpen(true);
+  }, []);
+
+  const closePanel = useCallback(({ restoreFocus = true } = {}) => {
+    restorePanelFocusRef.current = restoreFocus;
+    setPanelOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!location.state?.openNotifications) return;
+    setPanelOpen(true);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location, navigate]);
+
+  useEffect(() => {
+    if (!panelOpen) return undefined;
+    const shell = shellRef.current;
+    if (shell) shell.inert = true;
+    return () => {
+      if (shell) shell.inert = false;
+    };
+  }, [panelOpen]);
+
+  useEffect(() => {
+    if (panelOpen || !restorePanelFocusRef.current) return;
+    restorePanelFocusRef.current = false;
+    (isMobile ? mobileBellRef : bellRef).current?.focus();
+  }, [isMobile, panelOpen]);
+
   useEffect(() => {
     if (!isMobile) setDrawerOpen(false);
   }, [isMobile]);
@@ -180,8 +232,9 @@ export function AppShell({ user, onLogout, children }) {
     if (previousPathRef.current !== location.pathname) {
       previousPathRef.current = location.pathname;
       if (drawerOpen) closeDrawer();
+      if (!location.state?.openNotifications) setPanelOpen(false);
     }
-  }, [closeDrawer, drawerOpen, location.pathname]);
+  }, [closeDrawer, drawerOpen, location.pathname, location.state]);
 
   useEffect(() => {
     if (!isMobile || !drawerOpen) return undefined;
@@ -241,6 +294,7 @@ export function AppShell({ user, onLogout, children }) {
 
   return (
     <div
+      ref={shellRef}
       className="trace-shell"
       data-sidebar-state={sidebarState}
       data-drawer-state={drawerOpen ? 'open' : 'closed'}
@@ -298,6 +352,24 @@ export function AppShell({ user, onLogout, children }) {
               <ShellIcon name="projects" />
               <span className="trace-shell__nav-label">Projetos</span>
             </NavLink>
+            <button
+              ref={bellRef}
+              className="trace-shell__nav-item"
+              type="button"
+              onClick={openPanel}
+              aria-haspopup="dialog"
+              aria-expanded={panelOpen}
+              aria-label={notificationLabel}
+              data-tooltip={notificationLabel}
+            >
+              <ShellIcon name="bell" />
+              <span className="trace-shell__nav-label">Notificações</span>
+              {notificationBadge && (
+                <span className="trace-shell__badge" aria-hidden="true">
+                  {notificationBadge}
+                </span>
+              )}
+            </button>
           </nav>
 
           <nav className="trace-shell__section" aria-label="Projetos rápidos">
@@ -432,22 +504,37 @@ export function AppShell({ user, onLogout, children }) {
             <TraceflowMark />
             TRACEFLOW
           </span>
-          <button
-            ref={menuButtonRef}
-            className="trace-shell__icon-button"
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            aria-controls="traceflow-global-navigation"
-            aria-expanded={drawerOpen}
-            aria-label="Abrir navegação"
-          >
-            <ShellIcon name="menu" />
-          </button>
+          <span className="trace-shell__mobile-actions">
+            <button
+              ref={mobileBellRef}
+              className="trace-shell__icon-button"
+              type="button"
+              onClick={openPanel}
+              aria-haspopup="dialog"
+              aria-expanded={panelOpen}
+              aria-label={notificationLabel}
+            >
+              <ShellIcon name="bell" />
+              {notificationBadge && <span className="trace-shell__menu-dot" aria-hidden="true" />}
+            </button>
+            <button
+              ref={menuButtonRef}
+              className="trace-shell__icon-button"
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-controls="traceflow-global-navigation"
+              aria-expanded={drawerOpen}
+              aria-label="Abrir navegação"
+            >
+              <ShellIcon name="menu" />
+            </button>
+          </span>
         </header>
         <div className="trace-shell__content" id="main-content" ref={contentRef} tabIndex={-1}>
           {children}
         </div>
       </div>
+      {panelOpen && <NotificationsPanel onClose={closePanel} sidebarState={sidebarState} />}
     </div>
   );
 }

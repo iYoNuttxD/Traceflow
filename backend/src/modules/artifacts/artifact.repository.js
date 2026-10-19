@@ -76,6 +76,25 @@ export const artifactRepository = {
     });
   },
 
+  listArtifactAlerts(projectId) {
+    return prisma.traceabilityAlert.findMany({
+      where: {
+        projectId,
+        type: { in: ['PULL_REQUEST_MERGED_WITHOUT_TASK', 'ISSUE_CLOSED_WITHOUT_TASK'] }
+      },
+      select: {
+        id: true,
+        status: true,
+        pullRequestId: true,
+        issueId: true,
+        detectedAt: true,
+        resolvedAt: true,
+        dismissedAt: true
+      },
+      orderBy: [{ detectedAt: 'desc' }, { id: 'desc' }]
+    });
+  },
+
   async listIssues(projectId, dateFilter) {
     return prisma.issue.findMany({
       where: {

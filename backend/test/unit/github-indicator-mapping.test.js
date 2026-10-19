@@ -66,7 +66,7 @@ describe('dados GitHub para a fundação de indicadores', () => {
     };
     const client = createGithubClient({ auth: 'artificial', OctokitClass });
     const collected = [];
-    for await (const page of client.listPullRequestLifecycleEventPages({ owner: 'o', repo: 'r' }))
+    for await (const page of client.listRepositoryEventPages({ owner: 'o', repo: 'r' }))
       collected.push(...page);
     expect(collected.map(({ providerEventId }) => providerEventId)).toEqual(['1', '2']);
     expect(listEventsForRepo).toHaveBeenCalledTimes(2);

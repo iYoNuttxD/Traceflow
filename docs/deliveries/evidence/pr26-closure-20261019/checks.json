@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-19",
+  "reviewedHead": "b5bda6cea6bcc68f3a73cdc92a1798faba2d7c5b",
+  "frontend": {
+    "selectedTests": 29,
+    "failed": 0,
+    "lint": "PASS",
+    "cssFormat": "PASS",
+    "build": "PASS",
+    "humanApproval": "APPROVED_IN_CONVERSATION"
+  },
+  "prismaClientImport": {
+    "tests": 2,
+    "failed": 0,
+    "databaseConnected": false
+  },
+  "diagnosticPackaging": {
+    "tests": 28,
+    "failed": 0,
+    "fixtures": "SYNTHETIC_ARCHIVES",
+    "oldAllowlistRegression": "FAIL_EXPECTED",
+    "correctedAllowlistRegression": "PASS",
+    "nativeBuilds": 2,
+    "nativeByteIdentical": true,
+    "nativeSmoke": "PASS",
+    "extractedSharedClientImport": "PASS",
+    "runtimeFileCount": 39
+  },
+  "architecture": "APPROVED_WITH_CONDITIONS_BY_DANIEL",
+  "remaining": [
+    "apply companion patch to composed OCI source",
+    "ARM64/HeatWave/TLS recovery restart and saturation homologation before merge"
+  ],
+  "devAccessed": false,
+  "ociAccessed": false,
+  "migrationsExecuted": false
+}

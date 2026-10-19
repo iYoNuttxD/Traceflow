@@ -1,0 +1,42 @@
+.trace-inconsistency-summary {
+  display: grid;
+  min-width: 0;
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.trace-inconsistency-summary__heading {
+  padding: var(--space-4) var(--space-5) var(--space-3);
+}
+
+.trace-inconsistency-summary__heading h3 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-3);
+}
+
+.requirement-metrics.trace-inconsistency-summary__metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.trace-inconsistency-summary__metrics a {
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+}
+
+.trace-inconsistency-summary__metrics a:hover,
+.trace-inconsistency-summary__metrics a:focus-visible {
+  text-decoration: underline;
+}
+
+.trace-inconsistency-summary__body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+@container sprints-page (max-width: 34rem) {
+  .requirement-metrics.trace-inconsistency-summary__metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -20,8 +20,9 @@ const mocks = vi.hoisted(() => ({
     findByBranchId: vi.fn()
   },
   commitSuggestionService: { detectForCommits: vi.fn() },
-  pullRequestRepository: { upsertMany: vi.fn(), appendLifecycleEvents: vi.fn() },
-  issueRepository: { upsertMany: vi.fn() }
+  pullRequestRepository: { upsertMany: vi.fn() },
+  issueRepository: { upsertMany: vi.fn() },
+  githubRepositoryEventsRepository: { begin: vi.fn(), record: vi.fn() }
 }));
 
 vi.mock('../../src/modules/github/github.client.js', () => ({
@@ -44,6 +45,9 @@ vi.mock('../../src/modules/pullRequests/pullRequest.repository.js', () => ({
 }));
 vi.mock('../../src/modules/issues/issue.repository.js', () => ({
   issueRepository: mocks.issueRepository
+}));
+vi.mock('../../src/modules/github/github-repository-events.repository.js', () => ({
+  githubRepositoryEventsRepository: mocks.githubRepositoryEventsRepository
 }));
 
 import { githubSyncService } from '../../src/modules/github/githubSync.service.js';
@@ -87,7 +91,7 @@ function buildGithubDouble({
     listBranchPages: vi.fn(() => pages(...branches)),
     listCommitPages: vi.fn(() => pages(...commits)),
     listPullRequestPages: vi.fn(() => pages(...pullRequests)),
-    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+    listRepositoryEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(...issues))
   };
 }
@@ -142,9 +146,15 @@ describe('githubSyncService com client e persistência substituídos', () => {
     mocks.commitSuggestionService.detectForCommits.mockResolvedValue({ createdSuggestions: 0 });
     mocks.pullRequestRepository.upsertMany.mockImplementation(async (items) => ({
       created: items.length,
-      updated: 0
+      updated: 0,
+      anomalies: 0
     }));
-    mocks.pullRequestRepository.appendLifecycleEvents.mockResolvedValue({ count: 0 });
+    mocks.githubRepositoryEventsRepository.begin.mockResolvedValue();
+    mocks.githubRepositoryEventsRepository.record.mockResolvedValue({
+      pullRequests: { count: 0, ignoredCount: 0 },
+      issues: { count: 0, ignoredCount: 0 },
+      recorded: 0
+    });
     mocks.issueRepository.upsertMany.mockImplementation(async (items) => ({
       created: 0,
       updated: items.length
@@ -192,14 +202,15 @@ describe('githubSyncService com client e persistência substituídos', () => {
         pages: 2,
         branchesSkipped: 0
       },
-      pullRequests: {
-        found: 1,
-        created: 1,
-        updated: 0,
+      pullRequests: { found: 1, created: 1, updated: 0 },
+      issues: { found: 1, created: 0, updated: 1 },
+      events: {
         lifecycleEventsObserved: 0,
-        lifecycleEventsCreated: 0
-      },
-      issues: { found: 1, created: 0, updated: 1 }
+        lifecycleEventsCreated: 0,
+        issueEventsObserved: 0,
+        issueEventsCreated: 0,
+        githubEventsRecorded: 0
+      }
     });
     expect(mocks.projectRepository.markGithubSyncSucceeded).toHaveBeenCalledOnce();
   });
