@@ -263,12 +263,11 @@ async function linkPullRequest(actor, task, project, number, { backdate = true }
   return pullRequest;
 }
 
-async function githubNotificationsOf(person, { openings = false } = {}) {
+async function githubNotificationsOf(person, { links = false } = {}) {
   const response = await person.agent.get('/api/notifications?status=ALL&limit=100');
   expect(response.status).toBe(200);
   return response.body.notifications.filter(
-    (item) =>
-      GITHUB_TYPES.includes(item.type) && (openings || item.context.event !== 'ISSUE_OPENED')
+    (item) => GITHUB_TYPES.includes(item.type) && (links || item.context.event !== 'ISSUE_LINKED')
   );
 }
 
@@ -429,7 +428,7 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
       expect(await githubNotificationsOf(person), person.user.username).toEqual([]);
   });
 
-  it('EV-C-05 Quadro 3-57: vincular issue aberta avisa a abertura uma vez; reabrir issue vinculada avisa', async () => {
+  it('EV-C-05 Quadro 3-57: vincular issue aberta avisa a associação uma vez; reabrir issue vinculada avisa', async () => {
     const project = await integratedProject();
     const manager = await register(project.id, 'OWNER');
     const participant = await register(project.id);
@@ -439,10 +438,10 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
     await syncVia(manager, project, { issues: [rawIssue(41, 'open'), rawIssue(42, 'open')] });
     await linkIssue(manager, task, project, 42);
     await syncVia(manager, project, { issues: [rawIssue(41, 'open'), rawIssue(42, 'open')] });
-    const openings = await githubNotificationsOf(participant, { openings: true });
-    expect(openings.map((item) => [item.context.event, item.context.artifact.number])).toEqual([
-      ['ISSUE_OPENED', 42],
-      ['ISSUE_OPENED', 41]
+    const links = await githubNotificationsOf(participant, { links: true });
+    expect(links.map((item) => [item.context.event, item.context.artifact.number])).toEqual([
+      ['ISSUE_LINKED', 42],
+      ['ISSUE_LINKED', 41]
     ]);
 
     await syncVia(manager, project, { issues: [rawIssue(41, 'closed'), rawIssue(42, 'open')] });
@@ -453,13 +452,13 @@ describe('S2-03 bateria — bloco C: documento oficial e casos de uso', () => {
       ]
     });
 
-    const events = (await githubNotificationsOf(participant, { openings: true })).map(
+    const events = (await githubNotificationsOf(participant, { links: true })).map(
       (item) => item.context.event
     );
     expect(events.sort()).toEqual([
       'ISSUE_CLOSED',
-      'ISSUE_OPENED',
-      'ISSUE_OPENED',
+      'ISSUE_LINKED',
+      'ISSUE_LINKED',
       'ISSUE_REOPENED'
     ]);
   });
@@ -1035,13 +1034,13 @@ describe('S2-03 bateria — bloco S: sincronização e gancho', () => {
     const run = await finishedRun(manager, project);
     const finishedSeenAt = Date.now();
     const countAtFinish = await prisma.notification.count({
-      where: { projectId: project.id, githubEvent: { not: 'ISSUE_OPENED' } }
+      where: { projectId: project.id, githubEvent: { not: 'ISSUE_LINKED' } }
     });
     await vi.waitFor(
       async () =>
         expect(
           await prisma.notification.count({
-            where: { projectId: project.id, githubEvent: { not: 'ISSUE_OPENED' } }
+            where: { projectId: project.id, githubEvent: { not: 'ISSUE_LINKED' } }
           })
         ).toBe(90),
       { timeout: 15000, interval: 10 }

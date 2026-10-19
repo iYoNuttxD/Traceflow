@@ -248,7 +248,11 @@ describe('TF-REV-009 — notificação e decisão do RF59 na mesma transação',
     const metrics = createNotificationMetricsService({
       repository: {
         ...notificationMetricsRepository,
-        registryStarts: async () => ({ decisions: REGISTRY_START, githubEvents: REGISTRY_START })
+        registryStarts: async () => ({
+          decisions: REGISTRY_START,
+          githubEvents: REGISTRY_START,
+          issueLinks: REGISTRY_START
+        })
       },
       clock: () => NOW
     });

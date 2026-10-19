@@ -121,8 +121,8 @@ describe('S2-03 modelo de exibição dos eventos do GitHub (frase compacta do pa
   });
 
   it('descreve os cinco eventos com o artefato e a tarefa', () => {
-    expect(notificationSentence(event('ISSUE_EVENT', 'ISSUE_OPENED', 45))).toBe(
-      'Issue #45 aberta no GitHub · TASK-12'
+    expect(notificationSentence(event('ISSUE_EVENT', 'ISSUE_LINKED', 45))).toBe(
+      'Issue #45, aberta no GitHub, vinculada à TASK-12'
     );
     expect(notificationSentence(event('ISSUE_EVENT', 'ISSUE_CLOSED', 45))).toBe(
       'Issue #45 fechada no GitHub · TASK-12'
@@ -135,6 +135,23 @@ describe('S2-03 modelo de exibição dos eventos do GitHub (frase compacta do pa
     );
     expect(notificationSentence(event('PULL_REQUEST_EVENT', 'PULL_REQUEST_CLOSED', 8))).toBe(
       'PR #8 fechada sem merge no GitHub · TASK-12'
+    );
+  });
+
+  it('a associação diz que a issue aberta foi vinculada, sem dar a abertura como o fato (TF-REV-002)', () => {
+    const linked = (taskValue) => ({
+      ...event('ISSUE_EVENT', 'ISSUE_LINKED', 45),
+      task: taskValue
+    });
+
+    expect(notificationSentence(linked({ title: 'Ajustar login' }))).toBe(
+      'Issue #45, aberta no GitHub, vinculada à tarefa “Ajustar login”'
+    );
+    expect(notificationSentence(linked(null))).toBe(
+      'Issue #45, aberta no GitHub, vinculada a uma tarefa removida'
+    );
+    expect(notificationCardLabel({ ...linked(task), project: { name: 'Portal' } })).toMatch(
+      /^Issue: Issue #45, aberta no GitHub, vinculada à TASK-12\. Portal, /
     );
   });
 

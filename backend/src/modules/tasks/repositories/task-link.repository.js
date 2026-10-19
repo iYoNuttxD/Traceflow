@@ -123,11 +123,10 @@ export const taskLinkRepository = {
             number: true,
             title: true,
             githubUrl: true,
-            state: true,
-            createdAtGithub: true
+            state: true
           }
         });
-        await githubEventRepository.recordIssueOpened(tx, {
+        await githubEventRepository.recordIssueLinked(tx, {
           projectId,
           taskId,
           issue,

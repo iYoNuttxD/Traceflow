@@ -4,11 +4,11 @@ import {
   completeThroughOf,
   issueEventTypeOf,
   lifecycleOccurrenceKey,
+  linkedOccurrenceKey,
   linkedTasksAt,
   mergeClosingsOf,
   nextAttemptAfterFailure,
   normalizeIssueState,
-  openedOccurrenceKey,
   pullRequestEventTypeOf,
   safeGithubUrl,
   snapshotArtifactTitle,
@@ -137,20 +137,20 @@ export const githubEventRepository = {
     });
   },
 
-  async recordIssueOpened(tx, { projectId, taskId, issue, detectedAt }) {
+  async recordIssueLinked(tx, { projectId, taskId, issue, detectedAt }) {
     if (normalizeIssueState(issue.state) !== 'OPEN') return 0;
-    const occurrenceKey = openedOccurrenceKey(issue.id, taskId);
+    const occurrenceKey = linkedOccurrenceKey(issue.id, taskId);
     const inserted = await tx.gitHubArtifactEvent.createMany({
       data: [
         {
           projectId,
-          type: 'ISSUE_OPENED',
+          type: 'ISSUE_LINKED',
           issueId: issue.id,
           pullRequestId: null,
           artifactNumber: issue.number,
           artifactTitle: snapshotArtifactTitle(issue.title),
           artifactUrl: safeGithubUrl(issue.githubUrl),
-          occurredAt: issue.createdAtGithub ?? null,
+          occurredAt: detectedAt,
           detectedAt,
           nextAttemptAt: detectedAt,
           linkedTaskCount: 1,

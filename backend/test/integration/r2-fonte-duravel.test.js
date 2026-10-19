@@ -177,7 +177,7 @@ async function sync(context, spec) {
 const dispatch = () =>
   createGithubEventNotificationService({ clock: () => new Date() }).runJob({ dryRun: false });
 
-const LIFECYCLE = { not: 'ISSUE_OPENED' };
+const LIFECYCLE = { not: 'ISSUE_LINKED' };
 
 const eventsOf = (projectId) =>
   prisma.gitHubArtifactEvent.findMany({
@@ -236,7 +236,11 @@ function metrics() {
   return createNotificationMetricsService({
     repository: {
       ...notificationMetricsRepository,
-      registryStarts: async () => ({ decisions: REGISTRY_START, githubEvents: REGISTRY_START })
+      registryStarts: async () => ({
+        decisions: REGISTRY_START,
+        githubEvents: REGISTRY_START,
+        issueLinks: REGISTRY_START
+      })
     }
   });
 }

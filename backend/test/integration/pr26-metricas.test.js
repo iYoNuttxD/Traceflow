@@ -62,7 +62,8 @@ function completeRegistry(starts) {
   const early = new Date(`${day(-60)}T00:00:00.000Z`);
   return {
     ...notificationMetricsRepository,
-    registryStarts: async () => starts ?? { decisions: early, githubEvents: early }
+    registryStarts: async () =>
+      starts ?? { decisions: early, githubEvents: early, issueLinks: early }
   };
 }
 
@@ -559,7 +560,7 @@ describe('PR #26 métrica oficial: períodos sem evento e lacunas (TF-REV-002)',
         coberturaElegivel: unavailable('SEM_EVENTOS')
       });
     }
-    for (const rf of ['RF60', 'RF61'])
+    for (const rf of ['RF60', 'RF60_ASSOCIACAO', 'RF61'])
       expect(report.requisitos[rf].coberturaTotal, rf).toMatchObject(unavailable('SEM_EVENTOS'));
     expect((await measure(2147483000)).projetos).toBe(0);
   });

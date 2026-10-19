@@ -18,7 +18,8 @@ import { notificationRepository } from './notification.repository.js';
 const DAY_MS = 86_400_000;
 const EVENT_UNIT = 'EVENTO';
 const PAIR_UNIT = 'PAR_EVENTO_PARTICIPANTE';
-const RF60_EVENTS = new Set(['ISSUE_OPENED', 'ISSUE_CLOSED', 'ISSUE_REOPENED']);
+const RF60_EVENTS = new Set(['ISSUE_CLOSED', 'ISSUE_REOPENED']);
+const RF60_LINK_EVENTS = new Set(['ISSUE_LINKED']);
 const RF61_EVENTS = new Set(['PULL_REQUEST_MERGED', 'PULL_REQUEST_CLOSED']);
 
 const contains = (period, instant) =>
@@ -80,12 +81,13 @@ export function createNotificationMetricsService({
         ...incompleteRecordGaps(registry.githubEvents, horizon, period.start),
         ...githubCoverageGaps(await repository.githubEventCoverage(projectIds), period)
       ];
+      const linkGaps = incompleteRecordGaps(registry.issueLinks, horizon, period.start);
       const githubEvents = await repository.githubEventsInPeriod(projectIds, period);
-      const githubReport = (types) =>
+      const githubReport = (types, gaps = githubGaps) =>
         requirementReport(
           PAIR_UNIT,
           githubEventTally(githubEvents.filter((event) => types.has(event.type))),
-          githubGaps
+          gaps
         );
 
       const report = {
@@ -102,6 +104,7 @@ export function createNotificationMetricsService({
           RF30: await statusChanges(projectIds, period, decisionGaps),
           RF59: await overdue(projectIds, period, { now, timeZone }, decisionGaps),
           RF60: githubReport(RF60_EVENTS),
+          RF60_ASSOCIACAO: githubReport(RF60_LINK_EVENTS, linkGaps),
           RF61: githubReport(RF61_EVENTS)
         }
       };

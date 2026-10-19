@@ -3,9 +3,9 @@ import {
   completeThroughOf,
   issueEventTypeOf,
   lifecycleOccurrenceKey,
+  linkedOccurrenceKey,
   linkedTasksAt,
   mergeClosingsOf,
-  openedOccurrenceKey,
   pullRequestEventTypeOf
 } from '../../src/modules/notifications/github-event.policy.js';
 import { githubCoverageGaps } from '../../src/modules/notifications/notification-metrics.policy.js';
@@ -75,7 +75,7 @@ describe('ADR-023 — regras da fonte durável', () => {
 
   it('chaves estáveis e margem de 5 minutos na cobertura', () => {
     expect(lifecycleOccurrenceKey('123')).toBe('gh:123');
-    expect(openedOccurrenceKey(7, 9)).toBe('opened:7:task:9');
+    expect(linkedOccurrenceKey(7, 9)).toBe('linked:7:task:9');
     expect(completeThroughOf(at('2026-10-17T12:00:00.000Z'))).toEqual(
       at('2026-10-17T11:55:00.000Z')
     );

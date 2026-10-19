@@ -4,7 +4,7 @@ export const ISSUE_EVENT = 'ISSUE_EVENT';
 export const PULL_REQUEST_EVENT = 'PULL_REQUEST_EVENT';
 
 export const GITHUB_EVENT_TYPES = Object.freeze([
-  'ISSUE_OPENED',
+  'ISSUE_LINKED',
   'ISSUE_CLOSED',
   'ISSUE_REOPENED',
   'PULL_REQUEST_MERGED',
@@ -32,7 +32,7 @@ export const COVERAGE_MARGIN_MS = 300_000;
 const MINUTE_MS = 60_000;
 const GITHUB_URL_PREFIX = 'https://github.com/';
 const NOTIFICATION_TYPE_BY_EVENT = new Map([
-  ['ISSUE_OPENED', ISSUE_EVENT],
+  ['ISSUE_LINKED', ISSUE_EVENT],
   ['ISSUE_CLOSED', ISSUE_EVENT],
   ['ISSUE_REOPENED', ISSUE_EVENT],
   ['PULL_REQUEST_MERGED', PULL_REQUEST_EVENT],
@@ -157,8 +157,8 @@ export function lifecycleOccurrenceKey(providerEventId) {
   return `gh:${providerEventId}`;
 }
 
-export function openedOccurrenceKey(issueId, taskId) {
-  return `opened:${issueId}:task:${taskId}`;
+export function linkedOccurrenceKey(issueId, taskId) {
+  return `linked:${issueId}:task:${taskId}`;
 }
 
 export function completeThroughOf(readStartedAt) {

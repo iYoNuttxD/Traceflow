@@ -49,7 +49,6 @@ const ICONS = Object.freeze({
 const GITHUB_TYPES = new Set(['ISSUE_EVENT', 'PULL_REQUEST_EVENT']);
 
 const GITHUB_EVENT_VERBS = new Map([
-  ['ISSUE_OPENED', 'aberta'],
   ['ISSUE_CLOSED', 'fechada'],
   ['ISSUE_REOPENED', 'reaberta'],
   ['PULL_REQUEST_MERGED', 'mesclada'],
@@ -164,6 +163,11 @@ function taskReference(task) {
   return task?.title ? `“${task.title}”` : 'uma tarefa removida';
 }
 
+function linkedTaskReference(task) {
+  if (task?.code) return `à ${task.code}`;
+  return task?.title ? `à tarefa “${task.title}”` : 'a uma tarefa removida';
+}
+
 function artifactReference(artifact) {
   return artifact
     ? `${ARTIFACT_CODES.get(artifact.kind) || 'Artefato'} #${artifact.number}`
@@ -187,6 +191,8 @@ export function notificationSentence(notification) {
   const task = taskReference(notification.task);
   if (notification.type === INCONSISTENCY) return inconsistencySentence(context);
   if (GITHUB_TYPES.has(notification.type)) {
+    if (context.event === 'ISSUE_LINKED')
+      return `${artifactReference(context.artifact)}, aberta no GitHub, vinculada ${linkedTaskReference(notification.task)}`;
     const change = GITHUB_EVENT_VERBS.get(context.event) || 'mudou';
     return `${artifactReference(context.artifact)} ${change} no GitHub · ${task}`;
   }

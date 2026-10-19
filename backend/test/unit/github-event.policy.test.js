@@ -76,13 +76,14 @@ describe('S2-03 P2: anomalia e vocabulário (D2)', () => {
 
   it('os cinco eventos e os dois tipos de notificação ficam fixos', () => {
     expect(GITHUB_EVENT_TYPES).toEqual([
-      'ISSUE_OPENED',
+      'ISSUE_LINKED',
       'ISSUE_CLOSED',
       'ISSUE_REOPENED',
       'PULL_REQUEST_MERGED',
       'PULL_REQUEST_CLOSED'
     ]);
-    expect(notificationTypeOf('ISSUE_OPENED')).toBe(ISSUE_EVENT);
+    expect(notificationTypeOf('ISSUE_LINKED')).toBe(ISSUE_EVENT);
+    expect(notificationTypeOf('ISSUE_OPENED')).toBeNull();
     expect(notificationTypeOf('ISSUE_CLOSED')).toBe(ISSUE_EVENT);
     expect(notificationTypeOf('ISSUE_REOPENED')).toBe(ISSUE_EVENT);
     expect(notificationTypeOf('PULL_REQUEST_MERGED')).toBe(PULL_REQUEST_EVENT);

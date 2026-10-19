@@ -5,10 +5,10 @@ import {
   GITHUB_EVENT_EXCLUSIONS,
   githubEventDedupeKey,
   lifecycleOccurrenceKey,
+  linkedOccurrenceKey,
   nextAttemptAfterFailure,
   normalizeIssueState,
   normalizePullRequestState,
-  openedOccurrenceKey,
   participantExclusion,
   preferenceAllowsEvent,
   safeGithubUrl,
@@ -71,9 +71,9 @@ describe('S2-03 bateria — política: chaves, janela, participantes e exclusõe
     const key = lifecycleOccurrenceKey('18446744073709551615');
     expect(key).toBe('gh:18446744073709551615');
     expect(key.length).toBeLessThanOrEqual(96);
-    const opened = openedOccurrenceKey(2147483647, 2147483647);
-    expect(opened).toBe('opened:2147483647:task:2147483647');
-    expect(opened.length).toBeLessThanOrEqual(96);
+    const linked = linkedOccurrenceKey(2147483647, 2147483647);
+    expect(linked).toBe('linked:2147483647:task:2147483647');
+    expect(linked.length).toBeLessThanOrEqual(96);
     const dedupe = githubEventDedupeKey('PULL_REQUEST_EVENT', 2147483647, 2147483647);
     expect(dedupe).toBe('PULL_REQUEST_EVENT:event:2147483647:task:2147483647');
     expect(dedupe.length).toBeLessThanOrEqual(96);

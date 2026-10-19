@@ -2,6 +2,7 @@ import { prisma } from '../../database/prismaClient.js';
 
 const DECISIONS_MIGRATION = '20261015120000_notification_decisions';
 const GITHUB_EVENTS_MIGRATION = '20261012010000_github_event_notifications';
+const ISSUE_LINKS_MIGRATION = '20261017120000_issue_opened_event';
 const KEY_CHUNK = 5000;
 const decisionSelect = {
   id: true,
@@ -24,12 +25,13 @@ export const notificationMetricsRepository = {
   async registryStarts() {
     const rows = await prisma.$queryRaw`
       SELECT migration_name AS name, finished_at AS finishedAt FROM _prisma_migrations
-      WHERE migration_name IN (${DECISIONS_MIGRATION}, ${GITHUB_EVENTS_MIGRATION})
+      WHERE migration_name IN (${DECISIONS_MIGRATION}, ${GITHUB_EVENTS_MIGRATION}, ${ISSUE_LINKS_MIGRATION})
         AND finished_at IS NOT NULL AND rolled_back_at IS NULL`;
     const startOf = (name) => rows.find((row) => row.name === name)?.finishedAt ?? null;
     return {
       decisions: startOf(DECISIONS_MIGRATION),
-      githubEvents: startOf(GITHUB_EVENTS_MIGRATION)
+      githubEvents: startOf(GITHUB_EVENTS_MIGRATION),
+      issueLinks: startOf(ISSUE_LINKS_MIGRATION)
     };
   },
 

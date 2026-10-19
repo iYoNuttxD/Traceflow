@@ -189,7 +189,7 @@ describe('TF-REV-006 — jobs agendados no worker (ADR-024 D7)', () => {
         where: { recipientUserId: responsible.id, type: 'ISSUE_EVENT' },
         select: { githubEvent: true, taskId: true }
       })
-    ).toEqual([{ githubEvent: 'ISSUE_OPENED', taskId: task.id }]);
+    ).toEqual([{ githubEvent: 'ISSUE_LINKED', taskId: task.id }]);
     await runner.stop();
   });
 

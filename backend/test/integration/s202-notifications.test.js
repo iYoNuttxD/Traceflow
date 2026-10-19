@@ -88,7 +88,7 @@ async function officialMetric(projectId, { from, to, now = new Date() }) {
   const service = createNotificationMetricsService({
     repository: {
       ...notificationMetricsRepository,
-      registryStarts: async () => ({ decisions: early, githubEvents: early })
+      registryStarts: async () => ({ decisions: early, githubEvents: early, issueLinks: early })
     },
     log: { info() {}, warn() {}, error() {} }
   });
