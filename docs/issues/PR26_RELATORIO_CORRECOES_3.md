@@ -379,7 +379,7 @@ menu visível (`14-…`).
   faixa de requisitos do Daniel: o grupo reproduz o padrão.
 - **Tabela do Repositório.** A 1366, com o menu expandido, a tabela filtrada tem 21 px de rolagem
   horizontal (1.035 px em 1.014), e "Ver inconsistência" fica cortado até rolar. A superfície é do
-  PR #26 e não mudou nesta rodada.
+  PR #26 e não mudou nesta rodada. **Decisão do João (19/10/2026): deixar como está.**
 
 **Fora do escopo, sem mudança.**
 - Com o menu recolhido, "Projetos", "Configurações" e "Sair" ficam sem nome acessível: o rótulo
@@ -395,8 +395,8 @@ VERIFIED até a aprovação do João. A matriz não muda o inventário.
 ## 9. Pendências
 
 - **Do João:** as duas migrations no banco de desenvolvimento; a aprovação visual (G3) e a decisão
-  sobre a borda das células e a tabela do Repositório (seção 8; o botão de expandir fica como
-  está); o push, quando pedir; postar a descrição e a resposta.
+  sobre a borda das células (seção 8; o botão de expandir e a tabela do Repositório ficam como
+  estão); o push, quando pedir; postar a descrição e a resposta.
 - **Do Daniel:** a aprovação arquitetural do ADR-024.
 - **Do dono da branch OCI:** o artefato do diagnóstico com o `SOURCES` acima, o
   `INITIAL_MIGRATION_COUNT` 83 e a composição do encerramento (PR26-F03).
