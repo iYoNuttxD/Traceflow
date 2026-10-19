@@ -1,5 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { env } from '../../config/env.js';
+import { enforceConnectionBudget } from '../../database/connection-budget.js';
 import { disconnectDatabase } from '../../database/prismaClient.js';
 import { createNotificationMetricsService } from '../../modules/notifications/notification-metrics.service.js';
 import { addDays } from '../../modules/notifications/notification.policy.js';
@@ -63,6 +64,7 @@ export async function runNotificationMetrics({
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  enforceConnectionBudget('command');
   try {
     process.exitCode = await runNotificationMetrics({
       args: process.argv.slice(2),

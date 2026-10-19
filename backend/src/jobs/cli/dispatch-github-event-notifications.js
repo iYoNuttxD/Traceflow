@@ -1,5 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { env } from '../../config/env.js';
+import { enforceConnectionBudget } from '../../database/connection-budget.js';
 import { disconnectDatabase } from '../../database/prismaClient.js';
 import { createGithubEventNotificationService } from '../../modules/notifications/github-event-notification.service.js';
 import { createLogger } from '../../shared/logger/index.js';
@@ -75,6 +76,7 @@ export async function runGithubEventNotifications({
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  enforceConnectionBudget('command');
   try {
     process.exitCode = await runGithubEventNotifications({
       args: process.argv.slice(2),

@@ -1,6 +1,5 @@
 const canonicalLocalHost = 'local';
 const localHostAliases = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
-const MAX_POOL_LIMIT = 100;
 
 export function parseDatabaseUrl(value, label = 'DATABASE_URL') {
   if (!value) throw new Error(`${label} é obrigatória.`);
@@ -12,14 +11,6 @@ export function parseDatabaseUrl(value, label = 'DATABASE_URL') {
   }
   if (parsed.protocol !== 'mysql:') throw new Error(`${label} deve usar MySQL.`);
   return parsed;
-}
-
-export function poolLimitFrom(value) {
-  if (value === undefined || value === '') return null;
-  const limit = Number(value);
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_POOL_LIMIT)
-    throw new Error(`DATABASE_POOL_LIMIT deve ser um inteiro entre 1 e ${MAX_POOL_LIMIT}.`);
-  return limit;
 }
 
 export function withConnectionLimits(value, { connectionLimit, poolTimeoutSeconds } = {}) {

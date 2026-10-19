@@ -1,10 +1,13 @@
 import app from './app.js';
 import { env } from './config/env.js';
+import { enforceConnectionBudget } from './database/connection-budget.js';
 import { disconnectDatabase } from './database/prismaClient.js';
 import { logger } from './shared/logger/index.js';
 import { exitCodeFor, stopWhenEngineUnavailable } from './shared/runtime/engine-exit.js';
 import { createGracefulShutdown } from './shared/runtime/graceful-shutdown.js';
 import { projectEventPublisher } from './shared/events/index.js';
+
+enforceConnectionBudget('api');
 
 const server = app.listen(env.port, () => {
   logger.info('TRACEFLOW backend running.', { port: env.port });

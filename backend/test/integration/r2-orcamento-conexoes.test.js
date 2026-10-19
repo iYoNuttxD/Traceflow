@@ -296,8 +296,11 @@ describe('ADR-024 D3 — desconexão dos dois clientes', () => {
 });
 
 describe('ADR-024 D2 — orçamento de conexões', () => {
-  it('O-05 DATABASE_POOL_LIMIT limita as conexões do cliente da aplicação', async () => {
-    vi.stubEnv('DATABASE_POOL_LIMIT', '2');
+  it('O-05 o connection_limit da URL limita as conexões do cliente da aplicação; o DATABASE_POOL_LIMIT não muda nada (TF-REV-016)', async () => {
+    const limited = new URL(process.env.TEST_DATABASE_URL);
+    limited.searchParams.set('connection_limit', '2');
+    vi.stubEnv('TEST_DATABASE_URL', limited.toString());
+    vi.stubEnv('DATABASE_POOL_LIMIT', '4');
     vi.resetModules();
     const { prisma, disconnectDatabase } = await import('../../src/database/prismaClient.js');
     try {

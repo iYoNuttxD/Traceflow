@@ -1,5 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { env } from '../../config/env.js';
+import { enforceConnectionBudget } from '../../database/connection-budget.js';
 import { disconnectDatabase } from '../../database/prismaClient.js';
 import { createNotificationService } from '../../modules/notifications/notification.service.js';
 import { createLogger } from '../../shared/logger/index.js';
@@ -70,6 +71,7 @@ export async function runOverdueNotifications({
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  enforceConnectionBudget('command');
   try {
     process.exitCode = await runOverdueNotifications({
       args: process.argv.slice(2),

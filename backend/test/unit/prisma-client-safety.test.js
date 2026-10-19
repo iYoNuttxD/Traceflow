@@ -68,33 +68,24 @@ describe('Prisma test datasource isolation without connecting to a database', ()
     });
   });
 
-  it('applies DATABASE_POOL_LIMIT to the application client', async () => {
-    vi.stubEnv('DATABASE_POOL_LIMIT', '3');
+  it('keeps the connection_limit of the test URL and ignores DATABASE_POOL_LIMIT (TF-REV-016)', async () => {
+    vi.stubEnv('TEST_DATABASE_URL', `${testUrl}?connection_limit=2`);
+    vi.stubEnv('DATABASE_POOL_LIMIT', '100');
     await loadClient();
     expect(construct).toHaveBeenCalledExactlyOnceWith({
-      datasourceUrl: `${testUrl}?connection_limit=3`
+      datasourceUrl: `${testUrl}?connection_limit=2`
     });
   });
 
-  it('applies DATABASE_POOL_LIMIT to the production datasource', async () => {
+  it('leaves the production datasource to DATABASE_URL, without overriding the pool (TF-REV-016)', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('TEST_DATABASE_URL', undefined);
-    vi.stubEnv('DATABASE_POOL_LIMIT', '5');
+    vi.stubEnv('DATABASE_URL', `${developmentUrl}?connection_limit=5`);
+    vi.stubEnv('DATABASE_POOL_LIMIT', '100');
     await loadClient();
     expect(loadEnv).not.toHaveBeenCalled();
-    expect(construct).toHaveBeenCalledExactlyOnceWith({
-      datasourceUrl: `${developmentUrl}?connection_limit=5`
-    });
+    expect(construct).toHaveBeenCalledExactlyOnceWith({});
   });
-
-  it.each(['0', '101', '2.5', 'cinco'])(
-    'refuses DATABASE_POOL_LIMIT=%s before client construction',
-    async (limit) => {
-      vi.stubEnv('DATABASE_POOL_LIMIT', limit);
-      await expect(loadClient()).rejects.toThrow('DATABASE_POOL_LIMIT');
-      expect(construct).not.toHaveBeenCalled();
-    }
-  );
 
   it('keeps the chosen datasource when DATABASE_URL later changes', async () => {
     await loadClient();

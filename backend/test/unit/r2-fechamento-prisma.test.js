@@ -79,9 +79,8 @@ describe('TF-REV-005 — fechamento do cliente Prisma (ADR-024 D6)', () => {
       env: {
         ...process.env,
         NODE_ENV: 'production',
-        DATABASE_URL: 'mysql://diagnostico:diagnostico@localhost:3306/traceflow',
-        TEST_DATABASE_URL: '',
-        DATABASE_POOL_LIMIT: '1'
+        DATABASE_URL: 'mysql://diagnostico:diagnostico@localhost:3306/traceflow?connection_limit=1',
+        TEST_DATABASE_URL: ''
       }
     });
 
