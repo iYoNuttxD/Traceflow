@@ -1,3 +1,4 @@
+import { DISCONNECT_WAIT_MS, disconnectWithin } from './disconnect-within.js';
 import { exitCodeFor, stopWhenEngineUnavailable } from './engine-exit.js';
 
 export const WORKER_DRAIN_MS = 60000;
@@ -8,6 +9,7 @@ export function createWorkerRuntime({
   logger,
   exit = (code) => process.exit(code),
   drainMs = WORKER_DRAIN_MS,
+  disconnectWaitMs = DISCONNECT_WAIT_MS,
   watchEngine = stopWhenEngineUnavailable
 }) {
   let stopping = null;
@@ -38,18 +40,20 @@ export function createWorkerRuntime({
     stopping ||= (async () => {
       logger.info('Encerramento do worker iniciado.', { event: 'worker_shutdown_started', signal });
       const drained = await drain(signal);
-      let disconnected = true;
-      try {
-        await disconnect();
-      } catch (error) {
-        disconnected = false;
+      const disconnected = await disconnectWithin(disconnect, disconnectWaitMs);
+      if (disconnected.timedOut)
+        logger.error('O worker não desconectou o banco no prazo; o processo sai assim mesmo.', {
+          event: 'database_disconnect_timeout',
+          signal,
+          waitMs: disconnectWaitMs
+        });
+      else if (disconnected.error)
         logger.error('O worker não desconectou o banco no encerramento.', {
           event: 'worker_disconnect_failed',
           signal,
-          errorCode: error?.code || 'DISCONNECT_FAILED'
+          errorCode: disconnected.error?.code || 'DISCONNECT_FAILED'
         });
-      }
-      const code = exitCodeFor(drained && disconnected ? 0 : 1);
+      const code = exitCodeFor(drained && disconnected.ok ? 0 : 1);
       logger.info('Encerramento do worker concluído.', {
         event: 'worker_shutdown_completed',
         signal,
