@@ -12,7 +12,6 @@ import {
   formatInstant,
   historyToggleLabel,
   inconsistencyMetrics,
-  reconcileMessage,
   reconciliationNotice,
   resolutionLabel,
   validateDismissReason
@@ -98,17 +97,40 @@ describe('S2-01 vocabulário de alertas na interface', () => {
     ]);
   });
 
-  it('escreve o resultado do reprocessamento e o aviso de números desatualizados', () => {
-    expect(reconcileMessage({ created: 2, resolved: 1, kept: 5 })).toBe(
-      'Reprocessamento concluído: 2 novos, 1 resolvido, 5 mantidos.'
+  it('o aviso da reconciliação segue o estado e não manda ninguém clicar (UX-R3-03)', () => {
+    const succeeded = '2026-10-07T10:00:00.000Z';
+    const failed = '2026-10-08T10:00:00.000Z';
+    const notices = [
+      reconciliationNotice({ state: 'CURRENT', lastSucceededAt: succeeded }),
+      reconciliationNotice({ state: 'PENDING_FIRST' }),
+      reconciliationNotice({ state: 'STALE', lastSucceededAt: succeeded, lastFailedAt: failed }),
+      reconciliationNotice({ state: 'STALE', lastSucceededAt: failed, lastFailedAt: succeeded })
+    ];
+
+    expect(notices).toEqual([
+      '',
+      'As inconsistências deste projeto ainda não foram calculadas.',
+      `A última atualização das inconsistências falhou em ${formatInstant(failed)}. Os números podem estar desatualizados.`,
+      `A última atualização das inconsistências foi em ${formatInstant(failed)}. Os números podem estar desatualizados.`
+    ]);
+    expect(reconciliationNotice(null)).toBe('');
+    for (const notice of notices) expect(notice).not.toMatch(/Reprocessar|gestor|clique/);
+  });
+
+  it('antes da primeira reconciliação, as contagens ficam sem número, nunca 0', () => {
+    const metrics = inconsistencyMetrics(
+      {
+        open: { total: 0, byType: {} },
+        reconciliation: { state: 'PENDING_FIRST' }
+      },
+      9
     );
-    expect(reconcileMessage({ created: 1, resolved: 0, kept: 1 })).toBe(
-      'Reprocessamento concluído: 1 novo, 0 resolvidos, 1 mantido.'
-    );
-    expect(reconciliationNotice({ stale: false }, true)).toBe('');
-    expect(
-      reconciliationNotice({ stale: true, lastFailedAt: '2026-10-08T10:00:00.000Z' }, false)
-    ).toContain('Peça a um gestor do projeto para reprocessar as inconsistências.');
+
+    expect(metrics.map(({ count, text }) => [count, text])).toEqual([
+      [null, ''],
+      [null, ''],
+      [null, '']
+    ]);
   });
 
   it('valida a justificativa de dispensa com os mesmos limites do servidor', () => {

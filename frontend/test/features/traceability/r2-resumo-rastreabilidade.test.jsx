@@ -1,5 +1,4 @@
 import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,8 +6,7 @@ const api = vi.hoisted(() => ({
   getRequirementsTraceability: vi.fn(),
   getRequirementTraceability: vi.fn(),
   getRequirementSituationHistory: vi.fn(),
-  getTraceabilityAlertSummary: vi.fn(),
-  reconcileTraceabilityAlerts: vi.fn()
+  getTraceabilityAlertSummary: vi.fn()
 }));
 vi.mock('../../../src/features/traceability/api/traceability.api.js', () => api);
 vi.mock('../../../src/features/traceability/components/TraceabilityFlow.jsx', () => ({
@@ -35,16 +33,20 @@ const catalog = {
   pagination: { page: 1, totalPages: 1, total: 40 }
 };
 
-function summary({ byType = {}, canManage = false, stale = false } = {}) {
+function summary({ byType = {} } = {}) {
   return {
     projectId: 9,
     open: { total: Object.values(byType).reduce((total, count) => total + count, 0), byType },
     dismissed: { total: 0 },
     rules: { taskWithoutCommitActive: true, integrationConnected: true },
-    reconciliation: stale
-      ? { stale: true, lastFailedAt: '2026-10-16T10:00:00.000Z', lastSucceededAt: null }
-      : { stale: false },
-    permissions: { canLink: true, canManage }
+    reconciliation: {
+      state: 'CURRENT',
+      lastAttemptAt: '2026-10-16T09:00:00.000Z',
+      lastSucceededAt: '2026-10-16T09:00:00.000Z',
+      lastFailedAt: null,
+      lastTrigger: 'GITHUB_SYNC'
+    },
+    permissions: { canLink: true, canManage: false }
   };
 }
 
@@ -110,32 +112,5 @@ describe('UX-R2-02 — inconsistências abertas no resumo da Rastreabilidade', (
     expect(
       within(group).getByRole('heading', { name: 'Inconsistências abertas' })
     ).toBeInTheDocument();
-  });
-
-  it('R-04 "Reprocessar" é compacto, só para MANAGER+, com retorno e aviso de dados desatualizados', async () => {
-    api.getTraceabilityAlertSummary.mockResolvedValue(summary({ canManage: true, stale: true }));
-    api.reconcileTraceabilityAlerts.mockResolvedValue({
-      result: { created: 1, resolved: 0, kept: 2 }
-    });
-    const user = userEvent.setup();
-    renderPage();
-
-    const group = await screen.findByRole('group', { name: 'Inconsistências abertas' });
-    const reprocess = await within(group).findByRole('button', {
-      name: 'Reprocessar inconsistências'
-    });
-    expect(reprocess).toHaveClass('button-compact');
-    expect(within(group).getByRole('status')).toHaveTextContent(/desatualizados/);
-    await user.click(reprocess);
-
-    expect(await within(group).findByText(/Reprocessamento concluído/)).toBeInTheDocument();
-  });
-
-  it('R-04 sem permissão de gestão, não há "Reprocessar"', async () => {
-    renderPage();
-
-    const group = await screen.findByRole('group', { name: 'Inconsistências abertas' });
-
-    expect(within(group).queryByRole('button', { name: /Reprocessar/ })).toBeNull();
   });
 });

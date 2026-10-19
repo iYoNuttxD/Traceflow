@@ -86,9 +86,15 @@ const SUMMARY_TARGETS = Object.freeze({
 
 const capitalized = (text) => text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1);
 
+export const RECONCILIATION_PENDING_MESSAGE =
+  'As inconsistências deste projeto ainda não foram calculadas.';
+
+const isPendingFirst = (summary) => summary?.reconciliation?.state === 'PENDING_FIRST';
+
 export function inconsistencyMetrics(summary, projectId) {
+  const known = Boolean(summary) && !isPendingFirst(summary);
   return Object.entries(ALERT_TYPES).map(([type, labels]) => {
-    const count = summary ? summary.open.byType[type] || 0 : null;
+    const count = known ? summary.open.byType[type] || 0 : null;
     return {
       type,
       label: capitalized(labels.plural),
@@ -127,14 +133,6 @@ export function historyToggleLabel(total) {
   return `Histórico (${total.toLocaleString('pt-BR')})`;
 }
 
-export function reconcileMessage(result) {
-  return `Reprocessamento concluído: ${counted(result.created, 'novo', 'novos')}, ${counted(
-    result.resolved,
-    'resolvido',
-    'resolvidos'
-  )}, ${counted(result.kept, 'mantido', 'mantidos')}.`;
-}
-
 export const dismissReasonLength = (reason) => Array.from(String(reason ?? '').trim()).length;
 
 export function validateDismissReason(reason) {
@@ -144,12 +142,17 @@ export function validateDismissReason(reason) {
   return '';
 }
 
-export function reconciliationNotice(reconciliation, canManage) {
-  if (!reconciliation?.stale) return '';
-  const guidance = canManage
-    ? 'Use Reprocessar inconsistências para atualizá-las.'
-    : 'Peça a um gestor do projeto para reprocessar as inconsistências.';
-  return `A última atualização das inconsistências falhou em ${formatInstant(reconciliation.lastFailedAt)}. Os números podem estar desatualizados. ${guidance}`;
+export function reconciliationNotice(reconciliation) {
+  if (reconciliation?.state === 'PENDING_FIRST') return RECONCILIATION_PENDING_MESSAGE;
+  if (reconciliation?.state !== 'STALE') return '';
+  const { lastFailedAt, lastSucceededAt } = reconciliation;
+  const failed =
+    Boolean(lastFailedAt) &&
+    (!lastSucceededAt || new Date(lastFailedAt).getTime() > new Date(lastSucceededAt).getTime());
+  const fact = failed
+    ? `falhou em ${formatInstant(lastFailedAt)}`
+    : `foi em ${formatInstant(lastSucceededAt)}`;
+  return `A última atualização das inconsistências ${fact}. Os números podem estar desatualizados.`;
 }
 
 export const taskOptionLabel = (task) => (task ? `TASK-${task.id} · ${task.title}` : '');

@@ -7,8 +7,7 @@ const traceability = vi.hoisted(() => ({
   getTraceabilityAlerts: vi.fn(),
   getTraceabilityAlertSummary: vi.fn(),
   getTraceabilityAlert: vi.fn(),
-  dismissTraceabilityAlert: vi.fn(),
-  reconcileTraceabilityAlerts: vi.fn()
+  dismissTraceabilityAlert: vi.fn()
 }));
 const notifications = vi.hoisted(() => ({
   listNotifications: vi.fn(),

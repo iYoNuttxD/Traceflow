@@ -1222,9 +1222,14 @@ o trabalho acontece, sem tela própria.
   - três contagens por tipo (tarefas concluídas sem commit, PRs mescladas sem tarefa, issues fechadas
     sem tarefa), sempre presentes; com inconsistência, o número é link para a lista filtrada, com o
     nome acessível por extenso ("2 tarefas concluídas sem commit");
-  - "Reprocessar inconsistências" como ação secundária compacta, só para MANAGER+, com o retorno no
-    próprio grupo;
-  - o aviso de números desatualizados e o de repositório desconectado, dentro do grupo.
+  - nenhuma ação de reprocessar, desde 2026-10-18 (UX-R3-03): o sistema atualiza as inconsistências
+    sozinho, e nenhum texto manda clicar;
+  - antes da primeira reconciliação (`PENDING_FIRST`), as contagens mostram "—", e o grupo diz "As
+    inconsistências deste projeto ainda não foram calculadas.";
+  - com números desatualizados (`STALE`), o grupo diz quando a última atualização falhou, ou quando
+    foi, e que os números podem estar desatualizados, sem prometer horário;
+  - erro ao carregar o resumo mostra o estado de erro com nova tentativa, nunca zero;
+  - o aviso de repositório desconectado, dentro do grupo.
 
   A faixa separada no topo da tela saiu.
 - **Vocabulário.** Na interface, o alerta é "inconsistência", no feminino: Aberta, Dispensada,

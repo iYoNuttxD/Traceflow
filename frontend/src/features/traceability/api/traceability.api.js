@@ -123,9 +123,6 @@ export const traceabilityApi = {
     return data(
       httpClient.post(`/projects/${projectId}/traceability/alerts/${alertId}/dismiss`, { reason })
     );
-  },
-  reconcileAlerts(projectId) {
-    return data(httpClient.post(`/projects/${projectId}/traceability/alerts/reconcile`, {}));
   }
 };
 
@@ -168,5 +165,3 @@ export const getTraceabilityAlert = (projectId, alertId, options) =>
   traceabilityApi.alert(projectId, alertId, options);
 export const dismissTraceabilityAlert = (projectId, alertId, reason) =>
   traceabilityApi.dismissAlert(projectId, alertId, reason);
-export const reconcileTraceabilityAlerts = (projectId) =>
-  traceabilityApi.reconcileAlerts(projectId);

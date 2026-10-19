@@ -9,7 +9,6 @@ const trace = vi.hoisted(() => ({
   getTraceabilityAlerts: vi.fn(),
   dismissTraceabilityAlert: vi.fn(),
   getTraceabilityAlertSummary: vi.fn(),
-  reconcileTraceabilityAlerts: vi.fn(),
   getCommitSuggestions: vi.fn(),
   confirmCommitSuggestion: vi.fn(),
   rejectCommitSuggestion: vi.fn(),
@@ -719,7 +718,7 @@ describe('PR #26 resumo da Rastreabilidade e rotas antigas (TF-REV-008)', () => 
     );
   }
 
-  it('X-12 cada parte do resumo leva à lista filtrada; o reprocessamento é só de MANAGER+', async () => {
+  it('X-12 cada parte do resumo leva à lista filtrada; nenhum papel vê o reprocessamento (UX-R3-03)', async () => {
     trace.getTraceabilityAlertSummary.mockResolvedValue(
       summary({
         byType: {
@@ -742,14 +741,14 @@ describe('PR #26 resumo da Rastreabilidade e rotas antigas (TF-REV-008)', () => 
       'href',
       '/projects/9/repository?inconsistencia=OPEN&tipo=issue'
     );
-    expect(screen.getByRole('button', { name: 'Reprocessar inconsistências' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reprocessar/ })).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Seções da rastreabilidade' })).toBeNull();
     unmount();
 
     trace.getTraceabilityAlertSummary.mockResolvedValue(summary({ permissions: roles.VIEWER }));
     renderSummary();
     expect(await screen.findAllByText('0')).toHaveLength(3);
-    expect(screen.queryByRole('button', { name: 'Reprocessar inconsistências' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Reprocessar/ })).toBeNull();
   });
 
   it.each([

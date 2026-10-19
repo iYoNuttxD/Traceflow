@@ -7,8 +7,7 @@ const trace = vi.hoisted(() => ({
   getTraceabilityAlert: vi.fn(),
   getTraceabilityAlerts: vi.fn(),
   dismissTraceabilityAlert: vi.fn(),
-  getTraceabilityAlertSummary: vi.fn(),
-  reconcileTraceabilityAlerts: vi.fn()
+  getTraceabilityAlertSummary: vi.fn()
 }));
 const tasks = vi.hoisted(() => ({ list: vi.fn(), linkPullRequest: vi.fn(), linkIssue: vi.fn() }));
 const mocks = vi.hoisted(() => ({
@@ -571,22 +570,14 @@ describe('PR #26 casos migrados: tarefa e resumo (S2-01 F12, F13, F14, C4)', () 
     ).toBeInTheDocument();
   });
 
-  it('F14 reprocessar mostra as contagens devolvidas pelo servidor e relê o resumo', async () => {
-    const user = userEvent.setup();
-    trace.getTraceabilityAlertSummary.mockResolvedValue(summary());
-    trace.reconcileTraceabilityAlerts.mockResolvedValue({
-      projectId: 9,
-      result: { created: 2, resolved: 1, kept: 5 }
-    });
+  it('F14 o resumo não oferece reprocessamento, nem ao gestor, e lê o servidor uma vez ao abrir (UX-R3-03)', async () => {
+    trace.getTraceabilityAlertSummary.mockResolvedValue(summary({ permissions: roles.MANAGER }));
     renderSummary();
 
-    await user.click(await screen.findByRole('button', { name: 'Reprocessar inconsistências' }));
-
-    expect(
-      await screen.findByText('Reprocessamento concluído: 2 novos, 1 resolvido, 5 mantidos.')
-    ).toBeInTheDocument();
-    expect(trace.reconcileTraceabilityAlerts).toHaveBeenCalledWith('9');
-    await waitFor(() => expect(trace.getTraceabilityAlertSummary).toHaveBeenCalledTimes(2));
+    expect(await screen.findAllByText('0')).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: /Reprocessar/ })).toBeNull();
+    expect(screen.queryByText(/Reprocessamento/)).toBeNull();
+    await waitFor(() => expect(trace.getTraceabilityAlertSummary).toHaveBeenCalledTimes(1));
   });
 
   it('C4-01 falha no resumo mostra erro com nova tentativa, e a nova tentativa recupera', async () => {
@@ -607,43 +598,47 @@ describe('PR #26 casos migrados: tarefa e resumo (S2-01 F12, F13, F14, C4)', () 
   });
 
   it.each([
-    ['MANAGER', roles.MANAGER, 'Use Reprocessar inconsistências para atualizá-las.', true],
-    [
-      'VIEWER',
-      roles.VIEWER,
-      'Peça a um gestor do projeto para reprocessar as inconsistências.',
-      false
-    ]
+    ['MANAGER', roles.MANAGER],
+    ['VIEWER', roles.VIEWER]
   ])(
-    'C4-02 C4-03 números desatualizados: %s vê a orientação certa',
-    async (_, permissions, guidance, canReprocess) => {
+    'C4-02 C4-03 números desatualizados: %s vê o mesmo aviso, sem orientação de clique',
+    async (_, permissions) => {
       const failed = '2026-10-08T10:00:00.000Z';
       trace.getTraceabilityAlertSummary.mockResolvedValue(
         summary({
           permissions,
           reconciliation: {
+            state: 'STALE',
+            lastAttemptAt: failed,
             lastSucceededAt: '2026-10-07T10:00:00.000Z',
             lastFailedAt: failed,
-            lastTrigger: 'GITHUB_SYNC',
-            stale: true
+            lastTrigger: 'GITHUB_SYNC'
           }
         })
       );
       renderSummary();
 
       const notice = await screen.findByText(/podem estar desatualizados/);
-      expect(notice).toHaveTextContent(formatInstant(failed));
-      expect(notice).toHaveTextContent(guidance);
-      expect(Boolean(screen.queryByRole('button', { name: 'Reprocessar inconsistências' }))).toBe(
-        canReprocess
+      expect(notice).toHaveTextContent(
+        `A última atualização das inconsistências falhou em ${formatInstant(failed)}. Os números podem estar desatualizados.`
       );
+      expect(notice).not.toHaveTextContent(/Reprocessar|gestor|clique/);
+      expect(screen.queryByRole('button', { name: /Reprocessar/ })).toBeNull();
     }
   );
 
   it('C4-04 sem falha registrada, ou com sucesso mais recente, não há aviso', async () => {
     trace.getTraceabilityAlertSummary
       .mockResolvedValueOnce(
-        summary({ reconciliation: { lastFailedAt: null, lastSucceededAt: null, stale: false } })
+        summary({
+          reconciliation: {
+            state: 'CURRENT',
+            lastAttemptAt: '2026-10-07T10:00:00.000Z',
+            lastFailedAt: null,
+            lastSucceededAt: '2026-10-07T10:00:00.000Z',
+            lastTrigger: 'GITHUB_SYNC'
+          }
+        })
       )
       .mockResolvedValueOnce(summary());
     const first = renderSummary();
