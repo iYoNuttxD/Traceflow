@@ -173,6 +173,12 @@ manual ou pelo script `traceability:alerts`. Nenhum teste local cobre o limitado
 | V1.2.1, V3.2.2, §13.2 do contexto | URLs vindas do GitHub só são gravadas com o prefixo `https://github.com/` | `test/unit/github-mapper.correcoes.test.js` (C1-03) |
 | Disponibilidade do sync | textos do GitHub cabem nas colunas; um título longo não derruba mais a importação | `test/api/s201-correcoes.test.js` (C1-01) |
 
+**Revisão de 18/10/2026 (PR #26, terceira revisão, UX-R3-03):**
+
+| Controle | Mudança | Evidência |
+|---|---|---|
+| V16.5.2, V16.5.3 | `reconciliation.stale` dá lugar a `reconciliation.state` (`PENDING_FIRST`, `STALE`, `CURRENT`). A tentativa é gravada antes de começar, e a tentativa sem resultado também conta como desatualização. A varredura do worker (`SCHEDULED`) retoma falhas, tentativas sem resultado, projetos nunca reconciliados e sucessos antigos, sem depender do botão, que saiu da interface | `test/integration/r3-varredura-reconciliacao.test.js` (V-01 a V-09), `test/integration/s201-correcoes.test.js` (C3), bateria de frontend (R-01 a R-04) |
+
 ## Delta S2-02 — notificações de tarefa (RF30, RF59)
 
 A entrega acrescenta seis rotas do próprio usuário, duas tabelas com dado pessoal

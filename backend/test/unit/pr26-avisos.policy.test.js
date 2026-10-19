@@ -213,7 +213,7 @@ describe('PR #26 avisos de inconsistência — despacho (TF-REV-008)', () => {
       .mockResolvedValueOnce({ created: 1, resolved: 0, kept: 0 })
       .mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'P2034' }));
     const alerts = createTraceabilityAlertService(
-      { reconcileProject, recordReconciliation: vi.fn() },
+      { reconcileProject, recordAttempt: vi.fn(), recordReconciliation: vi.fn() },
       log,
       () => DETECTED,
       { recordOperational: vi.fn() },

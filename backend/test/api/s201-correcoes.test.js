@@ -268,14 +268,15 @@ describe('Correções S2-01 — reconciliar ao conectar o repositório (S201-A01
     const failedSummary = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
     expect(failedSummary.open.total).toBe(1);
     expect(failedSummary.reconciliation).toMatchObject({
+      state: 'PENDING_FIRST',
       lastTrigger: 'GITHUB_INTEGRATION',
-      lastSucceededAt: null,
-      stale: true
+      lastSucceededAt: null
     });
+    expect(failedSummary.reconciliation.lastFailedAt).toEqual(expect.any(String));
     const recovered = await owner.mutate('post', `${base(project.id)}/alerts/reconcile`).send({});
     expect(recovered.body.result).toMatchObject({ created: 0, kept: 1 });
     const healed = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
-    expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', stale: false });
+    expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', state: 'CURRENT' });
   });
 });
 

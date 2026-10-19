@@ -13,7 +13,7 @@ let audit;
 
 function service(repository) {
   return createTraceabilityAlertService(
-    { recordReconciliation: vi.fn(), ...repository },
+    { recordAttempt: vi.fn(), recordReconciliation: vi.fn(), ...repository },
     log,
     () => now,
     audit,

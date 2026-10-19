@@ -70,9 +70,28 @@ export function createTraceabilityAlertService(
   audit = auditService,
   notices = traceabilityNoticeService
 ) {
-  async function recordOutcome(projectId, trigger, errorCode = null) {
+  async function recordAttempt(projectId, trigger, at) {
     try {
-      await repository.recordReconciliation({ projectId, trigger, at: clock(), errorCode });
+      await repository.recordAttempt({ projectId, trigger, at });
+    } catch (error) {
+      log.warn('Falha ao registrar a tentativa da reconciliação de alertas.', {
+        event: 'traceability_alerts_attempt_record_failed',
+        projectId,
+        trigger,
+        errorCode: error?.code || 'TRACEABILITY_ALERTS_RECORD_FAILED'
+      });
+    }
+  }
+
+  async function recordOutcome(projectId, trigger, attemptedAt, errorCode = null) {
+    try {
+      await repository.recordReconciliation({
+        projectId,
+        trigger,
+        at: clock(),
+        attemptedAt,
+        errorCode
+      });
     } catch (error) {
       log.warn('Falha ao registrar o resultado da reconciliação de alertas.', {
         event: 'traceability_alerts_reconciliation_record_failed',
@@ -85,6 +104,8 @@ export function createTraceabilityAlertService(
 
   async function reconcile(projectId, { dryRun, trigger }) {
     const startedAt = Date.now();
+    const attemptedAt = clock();
+    if (!dryRun) await recordAttempt(projectId, trigger, attemptedAt);
     let result;
     try {
       result = await repository.reconcileProject(projectId, { dryRun, now: clock() });
@@ -93,6 +114,7 @@ export function createTraceabilityAlertService(
         await recordOutcome(
           projectId,
           trigger,
+          attemptedAt,
           String(error?.code || 'TRACEABILITY_ALERTS_RECONCILE_FAILED').slice(0, 64)
         );
       throw error;
@@ -107,7 +129,7 @@ export function createTraceabilityAlertService(
         kept: result.kept,
         durationMs: Date.now() - startedAt
       });
-      await recordOutcome(projectId, trigger);
+      await recordOutcome(projectId, trigger, attemptedAt);
       await notices.dispatchSafely(projectId, trigger);
     }
     return result;
@@ -117,7 +139,7 @@ export function createTraceabilityAlertService(
     GITHUB_SYNC: 'Falha ao reconciliar alertas de rastreabilidade após a sincronização.',
     GITHUB_INTEGRATION:
       'Falha ao reconciliar alertas de rastreabilidade após conectar o repositório.',
-    SCRIPT: 'Falha ao reconciliar os alertas de rastreabilidade de um projeto atrasado.'
+    SCHEDULED: 'Falha ao reconciliar os alertas de rastreabilidade na varredura.'
   };
 
   async function reconcileSafely(projectId, trigger) {
@@ -174,14 +196,18 @@ export function createTraceabilityAlertService(
       return projects;
     },
 
-    async reconcileStaleProjects({ signal = null } = {}) {
-      const projectIds = await repository.findStaleProjectIds();
+    async reconcileScheduledProjects({ signal = null } = {}) {
+      const projectIds = await repository.findProjectsToReconcile(clock());
       const report = { projects: projectIds.length, reconciled: 0, failed: 0 };
+      let done = 0;
       for (const projectId of projectIds) {
         if (signal?.aborted) break;
-        if (await reconcileSafely(projectId, 'SCRIPT')) report.reconciled += 1;
+        if (await reconcileSafely(projectId, 'SCHEDULED')) report.reconciled += 1;
         else report.failed += 1;
+        done += 1;
       }
+      if (done < projectIds.length)
+        Object.assign(report, { interrupted: true, pendingProjects: projectIds.length - done });
       return report;
     },
 
@@ -240,7 +266,7 @@ export function createTraceabilityAlertService(
       const id = Number(projectId);
       const role = await requireMember(id, context.actorUserId);
       return {
-        ...toAlertSummaryDTO({ projectId: id, ...(await repository.summary(id)) }),
+        ...toAlertSummaryDTO({ projectId: id, ...(await repository.summary(id)), now: clock() }),
         permissions: alertPermissions(role)
       };
     },

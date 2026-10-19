@@ -4,6 +4,7 @@ import {
   TASK_ALERT,
   TRACEABILITY_ALERT_TYPES,
   alertLimitations,
+  reconciliationState,
   subjectCode
 } from './traceability-alert.policy.js';
 
@@ -95,14 +96,13 @@ export function toAlertDetailDTO(alert) {
   return { ...toAlertDTO(alert), context: alertContext(alert) };
 }
 
-function toReconciliationDTO(reconciliation) {
-  if (!reconciliation) return null;
-  const { lastTrigger, lastSucceededAt, lastFailedAt } = reconciliation;
+function toReconciliationDTO(reconciliation, now) {
   return {
-    lastSucceededAt,
-    lastFailedAt,
-    lastTrigger,
-    stale: Boolean(lastFailedAt) && (!lastSucceededAt || lastFailedAt > lastSucceededAt)
+    state: reconciliationState(reconciliation, now),
+    lastAttemptAt: reconciliation?.lastAttemptAt ?? null,
+    lastSucceededAt: reconciliation?.lastSucceededAt ?? null,
+    lastFailedAt: reconciliation?.lastFailedAt ?? null,
+    lastTrigger: reconciliation?.lastTrigger ?? null
   };
 }
 
@@ -111,7 +111,8 @@ export function toAlertSummaryDTO({
   open,
   dismissed,
   integrationExists,
-  reconciliation
+  reconciliation,
+  now = new Date()
 }) {
   const byType = Object.fromEntries(TRACEABILITY_ALERT_TYPES.map((type) => [type, 0]));
   for (const row of open) byType[row.type] = row._count._all;
@@ -123,7 +124,7 @@ export function toAlertSummaryDTO({
     },
     dismissed: { total: dismissed },
     rules: { taskWithoutCommitActive: true, integrationConnected: integrationExists },
-    reconciliation: toReconciliationDTO(reconciliation)
+    reconciliation: toReconciliationDTO(reconciliation, now)
   };
 }
 

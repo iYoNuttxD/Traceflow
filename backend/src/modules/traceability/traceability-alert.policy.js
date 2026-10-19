@@ -17,6 +17,56 @@ export const CLOSE_TIME_UNAVAILABLE = 'CLOSE_TIME_UNAVAILABLE';
 
 export const SUBJECT_TITLE_MAX_LENGTH = 256;
 
+export const RECONCILIATION_ATTEMPT_GRACE_MS = 15 * 60_000;
+export const RECONCILIATION_SWEEP_AGE_MS = 24 * 3_600_000;
+export const RECONCILIATION_STALE_AGE_MS = 25 * 3_600_000;
+export const PENDING_FIRST = 'PENDING_FIRST';
+export const STALE = 'STALE';
+export const CURRENT = 'CURRENT';
+
+const timeOf = (value) => (value ? value.getTime() : null);
+
+function unresolvedAttemptAt({ lastAttemptAt, lastSucceededAt, lastFailedAt }) {
+  const attempt = timeOf(lastAttemptAt);
+  const outcome = Math.max(timeOf(lastSucceededAt) ?? -Infinity, timeOf(lastFailedAt) ?? -Infinity);
+  return attempt !== null && attempt > outcome ? attempt : null;
+}
+
+export function reconciliationState(reconciliation, now) {
+  if (!reconciliation?.lastSucceededAt) return PENDING_FIRST;
+  const succeeded = reconciliation.lastSucceededAt.getTime();
+  const failed = timeOf(reconciliation.lastFailedAt);
+  const attempt = unresolvedAttemptAt(reconciliation);
+  if (failed !== null && failed > succeeded) return STALE;
+  if (attempt !== null && now.getTime() - attempt > RECONCILIATION_ATTEMPT_GRACE_MS) return STALE;
+  if (now.getTime() - succeeded > RECONCILIATION_STALE_AGE_MS) return STALE;
+  return CURRENT;
+}
+
+const oldestFirst = (left, right) =>
+  (left.at ?? -Infinity) - (right.at ?? -Infinity) || left.projectId - right.projectId;
+
+export function reconciliationQueue(projects, now) {
+  const groups = [[], [], [], []];
+  for (const { projectId, reconciliation } of projects) {
+    if (!reconciliation) {
+      groups[2].push({ projectId, at: null });
+      continue;
+    }
+    const attempt = unresolvedAttemptAt(reconciliation);
+    const succeeded = timeOf(reconciliation.lastSucceededAt);
+    const failed = timeOf(reconciliation.lastFailedAt);
+    if (attempt !== null && now.getTime() - attempt <= RECONCILIATION_ATTEMPT_GRACE_MS) continue;
+    if (failed !== null && (succeeded === null || failed > succeeded))
+      groups[0].push({ projectId, at: failed });
+    else if (attempt !== null) groups[1].push({ projectId, at: attempt });
+    else if (succeeded === null) groups[2].push({ projectId, at: null });
+    else if (now.getTime() - succeeded > RECONCILIATION_SWEEP_AGE_MS)
+      groups[3].push({ projectId, at: succeeded });
+  }
+  return groups.flatMap((group) => group.sort(oldestFirst).map((entry) => entry.projectId));
+}
+
 export const ALERT_SUBJECTS = Object.freeze({
   [TASK_ALERT]: Object.freeze({ subjectType: 'TASK', foreignKey: 'taskId' }),
   [PULL_REQUEST_ALERT]: Object.freeze({ subjectType: 'PULL_REQUEST', foreignKey: 'pullRequestId' }),

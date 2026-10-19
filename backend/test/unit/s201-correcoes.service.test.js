@@ -7,7 +7,7 @@ function serviceWith(repository) {
   return {
     log,
     alerts: createTraceabilityAlertService(
-      { recordReconciliation: vi.fn(), ...repository },
+      { recordAttempt: vi.fn(), recordReconciliation: vi.fn(), ...repository },
       log,
       () => new Date('2026-10-09T12:00:00.000Z'),
       audit,
@@ -79,15 +79,58 @@ describe('Correções S2-01 — registro da última reconciliação no serviço 
         projectId: 7,
         trigger: 'GITHUB_SYNC',
         at: new Date('2026-10-09T12:00:00.000Z'),
+        attemptedAt: new Date('2026-10-09T12:00:00.000Z'),
         errorCode: null
       },
       {
         projectId: 7,
         trigger: 'GITHUB_INTEGRATION',
         at: new Date('2026-10-09T12:00:00.000Z'),
+        attemptedAt: new Date('2026-10-09T12:00:00.000Z'),
         errorCode: 'X'.repeat(64)
       }
     ]);
+  });
+
+  it('C3-09 a tentativa é gravada antes de reconciliar, numa escrita própria (UX-R3-03)', async () => {
+    const recordAttempt = vi.fn();
+    const reconcileProject = vi.fn().mockResolvedValue({ created: 0, resolved: 0, kept: 0 });
+    const recordReconciliation = vi.fn();
+    const { alerts } = serviceWith({ recordAttempt, reconcileProject, recordReconciliation });
+
+    await alerts.reconcileAfterSync(7);
+
+    expect(recordAttempt).toHaveBeenCalledWith({
+      projectId: 7,
+      trigger: 'GITHUB_SYNC',
+      at: new Date('2026-10-09T12:00:00.000Z')
+    });
+    expect(recordAttempt.mock.invocationCallOrder[0]).toBeLessThan(
+      reconcileProject.mock.invocationCallOrder[0]
+    );
+    expect(reconcileProject.mock.invocationCallOrder[0]).toBeLessThan(
+      recordReconciliation.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('C3-10 falha ao gravar a tentativa só gera log, e a reconciliação segue', async () => {
+    const reconcileProject = vi.fn().mockResolvedValue({ created: 1, resolved: 0, kept: 0 });
+    const { alerts, log } = serviceWith({
+      recordAttempt: vi.fn().mockRejectedValue(Object.assign(new Error('x'), { code: 'P1001' })),
+      reconcileProject
+    });
+
+    await expect(alerts.reconcileAfterSync(7)).resolves.toEqual({
+      created: 1,
+      resolved: 0,
+      kept: 0
+    });
+    expect(log.warn).toHaveBeenCalledWith(expect.any(String), {
+      event: 'traceability_alerts_attempt_record_failed',
+      projectId: 7,
+      trigger: 'GITHUB_SYNC',
+      errorCode: 'P1001'
+    });
   });
 
   it('C3-07 falha ao gravar o registro só gera log e não muda o resultado', async () => {
@@ -111,9 +154,11 @@ describe('Correções S2-01 — registro da última reconciliação no serviço 
     });
   });
 
-  it('C3-08 projeto inativo e dry-run não registram', async () => {
+  it('C3-08 projeto inativo não registra o resultado, e o dry-run não registra nada', async () => {
+    const recordAttempt = vi.fn();
     const recordReconciliation = vi.fn();
     const { alerts } = serviceWith({
+      recordAttempt,
       reconcileProject: vi
         .fn()
         .mockRejectedValueOnce(
@@ -127,5 +172,6 @@ describe('Correções S2-01 — registro da última reconciliação no serviço 
     await alerts.reconcileProject(7, { dryRun: true, trigger: 'SCRIPT' });
 
     expect(recordReconciliation).not.toHaveBeenCalled();
+    expect(recordAttempt).toHaveBeenCalledTimes(1);
   });
 });

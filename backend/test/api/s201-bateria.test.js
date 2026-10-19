@@ -854,10 +854,10 @@ describe('Bateria S2-01 — fim do sync (bloco S)', () => {
 
     expect(status.body.run.status).toBe('SUCCEEDED');
     expect(summary.open.total).toBe(0);
-    expect(summary.reconciliation).toMatchObject({ lastTrigger: 'GITHUB_SYNC', stale: true });
+    expect(summary.reconciliation).toMatchObject({ lastTrigger: 'GITHUB_SYNC', state: 'STALE' });
     const recovered = await expectStatus(reconcile(owner, project.id), 200);
     expect(recovered.body.result.created).toBe(1);
     const healed = (await owner.agent.get(`${base(project.id)}/alerts/summary`)).body;
-    expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', stale: false });
+    expect(healed.reconciliation).toMatchObject({ lastTrigger: 'MANUAL', state: 'CURRENT' });
   });
 });

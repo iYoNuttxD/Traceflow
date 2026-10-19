@@ -26,6 +26,7 @@ export const SCHEDULED_JOBS = Object.freeze([
   {
     name: JOB_NAMES.TRACEABILITY_ALERTS,
     intervalMs: 60 * MINUTE_MS,
-    run: ({ signal }) => traceabilityAlertService.reconcileStaleProjects({ signal })
+    maxRunMs: 10 * MINUTE_MS,
+    run: ({ signal }) => traceabilityAlertService.reconcileScheduledProjects({ signal })
   }
 ]);

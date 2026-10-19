@@ -68,6 +68,7 @@ enum TraceabilityAlertTrigger {
   GITHUB_INTEGRATION
   MANUAL
   SCRIPT
+  SCHEDULED
 }
 
 enum TraceabilityAlertResolution {

@@ -14,6 +14,7 @@ import {
   evaluateIssueAlert,
   evaluatePullRequestAlert,
   evaluateTaskAlert,
+  reconciliationQueue,
   sortAlertCandidates,
   subjectIdFromDedupeKey,
   taskCompletionInstant
@@ -340,20 +341,33 @@ export const traceabilityAlertRepository = {
       prisma.projectGitHubIntegration.findUnique({ where: { projectId }, select: { id: true } }),
       prisma.traceabilityAlertReconciliation.findUnique({
         where: { projectId },
-        select: { lastTrigger: true, lastSucceededAt: true, lastFailedAt: true }
+        select: {
+          lastTrigger: true,
+          lastAttemptAt: true,
+          lastSucceededAt: true,
+          lastFailedAt: true
+        }
       })
     ]);
     return { open, dismissed, integrationExists: Boolean(integration), reconciliation };
   },
 
-  recordReconciliation({ projectId, trigger, at, errorCode = null }) {
+  recordAttempt({ projectId, trigger, at }) {
+    return prisma.traceabilityAlertReconciliation.upsert({
+      where: { projectId },
+      create: { projectId, lastTrigger: trigger, lastAttemptAt: at },
+      update: { lastTrigger: trigger, lastAttemptAt: at }
+    });
+  },
+
+  recordReconciliation({ projectId, trigger, at, attemptedAt = at, errorCode = null }) {
     const outcome = errorCode
       ? { lastFailedAt: at, lastErrorCode: errorCode }
       : { lastSucceededAt: at };
     return prisma.traceabilityAlertReconciliation.upsert({
       where: { projectId },
-      create: { projectId, lastTrigger: trigger, lastAttemptAt: at, ...outcome },
-      update: { lastTrigger: trigger, lastAttemptAt: at, ...outcome }
+      create: { projectId, lastTrigger: trigger, lastAttemptAt: attemptedAt, ...outcome },
+      update: { lastTrigger: trigger, ...outcome }
     });
   },
 
@@ -464,16 +478,23 @@ export const traceabilityAlertRepository = {
     return rows.map((row) => row.id);
   },
 
-  async findStaleProjectIds() {
-    const rows = await prisma.traceabilityAlertReconciliation.findMany({
-      where: { lastFailedAt: { not: null }, project: { deletedAt: null } },
-      select: { projectId: true, lastFailedAt: true, lastSucceededAt: true },
-      orderBy: { projectId: 'asc' }
+  async findProjectsToReconcile(now) {
+    const projects = await prisma.project.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        alertReconciliation: {
+          select: { lastAttemptAt: true, lastSucceededAt: true, lastFailedAt: true }
+        }
+      },
+      orderBy: { id: 'asc' }
     });
-    return rows
-      .filter(
-        ({ lastFailedAt, lastSucceededAt }) => !lastSucceededAt || lastFailedAt > lastSucceededAt
-      )
-      .map(({ projectId }) => projectId);
+    return reconciliationQueue(
+      projects.map((project) => ({
+        projectId: project.id,
+        reconciliation: project.alertReconciliation
+      })),
+      now
+    );
   }
 };

@@ -111,10 +111,11 @@ describe('Correções S2-01 integração — última reconciliação (S201-A05)'
       lastFailedAt: null
     });
     expect(await summaryOf(project.id)).toEqual({
+      state: 'CURRENT',
+      lastAttemptAt: expect.any(Date),
       lastSucceededAt: expect.any(Date),
       lastFailedAt: null,
-      lastTrigger: 'MANUAL',
-      stale: false
+      lastTrigger: 'MANUAL'
     });
   });
 
@@ -131,25 +132,26 @@ describe('Correções S2-01 integração — última reconciliação (S201-A05)'
       lastErrorCode: 'P2034'
     });
     const stale = await summaryOf(project.id);
-    expect(stale).toMatchObject({ stale: true, lastTrigger: 'GITHUB_SYNC' });
+    expect(stale).toMatchObject({ state: 'STALE', lastTrigger: 'GITHUB_SYNC' });
     expect(JSON.stringify(stale)).not.toContain('P2034');
     expect(JSON.stringify(stale)).not.toContain('Título sensível');
 
     await alertService.reconcileManually(project.id, context);
-    expect(await summaryOf(project.id)).toMatchObject({ stale: false, lastTrigger: 'MANUAL' });
+    expect(await summaryOf(project.id)).toMatchObject({ state: 'CURRENT', lastTrigger: 'MANUAL' });
   });
 
-  it('C3-03 só há falha registrada: o resumo marca desatualização', async () => {
+  it('C3-03 só há falha registrada: o resumo diz que as inconsistências ainda não foram calculadas', async () => {
     const { project } = await scenario();
     injectFailure();
 
     await alertService.reconcileAfterIntegration(project.id);
 
     expect(await summaryOf(project.id)).toEqual({
+      state: 'PENDING_FIRST',
+      lastAttemptAt: expect.any(Date),
       lastSucceededAt: null,
       lastFailedAt: expect.any(Date),
-      lastTrigger: 'GITHUB_INTEGRATION',
-      stale: true
+      lastTrigger: 'GITHUB_INTEGRATION'
     });
   });
 
@@ -166,7 +168,13 @@ describe('Correções S2-01 integração — última reconciliação (S201-A05)'
     });
 
     expect(await recordOf(project.id)).toBeNull();
-    expect(await summaryOf(project.id)).toBeNull();
+    expect(await summaryOf(project.id)).toEqual({
+      state: 'PENDING_FIRST',
+      lastAttemptAt: null,
+      lastSucceededAt: null,
+      lastFailedAt: null,
+      lastTrigger: null
+    });
   });
 
   it('C3-05 a purga do projeto remove o registro', async () => {

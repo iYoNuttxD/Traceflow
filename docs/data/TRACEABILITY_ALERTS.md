@@ -117,6 +117,12 @@ Toda reconciliação começa por `lockActiveProject`, o mesmo primeiro lock dos 
 Dentro de cada grupo, a ordem é a do instante mais antigo e, depois, a do id do projeto. O sinal de
 parada é conferido antes de cada projeto (ADR-024 D7).
 
+- A falha sem nenhum sucesso registrado entra no grupo 1.
+- Projeto com tentativa sem resultado há 15 minutos ou menos fica fora da varredura: a tentativa
+  pode estar em andamento.
+- O relatório da execução traz `projects`, `reconciled` e `failed`; interrompido, traz também
+  `interrupted: true` e `pendingProjects`.
+
 Na varredura do projeto, entram dois conjuntos: os sujeitos que satisfazem cada condição e os
 sujeitos com alerta ativo. As criações são ordenadas por `occurredAt` ascendente (nulos primeiro)
 e depois por id do sujeito.

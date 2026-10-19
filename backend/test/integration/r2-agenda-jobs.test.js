@@ -227,7 +227,7 @@ describe('TF-REV-006 — jobs agendados no worker (ADR-024 D7)', () => {
     await runner.stop();
   });
 
-  it('J-07 a reconciliação atrasada roda só nos projetos cuja última reconciliação falhou', async () => {
+  it('J-07 a varredura reconcilia o projeto cuja última reconciliação falhou, com o gatilho SCHEDULED, e deixa o atualizado', async () => {
     const stale = await createProject(prisma);
     const healthy = await createProject(prisma);
     const failedAt = new Date(Date.now() - 30 * MINUTE_MS);
@@ -263,7 +263,9 @@ describe('TF-REV-006 — jobs agendados no worker (ADR-024 D7)', () => {
       orderBy: { projectId: 'asc' },
       select: { projectId: true, lastTrigger: true, lastSucceededAt: true }
     });
-    expect(rows.find((row) => row.projectId === stale.id)).toMatchObject({ lastTrigger: 'SCRIPT' });
+    expect(rows.find((row) => row.projectId === stale.id)).toMatchObject({
+      lastTrigger: 'SCHEDULED'
+    });
     expect(
       rows.find((row) => row.projectId === stale.id).lastSucceededAt.getTime()
     ).toBeGreaterThan(failedAt.getTime());
