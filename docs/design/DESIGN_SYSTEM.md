@@ -1140,9 +1140,12 @@ Substitui a página `/notifications`, que redireciona para `/projects` com o pai
   acessível leva a contagem ("Notificações, 3 não lidas"); o selo continua oculto em zero e com
   "99+" acima de 99. No celular, o sino fica na barra superior, com o ponto de não lidas.
 - **Forma.** Gaveta de até 400 px que abre colada à navegação lateral, perto do sino: começa na
-  borda da sidebar expandida ou recolhida (UX-R2-04, segunda revisão do PR #26, 17/10/2026). O
-  overlay cobre o resto da tela, inclusive a sidebar, que fica `inert`. Até 720 px, ocupa a tela
-  inteira.
+  borda da sidebar expandida ou recolhida (UX-R2-04, segunda revisão do PR #26, 17/10/2026). Desde
+  18/10/2026 (UX-R3-01), o overlay escurece só a área principal: começa no mesmo deslocamento da
+  gaveta (`--notifications-panel-offset`, definido na camada), e a sidebar fica com as cores
+  normais, com o sino destacado por `aria-expanded`. A sidebar continua `inert`; sobre ela, uma
+  faixa transparente da camada recebe o clique e fecha o painel sem navegar, como o clique fora. Até
+  720 px, o deslocamento é zero: a gaveta e o overlay ocupam a tela inteira.
   Fica num portal fora do `main` e entra na pilha do `useDialogLayer`, para o Escape fechar a
   camada certa. Contém o foco, deixa o shell `inert` e trava a rolagem do `body`. O foco inicial vai
   para o título e volta ao sino ao fechar. O `Tab` e o `Shift+Tab` tratam como borda o foco que está

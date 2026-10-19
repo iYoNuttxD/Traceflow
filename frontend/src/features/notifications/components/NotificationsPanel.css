@@ -1,17 +1,29 @@
 .notifications-panel-layer {
+  --notifications-panel-offset: var(--layout-sidebar-expanded);
   position: fixed;
   z-index: var(--z-modal);
   inset: 0;
 }
 
+.notifications-panel-layer[data-sidebar-state='collapsed'] {
+  --notifications-panel-offset: var(--layout-sidebar-collapsed);
+}
+
+.notifications-panel__menu-shield {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--notifications-panel-offset);
+}
+
 .notifications-panel__backdrop {
   position: absolute;
-  inset: 0;
+  inset: 0 0 0 var(--notifications-panel-offset);
   background: var(--color-overlay);
 }
 
 .notifications-panel {
-  --notifications-panel-offset: var(--layout-sidebar-expanded);
   position: absolute;
   top: 0;
   bottom: 0;
@@ -23,10 +35,6 @@
   color: var(--color-text-primary);
   background: var(--color-surface-elevated);
   box-shadow: var(--shadow-md);
-}
-
-.notifications-panel-layer[data-sidebar-state='collapsed'] .notifications-panel {
-  --notifications-panel-offset: var(--layout-sidebar-collapsed);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -43,9 +51,12 @@
 }
 
 @media (max-width: 720px) {
-  .notifications-panel,
-  .notifications-panel-layer[data-sidebar-state='collapsed'] .notifications-panel {
+  .notifications-panel-layer,
+  .notifications-panel-layer[data-sidebar-state='collapsed'] {
     --notifications-panel-offset: 0px;
+  }
+
+  .notifications-panel {
     border-right: 0;
   }
 }

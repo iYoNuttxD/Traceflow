@@ -229,11 +229,12 @@ describe('UX-R2-04 — painel pela esquerda e preferências no painel', () => {
 
     const css = readFileSync(PANEL_CSS, 'utf8');
     const block = css.match(/\.notifications-panel \{[^}]*\}/)[0];
+    const layer = css.match(/\.notifications-panel-layer \{[^}]*\}/)[0];
     expect(block).toMatch(/left: var\(--notifications-panel-offset\);/);
-    expect(block).toMatch(/--notifications-panel-offset: var\(--layout-sidebar-expanded\);/);
     expect(block).not.toMatch(/right: 0/);
+    expect(layer).toMatch(/--notifications-panel-offset: var\(--layout-sidebar-expanded\);/);
     expect(css).toMatch(
-      /\[data-sidebar-state='collapsed'\] \.notifications-panel \{\s*--notifications-panel-offset: var\(--layout-sidebar-collapsed\);/
+      /\.notifications-panel-layer\[data-sidebar-state='collapsed'\] \{\s*--notifications-panel-offset: var\(--layout-sidebar-collapsed\);/
     );
     expect(css).toMatch(/@media \(max-width: 720px\) \{[^@]*--notifications-panel-offset: 0px;/);
   });
@@ -312,5 +313,95 @@ describe('UX-R2-04 — painel pela esquerda e preferências no painel', () => {
       'aria-hidden',
       'true'
     );
+  });
+});
+
+describe('UX-R3-01 — o painel escurece só a área principal', () => {
+  const layer = () => panel().closest('.notifications-panel-layer');
+  const panelCss = () => readFileSync(PANEL_CSS, 'utf8');
+  const escaped = (text) => text.replace(/[.()[\]]/g, (character) => `\\${character}`);
+  const ruleOf = (selector) =>
+    panelCss().match(new RegExp(`\\n${escaped(selector)} \\{[^}]*\\}`))?.[0] ?? '';
+
+  it('M-01 o fundo começa no deslocamento do menu expandido, e o menu fica sem escurecer', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await openPanel(user);
+
+    expect(layer()).toHaveAttribute('data-sidebar-state', 'expanded');
+    expect(panelCss().match(/^\.notifications-panel-layer \{[^}]*\}/)[0]).toMatch(
+      /--notifications-panel-offset: var\(--layout-sidebar-expanded\);/
+    );
+    expect(ruleOf('.notifications-panel__backdrop')).toMatch(
+      /inset: 0 0 0 var\(--notifications-panel-offset\);/
+    );
+    const shield = ruleOf('.notifications-panel__menu-shield');
+    expect(shield).toMatch(/left: 0;[\s\S]*width: var\(--notifications-panel-offset\);/);
+    expect(shield).not.toMatch(/background/);
+    expect(layer().querySelector('.notifications-panel__menu-shield')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
+  });
+
+  it('M-02 com o menu recolhido, o fundo começa no deslocamento do menu recolhido', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByRole('button', { name: 'Recolher sidebar' }));
+    await openPanel(user);
+
+    expect(layer()).toHaveAttribute('data-sidebar-state', 'collapsed');
+    expect(ruleOf(".notifications-panel-layer[data-sidebar-state='collapsed']")).toMatch(
+      /--notifications-panel-offset: var\(--layout-sidebar-collapsed\);/
+    );
+  });
+
+  it('M-03 o diálogo continua modal: aria-modal, shell inerte e foco preso', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await openPanel(user);
+    const shell = document.querySelector('.trace-shell');
+
+    expect(panel()).toHaveAttribute('aria-modal', 'true');
+    expect(shell.inert).toBe(true);
+    expect(shell.contains(panel())).toBe(false);
+    focusables().at(-1).focus();
+    await user.tab();
+    expect(document.activeElement).toBe(focusables()[0]);
+  });
+
+  it('M-04 o clique sobre o menu fecha o painel sem navegar e devolve o foco ao sino', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await openPanel(user);
+
+    await user.click(layer().querySelector('.notifications-panel__menu-shield'));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Notificações' })).not.toBeInTheDocument()
+    );
+    expect(document.activeElement).toBe(bell());
+    expect(screen.getByText('Página de projetos')).toBeInTheDocument();
+    expect(document.querySelector('.trace-shell').inert).toBe(false);
+  });
+
+  it('M-05 o sino fica com aria-expanded="true" enquanto o painel está aberto', async () => {
+    const user = userEvent.setup();
+    renderShell();
+
+    expect(bell()).toHaveAttribute('aria-expanded', 'false');
+    await openPanel(user);
+    expect(bell()).toHaveAttribute('aria-expanded', 'true');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(bell()).toHaveAttribute('aria-expanded', 'false'));
+  });
+
+  it('M-06 no celular o deslocamento é zero: o fundo cobre a tela e a faixa do menu some', () => {
+    const mobile = panelCss().match(/@media \(max-width: 720px\) \{([\s\S]*?)\n\}/)[1];
+
+    expect(mobile).toMatch(
+      /\.notifications-panel-layer,\s*\.notifications-panel-layer\[data-sidebar-state='collapsed'\] \{\s*--notifications-panel-offset: 0px;\s*\}/
+    );
+    expect(mobile).toMatch(/\.notifications-panel \{\s*border-right: 0;\s*\}/);
   });
 });

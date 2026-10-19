@@ -206,6 +206,11 @@ export function NotificationsPanel({ onClose, sidebarState = 'expanded' }) {
 
   return createPortal(
     <div className="notifications-panel-layer" data-sidebar-state={sidebarState}>
+      <div
+        className="notifications-panel__menu-shield"
+        aria-hidden="true"
+        onClick={() => onClose()}
+      />
       <div className="notifications-panel__backdrop" aria-hidden="true" onClick={() => onClose()} />
       <section
         ref={panelRef}
