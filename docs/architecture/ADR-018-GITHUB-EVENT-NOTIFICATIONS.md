@@ -57,19 +57,22 @@ Restrições do terreno:
      código interno do Prisma fica só no log.
 2. **Eventos (D2).**
    - Issue: `closed` vira `ISSUE_CLOSED` e `reopened` vira `ISSUE_REOPENED`, com a data do GitHub.
-   - PR: `merged` vira `PULL_REQUEST_MERGED`; `closed` vira `PULL_REQUEST_CLOSED`, salvo quando está a
-     até 5 s do `merged` da mesma PR, caso em que faz parte do merge.
+   - PR: `merged` vira `PULL_REQUEST_MERGED`; `closed` vira `PULL_REQUEST_CLOSED`, salvo quando é o
+     fechamento par do merge: a até 5 s do `merged` da mesma PR e sem `reopened` entre os dois na
+     sequência (ADR-023 D5, revisto em 18/10/2026).
    - Não geram: reabertura de PR e qualquer outro tipo de evento do GitHub.
    - A tabela completa está em [GITHUB_EVENT_NOTIFICATIONS.md](../data/GITHUB_EVENT_NOTIFICATIONS.md).
-3. **Abertura no RF60 (D3).** Desde 17/10/2026, são duas:
-   - `ISSUE_REOPENED`, a reabertura de uma issue vinculada;
-   - `ISSUE_OPENED`, registrado quando uma issue **aberta** passa a estar vinculada a uma tarefa, com
-     a data de criação no GitHub. É uma vez por par (issue, tarefa), e issue fechada no instante do
-     vínculo não gera abertura (ADR-023 D6).
+3. **Abertura no RF60 (D3).** Desde 17/10/2026, são duas formas, separadas na métrica desde
+   18/10/2026:
+   - `ISSUE_REOPENED`, a reabertura de uma issue vinculada, evento do ciclo de vida;
+   - `ISSUE_LINKED`, a associação: registrada quando uma issue **aberta** passa a estar vinculada a
+     uma tarefa, com o instante do vínculo. É uma vez por par (issue, tarefa), e issue fechada no
+     instante do vínculo não gera associação (ADR-023 D6).
 
-   Fundamento: o RF12 (Quadro 3-29) só vincula issue importada, então a abertura de uma issue
-   vinculada só é conhecida quando o vínculo nasce. Até 17/10/2026, só a reabertura contava; a
-   segunda revisão pediu contrato explícito para a abertura.
+   Fundamento: o TraceFlow não cria issues, e o RF12 (Quadro 3-29) só vincula issue importada. A
+   abertura de uma issue que já está vinculada não acontece; o que existe é a reabertura e o vínculo
+   de uma issue aberta. Até 17/10/2026, só a reabertura contava; a segunda revisão pediu contrato
+   explícito para a abertura, e a terceira, que o vínculo não fosse apresentado como abertura.
 4. **Vínculo (D4).** Vale o vínculo no instante do evento: as tarefas cujo período de vínculo
    (`TaskArtifactLinkPeriod`) contém o `created_at` do GitHub, gravadas com o evento (ADR-023 D4).
    Artefato sem tarefa vinculada naquele instante não gera evento: é o alerta do S2-01 (ADR-015).
@@ -271,4 +274,15 @@ abertura não tinha contrato. O João aprovou as recomendações em 17/10/2026
 | TF-REV-002 | `ISSUE_OPENED` no vínculo de issue aberta (D3) |
 | TF-REV-002 | vínculo no instante do evento, pelos períodos de vínculo (D4) |
 | TF-REV-002 | cobertura total calculada no trecho coberto, com as lacunas antes e depois (D14) |
+
+## Revisão de 18/10/2026 — terceira revisão independente
+
+O João aprovou as recomendações em 18/10/2026 (`PR26_PROMPT_CORRECOES_REVISAO_3.md`, não
+versionado):
+
+| Achado | Decisão |
+| --- | --- |
+| TF-REV-014 | o `closed` só é absorvido pelo merge quando é o fechamento par dele, pela sequência dos eventos (D2; ADR-023 D5) |
+| TF-REV-002 | o `ISSUE_OPENED` vira `ISSUE_LINKED`, a associação, com o instante do vínculo e contagem à parte (D3; ADR-023 D6) |
+| TF-REV-002 | cobertura presumida e conferência da aquisição pelo retrato (D14; ADR-023 D7 e D8) |
 

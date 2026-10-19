@@ -1,8 +1,9 @@
 # ADR-015 — Alertas de inconsistência de rastreabilidade
 
 - **Estado:** aceita para o cartão S2-01 (RF13, RF39, RF40, RF58)
-- **Data:** 07/10/2026; revisões em 09/10/2026 (correções da campanha de testes) e em 15/10/2026
-  (revisão independente da PR #26), ver as seções de revisão no fim
+- **Data:** 07/10/2026; revisões em 09/10/2026 (correções da campanha de testes), em 15/10/2026
+  (revisão independente da PR #26) e em 18/10/2026 (terceira revisão), ver as seções de revisão no
+  fim
 - **Responsáveis:** João Vitor S. Hernandes
 
 ## Contexto
@@ -70,16 +71,21 @@ Restrições do terreno que moldam a decisão:
      o resultado do sync;
    - depois de conectar o repositório ao projeto (`GITHUB_INTEGRATION`), em transação própria e sem
      desfazer a conexão;
-   - no reprocessamento manual (MANAGER+);
+   - na varredura do worker (`SCHEDULED`), a cada 60 minutos, desde 18/10/2026 (ADR-024 D7);
+   - no reprocessamento manual (MANAGER+), pela API, para suporte;
    - num script operacional com dry-run.
 
    Os alertas de PR e de issue criados por qualquer gatilho entram na fila de avisos (ADR-022). O
    despacho roda depois da transação, nunca dentro dela.
 
-   As reconciliações do projeto inteiro (sync, conexão, manual e script) registram o resultado da
-   última execução, de sucesso ou de falha. A tela avisa quando os alertas podem estar
-   desatualizados. A reconciliação de mutação não registra: se ela falha, a mutação inteira é
-   desfeita.
+   As reconciliações do projeto inteiro (sync, conexão, varredura, manual e script) gravam a
+   tentativa antes de começar e o resultado no fim, de sucesso ou de falha. A tela avisa quando os
+   alertas ainda não foram calculados ou podem estar desatualizados. A reconciliação de mutação não
+   registra: se ela falha, a mutação inteira é desfeita.
+
+   **Atualização interna (18/10/2026, UX-R3-03).** A interface não oferece mais o reprocessamento:
+   a varredura alcança todo projeto ativo pelo menos a cada 25 h e retoma as falhas, inclusive a
+   que não chegou a ser registrada. O endpoint e o comando continuam para suporte.
 6. **Dispensa.** MANAGER+ pode dispensar um alerta aberto, com justificativa de 10 a 500
    caracteres Unicode (code points, contados depois do `trim`). O alerta dispensado continua
    segurando a chave enquanto a condição persistir.
@@ -111,8 +117,11 @@ Restrições do terreno que moldam a decisão:
   ocorrências anteriores e exigiria uma tabela de eventos à parte.
 - **Deduplicação no código.** Rejeitada: duas reconciliações concorrentes poderiam criar dois
   ativos. O índice único é a garantia; o lock do projeto é a primeira barreira.
-- **Detecção só por varredura periódica.** Rejeitada: não há scheduler no produto, e o alerta da
-  tarefa ficaria atrasado em relação à mutação que o causou.
+- **Detecção só por varredura periódica.** Rejeitada: o alerta da tarefa ficaria atrasado em
+  relação à mutação que o causou. Desde 18/10/2026, a varredura do worker complementa os gatilhos,
+  sem substituí-los.
+- **Manter o botão "Reprocessar" na interface (até 18/10/2026).** Rejeitada na terceira revisão
+  (UX-R3-03): a atualização é responsabilidade do sistema, e o aviso mandava a pessoa clicar.
 - **Uma 12ª aba "Alertas".** Rejeitada: a navegação do projeto é uma decisão de produto pinada por
   teste.
 - **Sub-navegação com páginas próprias de alertas e de tarefas sem vínculo (versão de 07/10/2026).**
@@ -184,4 +193,14 @@ e as decisões estão incorporadas no texto acima:
 | TF-REV-002 | RF13 sem integração obrigatória e RF39/RF40 sem corte temporal (D2); issue sem data de fechamento com `CLOSE_TIME_UNAVAILABLE` |
 | TF-REV-008, UX-D01 | consulta contextual no lugar das páginas próprias (D7) |
 | TF-REV-008, UX-D03 | aviso por pessoa para os alertas de PR e de issue, com leitura individual (D1 e ADR-022) |
+
+## Revisão de 18/10/2026 — terceira revisão independente da PR #26
+
+O João aprovou as recomendações em 18/10/2026
+([PR26_PROMPT_CORRECOES_REVISAO_3.md](../issues/PR26_PROMPT_CORRECOES_REVISAO_3.md), não
+versionado):
+
+| Achado | Decisão |
+| --- | --- |
+| UX-R3-03 | o botão "Reprocessar" sai da interface; a varredura do worker (`SCHEDULED`) alcança todo projeto ativo, a tentativa é gravada antes, e o resumo diz `PENDING_FIRST`, `STALE` ou `CURRENT` sem zero falso (D5; [Traceability Alerts](../data/TRACEABILITY_ALERTS.md)) |
 

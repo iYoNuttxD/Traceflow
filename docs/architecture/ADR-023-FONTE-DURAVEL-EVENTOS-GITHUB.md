@@ -1,9 +1,12 @@
 # ADR-023 — Fonte durável dos eventos de issues e pull requests
 
-- **Estado:** aceita em 17/10/2026 pelo João, com o aval das recomendações do
-  `PR26_PROMPT_CORRECOES_REVISAO_2.md` (não versionado). Substitui a proposta de 15/10/2026, que a
-  segunda revisão independente da PR #26 criticou.
-- **Data:** 15/10/2026 (proposta); 17/10/2026 (revisão e aceite)
+- **Estado:** aceita pelo autor (João) em 17/10/2026, com o aval das recomendações do
+  `PR26_PROMPT_CORRECOES_REVISAO_2.md` (não versionado), e revista em 18/10/2026 depois da terceira
+  revisão independente (`PR26_PROMPT_CORRECOES_REVISAO_3.md`, não versionado). A aprovação
+  arquitetural do Daniel está pendente e não é presumida. Substitui a proposta de 15/10/2026, que a
+  segunda revisão criticou.
+- **Data:** 15/10/2026 (proposta); 17/10/2026 (revisão e aceite do autor); 18/10/2026 (revisão pela
+  terceira revisão: TF-REV-014 e o restante do TF-REV-002)
 - **Responsáveis:** João Vitor S. Hernandes
 - **Relação:** revê o [ADR-018](ADR-018-GITHUB-EVENT-NOTIFICATIONS.md) (D1 a D4 e D14) e respeita o
   [ADR-021](ADR-021-GRAVACAO-POR-DIFERENCA.md) (gravação por diferença)
@@ -53,7 +56,8 @@ de novo. O parecer pediu:
    - Nada depende da ordem da listagem: a leitura é completa e a deduplicação é pelo id.
 2. **Identidade estável (D2).**
    - A chave de ocorrência de um evento lido do GitHub é `gh:<providerEventId>`.
-   - A da abertura (D6) é `opened:<id da issue>:task:<id da tarefa>`.
+   - A da associação (D6) é `linked:<id da issue>:task:<id da tarefa>`. Até 18/10/2026 era
+     `opened:`, e a migration do D6 converte as linhas antigas.
 3. **Evento independente do retrato (D3).**
    - O registro do GitHub e o evento de notificação que ele gera (com as tarefas alvo) persistem na
      mesma transação, com a trava do projeto.
@@ -70,28 +74,50 @@ de novo. O parecer pediu:
      (`linkedAt ≤ ocorrência < unlinkedAt`).
    - **Carga inicial.** Issue: `TaskIssue.createdAt`. PR: o instante da migration, porque o vínculo
      antigo de PR não tem data (aproximação declarada).
-5. **Merge e fechamento (D5).**
-   - O `closed` da mesma PR com até 5 s de diferença do `merged` faz parte do merge. Conta só
-     `PULL_REQUEST_MERGED`. A regra vale com ou sem esse `closed`.
+5. **Merge e fechamento (D5).** Revisto em 18/10/2026 (TF-REV-014): a proximidade no tempo, sozinha,
+   não prova que o `closed` é o do merge. Um `closed` de PR só faz parte do merge quando é o
+   fechamento par dele:
+   - existe `merged` da mesma PR a até 5 s;
+   - nenhum `reopened` da mesma PR está entre os dois na sequência: o instante e, no mesmo segundo,
+     o `id` do evento no GitHub, comparado como número;
+   - cada `merged` absorve no máximo um `closed`, o mais próximo.
+
+   Quando o merge só aparece no retrato da PR (`mergedAtGithub`, sem evento), o intervalo é fechado
+   nas duas pontas: um `reopened` no mesmo segundo impede a absorção, e o fechamento sai como aviso.
+   A política lê o histórico gravado da PR na janela, inclusive o de sincronizações anteriores.
    - A reabertura de PR continua fora do RF61.
    - Na issue, `closed` vira `ISSUE_CLOSED` e `reopened` vira `ISSUE_REOPENED`, com a data real.
-6. **Abertura no RF60 (D6).**
+6. **Associação de issue aberta no RF60 (D6).** Revisto em 18/10/2026 (TF-REV-002): vincular e abrir
+   são fatos diferentes.
+   - **Interpretação.** O TraceFlow não cria issues no GitHub; ele só lista issues e eventos. "Uma
+     issue vinculada a ela for aberta" acontece aqui de duas formas: a reabertura (`ISSUE_REOPENED`,
+     evento do ciclo de vida) e o vínculo de uma issue que já está aberta, que é a associação.
    - Quando uma issue **aberta** passa a estar vinculada a uma tarefa, a transação do vínculo
-     registra `ISSUE_OPENED`, com a data de criação no GitHub, e o despacho avisa os envolvidos.
+     registra `ISSUE_LINKED`, com o instante do vínculo, e o despacho avisa os envolvidos. A data de
+     criação da issue no GitHub fica só como contexto.
    - É uma vez por par (issue, tarefa): desvincular e vincular de novo não repete.
-   - Issue fechada no instante do vínculo não gera abertura.
-   - Fundamento: o RF12 só vincula issue importada. A abertura de uma issue vinculada só pode ser
-     conhecida quando o vínculo nasce, e é nesse instante que ela vira evento da tarefa.
+   - Issue fechada no instante do vínculo não gera associação.
+   - A métrica separa a associação do ciclo de vida (D8).
+   - Até 18/10/2026, o evento se chamava `ISSUE_OPENED` e levava a data de criação. Uma migration
+     converte as linhas antigas: o tipo, a chave e o instante, que passa a ser o `detectedAt`.
 7. **Corte e cobertura (D7).** `GitHubEventCoverage`, uma linha por projeto:
    - `coverageFrom`: o instante da migration para as integrações existentes; o da primeira leitura
      para as novas. Evento anterior não gera aviso. Assim, conectar um repositório não avisa o
      histórico, e os eventos gravados antes pela comparação de estado não se duplicam.
-   - `completeThrough`: o início da última leitura completa, menos 5 minutos de margem para a
-     consistência eventual do GitHub. Só anda quando todas as páginas foram lidas e gravadas.
+   - `completeThrough`: o início da última leitura completa, menos 5 minutos de margem. Só anda
+     quando todas as páginas foram lidas e gravadas.
+   - **Cobertura presumida (18/10/2026).** A margem de 5 minutos é hipótese operacional para a
+     consistência eventual do GitHub, que não garante a completude da listagem. A métrica declara a
+     cobertura como presumida e confere a aquisição (D8).
 8. **Métrica (D8).** Por projeto e período ([NOTIFICATION_METRICS.md](../data/NOTIFICATION_METRICS.md)):
    - trecho antes de `coverageFrom`: lacuna `FONTE_POR_COMPARACAO_DE_ESTADO`;
    - trecho depois de `completeThrough`: lacuna `LACUNA_DE_AQUISICAO`;
-   - período inteiro coberto: cobertura total calculada.
+   - **conferência da aquisição (18/10/2026):** PR ou issue vinculada cujo retrato (`mergedAtGithub`
+     ou `closedAtGithub`) cai no trecho coberto, sem o evento correspondente gravado, também é
+     `LACUNA_DE_AQUISICAO`, com o artefato e o instante;
+   - período inteiro coberto e sem lacuna: cobertura total calculada, rotulada como presumida;
+   - o RF60 conta o ciclo de vida (`ISSUE_CLOSED` e `ISSUE_REOPENED`); a associação
+     (`ISSUE_LINKED`) sai à parte, em `RF60_ASSOCIACAO`, com o mesmo cálculo.
 9. **Custo (D9).** Nenhuma requisição nova: a paginação já era feita para os indicadores. Por evento
    novo de artefato vinculado, uma linha de evento e uma por tarefa alvo.
 
@@ -111,6 +137,11 @@ de novo. O parecer pediu:
 - **Só `Task.pullRequestLinkedAt`.** Rejeitada: não cobre desvincular e vincular de novo.
 - **Abertura só como reabertura (ADR-018 D3 anterior).** Rejeitada: o parecer pediu contrato
   explícito para a abertura, e o João pediu aderência literal ao TCC.
+- **`ISSUE_OPENED` com a data de criação (17/10/2026).** Revista em 18/10/2026: misturava o vínculo
+  com a abertura no texto e na métrica, e contava a associação no período da criação da issue.
+- **Deixar de avisar a associação.** Rejeitada: perde o aviso que a segunda rodada aprovou.
+- **`commit_id` do `closed` e do `merged` para identificar o fechamento do merge.** Rejeitada:
+  exigiria gravar o campo e depende de um comportamento do GitHub que a documentação não garante.
 
 ## Consequências positivas
 
@@ -119,7 +150,9 @@ de novo. O parecer pediu:
 - O total de eventos ocorridos fica conhecido no período coberto, e a cobertura total pode ser
   calculada.
 - Falha temporária não perde evento: a leitura seguinte relê tudo.
-- A abertura tem contrato.
+- A associação tem contrato, instante e contagem próprios, separados do ciclo de vida.
+- O fechamento distinto de uma PR reaberta e mesclada não se perde.
+- A métrica diz que a cobertura é presumida e mostra o artefato quando a aquisição falha.
 
 ## Consequências negativas
 
@@ -127,10 +160,11 @@ de novo. O parecer pediu:
   os indicadores.
 - **Atraso.** O aviso chega na sincronização seguinte, como antes.
 - **Vínculos antigos de PR.** Valem a partir da migration.
-- **Data do aviso de abertura.** A abertura é avisada no vínculo, com a data de criação no GitHub,
-  que é anterior.
-- **Migrations.** Três novas: períodos de vínculo, eventos de issue com a cobertura, e o valor
-  `ISSUE_OPENED`.
+- **Associação.** O aviso de issue aberta vinculada nasce no vínculo, e a sua contagem fica fora do
+  percentual do ciclo de vida.
+- **Migrations.** Quatro: períodos de vínculo, eventos de issue com a cobertura, o valor
+  `ISSUE_OPENED` (17/10/2026) e a troca dele por `ISSUE_LINKED` (18/10/2026).
+- **Conferência da aquisição.** Uma consulta a mais por projeto no cálculo da métrica.
 - **Código do Daniel.** O mapper, o cliente, a etapa das PRs e a orquestração da sincronização mudam.
 
 ## Impactos de segurança e privacidade
@@ -148,5 +182,15 @@ de novo. O parecer pediu:
 | Identidade estável | `gh:<providerEventId>` (D2) |
 | Paginação completa | leitura de todas as páginas, sem depender da ordem (D1) |
 | Data real do vínculo | `TaskArtifactLinkPeriod` (D4) |
-| Abertura com contrato explícito | `ISSUE_OPENED` no vínculo (D6) |
+| Abertura com contrato explícito | associação `ISSUE_LINKED` no vínculo, desde 18/10/2026 (D6) |
 | Indisponibilidade explícita até haver evidência completa | cobertura por período, com as duas lacunas (D7, D8) |
+
+## Resposta à terceira revisão
+
+| Ponto do parecer | Resposta |
+| --- | --- |
+| TF-REV-014: a janela de 5 s elimina um fechamento real | o fechamento só é absorvido quando é o par do merge, pela sequência e sem reabertura entre os dois (D5) |
+| Vincular e abrir são fatos distintos | `ISSUE_LINKED` com o instante do vínculo, texto próprio e contagem em `RF60_ASSOCIACAO` (D6, D8) |
+| A margem de 5 min é hipótese, não garantia do GitHub | cobertura declarada presumida e conferência da aquisição pelo retrato (D7, D8) |
+| Leitura completa: custo cresce com o repositório | ensaio local com 10 mil e 50 mil eventos, no relatório da rodada; o ensaio no Always Free fica para a homologação |
+| Preservar o núcleo da fonte durável | eventos gravados, destinos atômicos e períodos de vínculo não mudam |

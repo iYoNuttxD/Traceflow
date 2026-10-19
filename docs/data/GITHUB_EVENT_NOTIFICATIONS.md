@@ -16,17 +16,25 @@ Revisto em 17/10/2026 (segunda revisão independente):
 - a cobertura total é calculada no trecho coberto;
 - o despacho é retomado pelo worker a cada 5 minutos.
 
+Revisto em 18/10/2026 (terceira revisão independente):
+- o `closed` só é absorvido pelo merge quando é o fechamento par dele (ADR-023 D5);
+- a associação de issue aberta (`ISSUE_LINKED`) substitui o `ISSUE_OPENED`, com o instante do vínculo
+  e contagem à parte (ADR-023 D6);
+- a cobertura é presumida, e a métrica confere a aquisição pelo retrato (ADR-023 D7 e D8);
+- o despacho do worker não reivindica evento depois do sinal de parada (ADR-024 D7).
+
 ## Tipos e eventos
 
 | Tipo da notificação | RF | Eventos | Quando nasce |
 | --- | --- | --- | --- |
-| `ISSUE_EVENT` | RF60 | `ISSUE_OPENED`, `ISSUE_CLOSED`, `ISSUE_REOPENED` | no despacho de um evento de issue vinculada |
+| `ISSUE_EVENT` | RF60 | `ISSUE_LINKED`, `ISSUE_CLOSED`, `ISSUE_REOPENED` | no despacho de um evento de issue vinculada |
 | `PULL_REQUEST_EVENT` | RF61 | `PULL_REQUEST_MERGED`, `PULL_REQUEST_CLOSED` | no despacho de um evento de PR vinculada |
 
-A "abertura" do RF60 tem duas formas:
-- `ISSUE_REOPENED`: a reabertura de uma issue vinculada;
-- `ISSUE_OPENED`: a issue **aberta** que passa a estar vinculada a uma tarefa. O RF12 só vincula issue
-  importada, então a abertura só é conhecida quando o vínculo nasce (ADR-018 D3).
+A "abertura" do RF60 tem duas formas, contadas em separado:
+- `ISSUE_REOPENED`: a reabertura de uma issue vinculada, evento do ciclo de vida;
+- `ISSUE_LINKED`: a associação, quando uma issue **aberta** passa a estar vinculada a uma tarefa. O
+  TraceFlow não cria issues, e o RF12 só vincula issue importada: a abertura de uma issue que já está
+  vinculada não acontece (ADR-018 D3, ADR-023 D6).
 
 A abertura e a reabertura de PR não fazem parte do RF61 e não geram evento.
 
@@ -51,8 +59,16 @@ completa e a deduplicação é pelo id do GitHub.
 | `reopened` | PR | `PullRequestLifecycleEvent` | nenhum | — |
 | qualquer outro | qualquer | nenhum | nenhum | — |
 
-- **Merge.** O `closed` da mesma PR com até 5 s de diferença do `merged` faz parte do merge e não
-  vira `PULL_REQUEST_CLOSED`. A regra funciona com ou sem esse `closed`.
+- **Merge.** O `closed` só faz parte do merge, e não vira `PULL_REQUEST_CLOSED`, quando é o
+  fechamento par dele (ADR-023 D5):
+  - existe `merged` da mesma PR a até 5 s;
+  - nenhum `reopened` da mesma PR está entre os dois, pela ordem do instante e, no mesmo segundo, do
+    `id` do evento, comparado como número;
+  - cada `merged` absorve no máximo um `closed`, o mais próximo.
+
+  Quando o merge só aparece no retrato (`mergedAtGithub`, sem evento), um `reopened` no mesmo segundo
+  impede a absorção. A política lê o histórico gravado da PR na janela, inclusive o de sincronizações
+  anteriores. A regra funciona com ou sem o `closed` do merge.
 - **Identidade.** O `providerEventId` (o `id` do evento no GitHub) é único por projeto nas duas
   tabelas. Reler a lista não duplica nada.
 - **Evento sem artefato.** Evento de issue ou PR que não está gravada (transferida ou apagada) é
@@ -72,9 +88,11 @@ completa e a deduplicação é pelo id do GitHub.
   seguinte, sem perda.
 - **Leitura completa.** Os registros, os eventos de notificação e os alvos gravam numa transação,
   com a trava do projeto. `completeThrough` passa a ser o início da leitura menos 5 minutos.
-- **Abertura.** `ISSUE_OPENED` nasce na transação do vínculo, com `occurredAt` igual à criação da
-  issue no GitHub (`createdAtGithub`). É uma vez por par (issue, tarefa), com a chave
-  `opened:<issueId>:task:<taskId>`. Issue fechada no instante do vínculo não gera abertura.
+- **Associação.** `ISSUE_LINKED` nasce na transação do vínculo, com `occurredAt` igual ao instante
+  do vínculo (`detectedAt`). É uma vez por par (issue, tarefa), com a chave
+  `linked:<issueId>:task:<taskId>`. Issue fechada no instante do vínculo não gera associação. Até
+  18/10/2026 o evento era `ISSUE_OPENED`, com a data de criação da issue e a chave `opened:`; a
+  migration `issue_linked_event` converteu as linhas antigas.
 
 Exemplos (issue #45 vinculada à tarefa 7 desde 10/10/2026, sincronizada às 12:00 e às 18:00 de
 12/10/2026):
@@ -84,6 +102,7 @@ Exemplos (issue #45 vinculada à tarefa 7 desde 10/10/2026, sincronizada às 12:
 | fechada às 13:00 e reaberta às 15:00 | `closed` 13:00, `reopened` 15:00 | `ISSUE_CLOSED` 13:00 e `ISSUE_REOPENED` 15:00 |
 | nada mudou | os mesmos de antes | nenhum |
 | PR #9 fechada às 13:00, reaberta às 14:00 e mesclada às 16:00 | `closed` 13:00, `reopened` 14:00, `merged` 16:00 e `closed` 16:00 | `PULL_REQUEST_CLOSED` 13:00 e `PULL_REQUEST_MERGED` 16:00 |
+| PR #10 fechada às 13:00:00, reaberta às 13:00:01 e mesclada às 13:00:04 | `closed` 13:00:00, `reopened` 13:00:01, `merged` 13:00:04 e `closed` 13:00:04 | `PULL_REQUEST_CLOSED` 13:00:00 e `PULL_REQUEST_MERGED` 13:00:04 |
 
 ## Vínculos no instante do evento
 
@@ -113,7 +132,7 @@ Exemplos (issue #45 vinculada à tarefa 7 desde 10/10/2026, sincronizada às 12:
 | `artifactNumber`, `artifactTitle`, `artifactUrl` | snapshot: número, título com até 256 caracteres, URL só com o prefixo `https://github.com/` e até 512 caracteres |
 | `occurredAt`, `detectedAt` | instante da ocorrência no GitHub e da detecção |
 | `linkedTaskCount` | tarefas vinculadas no instante do evento |
-| `occurrenceKey` | `gh:<providerEventId>` para o evento lido do GitHub; `opened:<issueId>:task:<taskId>` para a abertura; única por projeto. Eventos gravados antes de 17/10/2026 mantêm a chave antiga `<evento>:<id do artefato>:<data>` |
+| `occurrenceKey` | `gh:<providerEventId>` para o evento lido do GitHub; `linked:<issueId>:task:<taskId>` para a associação; única por projeto. Eventos gravados antes de 17/10/2026 mantêm a chave antiga `<evento>:<id do artefato>:<data>` |
 | `status`, `attempts`, `nextAttemptAt`, `claimToken`, `claimedUntil`, `lastErrorCode`, `dispatchedAt` | despacho |
 | `outcome` | resultado do despacho (seção "Métrica oficial") |
 
@@ -182,7 +201,7 @@ ocorrência (Quadros 3-57 e 3-58). A variável `GITHUB_EVENT_NOTIFICATIONS_LOOKB
 | Sincronizar de novo sem mudança | nenhum evento novo |
 | Despachar o mesmo evento de novo, ou dois despachos ao mesmo tempo | nenhuma notificação nova |
 | Fechar, reabrir e fechar a issue, mesmo entre duas sincronizações | três eventos, três rodadas de notificação |
-| Vincular a mesma issue aberta duas vezes à mesma tarefa | uma abertura |
+| Vincular a mesma issue aberta duas vezes à mesma tarefa | uma associação |
 | PR vinculada a duas tarefas do mesmo responsável | duas notificações, uma por tarefa |
 | Pessoa responsável e autora de comentário na mesma tarefa | uma notificação |
 
@@ -237,7 +256,7 @@ projeto) a `PENDING`, com `attempts = 0`, e grava o evento de auditoria
 | Onde | Escopo | Falha |
 | --- | --- | --- |
 | Logo depois de cada execução de sincronização, com sucesso ou falha | o projeto sincronizado, até 100 eventos | registrada como aviso; nunca muda o resultado da sincronização |
-| Worker, a cada 5 minutos ([ADR-024](../architecture/ADR-024-OPERACAO-CONEXOES-RECUPERACAO-E-JOBS.md) D7) | todos os projetos, até 10 lotes de 100 eventos por execução | tentativa falha volta a `PENDING` ou vira `FAILED`; a execução seguinte retoma |
+| Worker, a cada 5 minutos ([ADR-024](../architecture/ADR-024-OPERACAO-CONEXOES-RECUPERACAO-E-JOBS.md) D7) | todos os projetos, até 10 lotes de 100 eventos por execução; o sinal de parada é conferido antes de cada evento, e a saída traz `interrupted` e `pendingEvents` (os eventos do lote que ficaram) | tentativa falha volta a `PENDING` ou vira `FAILED`; a execução seguinte retoma |
 | Comando manual `npm run notifications:github-events` | todos os projetos (ou `--project-id`), os mesmos limites | o comando sai com código 1 |
 
 ## Conteúdo e links
@@ -275,9 +294,15 @@ retrato, participante):
   "indisponível" com `FONTE_POR_COMPARACAO_DE_ESTADO`;
 - trecho depois do `completeThrough`: ainda não houve leitura completa, e ela sai "indisponível"
   com `LACUNA_DE_AQUISICAO`;
-- período inteiro entre os dois: a cobertura total é calculada.
+- **conferência da aquisição (18/10/2026):** PR ou issue vinculada no instante do retrato, cujo
+  `mergedAtGithub` ou `closedAtGithub` cai no trecho coberto sem o evento correspondente gravado,
+  também é `LACUNA_DE_AQUISICAO`, com o artefato e o instante;
+- período inteiro entre os dois e sem lacuna: a cobertura total é calculada e rotulada como
+  presumida, porque a margem de 5 minutos é hipótese operacional, e o GitHub não garante a
+  completude da listagem.
 
-As contagens observadas saem sempre.
+As contagens observadas saem sempre. A associação (`ISSUE_LINKED`) sai à parte, em
+`RF60_ASSOCIACAO`, com o mesmo cálculo; o RF60 conta só `ISSUE_CLOSED` e `ISSUE_REOPENED`.
 
 Usar só `created` subestima o enviado depois de uma retomada: o EV-M-03 da campanha dá 0%.
 
@@ -299,7 +324,7 @@ quando o evento fecha como `DISPATCHED`.
 | Período | intervalo de `occurredAt` (ou de `detectedAt`, sem `occurredAt`), dentro da retenção de 180 dias. Na validação do Capítulo 4 (S3-01), é o período da aplicação |
 | Filtros | projeto e tipo. Não há filtro por pessoa na publicação |
 | Interpretação | no trecho coberto, a cobertura total é calculada; fora dele, sai "indisponível" com o motivo. As contagens mostram se cada participante elegível recebeu exatamente uma notificação correta de cada evento: `E = T − A − N`, com `X = 0` e `U = 0` |
-| Limitações | (1) o autor da ação não é excluído; (2) eventos `PENDING` ou `FAILED` ainda não têm `outcome`; (3) a abertura é avisada no vínculo, com a data de criação no GitHub; (4) vínculos de PR anteriores a 17/10/2026 valem a partir da migration; (5) antes do corte, só as transições observadas pela comparação de estado |
+| Limitações | (1) o autor da ação não é excluído; (2) eventos `PENDING` ou `FAILED` ainda não têm `outcome`; (3) a associação é avisada e contada no vínculo, à parte do ciclo de vida; (4) vínculos de PR anteriores a 17/10/2026 valem a partir da migration; (5) antes do corte, só as transições observadas pela comparação de estado; (6) a cobertura é presumida: a conferência pelo retrato só vê o último fechamento e o merge de cada artefato |
 | Forma de atualização | a cada despacho, no `outcome` do evento; o script `notifications:metrics` soma por período. No repositório, os testes M3 e M4 medem um cenário reproduzível |
 
 **Resultado em 12/10/2026 (banco de teste, `s203-github-event-dispatch.test.js`), só como
@@ -343,7 +368,7 @@ soma dos `outcome` coincide com a saída do job. O resultado com dados reais fic
 | Escopo | todos os projetos, ou `--project-id=<id>` |
 | Reprocessamento | `--retry-failed`, junto com `--apply`, devolve os `FAILED` à fila; em dry-run, só conta |
 | Frequência | a retomada roda no worker a cada 5 minutos; o comando é para uso manual ([runbook](../runbooks/GITHUB_EVENT_NOTIFICATIONS.md)) |
-| Saída | JSON só no `stdout`, com `dryRun`, `projects`, `scanned`, `claimed`, `busy`, `claimLost`, `dispatched`, `created`, `alreadyNotified`, `excluded` por motivo, `retryScheduled`, `failed`, `failedStock`, `pendingAfter`, `dueAfter`, `oldestDueAgeSeconds`, `durationMs` e `database`; `wouldCreate` em dry-run; `requeued` ou `wouldRequeue` com `--retry-failed` |
+| Saída | JSON só no `stdout`, com `dryRun`, `projects`, `scanned`, `claimed`, `busy`, `claimLost`, `dispatched`, `created`, `alreadyNotified`, `excluded` por motivo, `retryScheduled`, `failed`, `failedStock`, `pendingAfter`, `dueAfter`, `oldestDueAgeSeconds`, `durationMs` e `database`; `wouldCreate` em dry-run; `requeued` ou `wouldRequeue` com `--retry-failed`; `interrupted: true` e `pendingEvents` quando o sinal de parada chega no meio de um lote |
 | Estoque | `failedStock` conta os eventos `FAILED` no escopo da execução, em toda execução, até o reprocessamento ou a retenção |
 | Pendência vencida | `dueAfter` conta os eventos `PENDING` com `nextAttemptAt` vencido e os `PROCESSING` com reserva vencida. `oldestDueAgeSeconds` é há quanto tempo o mais antigo deles venceu, ou `null`. Evento na espera normal de retentativa não conta |
 | Código de saída | 0 sem falha; 1 quando alguma tentativa falhou ou a execução não começou; 2 com `--project-id` de projeto inexistente ou excluído |

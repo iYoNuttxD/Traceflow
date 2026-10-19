@@ -3,8 +3,9 @@
 Regra em [GitHub Event Notifications](../data/GITHUB_EVENT_NOTIFICATIONS.md); decisão em
 [ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md). O evento nasce do histórico de
 eventos do repositório, lido na sincronização GitHub, e vai para a fila `GitHubArtifactEvent`. A
-abertura (`ISSUE_OPENED`) nasce no vínculo. O despacho roda logo depois de cada execução de
-sincronização, e a retomada roda no worker a cada 5 minutos.
+associação de issue aberta (`ISSUE_LINKED`, até 18/10/2026 `ISSUE_OPENED`) nasce no vínculo. O
+despacho roda logo depois de cada execução de sincronização, e a retomada roda no worker a cada 5
+minutos; com o sinal de parada, ela não reivindica evento novo e informa `pendingEvents`.
 
 ## Responsabilidade e pré-condições
 

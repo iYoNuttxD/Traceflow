@@ -103,8 +103,19 @@ Toda reconciliação começa por `lockActiveProject`, o mesmo primeiro lock dos 
 | Confirmação de sugestão RF41 | a tarefa da sugestão | a da confirmação |
 | Fim de execução de sync (`SUCCEEDED` ou `FAILED`) | o projeto inteiro | própria; uma falha gera log e registro de falha e não altera o resultado do sync |
 | Conexão do repositório (`PUT /projects/:projectId/github/integration`), gatilho `GITHUB_INTEGRATION` | o projeto inteiro | própria, depois da conexão gravada; uma falha gera log e registro de falha e não desfaz a conexão |
-| `POST /projects/:projectId/traceability/alerts/reconcile` (MANAGER+) | o projeto inteiro | própria |
+| Varredura do worker (`traceability-alerts`, a cada 60 min), gatilho `SCHEDULED` | os projetos da seleção abaixo, um por vez, até 10 minutos por execução | própria, por projeto |
+| `POST /projects/:projectId/traceability/alerts/reconcile` (MANAGER+, auditado), para suporte; a interface não o oferece desde 18/10/2026 | o projeto inteiro | própria |
 | `npm run traceability:alerts[:dry-run]` | um projeto ou todos os ativos | própria; dry-run em `RepeatableRead`, sem escrita |
+
+**Seleção da varredura** (desde 18/10/2026, UX-R3-03), nesta ordem:
+1. falha depois do último sucesso;
+2. tentativa sem resultado: `lastAttemptAt` posterior ao último sucesso e à última falha, há mais de
+   15 minutos;
+3. projeto ativo sem nenhuma reconciliação completa (sem registro, ou sem sucesso);
+4. último sucesso com mais de 24 h, do mais antigo para o mais novo.
+
+Dentro de cada grupo, a ordem é a do instante mais antigo e, depois, a do id do projeto. O sinal de
+parada é conferido antes de cada projeto (ADR-024 D7).
 
 Na varredura do projeto, entram dois conjuntos: os sujeitos que satisfazem cada condição e os
 sujeitos com alerta ativo. As criações são ordenadas por `occurredAt` ascendente (nulos primeiro)
@@ -115,21 +126,32 @@ e depois por id do sujeito.
 O modelo `TraceabilityAlertReconciliation` guarda, por projeto, o resultado da última reconciliação
 do projeto inteiro:
 
-- `lastTrigger`: `GITHUB_SYNC`, `GITHUB_INTEGRATION`, `MANUAL` ou `SCRIPT`;
-- `lastAttemptAt`;
-- `lastSucceededAt` e `lastFailedAt`;
+- `lastTrigger`: `GITHUB_SYNC`, `GITHUB_INTEGRATION`, `MANUAL`, `SCRIPT` ou, desde 18/10/2026,
+  `SCHEDULED` (a varredura do worker);
+- `lastAttemptAt`: o início da última tentativa;
+- `lastSucceededAt` e `lastFailedAt`: o fim da última tentativa de cada resultado;
 - `lastErrorCode`, apenas o código, nunca a mensagem.
 
 Regras:
 
+- **Tentativa antes (18/10/2026).** A reconciliação do projeto inteiro grava `lastAttemptAt` e
+  `lastTrigger` numa escrita própria, antes de começar. O resultado grava `lastSucceededAt` ou
+  `lastFailedAt` no fim, sem mudar `lastAttemptAt`.
 - O dry-run e a reconciliação de mutação (`traceabilityMutation`, RF41) não escrevem o registro. Uma
   falha nelas desfaz a própria mutação.
 - A gravação da falha é uma escrita própria, fora da transação que falhou. Se ela também falhar,
-  fica só o log.
-- O resumo expõe `reconciliation{lastSucceededAt,lastFailedAt,lastTrigger,stale}`:
-  - `stale` vale `true` quando `lastFailedAt` é posterior a `lastSucceededAt`, ou quando só há
-    falha;
-  - sem registro, `reconciliation` é `null`.
+  fica a tentativa sem resultado, que a varredura retoma.
+- O resumo expõe `reconciliation{state,lastAttemptAt,lastSucceededAt,lastFailedAt,lastTrigger}`,
+  sempre presente (sem registro, as datas e o gatilho saem nulos). `state`:
+
+  | Estado | Quando | Na tela |
+  | --- | --- | --- |
+  | `PENDING_FIRST` | sem sucesso registrado (sem registro, ou só com tentativa e falha) | as contagens mostram "—"; "As inconsistências deste projeto ainda não foram calculadas." |
+  | `STALE` | com sucesso registrado e: falha depois dele; ou tentativa sem resultado há mais de 15 minutos; ou sucesso com mais de 25 h | "A última atualização das inconsistências falhou em …" (com falha) ou "… foi em …" (sem falha), seguido de "Os números podem estar desatualizados." |
+  | `CURRENT` | nos demais casos | só as contagens |
+
+  A tela não promete horário de nova tentativa. Erro ao carregar o resumo mostra o estado de erro,
+  nunca zero.
 - A purga do projeto remove o registro por cascata.
 
 ## Avisos aos membros (UX-D03)
@@ -143,8 +165,8 @@ A regra completa está no ADR-022 (D5 a D9). Em resumo:
 | Destinatários | toda membership ativa (qualquer papel), com conta `ACTIVE`, `joinedAt` até o `detectedAt` e preferência `TRACEABILITY_INCONSISTENCY` ligada antes da detecção |
 | Lote | alertas pendentes do mesmo projeto com o mesmo `detectedAt`; até 10, um aviso por alerta; acima disso, um resumo por pessoa |
 | Chaves | `TRACEABILITY_INCONSISTENCY:alert:<alertId>` e `TRACEABILITY_INCONSISTENCY:batch:<projectId>:<detectedAt em milissegundos>`, únicas por destinatário |
-| Quando despacha | depois da reconciliação da sincronização, da conexão, do reprocessamento manual e do script; e depois do commit das mutações por `traceabilityTransaction` que criaram alerta de PR ou de issue |
-| Falha do despacho | não desfaz a reconciliação nem a mutação: o alerta continua `PENDING`, o log registra `traceability_notices_dispatch_failed` com o código, e a próxima reconciliação do projeto despacha. O job periódico de recuperação é o ADR-024, proposto |
+| Quando despacha | depois da reconciliação da sincronização, da conexão, da varredura, do reprocessamento manual e do script; e depois do commit das mutações por `traceabilityTransaction` que criaram alerta de PR ou de issue |
+| Falha do despacho | não desfaz a reconciliação nem a mutação: o alerta continua `PENDING`, o log registra `traceability_notices_dispatch_failed` com o código, e o job `traceability-notice-dispatch` do worker retoma a cada 5 minutos (ADR-024 D7) |
 | Idempotência | inserção com `skipDuplicates` pela chave única e marcação `DISPATCHED` depois; repetir o despacho, ou retomá-lo depois de uma queda entre as duas etapas, não duplica |
 | Leitura | individual; ler não resolve nem dispensa o alerta; resolver ou dispensar não apaga nem marca o aviso |
 

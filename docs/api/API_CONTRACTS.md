@@ -2020,8 +2020,10 @@ respondem 400 (`Filtre por um sujeito de cada vez.`).
 **Autorização.** Leituras exigem VIEWER+. Dispensa e reprocessamento exigem MANAGER+, CSRF e
 revalidação do papel no serviço. Sem sessão, a resposta é 401. Quem não é membro, e quem acessa
 um alerta de outro projeto, recebe 404 opaco. O reprocessamento tem limitador próprio
-(`traceability-alerts-reconcile`), com a mesma janela e o mesmo teto do sync manual. Parâmetro
-desconhecido responde 400.
+(`traceability-alerts-reconcile`), com a mesma janela e o mesmo teto do sync manual, e é auditado
+(`TRACEABILITY_ALERTS_RECONCILED`). Desde 18/10/2026 (UX-R3-03), a interface não o oferece: ele
+continua para suporte, e a varredura do worker atualiza os projetos sozinha. Parâmetro desconhecido
+responde 400.
 - **Desde 15/10/2026 (TF-REV-001)**, as quatro leituras conferem a membership ativa também no
   serviço, com o mesmo corpo do 404 opaco do middleware. As `permissions` saem do papel lido pelo
   serviço.
@@ -2032,10 +2034,18 @@ desconhecido responde 400.
 `rules.taskWithoutCommitActive` é sempre `true` desde 15/10/2026, porque o RF13 não depende mais
 de integração. `rules.integrationConnected` diz se o projeto tem `ProjectGitHubIntegration`. A tela
 usa esse campo para explicar o alerta e mostrar o atalho de conexão ao OWNER.
-`reconciliation` é `null` sem registro, ou
-`{lastSucceededAt,lastFailedAt,lastTrigger,stale}`, com o resultado da última reconciliação do
-projeto inteiro (sync, conexão do repositório, reprocessamento manual ou script). `stale` é
-`true` quando a última falha é mais recente que o último sucesso. Conectar o repositório
+`reconciliation` é `{state,lastAttemptAt,lastSucceededAt,lastFailedAt,lastTrigger}`, sempre
+presente desde 18/10/2026 (sem registro, as datas e o gatilho saem nulos), com a última
+reconciliação do projeto inteiro (sync, conexão do repositório, varredura do worker,
+reprocessamento manual ou script). `lastTrigger` pode ser `GITHUB_SYNC`, `GITHUB_INTEGRATION`,
+`MANUAL`, `SCRIPT` ou `SCHEDULED`. `state`:
+- `PENDING_FIRST`: sem sucesso registrado. As contagens de `open` não representam o projeto, e a
+  tela mostra "—";
+- `STALE`: com sucesso registrado e falha depois dele, tentativa sem resultado há mais de 15
+  minutos, ou sucesso com mais de 25 h;
+- `CURRENT`: nos demais casos.
+
+O campo `stale` saiu em 18/10/2026. Conectar o repositório
 (`PUT /projects/:projectId/github/integration`) também reconcilia o projeto, sem desfazer a
 conexão se a reconciliação falhar.
 `permissions` traz `canLink` (MEMBER+) e `canManage` (MANAGER+).
@@ -2206,15 +2216,16 @@ Decisão em [ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md); re
 **Sem rota nova.** As notificações dos tipos `ISSUE_EVENT` (RF60) e `PULL_REQUEST_EVENT` (RF61)
 usam as rotas do S2-02. O evento nasce do histórico do repositório, lido na sincronização (`POST
 /api/projects/:projectId/github/sync`, sem mudança de contrato), ou do vínculo de uma issue aberta a
-uma tarefa (`ISSUE_OPENED`). Ele é despachado logo depois da sincronização ou do vínculo, e a retomada
-roda no worker; nenhum dos dois tem superfície HTTP nova. A fila de eventos não é exposta por API.
+uma tarefa (`ISSUE_LINKED`, a associação). Ele é despachado logo depois da sincronização ou do
+vínculo, e a retomada roda no worker; nenhum dos dois tem superfície HTTP nova. A fila de eventos não
+é exposta por API.
 
 **Contexto no `NotificationDTO`:**
 
 | Campo | Conteúdo |
 | --- | --- |
-| `context.event` | `ISSUE_OPENED`, `ISSUE_CLOSED`, `ISSUE_REOPENED`, `PULL_REQUEST_MERGED` ou `PULL_REQUEST_CLOSED` |
-| `context.occurredAt` | instante da ocorrência no GitHub (ISO-8601 UTC), ou `null`. Em `ISSUE_OPENED`, é a criação da issue no GitHub |
+| `context.event` | `ISSUE_LINKED`, `ISSUE_CLOSED`, `ISSUE_REOPENED`, `PULL_REQUEST_MERGED` ou `PULL_REQUEST_CLOSED`. Até 18/10/2026, a associação era `ISSUE_OPENED`; a migration converteu as notificações já gravadas |
+| `context.occurredAt` | instante da ocorrência no GitHub (ISO-8601 UTC), ou `null`. Em `ISSUE_LINKED`, é o instante do vínculo |
 | `context.artifact.kind` | `ISSUE` ou `PULL_REQUEST` |
 | `context.artifact.number`, `context.artifact.title` | número e título copiados na detecção (título com até 256 caracteres) |
 | `context.artifact.url` | URL do artefato no GitHub, só com o prefixo `https://github.com/`; fora disso, `null` |

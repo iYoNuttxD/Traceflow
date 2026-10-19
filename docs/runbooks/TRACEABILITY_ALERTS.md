@@ -2,10 +2,13 @@
 
 Regra em [Traceability Alerts](../data/TRACEABILITY_ALERTS.md); decisão em
 [ADR-015](../architecture/ADR-015-TRACEABILITY-ALERTS.md). Os alertas nascem sozinhos nas mutações
-de tarefa e vínculo, no fim de cada sincronização e na conexão do repositório. Desde 17/10/2026, o
-worker reconcilia a cada 60 minutos os projetos com reconciliação atrasada
-([Jobs agendados](SCHEDULED_JOBS.md)). Este runbook cobre o comando de reconciliação, usado na
-implantação e para recuperar à mão.
+de tarefa e vínculo, no fim de cada sincronização e na conexão do repositório. Desde 18/10/2026, a
+varredura do worker, a cada 60 minutos, alcança todo projeto ativo: retoma as falhas, inclusive a
+que não chegou a ser registrada, faz a primeira reconciliação dos projetos novos e atualiza os que
+estão há mais de 24 h sem sucesso ([Jobs agendados](SCHEDULED_JOBS.md)). A interface não oferece mais
+o reprocessamento. Este runbook cobre o comando de reconciliação, usado na implantação e para
+recuperar à mão; o endpoint `POST .../traceability/alerts/reconcile` (MANAGER+, auditado) também
+continua, para suporte.
 
 ## Quando rodar
 
@@ -14,8 +17,9 @@ implantação e para recuperar à mão.
   depois de uma reconciliação do projeto:
   - tarefas concluídas sem commit em projetos sem repositório;
   - PRs mescladas e issues fechadas sem tarefa, de antes da criação do projeto.
-- Quando o resumo de alertas avisa reconciliação atrasada (`reconciliation.stale`), e o
-  reprocessamento pela tela não resolve.
+- Quando o resumo de alertas continua em `reconciliation.state` `STALE` ou `PENDING_FIRST` depois
+  de uma varredura, o que indica falha persistente: confira o log
+  `traceability_alerts_reconcile_failed` e o `lastErrorCode` antes de rodar.
 
 ## Execução
 
@@ -51,10 +55,11 @@ npm run traceability:alerts
 - A falha de um projeto interrompe o script, que sai com código 1. Os projetos anteriores ficam
   gravados.
 - O registro da última reconciliação daquele projeto guarda o código do erro, e o resumo passa a
-  avisar a reconciliação atrasada.
+  avisar que os números podem estar desatualizados. A varredura seguinte tenta de novo.
 - Rode de novo depois de corrigir a causa: a reconciliação é idempotente e não duplica alertas.
 - **Avisos pendentes.** A falha do despacho dos avisos não derruba a reconciliação: o log traz
   `traceability_notices_dispatch_failed` com o projeto e o código, e os alertas continuam
-  `PENDING`. A próxima reconciliação do projeto (sync, reprocessamento ou este script) despacha
-  sem duplicar. Para conferir a fila: `noticeState = 'PENDING'` em `TraceabilityAlert`.
+  `PENDING`. O job `traceability-notice-dispatch` retoma a cada 5 minutos, e a próxima reconciliação
+  do projeto também despacha, sem duplicar. Para conferir a fila: `noticeState = 'PENDING'` em
+  `TraceabilityAlert`.
 - Os logs trazem só contagens, projeto e código de erro, sem título nem nome.

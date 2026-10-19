@@ -2,7 +2,8 @@
 
 - **Estado:** aceita em 15/10/2026 (revisão independente da PR #26: TF-REV-008, UX-D01, UX-D02 e
   UX-D03). Revista em 17/10/2026 com a avaliação visual do João na segunda revisão (UX-R2-01 a
-  UX-R2-04) e as confirmações da seção final.
+  UX-R2-04) e as confirmações da seção final, e em 18/10/2026 com os ajustes visuais pedidos pelo
+  Daniel na terceira revisão (UX-R3-01 a UX-R3-03).
 - **Data:** 15/10/2026
 - **Responsáveis:** João Vitor S. Hernandes
 - **Relação:** revê a interface do [ADR-015](ADR-015-TRACEABILITY-ALERTS.md) (D1 e D7), do
@@ -50,6 +51,10 @@ Restrições do terreno:
      - contenção de foco e `Escape` na ordem certa;
      - foco inicial no título e retorno ao sino;
      - movimento que respeita `prefers-reduced-motion`.
+   - **Fundo (18/10/2026, UX-R3-01).** O escurecimento cobre só a área principal, a partir do
+     deslocamento do menu expandido ou recolhido. O menu fica com as cores normais e o sino
+     destacado (`aria-expanded`). O diálogo continua modal: o shell fica `inert`, e o clique sobre o
+     menu fecha o painel, como o clique fora, sem navegar.
    - **Cabeçalho:**
      - título;
      - "Marcar todas como lidas";
@@ -107,9 +112,15 @@ Restrições do terreno:
 4. **Resumo em Rastreabilidade (D4).** A sub-navegação sai. As contagens abertas de cada tipo
    ficam no bloco "Resumo" da tela, num grupo "Inconsistências abertas", separado dos indicadores de
    requisito, e cada uma leva à lista filtrada (UX-R2-02).
-   - Continuam no bloco:
-     - o aviso de reprocessamento atrasado;
-     - "Reprocessar", ação secundária e compacta, só para MANAGER+.
+   - **Padrão do resumo (18/10/2026, UX-R3-02).** As três contagens são células do resumo, com as
+     classes e a tipografia das métricas de requisito, e o título alinhado ao recuo delas. São 3
+     colunas no desktop e no tablet e 1 abaixo de 34rem, sem célula órfã. Os números continuam
+     links, com nome acessível.
+   - **Atualização interna (18/10/2026, UX-R3-03).** O botão "Reprocessar" saiu: o sistema atualiza
+     as inconsistências sozinho (ADR-015 D5, ADR-024 D7). O bloco diz o estado:
+     - ainda não calculadas: as contagens mostram "—" e o texto explica;
+     - desatualizadas: a data da falha ou do último sucesso, sem prometer horário de nova tentativa;
+     - erro ao carregar o resumo: o estado de erro, nunca zero.
    - As rotas antigas de alertas e de tarefas sem vínculo redirecionam para a lista filtrada
      correspondente.
 5. **Avisos de inconsistência (D5).** Alerta de PR mesclada ou de issue fechada sem tarefa (RF39,
@@ -132,7 +143,8 @@ Restrições do terreno:
      - Alertas anteriores a esta decisão ficam `NOT_APPLICABLE`, sem aviso retroativo.
    - **Quando o despacho roda.** Sempre fora da transação da reconciliação:
      - depois da reconciliação da sincronização;
-     - depois do reprocessamento manual;
+     - depois da varredura do worker;
+     - depois do reprocessamento manual, pela API;
      - depois do script;
      - depois das mutações que passam por `traceabilityTransaction`;
      - num job periódico, para recuperação (ADR-024).

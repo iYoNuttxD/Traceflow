@@ -4,9 +4,10 @@ Os Quadros 3-55 (RF59), 3-56 (RF30), 3-57 (RF60) e 3-58 (RF61) do TCC dão o mes
 `(notificações enviadas corretamente / total de eventos ocorridos) × 100`.
 
 Decisão no [ADR-016](../architecture/ADR-016-TASK-NOTIFICATIONS.md) (D11) e no
-[ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md) (D14), revistos em 15/10/2026. Este
-documento é a regra executável: o script e os testes seguem exatamente estas tabelas. Ele substitui
-o cálculo sobre eventos elegíveis, que vigorou de 09/10 a 15/10/2026.
+[ADR-018](../architecture/ADR-018-GITHUB-EVENT-NOTIFICATIONS.md) (D14), revistos em 15/10/2026, e no
+[ADR-023](../architecture/ADR-023-FONTE-DURAVEL-EVENTOS-GITHUB.md) (D6 a D8), revisto em 18/10/2026.
+Este documento é a regra executável: o script e os testes seguem exatamente estas tabelas. Ele
+substitui o cálculo sobre eventos elegíveis, que vigorou de 09/10 a 15/10/2026.
 
 ## Termos
 
@@ -37,7 +38,7 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
   | --- | --- | --- |
   | 1 | `REGISTRO_INCOMPLETO` | o período começa antes de o registro estar completo (abaixo) |
   | 2 | `FONTE_POR_COMPARACAO_DE_ESTADO` | RF60/RF61: o período começa, em algum projeto, antes do `coverageFrom` (ADR-023 D7); ou o projeto ainda não tem leitura completa |
-  | 3 | `LACUNA_DE_AQUISICAO` | RF60/RF61: o período termina, em algum projeto, depois do `completeThrough` da última leitura completa (ADR-023 D7) |
+  | 3 | `LACUNA_DE_AQUISICAO` | RF60/RF61: o período termina, em algum projeto, depois do `completeThrough` da última leitura completa (ADR-023 D7); ou a conferência pelo retrato acha um evento que falta (abaixo) |
   | 4 | `EVENTOS_NAO_OBSERVADOS` | `U > 0` |
   | 5 | `SEM_EVENTOS` | `T = 0` |
 
@@ -57,6 +58,23 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
   durável, `[coverageFrom, completeThrough]`. As lacunas trazem o projeto e o instante:
   `{ "motivo": "FONTE_POR_COMPARACAO_DE_ESTADO", "projeto": <id>, "coberturaDesde": <instante> }`
   e `{ "motivo": "LACUNA_DE_AQUISICAO", "projeto": <id>, "completoAte": <instante> }`.
+- **Cobertura presumida (18/10/2026).** O `completeThrough` fica 5 minutos antes do início da
+  leitura, por hipótese operacional: o GitHub não garante a completude da listagem. O RF60 e o RF61
+  trazem `coberturaDaFonte: { "tipo": "PRESUMIDA", "margemMinutos": 5 }`.
+- **Conferência da aquisição (18/10/2026).** Para cada projeto, a PR ou a issue vinculada a alguma
+  tarefa no instante do retrato, com esse instante dentro do período e do trecho coberto, precisa do
+  evento correspondente gravado, a até 5 s:
+
+  | Retrato | Evento esperado |
+  | --- | --- |
+  | PR com `mergedAtGithub` | `MERGED` em `PullRequestLifecycleEvent` |
+  | PR fechada sem merge (`closedAtGithub`) | `CLOSED` em `PullRequestLifecycleEvent` |
+  | issue fechada (`closedAtGithub`) | `CLOSED` em `IssueLifecycleEvent` |
+
+  Faltou, a lacuna é `{ "motivo": "LACUNA_DE_AQUISICAO", "projeto": <id>, "artefato":
+  { "tipo": "PULL_REQUEST" | "ISSUE", "numero": <n> }, "esperado": "MERGED" | "CLOSED",
+  "ocorridoEm": <instante> }`, e a cobertura total sai indisponível. O retrato só guarda o último
+  fechamento e o merge: transições anteriores não são conferidas.
 - **Contagens.** T, E, A, N, X e U saem sempre, mesmo com a cobertura indisponível.
 
 ## Fontes
@@ -67,8 +85,14 @@ não despachado conta uma unidade em U, porque os participantes só são conheci
 | RF59 | cada par (tarefa, data do prazo) cujo vencimento ocorreu no período, reconstruído pelo histórico, mais as decisões do período sem reconstrução (tarefa excluída) | `NotificationDecision` do tipo `TASK_OVERDUE`, chave `<taskId>:<YYYY-MM-DD>`, gravada pela varredura na mesma transação da notificação (ADR-016 D6) | pares reconstruídos sem decisão |
 | RF60/RF61 | cada `GitHubArtifactEvent` com `occurredAt` (ou `detectedAt`, sem `occurredAt`) no período: os pares do `outcome` (`participants`, `NO_PARTICIPANT` e `NO_TASK`) | `outcome` do evento: `created` e `alreadyNotified` em E; `excluded` por motivo em A e N; motivo desconhecido em X | eventos `PENDING`, `PROCESSING` ou `FAILED` |
 
-O RF60 conta `ISSUE_OPENED`, `ISSUE_CLOSED` e `ISSUE_REOPENED`; o RF61, `PULL_REQUEST_MERGED` e
-`PULL_REQUEST_CLOSED`.
+O RF60 conta `ISSUE_CLOSED` e `ISSUE_REOPENED`, o ciclo de vida da issue vinculada; o RF61,
+`PULL_REQUEST_MERGED` e `PULL_REQUEST_CLOSED`.
+
+**Associação de issue aberta (18/10/2026).** `ISSUE_LINKED` sai à parte, em `RF60_ASSOCIACAO`, com o
+mesmo cálculo e a mesma unidade, e não entra no percentual do RF60 (ADR-023 D6). A associação nasce
+na transação do vínculo, no próprio TraceFlow: não depende da listagem do GitHub e não tem
+`FONTE_POR_COMPARACAO_DE_ESTADO` nem `LACUNA_DE_AQUISICAO`. O registro dela está completo desde a
+migration `20261017120000_issue_opened_event`.
 
 **`SENT` só com a notificação.** No RF59, a decisão `SENT` e a notificação gravam na mesma transação
 desde 17/10/2026 (TF-REV-009). Antes, as duas gravavam em paralelo, e uma queda entre os commits
@@ -81,13 +105,15 @@ senão, vale a mais recente (`decidedAt`).
 **Gravação das decisões.**
 - **RF30.** Uma decisão por mudança de status, na transação da mudança: `SENT` quando a notificação
   nasce, ou o motivo. Se a transação falha, nem a mudança nem a decisão ficam.
-- **RF59.** A cada execução com `--apply`, o job grava a decisão de cada vencimento avaliado junto
-  com as notificações, em paralelo:
+- **RF59.** A cada execução com `--apply`, o job grava a decisão de cada vencimento avaliado na
+  mesma transação das notificações, por unidade de até 1.000 tarefas (TF-REV-009):
   - `SENT` não muda mais;
   - um motivo novo substitui o anterior do mesmo destinatário;
   - decisão igual não é regravada, então a execução sem mudança não escreve;
-  - se uma notificação nova não fica gravada (a tarefa foi excluída durante a execução), o job
-    desfaz o `SENT` dela e restaura a decisão anterior;
+  - se a unidade falha, por exemplo com uma tarefa excluída durante a execução, nem as notificações
+    nem as decisões dela ficam, e a falha conta em `failed`;
+  - o sinal de parada é conferido antes de cada onda e de cada unidade; a unidade já iniciada
+    termina, e a execução interrompida só conta o que terminou (TF-REV-015);
   - o dry-run não grava decisão.
 - **Instante da decisão do RF59.** `occurredAt` é o corte do prazo, ou a criação da tarefa quando
   posterior. Enquanto a tarefa existe, o período do evento é decidido pelo instante reconstruído.
@@ -122,7 +148,8 @@ Tarefa excluída perde o histórico (cascata). Os pares dela entram em T só pel
 - **Saída.** JSON em `stdout`; o log vai para `stderr` (`notifications_metrics_completed`, com o
   número de projetos e a duração).
   - `periodo` (`de`, `ate`, `fuso`, `inicio`, `fim`), `calculadoEm`, `projetos`, `database` (alvo
-    sem credencial) e `requisitos`, com `RF30`, `RF59`, `RF60` e `RF61`.
+    sem credencial) e `requisitos`, com `RF30`, `RF59`, `RF60`, `RF60_ASSOCIACAO` e `RF61`. O RF60 e
+    o RF61 trazem também `coberturaDaFonte`.
   - Por RF:
     - `unidade` (`EVENTO`, ou `PAR_EVENTO_PARTICIPANTE` no RF60/RF61) e, no RF60/RF61, `eventos`;
     - `ocorridos`, `enviadasCorretamente`, `naoEnviadas`, `semDestinatario`,
@@ -177,3 +204,6 @@ Exemplo, RF61 num período anterior ao corte, com a fonte por comparação de es
 - O `completeThrough` fica 5 minutos antes do início da leitura, por causa da consistência eventual
   do GitHub. Período que termina depois disso sai `LACUNA_DE_AQUISICAO` até a próxima leitura
   completa.
+- A margem de 5 minutos é hipótese, não garantia: a cobertura calculada do RF60 e do RF61 é
+  presumida. A conferência pelo retrato acha o merge ou o último fechamento que faltam, não as
+  transições intermediárias.
