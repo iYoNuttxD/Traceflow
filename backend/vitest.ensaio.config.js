@@ -1,14 +1,13 @@
-import { defineConfig, mergeConfig } from 'vitest/config';
-import base from './vitest.config.js';
+import { defineConfig } from 'vitest/config';
+import { sharedTestOptions } from './vitest.config.js';
 
-export default mergeConfig(
-  base,
-  defineConfig({
-    test: {
-      include: ['test/ensaios/**/*.ensaio.js'],
-      testTimeout: 900_000,
-      hookTimeout: 300_000,
-      coverage: { enabled: false }
-    }
-  })
-);
+// This remains an opt-in volume run; never inherit the main suite's projects.
+export default defineConfig({
+  test: {
+    ...sharedTestOptions,
+    include: ['test/ensaios/**/*.ensaio.js'],
+    testTimeout: 900_000,
+    hookTimeout: 300_000,
+    coverage: { enabled: false }
+  }
+});
