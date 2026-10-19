@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -136,5 +137,90 @@ describe('UX-R3-03 — atualização interna das inconsistências, sem o botão'
     expect(
       await screen.findByRole('link', { name: '1 tarefa concluída sem commit' })
     ).toBeInTheDocument();
+  });
+});
+
+const OWN_CSS = 'src/features/traceability/components/InconsistencySummary.css';
+const SUMMARY_CSS = 'src/features/schedule/pages/SprintsScreen.css';
+const TRACEABILITY_CSS = 'src/features/traceability/pages/TraceabilityScreen.css';
+const escaped = (text) => text.replace(/[.()]/g, (character) => `\\${character}`);
+const ruleOf = (css, selector) =>
+  css.match(new RegExp(`(?:^|\\n)${escaped(selector)} \\{([^}]*)\\}`))?.[1] ?? '';
+
+describe('UX-R3-02 — inconsistências no padrão do resumo', () => {
+  it('R-05 as contagens usam as células e a tipografia das métricas de requisito', async () => {
+    trace.getTraceabilityAlertSummary.mockResolvedValue(
+      summary({ byType: { TASK_CONCLUDED_WITHOUT_COMMIT: 3 } })
+    );
+    renderSummary();
+
+    const group = await groupOf();
+    await within(group).findByRole('link', { name: '3 tarefas concluídas sem commit' });
+    const list = group.querySelector('dl');
+
+    expect(list).toHaveClass('requirement-metrics', 'trace-inconsistency-summary__metrics');
+    expect([...list.children]).toHaveLength(3);
+    for (const cell of list.children) {
+      expect(cell).toHaveClass('sprints-summary__metric');
+      expect([...cell.children].map((node) => node.tagName)).toEqual(['DT', 'DD']);
+    }
+    const own = readFileSync(OWN_CSS, 'utf8');
+    expect(own).not.toMatch(/__metrics d[td][^{]*\{[^}]*(font-size|font-weight|text-transform)/);
+    expect(ruleOf(readFileSync(TRACEABILITY_CSS, 'utf8'), '.requirement-metrics dd')).toMatch(
+      /font-size: var\(--font-size-5\);[\s\S]*font-weight: var\(--font-weight-bold\);/
+    );
+  });
+
+  it('R-06 os números são links com nome acessível, alcançados pelo teclado na ordem das células', async () => {
+    trace.getTraceabilityAlertSummary.mockResolvedValue(
+      summary({
+        byType: {
+          TASK_CONCLUDED_WITHOUT_COMMIT: 3,
+          PULL_REQUEST_MERGED_WITHOUT_TASK: 1204,
+          ISSUE_CLOSED_WITHOUT_TASK: 1
+        }
+      })
+    );
+    const user = userEvent.setup();
+    renderSummary();
+
+    const links = await within(await groupOf()).findAllByRole('link');
+
+    expect(links.map((link) => link.getAttribute('aria-label'))).toEqual([
+      '3 tarefas concluídas sem commit',
+      '1.204 PRs mescladas sem tarefa',
+      '1 issue fechada sem tarefa'
+    ]);
+    expect(links.map((link) => link.textContent)).toEqual(['3', '1.204', '1']);
+    for (const link of links) {
+      await user.tab();
+      expect(link).toHaveFocus();
+    }
+  });
+
+  it('R-07 o título fica no recuo horizontal das células, e o grupo não recua a faixa', () => {
+    const own = readFileSync(OWN_CSS, 'utf8');
+    const horizontal = (block) => block.match(/padding: ([^;]+);/)?.[1].split(' ')[1];
+
+    expect(horizontal(ruleOf(own, '.trace-inconsistency-summary__heading'))).toBe('var(--space-5)');
+    expect(horizontal(ruleOf(readFileSync(SUMMARY_CSS, 'utf8'), '.sprints-summary__metric'))).toBe(
+      'var(--space-5)'
+    );
+    expect(ruleOf(own, '.trace-inconsistency-summary')).not.toMatch(/padding/);
+  });
+
+  it('R-08 três colunas, e uma abaixo de 34rem, sem célula órfã', () => {
+    const own = readFileSync(OWN_CSS, 'utf8');
+    const narrow = own.match(/@container sprints-page \(max-width: 34rem\) \{([\s\S]*?)\n\}/)?.[1];
+
+    expect(ruleOf(own, '.requirement-metrics.trace-inconsistency-summary__metrics')).toMatch(
+      /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/
+    );
+    expect(narrow).toMatch(
+      /\.requirement-metrics\.trace-inconsistency-summary__metrics \{\s*grid-template-columns: minmax\(0, 1fr\);/
+    );
+    expect(readFileSync(TRACEABILITY_CSS, 'utf8')).toMatch(
+      /@container sprints-page \(max-width: 34rem\) \{[\s\S]*?\.requirement-metrics \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/
+    );
   });
 });

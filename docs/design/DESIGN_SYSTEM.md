@@ -1222,6 +1222,11 @@ o trabalho acontece, sem tela própria.
   - três contagens por tipo (tarefas concluídas sem commit, PRs mescladas sem tarefa, issues fechadas
     sem tarefa), sempre presentes; com inconsistência, o número é link para a lista filtrada, com o
     nome acessível por extenso ("2 tarefas concluídas sem commit");
+  - desde 2026-10-18 (UX-R3-02), as contagens são uma segunda faixa de células do resumo, com as
+    classes das métricas de requisito (`requirement-metrics` e `sprints-summary__metric`): rótulo em
+    corpo 1, maiúsculas e secundário; valor em corpo 5 e negrito; recuo 4 e 5; bordas. O título do
+    grupo fica no recuo horizontal das células. São 3 colunas no desktop e no tablet, e 1 abaixo de
+    34rem, sem célula órfã;
   - nenhuma ação de reprocessar, desde 2026-10-18 (UX-R3-03): o sistema atualiza as inconsistências
     sozinho, e nenhum texto manda clicar;
   - antes da primeira reconciliação (`PENDING_FIRST`), as contagens mostram "—", e o grupo diz "As
