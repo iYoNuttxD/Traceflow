@@ -12,8 +12,10 @@
     esta 14;
   - com o aval do João, em 19/10/2026, rodaram as cadeias de migrations do zero (82) e composta com
     a OCI (83) e a validação de drift, cada uma num banco temporário apagado no fim (seção 7);
-  - aguardam o João: as duas migrations no banco de desenvolvimento e a matriz visual no
-    `traceflow_visual_r2` (portão G3), que depende do aval dele;
+  - com o aval do João, a matriz visual foi capturada no `traceflow_visual_r2`, em 19/10/2026
+    (seção 8);
+  - aguardam o João: as duas migrations no banco de desenvolvimento e a aprovação visual (portão
+    G3);
   - aguarda o Daniel: a aprovação arquitetural do ADR-024, que segue "aceita pelo autor";
   - aguarda o dono da branch OCI: o artefato do diagnóstico (TF-REV-005), a contagem inicial de
     migrations e a composição (seção 6);
@@ -312,25 +314,88 @@ nenhuma mensagem tem coautoria. Autor e committer de todos os commits: JoaoVitor
 
 ## 8. Matriz visual (portão G3)
 
-Não capturada nesta rodada: depende do aval do João para recriar o `traceflow_visual_r2` e usar as
-portas 3001 e 5173. A matriz é a da seção 7 do enunciado:
+Com a liberação do João em 19/10/2026 ("Pode recriar o traceflow_visual_r2 e usar as portas 3001 e
+5173 para as capturas do G3"), com os servidores dele parados.
 
-| Superfície | Mínimo | Escala |
-|---|---|---|
-| Resumo da Rastreabilidade, `CURRENT` | 0 de cada tipo | 20, 20 e 20 |
-| Resumo, `PENDING_FIRST` | projeto novo | — |
-| Resumo, `STALE` | — | falha depois do sucesso |
-| Painel com o menu expandido e recolhido | 0 notificações | 200 notificações |
+**Banco e servidores.** O `traceflow_visual_r2` foi recriado com as 82 migrations e uma carga
+fictícia. A carga confere `SELECT DATABASE()` antes de gravar e cria:
+- quatro pessoas em `@visual-r3.example`, com uma senha aleatória gerada na carga e guardada fora do
+  repositório;
+- "Visual R3 · mínimo": nenhuma inconsistência, reconciliado na carga (`CURRENT`). O Davi é membro
+  só dele e não tem notificações;
+- "Visual R3 · um alerta": uma inconsistência de cada tipo;
+- "Visual R3 · escala": 1.000 tarefas e 60 inconsistências abertas, 20 de cada tipo, reconciliado
+  na carga;
+- "Visual R3 · novo": nenhuma reconciliação (`PENDING_FIRST`);
+- 200 notificações da Ana, 120 não lidas, com as frases da associação (`ISSUE_LINKED`).
 
-Em 1366×900 e 390×844, nos temas claro e escuro, com o teclado (`Tab` até os números do resumo;
-`Escape` e devolução do foco no painel; `Shift+Tab` no título do painel) e a regressão rápida das
-superfícies da rodada anterior que tocam o painel e o resumo. O inventário só passa a VISUALLY
-APPROVED com a aprovação do João.
+Os dois `STALE` da escala foram gravados entre as capturas, só no banco visual: falha depois do
+sucesso e tentativa sem resultado há 40 minutos. No fim, a escala voltou a `CURRENT`.
+
+A API subiu na 3001 com a `DATABASE_URL` trocada só no processo, e o Vite na 5173. O app ficou no
+tema "Sistema", e o claro e o escuro vieram da emulação de `prefers-color-scheme` do navegador.
+
+**Cobertura.** São 37 arquivos em `scratchpad/r3/g3`, fora do repositório, para o João conferir:
+as 28 células da matriz, nos dois tamanhos e nos dois temas, mais o `STALE` sem falha, as
+ampliações, o foco e a regressão rápida.
+
+| Superfície | Mínimo | Escala | O que as capturas mostram |
+|---|---|---|---|
+| Resumo, `CURRENT` | "mínimo": 0, 0 e 0, sem link e sem aviso | "escala": 20, 20 e 20, com links | uma segunda faixa de células logo abaixo das de requisito, com o mesmo recuo e a mesma tipografia; 3 colunas a 1366 e 1 a 390, sem célula órfã |
+| Resumo, `PENDING_FIRST` | "novo": "—" nas três contagens e "As inconsistências deste projeto ainda não foram calculadas." | — | sem zero e sem botão |
+| Resumo, `STALE` | — | "falhou em 19/10/2026 01:05" e, sem falha, "foi em 18/10/2026 23:06", sempre com "Os números podem estar desatualizados." | sem instrução de clique e sem horário prometido |
+| Painel, com o menu expandido e recolhido | Davi: vazio, com "Ver todas" | Ana: 200, "99+" no menu e 120 não lidas | o fundo escurece só a área principal; o menu fica com as cores normais e o sino destacado; a 390, o painel ocupa a tela, como antes |
+
+**Teclado, com a carga real.**
+- `Tab`, a partir do último link da navegação da seção, chega aos três números do resumo, em
+  ordem, com o nome por extenso ("20 tarefas concluídas sem commit") e o anel de foco de 2,4 px
+  (`12-teclado-foco-no-primeiro-numero-1366-claro.png`).
+- `Shift+Tab`, a partir do título do painel, vai a "Carregar mais (100 restantes)", o último
+  controle, sem sair do painel.
+- `Escape` fecha o painel e devolve o foco a "Notificações, 120 não lidas", com
+  `aria-expanded="false"` e o shell sem `inert`.
+- O clique sobre o menu, com o painel aberto, fecha o painel sem navegar (a rota continuou
+  `/projects/3/traceability`) e devolve o foco ao sino.
+
+**Medidas no DOM.**
+- A 390 px, o título do grupo e as células têm o mesmo recuo de 20 px, e a grade tem uma coluna.
+- Com o painel aberto a 1366, o fundo cobre de x = 272 (a largura do menu expandido) até a borda, e
+  é ele o elemento no ponto (1000, 300). Sobre o menu fica a faixa transparente.
+- Na captura reduzida, o tom do fundo é discreto. As ampliações (`06-…-ampliacao-*` e
+  `07-…-ampliacao-*`) mostram o menu claro e a área principal escurecida.
+
+**Regressão rápida.** O link "20 issues fechadas sem tarefa" leva ao Repositório filtrado, com as
+20 issues "sem tarefa vinculada" (`13-…`), e a vista "Preferências" abre dentro do painel, com o
+menu visível (`14-…`).
+
+**Para o julgamento do João.**
+- **Botão de expandir sob a gaveta.** Com o menu recolhido, o "Expandir sidebar" vai de x = 65 a
+  x = 109, e o menu termina em 88: a gaveta cobre a metade direita dele
+  (`07-…-ampliacao-botao-expandir.png`). A gaveta começa no mesmo ponto desde a segunda revisão;
+  com o menu sem tom, o corte aparece mais. O botão está inerte enquanto o painel está aberto. Há
+  duas saídas, e as duas mexem no shell do Daniel: esconder o botão com o painel aberto ou deslocar
+  a gaveta pelo que o botão sobra.
+- **Borda direita das células.** A borda das células encosta na do cartão (0,8 + 0,8 px), como na
+  faixa de requisitos do Daniel: o grupo reproduz o padrão.
+- **Tabela do Repositório.** A 1366, com o menu expandido, a tabela filtrada tem 21 px de rolagem
+  horizontal (1.035 px em 1.014), e "Ver inconsistência" fica cortado até rolar. A superfície é do
+  PR #26 e não mudou nesta rodada.
+
+**Fora do escopo, sem mudança.**
+- Com o menu recolhido, "Projetos", "Configurações" e "Sair" ficam sem nome acessível: o rótulo
+  some com `display: none`, e o controle não tem `aria-label` nem `title`. É do shell do Daniel
+  (`fe81da3`, 30/08), anterior a esta PR.
+- Depois de sair, o próximo login volta à última rota de quem saiu (já anotado na segunda revisão).
+- A faixa de requisitos tem 5 métricas: 3 + 2 a 1366 e 2 + 2 + 1 a 390 (já anotado na segunda
+  revisão).
+
+**Inventário.** `TRACEABILITY-INCONSISTENCY-SUMMARY` e `NOTIFICATIONS-PANEL` seguem TECHNICALLY
+VERIFIED até a aprovação do João. A matriz não muda o inventário.
 
 ## 9. Pendências
 
-- **Do João:** as duas migrations no banco de desenvolvimento e o aval para o G3; o push, quando
-  pedir; postar a descrição e a resposta.
+- **Do João:** as duas migrations no banco de desenvolvimento; a aprovação visual (G3) e a decisão
+  sobre os três pontos da seção 8; o push, quando pedir; postar a descrição e a resposta.
 - **Do Daniel:** a aprovação arquitetural do ADR-024.
 - **Do dono da branch OCI:** o artefato do diagnóstico com o `SOURCES` acima, o
   `INITIAL_MIGRATION_COUNT` 83 e a composição do encerramento (PR26-F03).
