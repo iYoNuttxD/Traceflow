@@ -10,9 +10,10 @@
 - **Estado:**
   - executadas: Fases 0 a 12, a parte da 13 que não depende de aval (com o Q-08c, `aa18eae`), e
     esta 14;
-  - aguardam o aval do João: as cadeias de migrations do zero (82) e composta com a OCI (83), a
-    validação de drift, que cria e apaga um banco descartável, as duas migrations no banco de
-    desenvolvimento e a matriz visual no `traceflow_visual_r2` (portão G3);
+  - com o aval do João, em 19/10/2026, rodaram as cadeias de migrations do zero (82) e composta com
+    a OCI (83) e a validação de drift, cada uma num banco temporário apagado no fim (seção 7);
+  - aguardam o João: as duas migrations no banco de desenvolvimento e a matriz visual no
+    `traceflow_visual_r2` (portão G3), que depende do aval dele;
   - aguarda o Daniel: a aprovação arquitetural do ADR-024, que segue "aceita pelo autor";
   - aguarda o dono da branch OCI: o artefato do diagnóstico (TF-REV-005), a contagem inicial de
     migrations e a composição (seção 6);
@@ -39,7 +40,8 @@ a2b689c..HEAD` vazio).
 | 11 | `867cf8e` | o painel escurece só a área principal (UX-R3-01) |
 | 12 | `e1f1035` | ensaio da leitura completa com 10 mil e 50 mil eventos, fora da suíte |
 | 13 | `aa18eae` | Q-08c: a reabertura decide a absorção também pela sincronização real |
-| 14 | commit de registro | este relatório, o backlog e a matriz de RF |
+| 14 | `d36061e` | este relatório, o backlog e a matriz de RF |
+| 13 | commit de registro | as cadeias de migrations e o drift, com o aval do João |
 
 ## 2. Achados
 
@@ -282,9 +284,28 @@ Always Free.
   lista só as 2 novas.
 - O L-04 aplica a `20261018100000_issue_linked_event` sobre linhas no formato antigo e confere a
   conversão e os dois enums.
-- **Cadeias do zero (82) e composta com a OCI (83):** não rodaram; dependem do aval do João, porque
-  criam e apagam bancos temporários. O roteiro é o da rodada anterior, com o nome dos bancos e a
-  conferência dos três enums novos.
+- **Cadeias do zero, com o aval do João (19/10/2026).** O roteiro é o da rodada anterior. Ele
+  confere que a conexão de origem é o `traceflow_test` e cria o banco temporário. Lá, aplica as
+  migrations com `migrate deploy`, confere a `_prisma_migrations` contra as pastas, as tabelas novas
+  e os enums, e apaga o banco no fim. A composta junta as nossas pastas à migration exclusiva da
+  OCI, lida com `git show origin/daniel-dev`. Nesta rodada, ele confere também o enum da notificação
+  e o do gatilho:
+
+  ```json
+  {"mode":"zero","database":"traceflow_test_r3_empty_validation","migrations":82,"expected":82,"missing":[],"last":"20261018110000_traceability_alert_scheduled_trigger","ociOnlyApplied":false,"tables":["githubeventcoverage","issuelifecycleevent","scheduledjoblease","taskartifactlinkperiod"],"artifactEventTypes":"enum('ISSUE_CLOSED','ISSUE_REOPENED','PULL_REQUEST_MERGED','PULL_REQUEST_CLOSED','ISSUE_LINKED')","notificationGithubEvent":"enum('ISSUE_CLOSED','ISSUE_REOPENED','PULL_REQUEST_MERGED','PULL_REQUEST_CLOSED','ISSUE_LINKED')","reconciliationTrigger":"enum('GITHUB_SYNC','GITHUB_INTEGRATION','MANUAL','SCRIPT','SCHEDULED')","seconds":11}
+  {"mode":"composta","database":"traceflow_test_r3_composed_validation","migrations":83,"expected":83,"missing":[],"last":"20261018110000_traceability_alert_scheduled_trigger","ociOnlyApplied":true,"tables":["evidenceupload","githubeventcoverage","issuelifecycleevent","scheduledjoblease","taskartifactlinkperiod"],"artifactEventTypes":"enum('ISSUE_CLOSED','ISSUE_REOPENED','PULL_REQUEST_MERGED','PULL_REQUEST_CLOSED','ISSUE_LINKED')","notificationGithubEvent":"enum('ISSUE_CLOSED','ISSUE_REOPENED','PULL_REQUEST_MERGED','PULL_REQUEST_CLOSED','ISSUE_LINKED')","reconciliationTrigger":"enum('GITHUB_SYNC','GITHUB_INTEGRATION','MANUAL','SCRIPT','SCHEDULED')","seconds":11}
+  ```
+
+- **Drift do schema** (`npm run db:test:validate-schema-drift`, com o mesmo aval): a cadeia inteira,
+  aplicada num banco descartável, não tem drift contra o `schema.prisma`, e o controle negativo (uma
+  FK trocada de propósito) é detectado com a saída 2. Levou 14 s:
+
+  ```json
+  {"database":"traceflow_test_schema_drift_validation","fullSqlChain":"PASS","schemaDrift":"NONE","negativeControlExit":2}
+  ```
+
+- Depois, só o `traceflow_test` restava entre os bancos `traceflow_test*`, com as 82 migrations
+  aplicadas (`db:test:status`).
 
 **Auditoria de trailers.** `git log --format=%(trailers) a2b689c..HEAD` não traz nenhum trailer, e
 nenhuma mensagem tem coautoria. Autor e committer de todos os commits: JoaoVitorSHernandes.
@@ -308,8 +329,8 @@ APPROVED com a aprovação do João.
 
 ## 9. Pendências
 
-- **Do João:** o aval para as cadeias de migrations, a validação de drift, as migrations no banco
-  de desenvolvimento e o G3; o push, quando pedir; postar a descrição e a resposta.
+- **Do João:** as duas migrations no banco de desenvolvimento e o aval para o G3; o push, quando
+  pedir; postar a descrição e a resposta.
 - **Do Daniel:** a aprovação arquitetural do ADR-024.
 - **Do dono da branch OCI:** o artefato do diagnóstico com o `SOURCES` acima, o
   `INITIAL_MIGRATION_COUNT` 83 e a composição do encerramento (PR26-F03).
