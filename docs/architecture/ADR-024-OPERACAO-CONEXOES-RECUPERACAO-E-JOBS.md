@@ -90,13 +90,16 @@ O que a branch OCI espera (`origin/daniel-dev` em `ecb3f34`, lida em 17/10/2026)
 4. **Espera dos `KILL` e prazo da recuperação (D4).**
    - O watchdog espera os `KILL QUERY` já enviados por no máximo 2 s (`KILL_WAIT_MS`). Sem
      confirmação, a conexão da transação é tratada como envenenada (D5).
-   - **Descarte com prazo (18/10/2026, TF-REV-013).** Depois do `P2028`, o `KILL` da conexão espera
-     no máximo 2 s (`RECOVERY_WAIT_MS`). Rejeitado ou sem resposta nesse prazo, a recuperação não está
-     confirmada, e o motor é marcado indisponível (`UNCONFIRMED_RECOVERY`). A transação rejeita com o
-     erro original, sem esperar o descarte.
+   - **Descarte com prazo (18/10/2026, TF-REV-013).** Depois do `P2028`, o `KILL` da conexão é
+     esperado por no máximo 2 s (`RECOVERY_WAIT_MS`). Rejeitado ou sem resposta nesse prazo, a
+     recuperação não está confirmada, e o motor é marcado indisponível (`UNCONFIRMED_RECOVERY`) antes
+     de a transação rejeitar com o erro original. Esperar até 2 s, em vez de deixar o descarte
+     solto, mantém a ordem que o S202-F33 fixa (o descarte registrado antes da rejeição) e não deixa
+     trabalho pendente depois da requisição.
    - **Prazo duro (18/10/2026, TF-REV-013).** A transação guardada assenta em no máximo
-     `timeout + 5 s`: a margem de 1 s do Prisma, os 2 s dos `KILL QUERY` e os 2 s do descarte. Passou
-     disso, a guarda rejeita com `TransactionDeadlineError` e marca o motor indisponível
+     `maxWait + timeout + 5 s`: a espera pela conexão (`maxWait`, 2 s no padrão do Prisma), a margem
+     de 1 s, os 2 s dos `KILL QUERY` e os 2 s do descarte. Com as opções padrão, são `timeout + 7 s`.
+     Passou disso, a guarda rejeita com `TransactionDeadlineError` e marca o motor indisponível
      (`UNSETTLED_TRANSACTION`). A rejeição tardia do Prisma é absorvida.
 5. **Saída controlada (D5).** O pânico do motor, a conexão envenenada, a recuperação não confirmada e
    a transação que não assenta marcam o motor como indisponível e avisam o processo:
@@ -228,8 +231,9 @@ O que a branch OCI espera (`origin/daniel-dev` em `ecb3f34`, lida em 17/10/2026)
   são uns 40 projetos por execução; acima de 960 projetos ativos por dia, o intervalo de 25 h deixa
   de valer e o limite precisa ser revisto.
 - **Comandos manuais.** Pedem uma URL própria, com `connection_limit` de no máximo 2.
-- **Prazo duro.** Uma transação que não assenta em `timeout + 5 s` reinicia o processo, como a
-  conexão envenenada.
+- **Prazo duro.** Uma transação que não assenta em `maxWait + timeout + 5 s` reinicia o processo,
+  como a conexão envenenada. Um rollback muito grande pode chegar perto desse limite; os 2 s do
+  descarte, que só correm no caminho do `P2028`, servem de folga nos outros caminhos.
 - **Branch OCI.** Ainda precisa mudar o `SOURCES` do diagnóstico, a contagem inicial de migrations e
   o preflight (recusar `DATABASE_POOL_LIMIT`).
 
@@ -257,7 +261,7 @@ O que a branch OCI espera (`origin/daniel-dev` em `ecb3f34`, lida em 17/10/2026)
 
 | Ponto do parecer | Resposta |
 | --- | --- |
-| TF-REV-013: descarte e desconexão sem prazo | descarte com 2 s, prazo duro de `timeout + 5 s` e desconexão com 5 s, na API e no worker; recuperação não confirmada vira indisponibilidade (D4, D5) |
+| TF-REV-013: descarte e desconexão sem prazo | descarte com 2 s, prazo duro de `maxWait + timeout + 5 s` e desconexão com 5 s, na API e no worker; recuperação não confirmada vira indisponibilidade (D4, D5) |
 | TF-REV-015: lotes novos depois do cancelamento | o sinal é conferido antes de cada unidade nova nos jobs, com relatório parcial (D7) |
 | TF-REV-016: override do pool contorna a validação da OCI | fonte única no `connection_limit` da URL, teto por função e recusa do `DATABASE_POOL_LIMIT` (D2) |
 | TF-REV-005: pacote diagnóstico sem as dependências | o fechamento continua em 9 arquivos; o `SOURCES` com os 7 arquivos, o manifesto, os builds e o smoke ARM64 cabem ao dono da branch OCI, e o achado só fecha com esse artefato (D6) |

@@ -4,9 +4,17 @@ import { lockWaitSecondsFor } from './lock-wait.js';
 import { killConnection, killQuery } from './recovery-prisma.js';
 
 const DEFAULT_TIMEOUT_MS = 5000;
+const DEFAULT_MAX_WAIT_MS = 2000;
 const KILL_REPEAT_MS = 100;
 export const KILL_WAIT_MS = 2000;
 export const DEADLINE_MARGIN_MS = 1000;
+export const RECOVERY_WAIT_MS = 2000;
+
+export function settleDeadlineMs(options) {
+  const timeoutMs = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+  const maxWaitMs = options?.maxWait ?? DEFAULT_MAX_WAIT_MS;
+  return maxWaitMs + timeoutMs + DEADLINE_MARGIN_MS + KILL_WAIT_MS + RECOVERY_WAIT_MS;
+}
 
 export class TransactionDeadlineError extends Error {
   constructor(timeoutMs, cause) {
@@ -87,21 +95,57 @@ function poison(connectionId, onUnavailable, log) {
   onUnavailable('POISONED_CONNECTION');
 }
 
-async function discardConnection(connectionId, discard, log) {
+async function within(promise, ms) {
+  let timer;
+  const expired = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ expired: true }), ms);
+  });
   try {
-    await discard(connectionId);
+    return await Promise.race([
+      promise.then(
+        (value) => ({ value }),
+        (error) => ({ error })
+      ),
+      expired
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function discardConnection(connectionId, discard, log, onUnavailable) {
+  const outcome = await within(
+    Promise.resolve().then(() => discard(connectionId)),
+    RECOVERY_WAIT_MS
+  );
+  if (!outcome.expired && !('error' in outcome)) {
     log.warn('Conexão da transação expirada encerrada no banco.', {
       event: 'database_connection_discarded',
       connectionId
     });
-  } catch (error) {
+    return;
+  }
+  if ('error' in outcome)
     log.warn('Não foi possível encerrar a conexão da transação expirada.', {
       event: 'database_transaction_kill_failed',
       scope: 'connection',
       connectionId,
-      causeCode: causeCodeOf(error)
+      causeCode: causeCodeOf(outcome.error)
     });
-  }
+  log.error('A recuperação da transação expirada não foi confirmada; o processo vai reiniciar.', {
+    event: 'database_recovery_unconfirmed',
+    connectionId,
+    reason: outcome.expired ? 'TIMEOUT' : 'REJECTED'
+  });
+  onUnavailable('UNCONFIRMED_RECOVERY');
+}
+
+function settleWithin(promise, deadlineMs, onExpire) {
+  let timer;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(onExpire()), deadlineMs);
+  });
+  return Promise.race([promise, expired]).finally(() => clearTimeout(timer));
 }
 
 export function guardTransactions(
@@ -117,9 +161,10 @@ export function guardTransactions(
   client.$transaction = function guardedTransaction(argument, options) {
     if (typeof argument !== 'function') return transaction.call(this, argument, options);
     const timeoutMs = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+    const deadlineMs = settleDeadlineMs(options);
     let connectionId = null;
 
-    return transaction
+    const pending = transaction
       .call(
         this,
         async (tx) => {
@@ -145,9 +190,20 @@ export function guardTransactions(
       .catch(async (error) => {
         if (isEnginePanic(error) || isEnginePanic(error?.cause)) onUnavailable('ENGINE_PANIC');
         else if (connectionId && (isExpired(error) || isExpired(error?.cause)))
-          await discardConnection(connectionId, discard, log);
+          await discardConnection(connectionId, discard, log, onUnavailable);
         throw error;
       });
+
+    return settleWithin(pending, deadlineMs, () => {
+      log.error('A transação não terminou no prazo duro; o processo vai reiniciar.', {
+        event: 'database_transaction_unsettled',
+        connectionId,
+        timeoutMs,
+        deadlineMs
+      });
+      onUnavailable('UNSETTLED_TRANSACTION');
+      return new TransactionDeadlineError(timeoutMs);
+    });
   };
   return client;
 }

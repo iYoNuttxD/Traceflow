@@ -75,7 +75,8 @@ Param o processo com código 1, depois da drenagem, e o `Restart=on-failure` rei
 - a conexão envenenada: um `KILL QUERY` sem confirmação em 2 s;
 - a recuperação não confirmada: o `KILL` da conexão depois do `P2028`, rejeitado ou sem resposta em
   2 s (desde 18/10/2026);
-- a transação que não assenta em `timeout + 5 s` (desde 18/10/2026).
+- a transação que não assenta em `maxWait + timeout + 5 s`, ou `timeout + 7 s` com o `maxWait`
+  padrão (desde 18/10/2026).
 
 Depois de 3 partidas em 300 s, o `systemd` deixa o serviço parado. Confira o
 `journalctl -u traceflow-github-worker` e o banco antes de `systemctl reset-failed` e

@@ -22,6 +22,7 @@ let prisma;
 let createPrismaClient;
 let disconnectRecoveryPrisma;
 let guardTransactions;
+let settleDeadlineMs;
 let PrismaClient;
 let sequence = 0;
 
@@ -29,7 +30,8 @@ beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
   ({ prisma, createPrismaClient } = await import('../../src/database/prismaClient.js'));
   ({ disconnectRecoveryPrisma } = await import('../../src/database/recovery-prisma.js'));
-  ({ guardTransactions } = await import('../../src/database/transaction-guard.js'));
+  ({ guardTransactions, settleDeadlineMs } =
+    await import('../../src/database/transaction-guard.js'));
   ({ PrismaClient } = await import('@prisma/client'));
 }, 60000);
 
@@ -248,19 +250,25 @@ describe('S202-F33 — Fase 1: prazo próprio da transação interativa', () => 
 });
 
 describe('S202-F33 — Fase 2: segunda camada', () => {
-  it('F2-03 P2028 que escapa do prazo próprio: a conexão é encerrada, ninguém recebe resposta errada, e 3 rodadas não escalam', async () => {
+  it('F2-03 P2028 que escapa do prazo próprio: o prazo duro solta a requisição, a conexão é encerrada, ninguém recebe resposta errada, e 3 rodadas não escalam (TF-REV-013)', async () => {
     const data = await fixture();
+    const reasons = [];
     const client = guardTransactions(new PrismaClient(), {
       killQuery: async () => {
         throw Object.assign(new Error('KILL QUERY indisponível'), { code: 'KILL_UNAVAILABLE' });
-      }
+      },
+      onUnavailable: (reason) => reasons.push(reason)
     });
-    loggerMock.warn.mockClear();
     const wrong = ['errado', 'P2025', 'PrismaClientRustPanicError', 'TypeError'];
+    const discarded = () =>
+      loggerMock.warn.mock.calls.filter(
+        ([, fields]) => fields?.event === 'database_connection_discarded'
+      ).length;
 
     try {
       for (let round = 1; round <= 3; round += 1) {
-        const { error } = await timed(() =>
+        loggerMock.warn.mockClear();
+        const { error, ms } = await timed(() =>
           client.$transaction(async (tx) => {
             await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado antes' } });
             await slowQuery(tx);
@@ -268,8 +276,10 @@ describe('S202-F33 — Fase 2: segunda camada', () => {
         );
 
         expectDeadline(error);
-        expect(error.cause?.code).toBe('P2028');
+        expect(ms, `rodada ${round}`).toBeLessThan(settleDeadlineMs() + 1500);
+        expect(reasons.at(-1)).toBe('UNSETTLED_TRANSACTION');
         expect(await storedName(data.user.id)).not.toMatch(/^Gravado/);
+        await vi.waitFor(() => expect(discarded()).toBe(1), { timeout: 10000, interval: 100 });
         const rows = await probe(client, data);
         const values = rows.flatMap((row) => Object.values(row));
         expect(
@@ -282,12 +292,6 @@ describe('S202-F33 — Fase 2: segunda camada', () => {
       await client.$disconnect();
     }
 
-    expect(loggerMock.warn).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        event: 'database_connection_discarded',
-        connectionId: expect.any(Number)
-      })
-    );
-  }, 120000);
+    expect(reasons).toEqual(Array(3).fill('UNSETTLED_TRANSACTION'));
+  }, 180000);
 });
