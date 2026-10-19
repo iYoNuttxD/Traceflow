@@ -790,6 +790,33 @@ describe('TF-REV-014 — o fechamento só é absorvido pelo merge que o fechou',
     ]);
   });
 
+  it('Q-08c o merge cujo fechamento ainda não chegou não absorve o fechamento separado por uma reabertura', async () => {
+    const scenario = await linkedPullRequest();
+    const closedAt = after(2 * SECOND);
+    const mergedAt = after(6 * SECOND);
+    const snapshot = [pullRequestItem(9, 'closed', { closedAt: mergedAt, mergedAt })];
+
+    await sync(scenario, {
+      pullRequests: snapshot,
+      eventPages: [
+        [
+          githubEvent('PULL_REQUEST', 9, 'CLOSED', closedAt),
+          githubEvent('PULL_REQUEST', 9, 'REOPENED', after(3 * SECOND)),
+          githubEvent('PULL_REQUEST', 9, 'MERGED', mergedAt)
+        ]
+      ]
+    });
+    await sync(scenario, {
+      pullRequests: snapshot,
+      eventPages: [[githubEvent('PULL_REQUEST', 9, 'CLOSED', mergedAt)]]
+    });
+
+    expect(await typesOf(scenario.project.id)).toEqual([
+      ['PULL_REQUEST_CLOSED', closedAt],
+      ['PULL_REQUEST_MERGED', mergedAt]
+    ]);
+  });
+
   it('Q-09 o RF61 conta o fechamento distinto e o merge, com os dois avisos enviados', async () => {
     const scenario = await linkedPullRequest();
     const mergedAt = after(6 * SECOND);
