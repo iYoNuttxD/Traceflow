@@ -1,4 +1,3 @@
-import { env } from '../../config/env.js';
 import { redact, sanitizeText } from './redaction.js';
 
 function defaultWrite(level, line) {
@@ -6,18 +5,21 @@ function defaultWrite(level, line) {
   stream.write(`${line}\n`);
 }
 
-export function createLogger({ environment = env.nodeEnv, write } = {}) {
-  const output = write || (environment === 'test' ? () => {} : defaultWrite);
+const discard = () => {};
+const runtimeEnvironment = () => process.env.NODE_ENV || 'development';
+
+export function createLogger({ environment, write } = {}) {
   function log(level, message, context = {}) {
+    const current = environment ?? runtimeEnvironment();
     const event = redact({
       timestamp: new Date().toISOString(),
       level,
       message: sanitizeText(message),
-      environment,
+      environment: current,
       ...context
     });
     const line = JSON.stringify(event);
-    output(level, line);
+    (write || (current === 'test' ? discard : defaultWrite))(level, line);
     return event;
   }
 

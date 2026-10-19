@@ -24,7 +24,7 @@ export function KanbanSummary({
         { label: 'Total', value: summary.total },
         { label: 'Prioridade crítica', value: summary.criticalPriority },
         { label: 'Atrasadas', value: summary.overdue },
-        { label: 'Sem rastreabilidade', value: summary.untraced }
+        { label: 'Sem vínculo técnico', value: summary.withoutTechnicalLink }
       ];
 
   return (

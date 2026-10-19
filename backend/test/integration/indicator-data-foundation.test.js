@@ -7,12 +7,13 @@ import {
 
 let prisma;
 let syncProjectPullRequests;
+let syncProjectRepositoryEvents;
 let syncProjectCommits;
 let githubBranchRepository;
 let taskKanbanService;
 let taskCrudService;
 let settingsRepository;
-let pullRequestRepository;
+let githubRepositoryEventsRepository;
 let commitRepository;
 
 beforeAll(async () => {
@@ -20,6 +21,8 @@ beforeAll(async () => {
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ syncProjectPullRequests } =
     await import('../../src/modules/github/services/sync-project-pull-requests.service.js'));
+  ({ syncProjectRepositoryEvents } =
+    await import('../../src/modules/github/services/sync-project-repository-events.service.js'));
   ({ syncProjectCommits } =
     await import('../../src/modules/github/services/sync-project-commits.service.js'));
   ({ githubBranchRepository } =
@@ -27,8 +30,8 @@ beforeAll(async () => {
   ({ taskKanbanService } = await import('../../src/modules/tasks/services/task-kanban.service.js'));
   ({ taskCrudService } = await import('../../src/modules/tasks/services/task-crud.service.js'));
   ({ settingsRepository } = await import('../../src/modules/settings/settings.repository.js'));
-  ({ pullRequestRepository } =
-    await import('../../src/modules/pullRequests/pullRequest.repository.js'));
+  ({ githubRepositoryEventsRepository } =
+    await import('../../src/modules/github/github-repository-events.repository.js'));
   ({ commitRepository } = await import('../../src/modules/commits/commit.repository.js'));
   await cleanTestDatabase(prisma);
 });
@@ -62,8 +65,13 @@ async function fixture(suffix = 'a') {
 }
 
 const repository = { owner: 'owner', name: 'repo' };
+async function syncPullRequestsWithEvents(args) {
+  const pullRequests = await syncProjectPullRequests(args);
+  return { ...pullRequests, ...(await syncProjectRepositoryEvents(args)) };
+}
 const pr = (number) => ({ githubId: String(number + 1000), number, title: `PR ${number}` });
 const event = (id, number, eventType) => ({
+  kind: 'PULL_REQUEST',
   providerEventId: String(id),
   number,
   eventType,
@@ -74,7 +82,7 @@ function prClient(eventPages) {
     listPullRequestPages: vi.fn(async function* () {
       yield [pr(1)];
     }),
-    listPullRequestLifecycleEventPages: vi.fn(async function* () {
+    listRepositoryEventPages: vi.fn(async function* () {
       for (const page of eventPages) yield page;
     })
   };
@@ -90,7 +98,7 @@ describe('fundação histórica de indicadores', () => {
     ];
     const onProgress = vi.fn();
     const sync = (project, client) =>
-      syncProjectPullRequests({ project, repository, githubClient: client, onProgress });
+      syncPullRequestsWithEvents({ project, repository, githubClient: client, onProgress });
     expect((await sync(first.project, prClient(pages))).lifecycleEventsCreated).toBe(4);
     const firstCoverage = (
       await prisma.projectGitHubIntegration.findUnique({ where: { projectId: first.project.id } })
@@ -128,7 +136,7 @@ describe('fundação histórica de indicadores', () => {
 
   it('falha em página posterior sem apagar eventos existentes nem confirmar backfill', async () => {
     const { project } = await fixture('pr_partial');
-    await syncProjectPullRequests({
+    await syncPullRequestsWithEvents({
       project,
       repository,
       githubClient: prClient([[event(1, 1, 'CLOSED')]])
@@ -139,12 +147,12 @@ describe('fundação histórica de indicadores', () => {
     expect(before.pullRequestLifecycleSyncedAt).not.toBeNull();
     expect(before.pullRequestLifecycleCoverageFrom).toEqual(before.pullRequestLifecycleSyncedAt);
     const client = prClient([]);
-    client.listPullRequestLifecycleEventPages = async function* () {
+    client.listRepositoryEventPages = async function* () {
       yield [event(2, 1, 'REOPENED')];
       throw new Error('page 2 failed');
     };
     await expect(
-      syncProjectPullRequests({ project, repository, githubClient: client })
+      syncPullRequestsWithEvents({ project, repository, githubClient: client })
     ).rejects.toThrow('page 2 failed');
     expect(await prisma.pullRequestLifecycleEvent.count({ where: { projectId: project.id } })).toBe(
       1
@@ -165,7 +173,7 @@ describe('fundação histórica de indicadores', () => {
       (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } }))
         .pullRequestLifecycleSyncedAt
     ).toBeNull();
-    const result = await syncProjectPullRequests({
+    const result = await syncPullRequestsWithEvents({
       project,
       repository,
       githubClient: prClient([])
@@ -324,7 +332,7 @@ describe('fundação histórica de indicadores', () => {
     expect(
       await prisma.commitBranch.count({ where: { branchId: branch.id, commitId: oldCommit.id } })
     ).toBe(0);
-    await syncProjectPullRequests({
+    await syncPullRequestsWithEvents({
       project,
       repository,
       githubClient: prClient([[event(1, 1, 'CLOSED')]])
@@ -447,14 +455,20 @@ describe('fundação histórica de indicadores', () => {
 
   it('recusa novos fatos P1 após soft delete do projeto', async () => {
     const { user, project } = await fixture('soft_delete');
-    await syncProjectPullRequests({ project, repository, githubClient: prClient([]) });
+    await syncPullRequestsWithEvents({ project, repository, githubClient: prClient([]) });
     const branch = await prisma.gitBranch.create({
       data: { projectId: project.id, name: 'main', headSha: 'H', lastSeenAt: new Date() }
     });
     const task = await prisma.task.create({ data: { projectId: project.id, title: 'Task' } });
     await prisma.project.update({ where: { id: project.id }, data: { deletedAt: new Date() } });
     await expect(
-      pullRequestRepository.appendLifecycleEvents(project.id, [event(1, 1, 'CLOSED')])
+      githubRepositoryEventsRepository.record(project.id, {
+        pullRequestEvents: [
+          { providerEventId: '1', number: 1, eventType: 'CLOSED', occurredAt: new Date() }
+        ],
+        issueEvents: [],
+        readStartedAt: new Date()
+      })
     ).rejects.toMatchObject({ statusCode: 404 });
     await expect(
       commitRepository.createMany([{ projectId: project.id, hash: 'after-delete' }])
@@ -479,7 +493,7 @@ describe('fundação histórica de indicadores', () => {
 
 it('skips only orphan PR events and does not advance lifecycle completeness', async () => {
   const { project } = await fixture('orphan');
-  const summary = await syncProjectPullRequests({
+  const summary = await syncPullRequestsWithEvents({
     project,
     repository,
     githubClient: prClient([[event(1, 1, 'CLOSED'), event(2, 99, 'REOPENED')]])
@@ -489,7 +503,7 @@ it('skips only orphan PR events and does not advance lifecycle completeness', as
   expect(
     await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } })
   ).toMatchObject({ pullRequestLifecycleSyncedAt: null, pullRequestLifecycleCoverageFrom: null });
-  await syncProjectPullRequests({
+  await syncPullRequestsWithEvents({
     project,
     repository,
     githubClient: prClient([[event(1, 1, 'CLOSED')]])

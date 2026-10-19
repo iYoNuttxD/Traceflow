@@ -1,0 +1,99 @@
+import {
+  INCONSISTENCY,
+  NOTIFICATION_TYPES,
+  STATUS_CHANGED,
+  notificationLink
+} from './notification.policy.js';
+import { artifactKindOf, safeGithubUrl } from './github-event.policy.js';
+import { noticeContext, noticeLink } from './traceability-notice.policy.js';
+
+function contextOf(row) {
+  if (row.type === INCONSISTENCY) return noticeContext(row);
+  if (row.type === STATUS_CHANGED) {
+    return {
+      fromStatus: row.fromStatus,
+      toStatus: row.toStatus,
+      actor: row.actor ? { id: row.actor.id, name: row.actor.name } : null,
+      selfAction: row.actorUserId !== null && row.actorUserId === row.recipientUserId
+    };
+  }
+  const kind = artifactKindOf(row.type);
+  if (kind) {
+    return {
+      event: row.githubEvent,
+      occurredAt: row.githubOccurredAt,
+      artifact: {
+        kind,
+        number: row.artifactNumber,
+        title: row.artifactTitle,
+        url: safeGithubUrl(row.artifactUrl)
+      }
+    };
+  }
+  return { dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null };
+}
+
+export function toNotificationDTO(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    createdAt: row.createdAt,
+    readAt: row.readAt,
+    project: { id: row.project.id, name: row.project.name },
+    task:
+      row.type === INCONSISTENCY
+        ? null
+        : {
+            id: row.taskId,
+            code: row.taskId ? `TASK-${row.taskId}` : null,
+            title: row.taskTitle,
+            available: Boolean(row.taskId)
+          },
+    context: contextOf(row),
+    link:
+      row.type === INCONSISTENCY
+        ? noticeLink(row.projectId, row.traceabilityAlertId)
+        : notificationLink(row.projectId, row.taskId)
+  };
+}
+
+export function toNotificationCursor(row) {
+  return Buffer.from(`${row.createdAt.toISOString()}|${row.id}`, 'utf8').toString('base64url');
+}
+
+export function toPreferencesDTO(rows) {
+  const disabled = new Set(rows.filter((row) => !row.enabled).map((row) => row.type));
+  return Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, !disabled.has(type)]));
+}
+
+function githubExportFields(row) {
+  const inconsistency = row.type === INCONSISTENCY;
+  if (!inconsistency && !artifactKindOf(row.type)) return {};
+  return {
+    ...(inconsistency
+      ? { traceabilityAlertId: row.traceabilityAlertId, batchSummary: row.batchSummary }
+      : {}),
+    githubEvent: row.githubEvent,
+    artifactNumber: row.artifactNumber,
+    artifactTitle: row.artifactTitle,
+    artifactUrl: safeGithubUrl(row.artifactUrl),
+    githubOccurredAt: row.githubOccurredAt
+  };
+}
+
+export function toNotificationExportItem(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    projectId: row.projectId,
+    taskId: row.taskId,
+    taskTitle: row.taskTitle,
+    fromStatus: row.fromStatus,
+    toStatus: row.toStatus,
+    dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
+    ...githubExportFields(row),
+    createdAt: row.createdAt,
+    readAt: row.readAt,
+    visible: !row.project.deletedAt && row.project.memberships.length > 0
+  };
+}

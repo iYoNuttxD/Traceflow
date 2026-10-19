@@ -665,6 +665,46 @@ export const settingsRepository = {
             failureCode: true
           }
         },
+        notifications: {
+          select: {
+            id: true,
+            type: true,
+            projectId: true,
+            taskId: true,
+            taskTitle: true,
+            fromStatus: true,
+            toStatus: true,
+            dueDate: true,
+            githubEvent: true,
+            artifactNumber: true,
+            artifactTitle: true,
+            artifactUrl: true,
+            githubOccurredAt: true,
+            traceabilityAlertId: true,
+            batchSummary: true,
+            createdAt: true,
+            readAt: true,
+            project: {
+              select: {
+                deletedAt: true,
+                memberships: { where: { userId, isActive: true }, select: { id: true } }
+              }
+            }
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+        },
+        notificationPreferences: { select: { type: true, enabled: true } },
+        notificationDecisions: {
+          select: {
+            type: true,
+            eventKey: true,
+            projectId: true,
+            outcome: true,
+            occurredAt: true,
+            decidedAt: true
+          },
+          orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }]
+        },
         personalDataExports: {
           select: {
             id: true,

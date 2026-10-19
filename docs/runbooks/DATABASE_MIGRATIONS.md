@@ -34,6 +34,12 @@ npm run db:test:status
 `db:test:validate-lr9` exercitam contratos de evolução históricos específicos. Não fixe a quantidade
 de migrations em normas permanentes e não use `prisma migrate reset` em desenvolvimento.
 
+**Nome da migration.** `AAAAMMDDhhmmss_descricao`, com a **data UTC do dia da criação** e a hora
+como sequência do dia (`010000`, `020000`; `010100` para uma intermediária). Nunca use uma data
+futura: uma migration criada noutra branch no intervalo ficaria antes dela na ordem. Migration já
+aplicada em algum banco não é renomeada; o desvio fica registrado no relatório do cartão (caso
+`20261011010000_notification_preference_enabled_at`, criada em 10/10/2026, S202-R07).
+
 ## LR.3.1 — evidência de autorização pessoal GitHub
 
 > Histórico: este modelo foi aplicado na LR.3.1 e substituído pela LR.9. Não editar nem remover
@@ -195,6 +201,13 @@ npx prisma migrate status
 ```
 
 5. Verifique `/health/ready`, logs sanitizados e smoke funcional.
+
+## Jobs agendados durante a migration
+
+Desde 17/10/2026, o worker roda os jobs de notificação e de reconciliação. Antes de qualquer
+`migrate deploy` ou rollback, pare o worker e confira que nenhuma lease está válida, como no runbook
+[Jobs agendados](SCHEDULED_JOBS.md#pausa-para-backup-migration-e-rollback). Suba o worker depois da
+conferência. O rollback da aplicação não desfaz DDL.
 
 ## Migration com falha
 

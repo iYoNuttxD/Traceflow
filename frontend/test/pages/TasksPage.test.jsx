@@ -83,7 +83,8 @@ vi.mock('../../src/features/traceability/api/traceability.api.js', () => ({
   }),
   confirmCommitSuggestion: vi.fn(),
   rejectCommitSuggestion: vi.fn(),
-  scanCommitSuggestions: vi.fn()
+  scanCommitSuggestions: vi.fn(),
+  getTraceabilityAlertIndex: vi.fn(async () => ({ tasks: [], pullRequests: [], issues: [] }))
 }));
 
 vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({

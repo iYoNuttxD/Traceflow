@@ -207,6 +207,45 @@ function buildSummary(artifacts) {
   };
 }
 
+function currentAlerts(alerts) {
+  const bySubject = new Map();
+  for (const alert of alerts) {
+    const key = alert.pullRequestId
+      ? `pull_request:${alert.pullRequestId}`
+      : alert.issueId
+        ? `issue:${alert.issueId}`
+        : null;
+    if (!key) continue;
+    const current = bySubject.get(key);
+    if (!current || (current.status !== 'OPEN' && alert.status === 'OPEN'))
+      bySubject.set(key, alert);
+  }
+  return bySubject;
+}
+
+function withInconsistency(artifact, alerts) {
+  if (artifact.type === 'commit') return { ...artifact, inconsistency: null };
+  const alert = alerts.get(`${artifact.type}:${artifact.id}`);
+  return {
+    ...artifact,
+    inconsistency: alert
+      ? {
+          alertId: alert.id,
+          status: alert.status,
+          detectedAt: toIsoString(alert.detectedAt),
+          resolvedAt: toIsoString(alert.resolvedAt),
+          dismissedAt: toIsoString(alert.dismissedAt)
+        }
+      : null
+  };
+}
+
+function inconsistencySummary(artifacts) {
+  const count = (status) =>
+    artifacts.filter((artifact) => artifact.inconsistency?.status === status).length;
+  return { open: count('OPEN'), dismissed: count('DISMISSED'), resolved: count('RESOLVED') };
+}
+
 function sortArtifactsByDateDesc(artifacts) {
   return artifacts.sort((first, second) => {
     const firstTime = first.date ? new Date(first.date).getTime() : 0;
@@ -236,7 +275,7 @@ export const artifactService = {
       throw new ArtifactServiceError('Projeto não encontrado.', 404);
     }
 
-    const [commits, pullRequests, issues] = await Promise.all([
+    const [commits, pullRequests, issues, alerts] = await Promise.all([
       !type || type === 'commit'
         ? artifactRepository.listCommits(parsedProjectId, dateFilter, branch)
         : Promise.resolve([]),
@@ -245,14 +284,21 @@ export const artifactService = {
         : Promise.resolve([]),
       !type || type === 'issue'
         ? artifactRepository.listIssues(parsedProjectId, dateFilter)
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      type === 'commit'
+        ? Promise.resolve([])
+        : artifactRepository.listArtifactAlerts(parsedProjectId)
     ]);
 
-    const artifacts = sortArtifactsByDateDesc([
+    const subjects = currentAlerts(alerts);
+    const listed = sortArtifactsByDateDesc([
       ...commits.map((commit) => mapCommit(commit, project)),
       ...pullRequests.map((pullRequest) => mapPullRequest(pullRequest, project)),
       ...issues.map((issue) => mapIssue(issue, project))
-    ]);
+    ]).map((artifact) => withInconsistency(artifact, subjects));
+    const artifacts = query.inconsistency
+      ? listed.filter((artifact) => artifact.inconsistency?.status === query.inconsistency)
+      : listed;
 
     return {
       project: { id: project.id, name: project.name },
@@ -264,9 +310,10 @@ export const artifactService = {
         type: type || null,
         startDate: query.startDate || null,
         endDate: query.endDate || null,
-        branch: branch || null
+        branch: branch || null,
+        inconsistency: query.inconsistency || null
       },
-      summary: buildSummary(artifacts),
+      summary: { ...buildSummary(artifacts), inconsistencies: inconsistencySummary(listed) },
       artifacts
     };
   }

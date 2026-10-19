@@ -13,6 +13,10 @@ import {
 import { buildAuditEvent } from '../audit/audit.service.js';
 import { githubAppService } from '../github/github-app.service.js';
 import { githubAuthService } from '../auth/github-auth.service.js';
+import {
+  toNotificationExportItem,
+  toPreferencesDTO
+} from '../notifications/notification.mapper.js';
 import { settingsRepository } from './settings.repository.js';
 import { createJsonZip } from './zip.js';
 
@@ -147,6 +151,9 @@ async function buildExportArchive(userId, now) {
     'sessions.json': data.sessions,
     'privacy-requests.json': data.privacyRequests,
     'data-exports.json': data.personalDataExports || [],
+    'notifications.json': (data.notifications || []).map(toNotificationExportItem),
+    'notification-preferences.json': toPreferencesDTO(data.notificationPreferences || []),
+    'notification-decisions.json': data.notificationDecisions || [],
     'email-change-history.json': data.emailChangeRequests || [],
     'audit-events.json': data.auditEvents,
     'github-identity.json': data.githubIdentity || null,

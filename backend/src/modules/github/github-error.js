@@ -1,4 +1,12 @@
-import { ERROR_CODES } from '../../shared/errors/index.js';
+import { isLockBusy } from '../../database/locks.js';
+import { isLockWaitTimeout } from '../../database/lock-wait.js';
+import { DomainError, ERROR_CODES } from '../../shared/errors/index.js';
+
+const STORAGE_CAUSE = /^P\d{4}$/;
+const STORAGE_FAILURE_MESSAGE =
+  'Não foi possível gravar os dados da sincronização. Tente de novo em instantes.';
+export const PROJECT_BUSY_MESSAGE =
+  'O projeto está com outra alteração em andamento. Tente sincronizar de novo em instantes.';
 
 function header(error, name) {
   const headers = error?.response?.headers;
@@ -114,5 +122,41 @@ export function normalizeGithubError(error) {
     message: 'Não foi possível sincronizar com o GitHub.',
     code: ERROR_CODES.EXTERNAL_SERVICE_ERROR,
     externalStatus
+  };
+}
+
+function storageCauseOf(error) {
+  if (error?.code === 'TRANSACTION_DEADLINE') return 'TRANSACTION_DEADLINE';
+  for (const value of [error?.code, error?.errorCode])
+    if (STORAGE_CAUSE.test(String(value ?? ''))) return String(value);
+  const name = String(error?.name ?? '');
+  return name.startsWith('PrismaClient') ? name : null;
+}
+
+export function githubSyncFailure(error) {
+  if (
+    error?.code === ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY ||
+    error?.code === 'PROJECT_WRITE_BUSY' ||
+    error?.code === 'GITHUB_SYNC_BUSY' ||
+    isLockBusy(error) ||
+    isLockWaitTimeout(error)
+  )
+    return {
+      code: ERROR_CODES.GITHUB_SYNC_PROJECT_BUSY,
+      message: PROJECT_BUSY_MESSAGE,
+      causeCode: null
+    };
+  const causeCode = storageCauseOf(error);
+  if (causeCode)
+    return {
+      code: ERROR_CODES.GITHUB_SYNC_STORAGE_FAILED,
+      message: STORAGE_FAILURE_MESSAGE,
+      causeCode
+    };
+  const normalized = normalizeGithubError(error);
+  return {
+    code: String(error?.code || normalized.code || 'GITHUB_SYNC_FAILED'),
+    message: error instanceof DomainError ? error.message : normalized.message,
+    causeCode: null
   };
 }

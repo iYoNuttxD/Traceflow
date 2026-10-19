@@ -170,6 +170,15 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
       );
     }
 
+    if (relativeFile[0] !== 'database' && /\bnew\s+PrismaClient\s*\(/.test(source)) {
+      addViolation(
+        violations,
+        file,
+        'prisma-client-only-in-database',
+        'PrismaClient',
+        'O PrismaClient só é criado em src/database, onde o cliente aplica o limite de espera de trava e o prazo próprio das transações (ADR-019, ADR-020).'
+      );
+    }
     if (/prisma\.taskPullRequest|pullRequestLinks|\bTaskPullRequest\b/.test(source)) {
       addViolation(
         violations,

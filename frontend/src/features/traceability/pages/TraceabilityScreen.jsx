@@ -18,6 +18,7 @@ import {
   RequirementFilters,
   RequirementSummary
 } from '../components/RequirementCatalog.jsx';
+import { InconsistencySummary } from '../components/InconsistencySummary.jsx';
 import { RequirementHistory } from '../components/RequirementHistory.jsx';
 import { useRequirementCatalog } from '../hooks/useRequirementCatalog.js';
 import './TraceabilityScreen.css';
@@ -101,7 +102,9 @@ function ProjectTraceability({ projectId }) {
           </div>
           <ProjectSectionNav projectId={projectId} activeSection="traceability" />
         </header>
-        <RequirementSummary summary={catalog.data?.summary} />
+        <RequirementSummary summary={catalog.data?.summary}>
+          <InconsistencySummary projectId={projectId} />
+        </RequirementSummary>
         <RequirementFilters
           filters={catalog.filters}
           onChange={catalog.change}

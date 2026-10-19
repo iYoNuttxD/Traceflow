@@ -237,7 +237,11 @@ describe('Project deletion concorrente com MySQL e storage reais', () => {
     expect(await issueRepository.upsertMany(rows)).toEqual({ created: 100, updated: 0 });
     const issuesMs = Math.round(performance.now() - started);
     const prsStart = performance.now();
-    expect(await pullRequestRepository.upsertMany(rows)).toEqual({ created: 100, updated: 0 });
+    expect(await pullRequestRepository.upsertMany(rows)).toEqual({
+      created: 100,
+      updated: 0,
+      anomalies: 0
+    });
     const prsMs = Math.round(performance.now() - prsStart);
     for (const model of [prisma.issue, prisma.pullRequest]) {
       expect(

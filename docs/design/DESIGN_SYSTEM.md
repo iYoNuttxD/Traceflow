@@ -532,6 +532,8 @@ aplicam a mesma semântica sem detecção de navegador ou sistema operacional po
 - fixados e recentes são preferências locais por usuário, sempre filtradas pela resposta atual do
   backend e nunca usadas como prova de acesso;
 - Theme, Configurações e Sair compartilham estado normal neutro; logout reutiliza a sessão vigente;
+- o sino de notificações é um botão que abre o painel lateral (seção "Painel de notificações");
+  no celular, fica na barra superior ao lado do ☰, que se chama só "Abrir navegação";
 - motion da sidebar e do drawer respeita `prefers-reduced-motion`.
 
 ## Auth público Focused
@@ -1152,3 +1154,115 @@ Esta composição substitui as duas linhas desktop descritas no P9.
   contratos de recuperação existentes. Ações da barra e footer do editor podem quebrar linha.
 - Evidência automática é técnica. A nova matriz renderizada Light/Dark de 320/375/768/1280/
   1440/1920/2560px está pendente; não se herda a homologação visual anterior para o layout largo.
+
+## Painel de notificações — PR #26, TF-REV-008 (2026-10-16)
+
+Substitui a página `/notifications`, que redireciona para `/projects` com o painel aberto (UX-D01).
+
+- **Abertura.** O sino da sidebar é um botão com `aria-haspopup="dialog"` e `aria-expanded`. O nome
+  acessível leva a contagem ("Notificações, 3 não lidas"); o selo continua oculto em zero e com
+  "99+" acima de 99. No celular, o sino fica na barra superior, com o ponto de não lidas.
+- **Forma.** Gaveta de até 400 px que abre colada à navegação lateral, perto do sino: começa na
+  borda da sidebar expandida ou recolhida (UX-R2-04, segunda revisão do PR #26, 17/10/2026). Desde
+  18/10/2026 (UX-R3-01), o overlay escurece só a área principal: começa no mesmo deslocamento da
+  gaveta (`--notifications-panel-offset`, definido na camada), e a sidebar fica com as cores
+  normais, com o sino destacado por `aria-expanded`. A sidebar continua `inert`; sobre ela, uma
+  faixa transparente da camada recebe o clique e fecha o painel sem navegar, como o clique fora. Até
+  720 px, o deslocamento é zero: a gaveta e o overlay ocupam a tela inteira.
+  Fica num portal fora do `main` e entra na pilha do `useDialogLayer`, para o Escape fechar a
+  camada certa. Contém o foco, deixa o shell `inert` e trava a rolagem do `body`. O foco inicial vai
+  para o título e volta ao sino ao fechar. O `Tab` e o `Shift+Tab` tratam como borda o foco que está
+  fora da lista de controles, como o título: `Shift+Tab` nele vai ao último controle (TF-REV-011). O movimento respeita `prefers-reduced-motion`; em
+  `forced-colors`, borda, ponto e anel de foco usam cores do sistema.
+- **Cabeçalho.** Título "Notificações", "Preferências de notificação" e fechar, os dois em botões de
+  ícone de 44 px. Sem parágrafo de abertura.
+- **Preferências no painel.** O botão de preferências troca o conteúdo do painel pela vista
+  "Preferências", com "Voltar às notificações" e fechar no cabeçalho, uma frase curta e o mesmo
+  formulário da página `/settings/notifications` (`NotificationPreferencesForm`). A vista recebe o
+  foco no título; a volta devolve o foco ao botão de preferências e preserva a aba, a origem, as
+  páginas já carregadas e o que foi marcado como lido. A página continua existindo, para o acesso
+  direto e a área de Configurações.
+- **Filtros.** Abas "Não lidas" e "Todas", com `tablist` completo (setas, Home e End). O
+  `SelectControl` "Origem" (Todas, Tarefas, GitHub, Inconsistências) divide a linha com "Marcar
+  todas como lidas", que segue o contador único.
+- **Item compacto.**
+  - Ícone por tipo, com token semântico: inconsistência em warning, vencimento em danger, status e
+    GitHub em info. A cor não é o único sinal, porque o ícone e o nome do tipo mudam junto.
+  - Uma linha de frase ("Ana moveu TASK-12 para Concluído", "TASK-7 venceu em 14/10/2026",
+    "Issue #45 fechada no GitHub · TASK-7", "PR #8 mesclada sem tarefa vinculada") e uma de
+    metadado: projeto, `<time datetime>` da criação do aviso, estado da inconsistência e "Tarefa
+    excluída".
+  - A não lida tem o ponto com o texto oculto "Não lida:", a frase em negrito e uma barra de
+    destaque. A lida fica em peso normal.
+  - O item inteiro é o link para o contexto: abrir marca como lida e fecha o painel. O botão de
+    ícone de 44 px alterna lida e não lida, com frase, projeto e horário no nome.
+  - "Abrir no GitHub" fica no destino. A exceção é o aviso do GitHub cuja tarefa foi excluída: sem
+    destino no TraceFlow, o item abre o artefato no GitHub em nova aba, continua no painel, e o
+    metadado avisa "abre no GitHub em nova aba".
+- **Estados.** Carregando, erro com nova tentativa, limite de taxa com `Retry-After`, vazio por aba
+  e por origem com "Ver todas", e "Carregar mais (N restantes)" pelo cursor. O vazio, nas duas abas,
+  tem um ícone de sino discreto (`aria-hidden`, círculo neutro de 40 px) sobre a mensagem curta, sem
+  texto novo nem ilustração (sugestão do revisor, ⚑15).
+
+## Indicações de inconsistência — PR #26, TF-REV-008 (2026-10-16)
+
+Substituem as páginas de alertas e de tarefas sem vínculo técnico (UX-D02). A informação aparece onde
+o trabalho acontece, sem tela própria.
+
+- **Marcador "Concluída sem commit" (RF13).** No cartão do Kanban e no item da lista de tarefas,
+  quando há alerta aberto no índice `GET /traceability/alerts/index`. Segue o marcador de correção
+  do S1-08, com ícone `alert`, tipografia de metadado, tokens warning e alvo de 44 px; o cartão não
+  recebe tratamento de erro. O nome acessível é "Concluída sem commit: abrir a inconsistência da
+  TASK-31", e o clique abre os detalhes com o foco no título da seção de inconsistência.
+- **Linha de rastreabilidade (RF58).** Separa o vínculo técnico ("1 PR · 2 commits", ou "Sem vínculo
+  técnico" em semibold) do requisito ("1 req", ou "Sem requisito" em `text-secondary`). Sem
+  requisito é informação, não alerta.
+- **Contador "Sem vínculo técnico" (RF58).** Fica no resumo de cada tela: a métrica de
+  `TaskMetrics`, em Tarefas, e a de `KanbanSummary`, no Kanban. Não há faixa nem botão próprio
+  (UX-R2-03, segunda revisão do PR #26, 17/10/2026). O resumo de Tarefas passa a ter 7 métricas,
+  em 7, 4 e 2 colunas conforme a largura.
+- **Filtro "Rastreabilidade".** `SelectControl` só em "Buscar e filtrar", no Kanban e na lista:
+  Todas, Sem vínculo técnico e Concluídas sem commit. Conta como filtro ativo e sai com "Limpar
+  filtros". Na lista, acompanha `?rastreabilidade=`.
+- **Sem código de RF na interface.** Rótulos, opções e avisos não mostram "RF58" nem "RF13"; o
+  aviso de índice indisponível fala em "concluídas sem commit".
+- **Seção "Inconsistência" nos detalhes.** No topo da Rastreabilidade da tarefa, em superfície
+  warning com borda: tipo, conclusão e detecção; "Vincular commit" (abre o editor de vínculos com o
+  foco na busca de commits), "Dispensar" (MANAGER+, com o `AlertDismissForm`) e "Histórico (n)",
+  com quem, quando e por quê.
+  - Sem alerta aberto, fica uma linha compacta em superfície neutra, "Inconsistências anteriores",
+    com "Histórico (n)": a dispensa e a resolução continuam consultáveis depois de recarregar
+    (TF-REV-010, 2026-10-17). Sem histórico, nada aparece.
+- **Repositório.** A célula de estado ganha a linha "sem tarefa vinculada" (warning, com ícone) ou
+  "sem tarefa · dispensada em …" e "inconsistência resolvida em …" (discretas). A ação "Ver
+  inconsistência" abre o detalhe num `SprintDialog` compacto (`trace-alert-dialog`, até 36rem),
+  com o título "Inconsistência", em três blocos (UX-R2-01, 2026-10-17):
+  - cabeçalho com tipo, estado e a identificação do item, uma vez só;
+  - "Motivo": uma frase com a data da ocorrência, uma vez só;
+  - "Dados": só o que não se repete (as branches da PR, o estado atual da issue quando ela foi
+    reaberta, os vínculos da tarefa) e a detecção, a dispensa ou a resolução;
+  - ações numa linha (`role="group"`): vincular, dispensar, GitHub e "Histórico (n)".
+- **Rastreabilidade do projeto.** A sub-navegação saiu. Desde 2026-10-17 (UX-R2-02), as
+  inconsistências abertas ficam dentro do bloco "Resumo", num grupo próprio, "Inconsistências
+  abertas", separado dos indicadores de requisito por uma borda, porque as unidades são outras:
+  - três contagens por tipo (tarefas concluídas sem commit, PRs mescladas sem tarefa, issues fechadas
+    sem tarefa), sempre presentes; com inconsistência, o número é link para a lista filtrada, com o
+    nome acessível por extenso ("2 tarefas concluídas sem commit");
+  - desde 2026-10-18 (UX-R3-02), as contagens são uma segunda faixa de células do resumo, com as
+    classes das métricas de requisito (`requirement-metrics` e `sprints-summary__metric`): rótulo em
+    corpo 1, maiúsculas e secundário; valor em corpo 5 e negrito; recuo 4 e 5; bordas. O título do
+    grupo fica no recuo horizontal das células. São 3 colunas no desktop e no tablet, e 1 abaixo de
+    34rem, sem célula órfã;
+  - nenhuma ação de reprocessar, desde 2026-10-18 (UX-R3-03): o sistema atualiza as inconsistências
+    sozinho, e nenhum texto manda clicar;
+  - antes da primeira reconciliação (`PENDING_FIRST`), as contagens mostram "—", e o grupo diz "As
+    inconsistências deste projeto ainda não foram calculadas.";
+  - com números desatualizados (`STALE`), o grupo diz quando a última atualização falhou, ou quando
+    foi, e que os números podem estar desatualizados, sem prometer horário;
+  - erro ao carregar o resumo mostra o estado de erro com nova tentativa, nunca zero;
+  - o aviso de repositório desconectado, dentro do grupo.
+
+  A faixa separada no topo da tela saiu.
+- **Vocabulário.** Na interface, o alerta é "inconsistência", no feminino: Aberta, Dispensada,
+  Resolvida.
+

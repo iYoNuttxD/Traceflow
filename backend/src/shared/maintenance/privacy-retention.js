@@ -15,13 +15,30 @@ export async function runPrivacyRetention({
       status: { in: ['COMPLETED', 'CANCELLED', 'REJECTED'] },
       updatedAt: { lt: daysAgo(configuration.privacyRequestRetentionDays, now) }
     },
-    personalDataExports: { expiresAt: { lt: now } }
+    personalDataExports: { expiresAt: { lt: now } },
+    notifications: {
+      createdAt: { lt: daysAgo(configuration.notificationRetentionDays, now) }
+    },
+    githubArtifactEvents: {
+      status: { in: ['DISPATCHED', 'FAILED'] },
+      detectedAt: { lt: daysAgo(configuration.notificationRetentionDays, now) }
+    },
+    notificationDecisions: {
+      decidedAt: { lt: daysAgo(configuration.notificationRetentionDays, now) }
+    }
   };
   const counts = {
     auditEvents: await client.auditEvent.count({ where: filters.auditEvents }),
     privacyRequests: await client.privacyRequest.count({ where: filters.privacyRequests }),
     personalDataExports: await client.personalDataExport.count({
       where: filters.personalDataExports
+    }),
+    notifications: await client.notification.count({ where: filters.notifications }),
+    githubArtifactEvents: await client.gitHubArtifactEvent.count({
+      where: filters.githubArtifactEvents
+    }),
+    notificationDecisions: await client.notificationDecision.count({
+      where: filters.notificationDecisions
     })
   };
   if (apply) {
@@ -29,6 +46,9 @@ export async function runPrivacyRetention({
       await tx.auditEvent.deleteMany({ where: filters.auditEvents });
       await tx.privacyRequest.deleteMany({ where: filters.privacyRequests });
       await tx.personalDataExport.deleteMany({ where: filters.personalDataExports });
+      await tx.notification.deleteMany({ where: filters.notifications });
+      await tx.gitHubArtifactEvent.deleteMany({ where: filters.githubArtifactEvents });
+      await tx.notificationDecision.deleteMany({ where: filters.notificationDecisions });
       await tx.auditEvent.create({
         data: {
           actorType: 'SYSTEM',

@@ -1,5 +1,97 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-10-13 — S2-03 notificações de issues e pull requests (RF60, RF61)
+
+**Ambiente.** Chrome real do João, autenticado em `localhost:5173`, com o backend local em
+`localhost:3001` e o banco de desenvolvimento `traceflow`. A carga sintética do S2-03 foi aplicada
+com o aval dele no projeto `[S2-01] Escala`: 301 tarefas e 301 eventos. O job despachou 336
+avisos, e a carga foi removida e conferida no fim.
+
+**Escopo.** As surfaces `NOTIFICATIONS-CENTER` e `SETTINGS-NOTIFICATIONS`, no estado de `18877e7`.
+As duas são compartilhadas com o S2-02. A rodada cobre:
+- cartões Issue e Pull request com evento, data, artefato e os dois links;
+- o grupo "Origem" (Todas as origens, Tarefas, GitHub);
+- o nome acessível com o texto do contexto;
+- o texto "reaberta no GitHub; última atualização em …";
+- o grupo "Avisos do GitHub" nas preferências.
+
+**Evidência.**
+- Em 12/10/2026, larguras de 1536 px na janela e 1024, 768 e 390 px por iframe, nos temas claro e
+  escuro, com a ordem de foco e o anel visível. O `forced-colors`, emulado pelo João, deixou
+  cartões, botões e menu legíveis; as pílulas perdem o formato de etiqueta.
+- Em 13/10/2026, depois das correções:
+  - "Tarefas" traz os avisos de tarefa em primeiro (antes, na posição 301);
+  - os 300 cartões do GitHub e os botões de leitura têm nomes distintos;
+  - os 10 cartões de reabertura mostram o texto novo;
+  - não há rolagem horizontal em 390, 768 e 1024 px;
+  - os dois temas estão legíveis; o claro foi aplicado só no iframe.
+
+**Limites.**
+- Larguras estreitas medidas em iframe, não em dispositivo.
+- Anel de foco em alto contraste não capturado.
+- Capturas não versionadas.
+- Em 390 px, a opção "GitHub" quebra para a linha de baixo, à esquerda (cosmético).
+
+**Decisão.** `VISUALLY APPROVED`, dado pelo João em 13/10/2026.
+
+## 2026-10-07 — S2-01 alertas de rastreabilidade (RF13, RF39, RF40, RF58)
+
+**Ambiente.** Chrome real autenticado em `localhost:5173`, com backend local em `localhost:3001`.
+A migration `20261007010000_s201_traceability_alerts` foi aplicada no banco de desenvolvimento.
+Havia três projetos sintéticos `[S2-01]` (Mínimo, Escala e Sem integração), criados por script
+descartável e não versionado, e os alertas existentes foram gerados por
+`npm run traceability:alerts`. A simulação deu 1, 28 e 0 alertas criados; repetida depois da
+gravação, deu `created=0`.
+
+**O que foi operado pela interface no projeto Escala:**
+
+- paginação de 28 alertas (20 + 8, sem duplicar);
+- filtros de situação (Abertos, Dispensados, Resolvidos) e de tipo;
+- detalhe de PR, de issue e de tarefa;
+- vínculo da PR #2 à TASK-91 pelo alerta, que resolveu com `PULL_REQUEST_LINKED`;
+- dispensa da Issue #108 e da Issue #107 com justificativa, incluindo o erro de campo com menos de
+  10 caracteres pelo teclado;
+- "Abrir tarefa no Kanban" abrindo a TASK-80, vínculo de commit por ali e alerta resolvido com
+  `COMMIT_LINKED`;
+- exclusão da TASK-79 pelo Kanban, resolvida com `TASK_DELETED`, com `TASK-79 · Tarefa concluída 11`
+  preservado como snapshot.
+
+O resumo e o contador "Alertas (N)" acompanharam cada mutação (28 → 23).
+
+**Extremos de dados:**
+
+| Projeto | Resultado |
+|---|---|
+| Sem integração | "Nenhum alerta aberto.", item "Alertas" sem contagem e aviso de regra inativa |
+| Escala | 28 alertas abertos e 28 tarefas sem vínculo técnico em duas páginas |
+| Tarefa sem histórico de status (TASK-80, antes do vínculo) | "Data da conclusão indisponível" |
+
+**Correções feitas durante a rodada:**
+
+- barra de rolagem vertical na sub-navegação;
+- resumo sem padding;
+- cards herdando `min-height: 24rem` de `.sprint-card`;
+- botão "Carregar mais" desalinhado;
+- link-botão sublinhado;
+- itens da lista RF58 com `flex-direction: column` herdado;
+- foco caindo no `body` ao fechar o detalhe de um alerta que saiu da lista; agora vai para o título
+  "Alertas", com teste automatizado.
+
+**Temas e larguras.** Dark na janela a 1440 px; Light por `data-theme` num iframe da mesma origem a
+1024 e 768 px; 390 e 768 px pelo mesmo iframe. A janela maximizada não aceitou redimensionamento.
+Em nenhuma largura houve overflow horizontal da página. As sub-navegações rolam na horizontal em
+largura estreita, como as abas do projeto.
+
+**Limites.**
+
+- As larguras estreitas foram medidas em iframe, não em dispositivo.
+- Os papéis VIEWER e MEMBER foram cobertos por testes automatizados, não por sessão real, porque a
+  única conta local é OWNER.
+- As capturas ficaram no diretório temporário da sessão e não foram versionadas.
+
+Nenhuma surface S2-01 foi promovida a `VISUALLY APPROVED` com esta evidência: a aprovação visual é
+do João.
+
 ## 2026-09-27 — S2 P8.3 Project Health (API real + fixtures sintéticas)
 
 No Chrome local, `projects/2` autenticado consumiu a API real após o P8.3. A visão Geral exibiu

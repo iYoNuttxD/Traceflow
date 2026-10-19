@@ -29,7 +29,8 @@ const mocks = vi.hoisted(() => ({
     getProjectCommits: vi.fn(),
     getProjectIssues: vi.fn(),
     getProjectPullRequests: vi.fn()
-  }
+  },
+  alertIndex: vi.fn(async () => ({ tasks: [], pullRequests: [], issues: [] }))
 }));
 
 vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
@@ -63,6 +64,10 @@ vi.mock('../../src/features/github/api/github.api.js', () => ({
   getProjectCommits: mocks.githubApi.getProjectCommits,
   getProjectIssues: mocks.githubApi.getProjectIssues,
   getProjectPullRequests: mocks.githubApi.getProjectPullRequests
+}));
+vi.mock('../../src/features/traceability/api/traceability.api.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getTraceabilityAlertIndex: mocks.alertIndex
 }));
 vi.mock('../../src/features/tasks/components/CommitSuggestionsCard.jsx', () => ({
   CommitSuggestionsCard: () => <div>Sugestões de commits</div>
@@ -690,7 +695,7 @@ describe('KanbanPage ADR-011', () => {
     const summaryRegion = screen.getByRole('region', { name: 'Visão geral do Kanban' });
     expect(within(summaryRegion).getByText('Prioridade crítica')).toBeInTheDocument();
     expect(within(summaryRegion).getByText('Atrasadas')).toBeInTheDocument();
-    expect(within(summaryRegion).getByText('Sem rastreabilidade')).toBeInTheDocument();
+    expect(within(summaryRegion).getByText('Sem vínculo técnico')).toBeInTheDocument();
     expect(within(summaryRegion).queryByText('A fazer', { exact: false })).toBeNull();
     expect(within(summaryRegion).queryByText('Em andamento', { exact: false })).toBeNull();
     expect(within(summaryRegion).queryByText('Concluídas')).toBeNull();

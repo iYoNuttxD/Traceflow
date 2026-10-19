@@ -5,8 +5,25 @@ export const EMPTY_KANBAN_FILTERS = Object.freeze({
   responsibleUserId: '',
   priority: '',
   startDate: '',
-  endDate: ''
+  endDate: '',
+  traceability: ''
 });
+
+export const TRACEABILITY_FILTERS = Object.freeze([
+  { value: '', label: 'Todas' },
+  { value: 'SEM_VINCULO', label: 'Sem vínculo técnico' },
+  { value: 'SEM_COMMIT', label: 'Concluídas sem commit' }
+]);
+
+export function isTraceabilityFilter(value) {
+  return TRACEABILITY_FILTERS.some((filter) => filter.value && filter.value === value);
+}
+
+export function matchesTraceabilityFilter(task, filter, openAlertTasks = new Map()) {
+  if (filter === 'SEM_VINCULO') return technicalLinkState(task) === 'UNLINKED';
+  if (filter === 'SEM_COMMIT') return !task.isFrozen && openAlertTasks.has(task.id);
+  return true;
+}
 
 export function getBoardTasks(board) {
   if (!board?.columns) return [];
@@ -18,7 +35,7 @@ export function filterBoardBySprints(board, sprintIds) {
   return mapBoardTasks(board, (task) => task.sprintId && sprintIds.includes(task.sprintId));
 }
 
-export function filterKanbanBoard(board, filters) {
+export function filterKanbanBoard(board, filters, openAlertTasks = new Map()) {
   if (!board?.columns) return board;
   const normalizedSearch = filters.search.trim().toLocaleLowerCase('pt-BR');
 
@@ -43,7 +60,7 @@ export function filterKanbanBoard(board, filters) {
     const deadline = task.deadline ? String(task.deadline).slice(0, 10) : '';
     if (filters.startDate && (!deadline || deadline < filters.startDate)) return false;
     if (filters.endDate && (!deadline || deadline > filters.endDate)) return false;
-    return true;
+    return matchesTraceabilityFilter(task, filters.traceability, openAlertTasks);
   });
 }
 
@@ -60,7 +77,7 @@ export function getKanbanSummary(
     total: tasks.length,
     criticalPriority: tasks.filter((task) => task.priority === 'CRITICA').length,
     overdue: tasks.filter((task) => isTaskOverdue(task, now, timeZone)).length,
-    untraced: tasks.filter((task) => !hasTaskTraceability(task)).length,
+    withoutTechnicalLink: tasks.filter((task) => technicalLinkState(task) === 'UNLINKED').length,
     ...counts
   };
 }
@@ -104,21 +121,34 @@ export function getTraceabilityCounts(task) {
   };
 }
 
-export function hasTaskTraceability(task) {
+export function technicalLinkState(task) {
+  if (task.isFrozen && !task.traceabilityCounts) return 'UNKNOWN';
   const counts = getTraceabilityCounts(task);
-  return Object.values(counts).some((count) => count > 0);
+  return counts.pullRequests + counts.commits + counts.issues > 0 ? 'LINKED' : 'UNLINKED';
 }
 
-export function formatTraceabilityCounts(task) {
-  if (task.isFrozen && !task.traceabilityCounts) return 'Rastreabilidade indisponível';
+export function traceabilityLine(task) {
+  if (task.isFrozen && !task.traceabilityCounts)
+    return { unavailable: true, technical: '', requirement: '' };
   const counts = getTraceabilityCounts(task);
-  const parts = [
-    counts.requirements ? `${counts.requirements} req` : '',
+  const technical = [
     counts.pullRequests ? `${counts.pullRequests} PR` : '',
     counts.commits ? `${counts.commits} ${counts.commits === 1 ? 'commit' : 'commits'}` : '',
     counts.issues ? `${counts.issues} ${counts.issues === 1 ? 'issue' : 'issues'}` : ''
-  ].filter(Boolean);
-  return parts.join(' · ') || 'Sem rastreabilidade';
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return {
+    unavailable: false,
+    technical,
+    requirement: counts.requirements ? `${counts.requirements} req` : ''
+  };
+}
+
+export function formatTraceabilityLine(task) {
+  const line = traceabilityLine(task);
+  if (line.unavailable) return 'Rastreabilidade indisponível';
+  return `${line.technical || 'Sem vínculo técnico'} · ${line.requirement || 'Sem requisito'}`;
 }
 
 export function updateBoardTask(board, taskId, patch) {

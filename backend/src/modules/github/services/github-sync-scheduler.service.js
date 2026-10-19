@@ -1,4 +1,5 @@
 import { env } from '../../../config/env.js';
+import { noteDatabaseFailure } from '../../../database/engine-health.js';
 import { logger } from '../../../shared/logger/index.js';
 import { githubAppCredentialProvider } from '../github-credential.provider.js';
 import { githubSyncRunRepository } from '../github-sync-run.repository.js';
@@ -29,11 +30,13 @@ export function createGithubSyncScheduler({
   let recoveryInitialized = false;
   let recoveryBefore = null;
   let candidateCursor = null;
-  const reportFailure = (error) =>
+  const reportFailure = (error) => {
+    noteDatabaseFailure(error);
     log.error('Worker GitHub não concluiu a operação.', {
       event: 'github_scheduler_operation_failed',
       errorCode: error.code || 'WORKER_FAILED'
     });
+  };
 
   function launch(run) {
     if (stopped || running.has(run.id)) return;

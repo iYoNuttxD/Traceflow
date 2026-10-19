@@ -1,0 +1,56 @@
+diff --git a/deploy/lib/diagnostic_contract.py b/deploy/lib/diagnostic_contract.py
+index e73143b1..6125fa1b 100644
+--- a/deploy/lib/diagnostic_contract.py
++++ b/deploy/lib/diagnostic_contract.py
+@@ -30 +30,12 @@ LEGACY_SOURCES = (
+-SOURCES = (*LEGACY_SOURCES,
++# PR #26: keep the complete shared Prisma client closure in the diagnostic.
++# LEGACY_SOURCES remains frozen for verification of pinned historical inputs.
++PRISMA_SUPPORT_SOURCES = (
++    'backend/src/database/engine-health.js',
++    'backend/src/database/lock-wait.js',
++    'backend/src/database/recovery-prisma.js',
++    'backend/src/database/transaction-guard.js',
++    'backend/src/shared/logger/index.js',
++    'backend/src/shared/logger/logger.js',
++    'backend/src/shared/logger/redaction.js',
++)
++SOURCES = (*LEGACY_SOURCES, *PRISMA_SUPPORT_SOURCES,
+diff --git a/deploy/tests/test_diagnostic_package.py b/deploy/tests/test_diagnostic_package.py
+index 1c07f885..ec8aa7d2 100644
+--- a/deploy/tests/test_diagnostic_package.py
++++ b/deploy/tests/test_diagnostic_package.py
+@@ -7,0 +8 @@ import shutil
++import subprocess
+@@ -16,0 +18,31 @@ import diagnostic_contract as d
++class DiagnosticPrismaClosureTests(unittest.TestCase):
++    def test_current_client_import_closure_is_in_the_runtime_allowlist(self):
++        # Use the repository import parser without importing Prisma or connecting.
++        repo = Path(__file__).resolve().parents[2]
++        probe = """
++import { readFileSync } from 'node:fs';
++import { posix } from 'node:path';
++import { extractImportSpecifiers } from './backend/scripts/check-architecture.js';
++const pending = ['backend/src/database/prismaClient.js'];
++const files = new Set();
++const packages = new Set();
++while (pending.length) {
++  const file = pending.pop();
++  if (files.has(file)) continue;
++  files.add(file);
++  const source = readFileSync(file, 'utf8');
++  if (/\\bimport\\s*\\(/.test(source)) throw new Error('DYNAMIC_IMPORT_REQUIRES_REVIEW');
++  for (const specifier of extractImportSpecifiers(source)) {
++    if (specifier.startsWith('.')) pending.push(posix.normalize(posix.join(posix.dirname(file), specifier)));
++    else packages.add(specifier);
++  }
++}
++console.log(JSON.stringify({ files: [...files].sort(), packages: [...packages].sort() }));
++"""
++        run = subprocess.run(['node', '--input-type=module', '-e', probe], cwd=repo,
++                             check=True, capture_output=True, text=True, timeout=30)
++        closure = json.loads(run.stdout)
++        self.assertEqual(closure['packages'], ['@prisma/client', 'dotenv'])
++        self.assertEqual(set(closure['files']), {name for name in d.SOURCES if name.startswith('backend/src/')})
++
++

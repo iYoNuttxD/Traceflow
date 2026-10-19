@@ -57,6 +57,10 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', async (original) => ({
   tasksApi: { list: mocks.tasks }
 }));
 vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({ testCasesApi: mocks.api }));
+vi.mock('../../src/features/notifications/api/notifications.api.js', async (original) => ({
+  ...(await original()),
+  getUnreadNotificationCount: vi.fn().mockResolvedValue({ unreadCount: 0 })
+}));
 let errors, warnings;
 beforeEach(() => {
   vi.clearAllMocks();
