@@ -404,18 +404,14 @@ function ProjectDefects({ project }) {
             ))}
           </div>
         </section>
-        {!state.loading && !state.error && !state.catalog.items.length && (
-          <section className="tc-surface">
-            <p role="status">
-              {Object.values(state.filters).some(Boolean)
-                ? 'Nenhum defeito corresponde aos filtros.'
-                : 'Nenhum defeito registrado neste projeto.'}
-            </p>
-            <p>
-              Defeitos são registrados a partir de passos com falha em execuções de casos de teste.
-            </p>
-          </section>
-        )}
+        {!state.loading &&
+          !state.error &&
+          !state.catalog.items.length &&
+          Object.values(state.filters).some(Boolean) && (
+            <section className="tc-surface">
+              <p role="status">Nenhum defeito corresponde aos filtros.</p>
+            </section>
+          )}
         {state.catalog.items.length < state.catalog.total && (
           <button
             className="button button-secondary"
