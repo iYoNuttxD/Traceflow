@@ -1,0 +1,10 @@
+[Unit]
+Description=TraceFlow daily clean production encrypted backup
+[Timer]
+OnCalendar=*-*-* 06:00:00 UTC
+Persistent=true
+RandomizedDelaySec=0
+AccuracySec=1min
+Unit=traceflow-live-backup.service
+[Install]
+WantedBy=timers.target

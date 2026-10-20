@@ -643,6 +643,9 @@ notificações, OCI ou validação acadêmica.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
+**Estado: DONE (20/10/2026).** Instalação limpa em produção, backup diário habilitado,
+restore isolado real e alerta entregue. [Relatório e limites comprovados](docs/deliveries/S2_10_OCI_OPERATIONS_REPORT.md).
+
 **Requisitos relacionados:** critérios transversais de segurança, LGPD e operação.  
 **Descrição:** concluir monitoramento, logs, alertas operacionais, firewall, backup/restore, retenção e resposta a incidentes do ambiente OCI.
 
@@ -661,12 +664,12 @@ notificações, OCI ou validação acadêmica.
 
 **Checklist técnico:**
 
-- [ ] configurar telemetria, dashboards e alertas;
-- [ ] revisar redaction, retenção e controle de acesso;
-- [ ] revisar firewall e exposição pública das instâncias;
-- [ ] configurar backups e executar restore de teste;
-- [ ] validar ASVS aplicável e dependências;
-- [ ] finalizar runbooks e checklist operacional.
+- [x] configurar telemetria, dashboards e alertas;
+- [x] revisar redaction, retenção e controle de acesso;
+- [x] revisar firewall e exposição pública das instâncias;
+- [x] configurar backups e executar restore de teste;
+- [x] validar ASVS aplicável e dependências;
+- [x] finalizar runbooks e checklist operacional.
 
 ## 10. Marco de conclusão da Sprint 2
 

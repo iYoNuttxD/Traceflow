@@ -1,0 +1,36 @@
+[Unit]
+Description=TraceFlow clean production alert
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/traceflow-live-ops.py alert-retention
+LoadCredentialEncrypted=mysql-backup:/etc/credstore.encrypted/traceflow-live-mysql-backup
+MemorySwapMax=0
+MemoryMax=1G
+LimitCORE=0
+TimeoutStartSec=60
+KillMode=control-group
+Restart=no
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/traceflow-live-ops /run
+ReadOnlyPaths=/var/lib/traceflow-live /etc/traceflow-live
+InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence /etc/credstore.encrypted
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=null
+
