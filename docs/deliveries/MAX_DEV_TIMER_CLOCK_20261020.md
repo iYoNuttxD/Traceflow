@@ -50,3 +50,29 @@ servidores antigos sem `serverNow` conservam fallback compatível, ainda depende
 do relógio local; a correção completa exige backend e frontend desta versão.
 Não houve validação manual em navegador autenticado nem execução MySQL local;
 a suíte de banco é verificada no CI. Não houve merge ou deploy.
+
+## Checkpoint de publicação e dependências
+
+As alterações do cronômetro e do catálogo vazio foram publicadas na PR #25,
+head `32cfd6e1e753fd377cae7ce29dd5a9b5afd84cd0`, com árvores idênticas às
+validadas localmente. A [CI 158](https://github.com/iYoNuttxD/Traceflow/actions/runs/39506390571)
+aprovou Quality, Dependency Review e Frontend Tests, mas bloqueou Supply Chain
+por advisories de dependências que já existiam nos lockfiles, não pela correção
+do cronômetro. Backend Tests ainda estava em andamento neste checkpoint.
+
+Após autorização específica, os lockfiles atualizam Vite para 8.1.6 nos dois
+pacotes e follow-redirects para 1.16.1 no frontend. A resolução do Vite frontend
+atualiza também sua cadeia Rolldown/bindings e dependências associadas.
+Manifests, regras de auditoria e exceções permanecem inalterados. Instalações
+limpas com `npm ci` passaram e a política de auditoria dos dois pacotes ficou
+aprovada sem nenhuma exceção, high ou critical. A validação remota deste novo
+checkpoint deve ser consultada na PR; este registro não afirma CI aprovada.
+
+Com os novos locks: frontend completo 1.807/145 arquivos, backend unitário
+1.636/133 arquivos, build, lints, formatação e 28 testes da política de auditoria
+aprovados. A primeira execução unitária após instalação limpa não tinha Prisma
+Client gerado; `prisma generate` corrigiu o setup e a repetição integral passou.
+Revisão independente dos locks não encontrou alterações fora da cadeia necessária.
+O runtime WASM opcional do Rolldown requer Node 22.13+ na série 22; a CI usa Node
+22 atualizado. Não houve mudança de major das dependências principais, supressão
+de advisories, merge ou deploy.
