@@ -37,8 +37,8 @@ migration, alteração de permissões, dependências, thresholds ou exclusão de
   segredos, política de CI e inventário de UI aprovados (62 testes dos dois últimos).
 - Revisão independente sem bloqueadores; observações de preservação de metadados
   e de latência foram tratadas/documentadas.
-- A validação integral final e o resultado da CI do commit publicado são registrados
-  na atualização da PR #25. A rodada integral anterior coincidiu com uma edição
+- A suíte integral final passou localmente. A publicação e a CI estão pendentes
+  neste checkpoint; o resultado do commit publicado será registrado na PR #25. A rodada integral anterior coincidiu com uma edição
   de teste e foi substituída; não foi apresentada como aprovação final.
 
 ## Limites
