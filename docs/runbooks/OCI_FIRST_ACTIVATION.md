@@ -905,6 +905,26 @@ policyId, hash da política, ledger ou limites para acomodar um controlador novo
 A identidade desse controlador será aprovada no GO operacional de instalação;
 essa compatibilidade não concede autorização para instalar ou executar.
 
+O armazenamento pré-ativação é verificado por completo antes da reserva:
+referências no banco, hashes, custódia e limites explícitos. O conjunto cifrado
+continua limitado a 512 MiB. Os limites de captura são 320 MiB de arquivos
+persistentes (até 128 MiB por arquivo e 4.096 arquivos), 160 MiB de dump,
+8 MiB de snapshot e 8 MiB de manifesto; o framing USTAR é calculado antes da
+escrita e o arquivo final reserva 1 MiB para a cifra. Assim, os 200 MiB atuais
+mais um upload de homologação de 100 MiB permanecem dentro do orçamento de
+arquivos, sem presumir capacidade ilimitada. Cópia, SHA-256 e USTAR usam streaming,
+verificam identidade/custódia antes e depois e recusam alterações ou truncamento.
+Nenhum arquivo persistente é removido para satisfazer o limite.
+
+Se uma reconciliação posterior corresponder a outra release committed de mesmo
+schema, o preflight supervisionado deve seguir seu histórico validado até a
+release E o descritor exatos da política. Cada controlador/release do percurso
+deve estar íntegro e com schema idêntico; origem ausente, adulterada, cíclica ou
+incompatível é recusada. Isso não permite renomear a política para a release nova:
+o controlador administrativo continua sendo um repack verificável dos arquivos
+da aplicação histórica autorizada. O alvo atual e sua cadeia ficam preservados
+no priorState/journal; a captura não altera a seleção do controlador de ativação.
+
 Depois da elegibilidade, revalidar prazo/replay/orçamento e reservar exatamente
 um slot, antes de iniciar qualquer alteração de manutenção. Falha no preflight
 não reserva slot; falha/interrupção após reserva nunca devolve ou reutiliza slot,

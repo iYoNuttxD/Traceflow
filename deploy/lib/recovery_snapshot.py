@@ -1,8 +1,18 @@
 """Read-only snapshot/anti-orphan checks proven in OCI07.9; no restore operation."""
-import os, pwd, re, stat
+import contextlib, hashlib, os, pwd, re, stat, tarfile
 from pathlib import Path
-from operational_io import secure_read, require, digest, encoded, private_write
-MAX=512*1024**2
+from operational_io import secure_read, secure_stream, require, digest, encoded, private_write
+from recovery_policy import MAX_SET
+# Explicit plaintext budgets leave room for tar framing and age overhead within
+# the unchanged 512 MiB encrypted-object policy. 200 MiB now + 100 MiB next upload.
+MAX_STORAGE_BYTES=320*1024**2
+MAX_STORAGE_FILE_BYTES=128*1024**2
+MAX_STORAGE_FILES=4096
+MAX_DATABASE_BYTES=160*1024**2
+MAX_SNAPSHOT_BYTES=8*1024**2
+MAX_MANIFEST_BYTES=8*1024**2
+MAX_ARCHIVE_BYTES=MAX_SET-1024**2
+STREAM_CHUNK_BYTES=1024**2
 STORAGE=Path('/var/lib/traceflow/test-evidence')
 UUID_PATTERN=r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
 TABLE=re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
@@ -67,8 +77,47 @@ def storage_copy(destination):
   if stat.S_ISDIR(s.st_mode):
    require(name=='.uploads' or re.fullmatch(r'\.uploads/'+UUID_PATTERN+r'(?:/work-'+UUID_PATTERN+r')?',name),'STORAGE_DIRECTORY');continue
   require(stat.S_ISREG(s.st_mode) and re.fullmatch(UUID_PATTERN+r'|\.uploads/'+UUID_PATTERN+r'/(?:part-'+UUID_PATTERN+r'|work-'+UUID_PATTERN+r'/'+UUID_PATTERN+r')',name),'STORAGE_FILE')
-  total+=s.st_size;require(total<=MAX//4,'STORAGE_SIZE_REQUIRES_REVIEW')
-  data=secure_read(p,uid,MAX//4,0o600);files[name]={'sha256':digest(data),'size':len(data)}
+  total+=s.st_size
+  require(len(files)<MAX_STORAGE_FILES and total<=MAX_STORAGE_BYTES and s.st_size<=MAX_STORAGE_FILE_BYTES,'STORAGE_SIZE_REQUIRES_REVIEW')
+  target=None
   if destination is not None:
-   target=destination/name;target.parent.mkdir(parents=True,mode=0o700,exist_ok=True);private_write(target,data)
+   target=Path(destination)/name;target.parent.mkdir(parents=True,mode=0o700,exist_ok=True)
+  writer=(os.fdopen(os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600),'wb')
+          if target is not None else contextlib.nullcontext())
+  h=hashlib.sha256();size=0
+  with writer as output,secure_stream(p,uid,MAX_STORAGE_FILE_BYTES,0o600) as incoming:
+   while True:
+    chunk=incoming.read(STREAM_CHUNK_BYTES)
+    if not chunk:break
+    size+=len(chunk);require(size<=s.st_size,'SOURCE_CHANGED');h.update(chunk)
+    if output is not None:output.write(chunk)
+   require(size==s.st_size,'SOURCE_CHANGED')
+   if output is not None:output.flush();os.fsync(output.fileno())
+  files[name]={'sha256':h.hexdigest(),'size':size}
  return files
+
+
+def pack_archive(scratch,archive,inventory,check=lambda:None):
+ """Stream the exact captured inventory into deterministic USTAR entries."""
+ from recovery_archive import allowed
+ require(len(inventory)<=MAX_STORAGE_FILES+7 and all(allowed(n) for n in inventory),'ARCHIVE_MEMBER')
+ total=sum(v['size'] for v in inventory.values())
+ framed=sum(512+((v['size']+511)//512)*512 for v in inventory.values())+1024
+ framed=((framed+10239)//10240)*10240
+ require(total<=MAX_ARCHIVE_BYTES and framed<=MAX_ARCHIVE_BYTES,'BACKUP_SIZE_REVIEW')
+ class Reader:
+  def __init__(self,stream):self.stream=stream;self.hash=hashlib.sha256();self.size=0
+  def read(self,n):
+   check();require(0<=n<=STREAM_CHUNK_BYTES,'ARCHIVE_READ_LIMIT')
+   block=self.stream.read(n);self.hash.update(block);self.size+=len(block);return block
+ with tarfile.open(archive,'x',format=tarfile.USTAR_FORMAT) as tar:
+  os.chmod(archive,0o600)
+  for name,expected in sorted(inventory.items()):
+   check()
+   with secure_stream(Path(scratch)/name,0,MAX_ARCHIVE_BYTES,0o600) as incoming:
+    require(os.fstat(incoming.fileno()).st_size==expected['size'],'ARCHIVE_SOURCE_CHANGED')
+    member=tarfile.TarInfo(name);member.size=expected['size'];member.mode=0o600
+    reader=Reader(incoming);tar.addfile(member,reader)
+    require(reader.size==expected['size'] and reader.hash.hexdigest()==expected['sha256'],'ARCHIVE_SOURCE_CHANGED')
+ require(Path(archive).stat().st_size==framed,'ARCHIVE_SIZE_CHANGED')
+ with Path(archive).open('rb') as stream:os.fsync(stream.fileno())

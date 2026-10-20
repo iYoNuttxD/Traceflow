@@ -80,12 +80,29 @@ class LinuxOperations:
   rows=src.rows("SELECT JSON_OBJECT('name',migration_name,'sha256',checksum,'finished',finished_at IS NOT NULL,'rolledBack',rolled_back_at IS NOT NULL) FROM _prisma_migrations ORDER BY CAST(migration_name AS BINARY)")
   require([{'name':r['name'],'sha256':r['sha256']} for r in rows]==self.manifest['schema']['migrations'] and
           all(r['finished'] and not r['rolledBack'] for r in rows),'MIGRATION_CHAIN_MISMATCH')
- def validate_origin(self,p,q):
-  require(q is not None and q['releaseId']==p['releaseId'] and q['descriptorSha256']==p['descriptorSha256'],
-          'MAINTENANCE_RECONCILIATION_BINDING')
-  _,_,origin=self.layout.installed(q['controllerReleaseId'],q['controllerDescriptorSha256'])
-  require(origin['sourceState']=='committed' and origin['schema']==self.manifest['schema'],
-          'MAINTENANCE_RECONCILIATION_CONTROLLER')
+ def validate_origin(self,p,q,state=None):
+  # A supervised pre-publication backup may follow a schema-compatible application
+  # update. The immutable, recursively validated proof must still reach the exact
+  # application/descriptor delegated by the unchanged maintenance policy.
+  import activation_window as window
+  seen=set()
+  while True:
+   require(q is not None,'MAINTENANCE_RECONCILIATION_BINDING')
+   _,_,origin=self.layout.installed(q['controllerReleaseId'],q['controllerDescriptorSha256'])
+   _,_,target=self.layout.installed(q['releaseId'],q['descriptorSha256'])
+   require(origin['sourceState']==target['sourceState']=='committed' and
+           origin['schema']==target['schema']==self.manifest['schema'],
+           'MAINTENANCE_RECONCILIATION_CONTROLLER')
+   if q['releaseId']==p['releaseId'] and q['descriptorSha256']==p['descriptorSha256']:return
+   require(isinstance(state,dict) and state.get('status')==window.RECONCILED_STATUS and
+           state.get('current') is None and state.get('previous') is None and not state.get('history'),
+           'MAINTENANCE_RECONCILIATION_BINDING')
+   rid=state.get('recoveryProof',{}).get('runId')
+   require(isinstance(rid,str) and rid not in seen and len(seen)<64,'MAINTENANCE_RECONCILIATION_BINDING')
+   seen.add(rid)
+   prior=window.reconciliation_json(window.run_directory(self.layout,rid)/'prior-state.json')
+   require(prior.get('status')==window.RECONCILED_STATUS,'MAINTENANCE_RECONCILIATION_BINDING')
+   q=window.reconciliation_closed(self.layout,prior,check_guard=False);state=prior
  def published_proof(self,p,state):
   import activation_window as window
   from activation_contract import POST,post_evidence
@@ -94,7 +111,7 @@ class LinuxOperations:
   require(not any((path/n).exists() for n in ('failure.json','recovery.json','unowned.json')),'MAINTENANCE_PUBLISHED_CONTRADICTION')
   a=window.reconciliation_json(path/'authorization.json')
   prior=window.reconciliation_json(path/'prior-state.json')
-  self.validate_origin(p,window.reconciliation_closed(self.layout,prior,check_guard=False))
+  self.validate_origin(p,window.reconciliation_closed(self.layout,prior,check_guard=False),prior)
   require(state['recoveryProof']==prior['recoveryProof'] and a['runId']==state['runId'] and
           a['releaseId']==p['releaseId'] and a['descriptorSha256']==p['descriptorSha256'],
           'MAINTENANCE_PUBLISHED_BINDING')
@@ -117,7 +134,7 @@ class LinuxOperations:
   if state.get('status')==window.RECONCILED_STATUS:
    require(mode=='supervised','RECONCILED_SUPERVISION_REQUIRED')
    q=window.reconciliation_closed(self.layout,state,check_guard=check_guard)
-   self.validate_origin(p,q)
+   self.validate_origin(p,q,state)
   else:
    require(state.get('status')=='idle' and state.get('phase')!=window.RECONCILED_PHASE,'MAINTENANCE_RECOVERY_REQUIRED')
    if 'recoveryProof' in state:self.published_proof(p,state)
@@ -138,6 +155,12 @@ class LinuxOperations:
    self.accounts.state(True,True);self.accounts.audit(True);self.source().quiescent()
   else:
    self.accounts.state(False,False);self.accounts.audit(False);self.verify_running(p)
+  if state.get('current') is None:
+   # Validate the full storage inventory BEFORE Cycle reserves its irreversible slot.
+   from recovery_snapshot import snapshot_impl,storage_copy,validate_files,MAX_SNAPSHOT_BYTES
+   snapshot=snapshot_impl(self.source());files=storage_copy(None);validate_files(snapshot,files)
+   require(len(encoded(snapshot))<=MAX_SNAPSHOT_BYTES,'BACKUP_SNAPSHOT_LIMIT')
+   self.source().quiescent()
   self.ledger();return state,active
  def stop(self):self.ops.stop_services()
  def drain(self):

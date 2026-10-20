@@ -12,7 +12,8 @@ from release_contract import Refused,require,private_json,verify_tree,encoded,di
 from operational_io import secure_read,private_write,tool,unique
 from activation_contract import utc,timestamp,exact,sha,CONFIGS,TARGET,Deadline
 from activation_accounts import Accounts,CA
-from recovery_snapshot import snapshot_impl,storage_copy,validate_files
+from recovery_snapshot import (snapshot_impl,storage_copy,validate_files,pack_archive,
+                               MAX_DATABASE_BYTES,MAX_SNAPSHOT_BYTES,MAX_MANIFEST_BYTES,MAX_ARCHIVE_BYTES)
 from recovery_policy import validate_policy,budget,retention,BUCKET,NAMESPACE,REGION,MAX_SET
 STATE=Path('/var/lib/traceflow-recovery')
 
@@ -106,11 +107,12 @@ def capture(policy,auth_path,*,_maintenance=None):
                           '--tls-version=TLSv1.2,TLSv1.3','--default-character-set=utf8mb4','--single-transaction','--quick',
                           '--skip-lock-tables','--no-tablespaces','--set-gtid-purged=OFF','--hex-blob','--skip-add-drop-table',
                           '--skip-add-locks','--skip-disable-keys','--skip-comments','--skip-triggers','--routines=false','--events=false','traceflow'],
-                         pass_fds=(fd,),output=out,maximum=MAX_SET//2,timeout=min(180,deadline.check()))
+                         pass_fds=(fd,),output=out,maximum=MAX_DATABASE_BYTES,timeout=min(180,deadline.check()))
                     out.flush();os.fsync(out.fileno())
             finally:os.close(fd)
             source.quiescent();require(before==snapshot_impl(source) and files==storage_copy(None),'BACKUP_SOURCE_CHANGED')
             for n in CONFIGS:require(digest(secure_read('/etc/traceflow/'+n,0,65536,0o600))==a['configurationSha256'][n],'BACKUP_CONFIG_CHANGED')
+            require(len(encoded(before))<=MAX_SNAPSHOT_BYTES,'BACKUP_SNAPSHOT_LIMIT')
             private_write(scratch/'snapshot.json',encoded(before))
             inv={p.relative_to(scratch).as_posix():{'sha256':file_digest(p),'size':p.stat().st_size} for p in scratch.rglob('*') if p.is_file()}
             inner={'formatVersion':2,'application':'TraceFlow','backupId':a['backupId'],'createdAtUtc':timestamp(),'status':'COMPLETE',
@@ -118,11 +120,11 @@ def capture(policy,auth_path,*,_maintenance=None):
                    'releaseId':a['releaseId'],'runtimeManifestSha256':a['runtimeManifestSha256'],'schema':manifest['schema'],
                    'consistency':'quiesced-writers-single-transaction-v1','operatorExternalWritersControlled':True,
                    'accountsLocked':True,'servicesStopped':True,'queriesWarningCount':0,'files':inv}
+            require(len(encoded(inner))<=MAX_MANIFEST_BYTES,'BACKUP_MANIFEST_LIMIT')
             private_write(scratch/'set.json',encoded(inner));archive=scratch/'payload.tar'
-            with tarfile.open(archive,'w',format=tarfile.USTAR_FORMAT) as tar:
-                for name in sorted([*inv,'set.json']):
-                    data=(scratch/name).read_bytes();member=tarfile.TarInfo(name);member.size=len(data);member.mode=0o600;tar.addfile(member,io.BytesIO(data))
-            require(archive.stat().st_size<=MAX_SET-1024*1024,'BACKUP_SIZE_REVIEW');deadline.check();source.quiescent()
+            pack_archive(scratch,archive,{**inv,'set.json':{'size':(scratch/'set.json').stat().st_size,
+                         'sha256':file_digest(scratch/'set.json')}},deadline.check)
+            require(archive.stat().st_size<=MAX_ARCHIVE_BYTES,'BACKUP_SIZE_REVIEW');deadline.check();source.quiescent()
             tool([policy['age'],'--encrypt','--recipient',policy['recipient'],'--output',str(destination/'payload.age'),str(archive)],timeout=60)
             public={**{k:inner[k] for k in ('formatVersion','application','backupId','createdAtUtc','source','releaseId','runtimeManifestSha256','consistency')},
                     'status':'BACKUP_CAPTURE_ENCRYPTED','createdAt':timestamp(),

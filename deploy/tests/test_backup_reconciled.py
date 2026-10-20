@@ -214,6 +214,43 @@ class ProvenanceTests(unittest.TestCase):
   with self.assertRaisesRegex(Refused,'MAINTENANCE_RUNTIME_STATE'):self.adapter.inspect(self.p,'supervised')
   self.adapter.credential.assert_not_called()
 
+class DescendantPolicyTests(unittest.TestCase):
+ def setUp(self):
+  self.h=ProvenanceTests();self.h.setUp();self.addCleanup(self.h.doCleanups)
+  self.a=self.h.adapter;self.p=self.h.p
+  self.origin=copy.deepcopy(self.h.state)
+  self.current=copy.deepcopy(self.origin);self.current['recoveryProof']={'kind':'reconciliation','runId':'7'*32,'reconciliationId':'8'*32}
+  self.q=dict(self.h.h.q,releaseId='20261018T060000Z-'+'f'*40+'-'+'e'*12,descriptorSha256='c'*64)
+  folder=window.run_directory(self.a.layout,'7'*32);folder.mkdir(mode=0o700)
+  (folder/'prior-state.json').write_bytes(encoded(self.origin));(folder/'prior-state.json').chmod(0o600)
+ def test_validated_descendant_reaches_exact_policy_origin_without_rewriting(self):
+  before={p:p.read_bytes() for p in self.a.layout.state.rglob('*.json')}
+  self.a.validate_origin(self.p,self.q,self.current)
+  self.assertEqual(before,{p:p.read_bytes() for p in before})
+ def test_descendant_needs_a_real_prior_proof_and_exact_policy_digest(self):
+  self.p['descriptorSha256']='0'*64
+  with self.assertRaisesRegex(Refused,'MAINTENANCE_RECONCILIATION_BINDING'):self.a.validate_origin(self.p,self.q,self.current)
+ def test_descendant_schema_or_committed_identity_must_match(self):
+  installed=self.a.layout.installed
+  for field,value in [('sourceState','candidate'),('schema',{})]:
+   def wrong(*args):
+    r,ad,m=installed(*args);m=copy.deepcopy(m);m[field]=value;return r,ad,m
+   with mock.patch.object(self.a.layout,'installed',side_effect=wrong),self.assertRaisesRegex(Refused,'MAINTENANCE_RECONCILIATION_CONTROLLER'):self.a.validate_origin(self.p,self.q,self.current)
+ def test_prior_receipt_tampering_is_not_schema_compatibility(self):
+  (self.h.h.folder/'applied.json').write_bytes(b'{}')
+  with self.assertRaises(Refused):self.a.validate_origin(self.p,self.q,self.current)
+ def test_descendant_cannot_cross_missing_or_published_state(self):
+  for change in ({'status':'idle'},{'current':self.p['releaseId']},{'previous':self.p['releaseId']},{'history':{'unexpected':True}}):
+   with self.subTest(change=change),self.assertRaisesRegex(Refused,'MAINTENANCE_RECONCILIATION_BINDING'):self.a.validate_origin(self.p,self.q,dict(self.current,**change))
+ def test_storage_refusal_in_inspect_is_before_ledger_or_capture_reservation(self):
+  a=self.a;a.references=mock.Mock();a.validate_prior=mock.Mock();a.credential=mock.Mock();a.accounts=mock.Mock();a.source=mock.Mock();a.ledger=mock.Mock()
+  a.ops=SimpleNamespace(service_state=mock.Mock(return_value={'ActiveState':'inactive','MainPID':'0'}))
+  import recovery_snapshot
+  with mock.patch.object(recovery_snapshot,'snapshot_impl',return_value={}),mock.patch.object(recovery_snapshot,'storage_copy',side_effect=Refused('STORAGE_SIZE_REQUIRES_REVIEW')):
+   with self.assertRaisesRegex(Refused,'STORAGE_SIZE_REQUIRES_REVIEW'):a.inspect(self.p,'supervised')
+  a.ledger.assert_not_called()
+
+
 class ControllerReferenceTests(unittest.TestCase):
  def adapter(self):
   a=runtime.LinuxOperations.__new__(runtime.LinuxOperations);a.release=Path('/synthetic/controller')

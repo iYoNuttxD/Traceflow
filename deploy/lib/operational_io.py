@@ -38,6 +38,25 @@ def secure_read(path,uid=0,maximum=2*1024*1024,mode=None):
   require(len(data)<=maximum and identity_stat(before)==identity_stat(after)==identity_stat(path.lstat()),'SOURCE_CHANGED');return data
  except BaseException:raise
 
+@contextlib.contextmanager
+def secure_stream(path,uid=0,maximum=2*1024*1024,mode=None):
+ """Read a pinned regular file incrementally; verify custody before and after IO."""
+ path=Path(path);require(path.is_absolute(),'ABSOLUTE_SOURCE_REQUIRED');before=path.lstat()
+ require(stat.S_ISREG(before.st_mode) and before.st_nlink==1 and before.st_uid==uid and
+         not before.st_mode&0o022 and 0<=before.st_size<=maximum,'PRIVATE_SOURCE_UNSAFE')
+ if mode is not None:require(before.st_mode&0o777==mode,'PRIVATE_SOURCE_MODE')
+ for parent in path.parents:
+  require(not parent.is_symlink() and parent.is_dir() and parent.stat().st_uid in (0,uid) and
+          not parent.stat().st_mode&0o022,'SOURCE_ANCESTOR_UNSAFE')
+ fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+ with os.fdopen(fd,'rb') as stream:
+  require(identity_stat(os.fstat(stream.fileno()))==identity_stat(before),'SOURCE_REPLACED')
+  yield stream
+  after=os.fstat(stream.fileno());current=path.lstat()
+  require(after.st_nlink==current.st_nlink==1 and
+          identity_stat(before)==identity_stat(after)==identity_stat(current),'SOURCE_CHANGED')
+
+
 def tool(args,input=None,timeout=60,pass_fds=(),output=None,maximum=16*1024**2,benign_stderr=b''):
  require(isinstance(benign_stderr,bytes) and len(benign_stderr)<=128,'TOOL_STDERR_CONTRACT')
  require(input is None or isinstance(input,bytes) and len(input)<=128*1024,'TOOL_INPUT_LIMIT')
