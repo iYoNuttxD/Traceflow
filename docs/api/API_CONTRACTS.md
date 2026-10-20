@@ -440,7 +440,7 @@ Ordem de travas: as operações de esforço travam `Project` antes de `Task`, a 
 
 `entries` é o estado atual das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
 
-O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
+O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy,serverNow}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
 
 Consolidação por sprint: `GET /sprints/:id/progress` passa a incluir `effort` (`tasks`, `tasksWithEstimate`, `tasksWithActual`, `estimatedHours`, `actualHours`, `differenceHours`, `differencePercent`, `usagePercent`, `status`, `perTask[]`) somando as tarefas da sprint; sprint encerrada lê `pointsAtClose` e o snapshot de fechamento em vez da tarefa viva. Tarefa sem estimativa não entra no limite, mas o realizado dela entra no total. O responsável (`responsibleUserId`, RF51) não se confunde com quem iniciou/parou a sessão: são campos distintos e ambos ficam registrados.
 
@@ -2314,3 +2314,17 @@ S2-02 vale. A divergência com o §12 do contexto de arquitetura continua declar
 S2-02). Na sincronização, a execução ganhou `GITHUB_SYNC_PROJECT_BUSY` e
 `GITHUB_SYNC_STORAGE_FAILED` (seção da integração GitHub, "Erro da execução").
 
+
+
+### Referência de relógio das sessões (20/10/2026)
+
+Sessões abertas em `running`, `entry`, `effort.running` e `runningTimer` incluem
+`serverNow` (ISO 8601 UTC), observado pelo servidor ao apresentar o snapshot.
+O frontend calcula a idade inicial usando `serverNow - startedAt` e a faz avançar
+com tempo monotônico desde o recebimento, sem subtrair relógios de máquinas diferentes.
+Respostas HTTP e eventos ancoram o snapshot antes de armazená-lo/reaplicá-lo;
+reabrir ou reconectar usa uma nova observação e preserva a idade real da sessão.
+O campo é transitório: não altera datas persistidas, durações encerradas,
+permissões nem o esforço legado. Não é uma garantia de sincronização subsegundo:
+a latência entre a observação e a recepção não é somada. Clientes mantêm fallback
+para snapshots antigos sem o campo, que ainda dependem do relógio local.

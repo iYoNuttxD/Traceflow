@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMocks = vi.hoisted(() => ({
   getTaskTimeEntries: vi.fn(),
@@ -260,4 +260,67 @@ describe('useTaskEffort — reconciliação entre respostas HTTP e eventos', () 
     emit('task.time_entry.started', runningEntry(), effort({ running: runningEntry() }), 77);
     expect(result.current.running).toBeNull();
   });
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+describe('useTaskEffort — server clock', () => {
+  it('starts at zero with an eleven-second browser offset, including stream-first delivery', async () => {
+    const startedAt = '2026-10-20T12:00:00.000Z';
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(startedAt) + 11_000);
+    const monotonic = vi.spyOn(performance, 'now').mockReturnValue(100);
+    const { result } = renderHook(() => useTaskEffort({ taskId: 42 }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const entry = runningEntry({ startedAt });
+    const summary = effort({ completedSeconds: HOUR, running: { ...entry, serverNow: startedAt } });
+    emit('task.time_entry.started', entry, summary);
+    expect(result.current.liveSeconds).toBe(0);
+    expect(result.current.running).toBe(entry);
+    expect(result.current.running.canDelete).toBe(true);
+    expect(result.current.effort.completedSeconds).toBe(HOUR);
+    monotonic.mockReturnValue(2100);
+    emit('task.time_entry.started', entry, summary);
+    expect(result.current.liveSeconds).toBe(2);
+  });
+
+  it('reopening a running session preserves its real duration with a skewed browser', async () => {
+    const startedAt = '2026-10-20T12:00:00.000Z';
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(startedAt) - 11_000);
+    vi.spyOn(performance, 'now').mockReturnValue(100);
+    apiMocks.getTaskTimeEntries.mockResolvedValueOnce(
+      listResponse({
+        running: runningEntry({ startedAt, serverNow: '2026-10-20T12:02:00.000Z' })
+      })
+    );
+    const { result } = renderHook(() => useTaskEffort({ taskId: 42 }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.liveSeconds).toBe(120);
+  });
+});
+
+it('reconciles a delayed server snapshot with persisted duration when stopped', async () => {
+  const startedAt = '2026-10-20T12:00:00.000Z';
+  vi.spyOn(Date, 'now').mockReturnValue(Date.parse(startedAt) + 11_000);
+  const monotonic = vi.spyOn(performance, 'now').mockReturnValue(100);
+  const { result } = renderHook(() => useTaskEffort({ taskId: 42 }));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  const entry = runningEntry({ startedAt, serverNow: startedAt });
+  apiMocks.startTaskTimer.mockResolvedValueOnce({ entry, effort: effort({ running: entry }) });
+  await act(async () => {
+    await result.current.start();
+  });
+  expect(result.current.liveSeconds).toBe(0);
+  monotonic.mockReturnValue(5100);
+  const stopped = closedEntry({ startedAt, durationSeconds: 7 });
+  apiMocks.stopTaskTimer.mockResolvedValueOnce({
+    entry: stopped,
+    effort: effort({ completedSeconds: 7, completedCount: 1 })
+  });
+  await act(async () => {
+    await result.current.stop();
+  });
+  expect(result.current.running).toBeNull();
+  expect(result.current.liveSeconds).toBe(0);
+  expect(result.current.effort.completedSeconds).toBe(7);
+  expect(result.current.entries[0].durationSeconds).toBe(7);
 });

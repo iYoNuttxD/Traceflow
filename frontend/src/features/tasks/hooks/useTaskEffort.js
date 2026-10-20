@@ -10,6 +10,8 @@ import {
 import { useProjectEvents } from '../../projects/index.js';
 import { normalizeApiError } from '../../../shared/index.js';
 
+import { observeTimerSnapshots, runningTimerSeconds } from '../utils/timer-clock.js';
+
 const fallbackMessage = 'Não foi possível processar o esforço da tarefa.';
 export const TIME_ENTRIES_PAGE_SIZE = 20;
 export const EFFORT_EVENT_TYPES = Object.freeze([
@@ -37,6 +39,8 @@ function upsertEntry(entries, entry) {
 }
 
 export function applyEffortEvent(current, type, entry, effort) {
+  observeTimerSnapshots(effort);
+  observeTimerSnapshots(entry, effort?.running);
   let { running, entries } = current;
   if (type === 'task.time_entry.started') {
     running = entry;
@@ -89,6 +93,8 @@ export function useTaskEffort({ taskId }) {
   // e vai para a tela. Sem registrar as mutations, uma leitura que saiu antes dela
   // voltava sem a sessão recém-criada e a removia da tela depois de confirmada.
   const recordChange = useCallback((type, entry, effort) => {
+    observeTimerSnapshots(effort);
+    observeTimerSnapshots(entry, effort?.running);
     appliedRef.current += 1;
     for (const buffered of buffersRef.current.values()) {
       buffered.push({ type, entry, effort });
@@ -106,6 +112,7 @@ export function useTaskEffort({ taskId }) {
     try {
       const data = await getTaskTimeEntries(taskId, { limit: TIME_ENTRIES_PAGE_SIZE });
       if (requestId !== requestRef.current || !isCurrent(taskId)) return;
+      observeTimerSnapshots(data);
       const snapshot = {
         running: data.running || null,
         entries: data.entries || [],
@@ -143,7 +150,7 @@ export function useTaskEffort({ taskId }) {
     if (reconnectSequence > 0) void load();
   }, [load, reconnectSequence]);
 
-  // O relógio deriva do startedAt persistido; o intervalo só existe enquanto há sessão.
+  // O intervalo só redesenha: a duração usa o snapshot do servidor e tempo monotônico.
   useEffect(() => {
     if (!state.running) return undefined;
     setNow(Date.now());
@@ -191,9 +198,7 @@ export function useTaskEffort({ taskId }) {
     [busy, isCurrent, load, recordChange, taskId]
   );
 
-  const liveSeconds = state.running
-    ? Math.max(0, Math.floor((now - new Date(state.running.startedAt).getTime()) / 1000))
-    : 0;
+  const liveSeconds = runningTimerSeconds(state.running, now);
 
   return {
     ...state,

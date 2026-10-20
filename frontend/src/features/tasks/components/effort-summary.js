@@ -1,3 +1,5 @@
+import { runningTimerSeconds } from '../utils/timer-clock.js';
+
 // Espelha as fórmulas do backend (task-time-entry.presenter.js) para que o
 // widget reclassifique o estado ao vivo enquanto a sessão corre, sem consultar a API.
 export const EFFORT_WARNING_RATIO = 0.7;
@@ -117,9 +119,7 @@ export function buildEffortChip(task, now = Date.now()) {
   const estimated = task.estimatedEffort ?? null;
   const actual = task.actualEffort ?? null;
   if (!running && estimated === null && actual === null) return null;
-  const liveSeconds = running
-    ? Math.max(0, Math.floor((now - new Date(running.startedAt).getTime()) / 1000))
-    : 0;
+  const liveSeconds = runningTimerSeconds(running, now);
   const view = computeEffortView({
     effort: resolveEffort(null, { estimatedEffort: estimated, actualEffort: actual }),
     liveSeconds
