@@ -287,6 +287,8 @@ async function runSync(context) {
 
 async function syncedPullRequests(numbers) {
   const context = await integratedProject();
+  // Keep fixed historical events inside coverage even as the real clock advances.
+  await coverGithubEvents(prisma, context.project.id);
   const responsible = await person(context.project.id);
   boundary.client = githubDouble(context.repositoryId, {
     pullRequests: numbers.map((number) => prItem(number, 'open'))

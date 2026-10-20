@@ -76,3 +76,20 @@ Revisão independente dos locks não encontrou alterações fora da cadeia neces
 O runtime WASM opcional do Rolldown requer Node 22.13+ na série 22; a CI usa Node
 22 atualizado. Não houve mudança de major das dependências principais, supressão
 de advisories, merge ou deploy.
+
+## Correção determinística das fixtures de integração
+
+A [CI 159](https://github.com/iYoNuttxD/Traceflow/actions/runs/39507506364)
+aprovou Supply Chain, Quality, Dependency Review e Frontend Tests (1.807 testes),
+mas seis testes S2-03 de integração falharam; 3.133 testes backend passaram e os
+cinco skips legados permaneceram. A primeira sincronização dessas fixtures
+criava cobertura a partir do relógio real, enquanto seus eventos eram fixos em
+20/10/2026 às 10h. Após esse instante, o filtro correto de cobertura excluía os
+eventos, tornando os testes dependentes do dia de execução.
+
+Somente os três helpers de cenário agora estabelecem a cobertura histórica com
+`coverGithubEvents` antes da primeira sincronização, como as demais fixtures.
+Não foram alterados produção, filtro de cobertura, eventos esperados ou timers
+dos testes de bloqueio. Três testes unitários adicionais verificam o helper com
+relógios posteriores em 2026, 2027 e 2040. A confirmação empírica dos seis casos
+com MySQL depende da próxima CI; não há MySQL disponível neste ambiente local.
