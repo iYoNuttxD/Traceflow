@@ -50,6 +50,7 @@ def install(source,gh_archive,workflow):
         alias /var/www/traceflow-live-deploy-status/;
         autoindex off;
         default_type application/json;
+        include /etc/nginx/traceflow-live/static-headers.conf;
         add_header Cache-Control "no-store" always;
         limit_except GET HEAD { deny all; }
     }
