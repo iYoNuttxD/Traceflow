@@ -15,6 +15,7 @@ def inventory(root):
  result={}
  for p in sorted(root.rglob('*')):
   name=p.relative_to(root).as_posix();s=p.lstat()
+  need(name!='backend/node_modules/.vite' and not name.startswith('backend/node_modules/.vite/'),'BUILD_CACHE_IN_RUNTIME')
   if stat.S_ISDIR(s.st_mode):continue
   if p.is_symlink():
    target=os.readlink(p);need(not target.startswith('/') and p.resolve().is_relative_to(root.resolve()),'UNSAFE_LINK')

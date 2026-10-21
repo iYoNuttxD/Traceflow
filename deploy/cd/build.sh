@@ -33,5 +33,14 @@ cp -a backend/src backend/prisma backend/node_modules backend/package.json backe
 cp -a frontend/dist/. "/package/frontend/"
 # Prune only the disposable package copy; npm may normalize generated lock metadata.
 npm --prefix "/package/backend" prune --omit=dev --no-audit --no-fund
+# Runtime must not include the first build's transient Vitest timing/results cache.
+python3 - <<'PYCACHE'
+import shutil
+from pathlib import Path
+cache=Path('/package/backend/node_modules/.vite')
+if cache.exists():
+ assert cache.is_dir() and not cache.is_symlink()
+ shutil.rmtree(cache)
+PYCACHE
 git diff --exit-code
 python3 "$OPS_ROOT/deploy/cd/package.py" "/package" "/out/release-$PASS.tar.gz" --commit "$APP_SHA" --epoch "$SOURCE_DATE_EPOCH" > "/out/identity-$PASS.json"

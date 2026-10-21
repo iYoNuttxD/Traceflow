@@ -27,3 +27,9 @@ class SourceProvenanceTests(unittest.TestCase):
    d=Path(folder);source,commit,root=self.fixture(d);(source/'backend/package-lock.json').write_text('changed')
    with self.assertRaises(subprocess.CalledProcessError):pkg.pack(root,d/'refused.tgz',commit,1,source_root=source)
    self.assertFalse((d/'refused.tgz').exists());self.assertEqual((source/'backend/package-lock.json').read_text(),'changed')
+
+ def test_test_result_cache_is_refused_in_runtime_package(self):
+  with tempfile.TemporaryDirectory() as folder:
+   d=Path(folder);source,commit,root=self.fixture(d);cache=root/'backend/node_modules/.vite/vitest/results.json';cache.parent.mkdir(parents=True);cache.write_text('{"duration":1}')
+   with self.assertRaisesRegex(ValueError,'BUILD_CACHE_IN_RUNTIME'):pkg.pack(root,d/'refused.tgz',commit,1,source_root=source)
+   self.assertFalse((d/'refused.tgz').exists())
