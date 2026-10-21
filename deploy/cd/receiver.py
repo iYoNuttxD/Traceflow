@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Pull-only clean CD receiver. No inbound port, cloud credentials, legacy protocol or DB writes."""
-import base64,datetime as dt,fcntl,hashlib,importlib.util,json,os,re,shutil,subprocess,sys,time,urllib.request
+import base64,datetime as dt,fcntl,hashlib,importlib.util,json,os,re,shutil,signal,subprocess,sys,time,urllib.request
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from contract import need,sha,canonical,unpack,schema_gate,promote
@@ -26,6 +26,9 @@ def fetch(url,dest=None):
      total+=len(b);need(total<=300*1024**2,'DOWNLOAD_CAPACITY');out.write(b)
   else:return json.load(response)
 
+def protected_fingerprints(paths):
+ return {str(p):{'sha256':sha(p),'uid':p.stat().st_uid,'gid':p.stat().st_gid,'mode':p.stat().st_mode&0o7777} for p in map(Path,paths)}
+
 def current_manifest(path):
  schema=path/'backend/prisma/schema.prisma'
  return {'schemaSha256':sha(schema),'migrations':[{'name':p.parent.name,'sha256':sha(p)} for p in sorted((path/'backend/prisma/migrations').glob('*/migration.sql'))]}
@@ -43,6 +46,7 @@ class Host:
   return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\nExecStart=\nExecStart=/usr/bin/node '+str(self.root/'backend/src'/('server.js' if role=='api' else 'github-worker.js'))+'\n'
  def preflight(self):
   need(run(['getenforce']).strip()==b'Enforcing','SELINUX')
+  need(protected_fingerprints(self.cfg['protectedFiles'])==self.cfg['protectedFiles'],'OPERATIONAL_CONFIG_CHANGED')
   metrics=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(not metrics['failures'] and time.time()-dt.datetime.fromisoformat(metrics['at']).timestamp()<180,'CURRENT_HEALTH')
   backup=json.loads(Path('/var/lib/traceflow-live-ops/last-backup.json').read_bytes());need(backup['status']=='SUCCESS' and backup['externalReadback'] and time.time()-dt.datetime.fromisoformat(backup['finishedAt']).timestamp()<26*3600,'BACKUP_CURRENT')
   schema_gate(self.manifest,current_manifest(self.previous))
@@ -99,6 +103,7 @@ class Host:
   v=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(v['mysql'] and v['workerCount']>=1 and v['workerHeartbeatAgeSeconds']<=90,'WORKER_OR_MYSQL')
  def route_official(self):self.proxy.write_bytes(self.old_proxy);run(['nginx','-t']);run(['systemctl','reload','nginx'])
  def smoke(self):
+  need(protected_fingerprints(self.cfg['protectedFiles'])==self.cfg['protectedFiles'],'OPERATIONAL_PRESERVATION')
   content=run(['curl','--fail','--silent','--show-error','--max-time','15','https://traceflow.dev/'],timeout=20)
   need(b'<html' in content and sha(self.frontend/'index.html')==hashlib.sha256(content).hexdigest(),'PUBLIC_FRONTEND')
   run(['systemctl','is-active','traceflow-live-backup.timer','traceflow-live-monitor.timer','traceflow-live-retention.timer'])
@@ -141,7 +146,7 @@ def process(release,cfg):
   need(manifest['commit']==req['appSha'] and sha(root/'cd-manifest.json')==req['manifestSha256'] and manifest['arch']=='aarch64','PACKAGE_IDENTITY')
   host=Host(root,manifest,req,work,cfg);promote(host)
   cfg.update(currentRelease=str(root),frontendRoot=str(host.frontend),nginxSha256=sha(host.nginx),proxySha256=sha(host.proxy));atomic(CONFIG,cfg)
-  result.update(status='SUCCESS',release=str(root),rollback='not-required')
+  result.update(status='SUCCESS',release=str(root),rollback='not-required',operationalConfigurationPreserved=True)
  except BaseException as error:
   result.update(code=str(error) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(error)) else 'DEPLOY_FAILED',rollback='inspect-preserved-transaction')
  finally:
@@ -160,6 +165,8 @@ def main():
    age=time.time()-dt.datetime.fromisoformat(release['published_at'].replace('Z','+00:00')).timestamp()
    if age<1800:process(release,cfg)
 if __name__=='__main__':
+ def interrupted(*_):raise InterruptedError('DEPLOY_INTERRUPTED')
+ signal.signal(signal.SIGTERM,interrupted);signal.signal(signal.SIGINT,interrupted)
  try:main()
  except BaseException as e:
   print(json.dumps({'status':'BLOCKED','code':str(e) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(e)) else 'RECEIVER_FAILED','automaticRetry':False}));sys.exit(1)

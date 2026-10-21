@@ -26,9 +26,12 @@ def unpack(package,dest,expected):
   need('cd-manifest.json' in seen,'MANIFEST_MISSING')
   manifest=json.load(t.extractfile('cd-manifest.json'));need(manifest.get('kind')=='traceflow-clean-cd' and manifest.get('formatVersion')==1 and SHA.fullmatch(manifest.get('commit','')),'MANIFEST_FORMAT')
   need(seen==set(manifest['files'])|{'cd-manifest.json'},'MANIFEST_INVENTORY')
-  dest.mkdir(parents=True,mode=0o755)
+  dest.mkdir(parents=True,mode=0o755);dest.chmod(0o755)
   for m in sorted(members,key=lambda x:x.issym()):
    target=dest/m.name;target.parent.mkdir(parents=True,exist_ok=True,mode=0o755)
+   parent=target.parent
+   while parent!=dest:
+    need(not parent.is_symlink(),'ARCHIVE_PARENT_LINK');parent.chmod(0o755);parent=parent.parent
    if m.issym():os.symlink(m.linkname,target)
    else:
     with t.extractfile(m) as src,target.open('xb') as out:

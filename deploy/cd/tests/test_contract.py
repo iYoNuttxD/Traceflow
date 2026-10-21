@@ -47,6 +47,14 @@ class TransactionTests(unittest.TestCase):
     with self.assertRaises(ValueError):promote(lab)
     self.assertEqual((lab.application,lab.route),('previous','previous'));self.assertIn('previous_ready',lab.events);self.assertFalse(lab.candidate)
    finally:lab.close()
+ def test_interruption_after_cutover_runs_same_rollback(self):
+  lab=Lab()
+  def interrupt():raise KeyboardInterrupt()
+  lab.official_ready=interrupt
+  try:
+   with self.assertRaises(KeyboardInterrupt):promote(lab)
+   self.assertEqual(lab.application,'previous');self.assertFalse(lab.candidate);self.assertIn('previous_ready',lab.events)
+  finally:lab.close()
  def test_preflight_refusal_never_starts_or_changes_application(self):
   lab=Lab('preflight')
   try:
@@ -73,5 +81,8 @@ class TransactionTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    root=Path(d);data=b'non-sensitive';manifest={'formatVersion':1,'kind':'traceflow-clean-cd','commit':'a'*40,'files':{'backend/src/server.js':{'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data),'mode':420}}}
    p=self.archive(root,[('cd-manifest.json',json.dumps(manifest).encode(),tarfile.REGTYPE),('backend/src/server.js',data,tarfile.REGTYPE)])
-   result=unpack(p,root/'out',hashlib.sha256(p.read_bytes()).hexdigest());self.assertEqual(result,manifest)
+   previous=os.umask(0o077)
+   try:result=unpack(p,root/'out',hashlib.sha256(p.read_bytes()).hexdigest())
+   finally:os.umask(previous)
+   self.assertEqual(result,manifest);self.assertEqual((root/'out/backend/src').stat().st_mode&0o777,0o755)
 if __name__=='__main__':unittest.main()
