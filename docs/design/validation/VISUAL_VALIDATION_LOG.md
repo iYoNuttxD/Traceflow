@@ -1561,3 +1561,42 @@ visão ficava abaixo do cabeçalho da tabela por `display: flex` no `caption`.
 PDF do mesmo relatório renderizado em imagem e revisado: resumo na capa, Planejamento em página
 própria, selos com cor de fundo (o fundo da célula-pai cobria o selo e foi retirado), barras e
 coluna Status. Tema claro, larguras menores e leitor de tela não foram verificados nesta rodada.
+
+
+## 2026-10-21 — sidebar, notificações e overflow de navegação (max-dev)
+
+As duas referências do usuário foram materializadas pela Library e inspecionadas no Mac.
+O estado anterior foi conferido no Chrome com a aplicação local autenticada: o painel de
+notificações usava superfície elevada, distinta do fundo da sidebar; em Indicadores, a barra
+tinha `clientHeight=48` e `scrollHeight=49`, com overflow vertical automático.
+
+A correção foi validada no Chrome do Mac, com os componentes reais montados na fixture
+`frontend/test/visual/p8.html`, dados sintéticos e sem alterações nos dados da sessão real.
+Viewport: 1440×900 e 1280×800 (sidebar recolhida/expandida e temas escuro/claro), 768×900,
+390×844 e 320×640. Não é uma homologação de toda a aplicação ou dos fluxos de gravação da API.
+
+- Sidebar e painel têm o mesmo fundo calculado: escuro `rgb(16,23,33)` e claro `rgb(248,250,253)`.
+- Abas de Indicadores e do projeto: altura e conteúdo de 48px, sem scrollbar vertical.
+  Em 390px, a navegação do projeto mantém 1171px em um contêiner de 358px; a rolagem
+  horizontal necessária continua disponível. Em 768px, End seleciona/foca Rastreabilidade
+  e desloca horizontalmente a barra (`scrollLeft=365`).
+- Configurações em 320px: removidas margens negativas; largura global caiu de 328 para 320px.
+  As abas têm 304px de viewport e 533px de conteúdo, altura/conteúdo 48px.
+- Notificações em 320px: Origem ocupa 280px e o botão quebra para outra linha, sem cortar
+  o texto; a lista conserva 1760px de conteúdo em 384px disponíveis e continua rolável.
+- Abertura/fechamento pelo botão desktop e pelo menu móvel, Escape e retorno ao botão
+  de origem conferidos. Preferências longas continuam roláveis. Sem mutações de notificações.
+
+Capturas sintéticas (não contêm dados pessoais reais):
+
+- [Indicadores, escuro, 1440px](navigation-notifications-20261021/indicators-dark-1440.jpg)
+- [Notificações, sidebar recolhida, escuro, 1440px](navigation-notifications-20261021/notifications-dark-1440.jpg)
+- [Notificações, sidebar expandida, claro, 1280px](navigation-notifications-20261021/notifications-light-1280.jpg)
+- [Notificações, escuro, 390px](navigation-notifications-20261021/notifications-dark-390.jpg)
+- [Notificações, controles em duas linhas, 320px](navigation-notifications-20261021/notifications-dark-320.jpg)
+- [Configurações, claro, 320px](navigation-notifications-20261021/settings-light-320.jpg)
+- [Medições antes/depois e etapas intermediárias](navigation-notifications-20261021/measurements.json)
+
+Captura principal salva também na Library: `libfile_0250bdd1efe481918a2314c7f700dcbf`.
+Os status históricos das surfaces são preservados; esta evidência é limitada aos ajustes
+de cor, navegação, reflow e overflow acima.

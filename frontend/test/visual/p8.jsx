@@ -6,6 +6,7 @@ import { httpClient } from '../../src/api/http-client.js';
 import { ProjectDetailsScreen } from '../../src/features/projects/pages/ProjectDetailsScreen.jsx';
 import { ProjectsCatalogProvider } from '../../src/features/projects/hooks/ProjectsCatalogContext.jsx';
 import { AppShell } from '../../src/app/layout/AppShell.jsx';
+import { UnreadNotificationsProvider } from '../../src/features/notifications/index.js';
 import { IndicatorsScreen } from '../../src/features/indicators/IndicatorsScreen.jsx';
 import { SettingsLayout } from '../../src/features/settings/SettingsLayout.jsx';
 import { ConfirmProvider } from '../../src/shared/components/ConfirmDialog.jsx';
@@ -387,11 +388,57 @@ const metricsById = new Map(
     .flatMap((view) => view.flatMap((section) => section.indicators))
     .map((indicator) => [indicator.metricId, indicator])
 );
+// Real shell/panel with disposable synthetic data for visual and keyboard checks.
+const notifications = Array.from({ length: 24 }, (_, index) => ({
+  id: index + 1,
+  type: 'TASK_STATUS_CHANGED',
+  createdAt: date,
+  readAt: index % 6 === 0 ? date : null,
+  project: { id: 1, name: project.name },
+  task: {
+    id: index + 1,
+    code: `TASK-${index + 1}`,
+    title: 'Revisar a jornada completa',
+    available: true
+  },
+  context: {
+    fromStatus: 'EM_ANDAMENTO',
+    toStatus: 'CONCLUIDO',
+    actor: { id: 9, name: 'Pessoa de teste' },
+    selfAction: true
+  },
+  link: '/projects/1'
+}));
+const notificationPreferences = {
+  TASK_STATUS_CHANGED: true,
+  TASK_OVERDUE: true,
+  ISSUE_EVENT: true,
+  PULL_REQUEST_EVENT: true,
+  TRACEABILITY_INCONSISTENCY: true
+};
 httpClient.defaults.adapter = async (config) => {
   const path = new URL(config.url, 'http://local.test').pathname;
   const view = String(config.params?.view ?? 'GENERAL').toUpperCase();
   let data;
-  if (path === '/projects') data = { projects: [project], deletedProjects: [] };
+  if (path === '/notifications/unread-count')
+    data = { unreadCount: notifications.filter((item) => !item.readAt).length };
+  else if (path === '/notifications') {
+    const items = notifications.filter((item) => config.params?.status === 'ALL' || !item.readAt);
+    const offset = Number(config.params?.cursor ?? 0);
+    const limit = Number(config.params?.limit ?? 20);
+    data = {
+      notifications: items.slice(offset, offset + limit),
+      pagination: {
+        page: 1,
+        limit,
+        total: items.length,
+        totalPages: Math.ceil(items.length / limit)
+      },
+      unreadCount: notifications.filter((item) => !item.readAt).length,
+      nextCursor: offset + limit < items.length ? String(offset + limit) : null
+    };
+  } else if (path === '/settings/notifications') data = { preferences: notificationPreferences };
+  else if (path === '/projects') data = { projects: [project], deletedProjects: [] };
   else if (path === '/projects/1') data = { project };
   else if (path === '/projects/1/indicator-preference') {
     if (config.method === 'put' || config.method === 'patch') {
@@ -482,35 +529,37 @@ createRoot(document.getElementById('root')).render(
   <ThemeProvider>
     <ConfirmProvider>
       <MemoryRouter initialEntries={[`${route}?${query.toString()}`]}>
-        <ProjectsCatalogProvider>
-          <AppShell
-            user={{ id: 9, name: 'Pessoa de teste', email: 'fixture@example.test' }}
-            onLogout={() => {}}
-          >
-            <Routes>
-              <Route path="/projects/:id" element={<ProjectDetailsScreen />} />
-              <Route path="/projects/:projectId/indicators" element={<IndicatorsScreen />} />
-              <Route path="/settings" element={<SettingsLayout />}>
-                <Route
-                  path="account"
-                  element={
-                    <section className="settings-surface">
-                      <h2>Conta de teste</h2>
-                      <p>
-                        Fixture de largura: os campos e textos de configuração mantêm uma área de
-                        leitura limitada, mesmo em um monitor grande.
-                      </p>
-                      <label className="field">
-                        <span>Nome</span>
-                        <input value="Pessoa de teste" readOnly />
-                      </label>
-                    </section>
-                  }
-                />
-              </Route>
-            </Routes>
-          </AppShell>
-        </ProjectsCatalogProvider>
+        <UnreadNotificationsProvider>
+          <ProjectsCatalogProvider>
+            <AppShell
+              user={{ id: 9, name: 'Pessoa de teste', email: 'fixture@example.test' }}
+              onLogout={() => {}}
+            >
+              <Routes>
+                <Route path="/projects/:id" element={<ProjectDetailsScreen />} />
+                <Route path="/projects/:projectId/indicators" element={<IndicatorsScreen />} />
+                <Route path="/settings" element={<SettingsLayout />}>
+                  <Route
+                    path="account"
+                    element={
+                      <section className="settings-surface">
+                        <h2>Conta de teste</h2>
+                        <p>
+                          Fixture de largura: os campos e textos de configuração mantêm uma área de
+                          leitura limitada, mesmo em um monitor grande.
+                        </p>
+                        <label className="field">
+                          <span>Nome</span>
+                          <input value="Pessoa de teste" readOnly />
+                        </label>
+                      </section>
+                    }
+                  />
+                </Route>
+              </Routes>
+            </AppShell>
+          </ProjectsCatalogProvider>
+        </UnreadNotificationsProvider>
       </MemoryRouter>
     </ConfirmProvider>
   </ThemeProvider>

@@ -985,3 +985,17 @@ nova surface nem para as larguras ampliadas. Consulte o registro de validação 
 
 O tema escuro e as larguras responsivas da aba Relatórios ainda não foram inspecionados; por isso
 as surfaces ficam `NOT REVIEWED`, sem promoção a `C2 COMPLETE`.
+
+
+## Sidebar e notificações — navegação sem overflow vertical (2026-10-21)
+
+O painel de notificações compartilha fundo, borda e affordances com a sidebar nos dois temas.
+As abas compartilhadas (Indicadores, Configurações, projeto, membros, histórico e notificações)
+mantêm rolagem horizontal, com o indicador ativo contido na altura da barra. A navegação de
+Configurações deixa de ultrapassar a página por margens negativas no mobile. O toolbar de
+notificações quebra linhas quando necessário; listas e preferências longas continuam roláveis.
+
+Inspeção no Chrome do Mac: 1440/1280/768/390/320px, Light/Dark, sidebar expandida/recolhida,
+menu móvel, abertura/fechamento do painel, Escape/retorno de foco e End nas abas de Indicadores.
+Componentes reais com fixture sintética; não é validação de gravações na API nem promoção
+global das surfaces. Evidência e limites no [registro visual](validation/VISUAL_VALIDATION_LOG.md#2026-10-21--sidebar-notificações-e-overflow-de-navegação-max-dev).
