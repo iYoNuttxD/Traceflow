@@ -1,5 +1,5 @@
 name: OCI Controlled CD
-run-name: OCI CD ${{ inputs.app_sha || '05c898eed96aabc4bd96d706bfcddfd80c99534a' }}
+run-name: OCI CD ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
 on:
   pull_request:
     paths:
@@ -45,18 +45,18 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.app_sha || '05c898eed96aabc4bd96d706bfcddfd80c99534a' }}
+          ref: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
           path: source1
           persist-credentials: false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.app_sha || '05c898eed96aabc4bd96d706bfcddfd80c99534a' }}
+          ref: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
           path: source2
           persist-credentials: false
       - name: Exact commit and existing CI policy
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_SHA: ${{ inputs.app_sha || '05c898eed96aabc4bd96d706bfcddfd80c99534a' }}
+          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
         working-directory: source1
         run: python3 ../ops/deploy/cd/ci_gate.py "$APP_SHA"
       - name: Isolated CD integrity and rollback failure lab
@@ -70,7 +70,7 @@ jobs:
           docker build --build-arg BASE_IMAGE="$base" -t traceflow-builder -f ops/deploy/cd/Dockerfile ops/deploy/cd
       - name: Two independent ARM64 builds with identical package bytes
         env:
-          APP_SHA: ${{ inputs.app_sha || '05c898eed96aabc4bd96d706bfcddfd80c99534a' }}
+          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
         run: |
           epoch=$(git -C source1 show -s --format=%ct "$APP_SHA")
           for pass in 1 2; do
@@ -113,7 +113,7 @@ jobs:
           path: candidate
       - name: Bind approved artifact to this production authorization
         env:
-          APP_SHA: ${{ inputs.app_sha || '05c898eed96aabc4bd96d706bfcddfd80c99534a' }}
+          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
           WORKFLOW_SHA: ${{ github.sha }}
         run: |
           python3 - <<'PY'
@@ -134,7 +134,7 @@ jobs:
       - name: Publish the approved, signed deployment request
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_SHA: ${{ inputs.app_sha || '05c898eed96aabc4bd96d706bfcddfd80c99534a' }}
+          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
           ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           cp "$ATTESTATION_BUNDLE" candidate/request.sigstore.json

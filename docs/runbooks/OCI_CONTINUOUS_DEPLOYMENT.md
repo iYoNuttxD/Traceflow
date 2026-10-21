@@ -11,10 +11,12 @@ Não usa controladores antigos, recoveryProof ou ledger legado.
 2. Actions → **OCI Controlled CD** → Run workflow (`main`), `app_sha` completo.
    A PR dos componentes CD já executa build/homologação da baseline sem acesso à produção. `promote=false` também valida sem publicar. Para uma promoção aprovada,
    executar com `promote=true` e revisar o candidato antes de aprovar `production`.
-3. A revisão de segurança autorizada `05c898eed96aabc4bd96d706bfcddfd80c99534a`
+3. A revisão de segurança autorizada `b9c1beb9f6ded49ce9257d346c086a8893f700c9`
    deriva de 9bc3dad: altera somente os lockfiles (Vite também no toolchain de testes backend, follow-redirects e
    transitivas do build) e o gatilho de CI da branch isolada. Fonte backend/frontend,
-   schema e migrations são byte-idênticos. Ela exige CI push no SHA exato.
+   schema e migrations são byte-idênticos. A cobertura usa um worker para evitar
+   disputa de CPU, sem alterar timeout, asserções ou thresholds. Ela exige CI push
+   no SHA exato.
    A revisão funcional anteriormente publicada `9bc3dad199566afc6fa43d67abba400665d843ea`
    conserva sua homologação anterior e recebe agora lint, auditoria, testes de
    runtime e homologação descartável no código exato. Ela não tinha checks antigos
