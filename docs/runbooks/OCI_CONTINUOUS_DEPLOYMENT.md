@@ -31,7 +31,7 @@ Não usa controladores antigos, recoveryProof ou ledger legado.
    ref/source digest exatos, runner hospedado), prazo e hash do pacote. Só aceita
    revisões fixadas ou que conservem exatamente todos os arquivos da autoridade CD
    aprovada (workflow e scripts), verificados no commit autenticado da main;
-   política em `/etc/traceflow-live/cd.json` root 0600.
+   política imutável em `/etc/traceflow-live/cd.json` root 0600; estado da release em `/var/lib/traceflow-live-cd/current.json`, também root 0600. O serviço não tem escrita no diretório dos segredos.
 8. Receiver mantém lock de deploy e de backup, além de marcador exclusivo antes de instalar. Falha fica terminal
    e preservada; não se repete automaticamente a promoção da mesma autorização.
 9. Instala em `/opt/traceflow-live/releases/` e frontend em

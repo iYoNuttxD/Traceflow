@@ -59,6 +59,7 @@ def promote(host):
  try:
   switched=True;host.route_candidate()
   host.promote_services();host.official_ready();host.route_official();host.smoke()
+  host.stop_candidate();host.commit()
  except BaseException:
   if switched:
    host.restore_previous();host.previous_ready()

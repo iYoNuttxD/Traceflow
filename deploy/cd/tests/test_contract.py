@@ -24,6 +24,7 @@ class Lab:
  def official_ready(self):self.step('official_ready')
  def route_official(self):self.route='official';self.step('route_official')
  def smoke(self):self.step('smoke')
+ def commit(self):self.step('commit')
  def restore_previous(self):self.route='previous';self.application='previous';self.step('rollback')
  def previous_ready(self):self.state['ready']=True;self.step('previous_ready')
  def stop_candidate(self):self.candidate=False;self.events.append('candidate_stopped')
@@ -41,7 +42,7 @@ class TransactionTests(unittest.TestCase):
     self.assertEqual((lab.application,lab.route),('previous','previous'));self.assertFalse(lab.candidate)
    finally:lab.close()
  def test_worker_readiness_smoke_and_route_failures_restore_previous(self):
-  for failure in ('route_candidate','worker','official_ready','route_official','smoke'):
+  for failure in ('route_candidate','worker','official_ready','route_official','smoke','commit'):
    lab=Lab(failure)
    try:
     with self.assertRaises(ValueError):promote(lab)

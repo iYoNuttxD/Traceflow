@@ -8,6 +8,7 @@ REPO='iYoNuttxD/Traceflow';WORKFLOW='.github/workflows/oci-cd.yml'
 CONFIG=Path('/etc/traceflow-live/cd.json');STATE=Path('/var/lib/traceflow-live-cd')
 RELEASES=Path('/opt/traceflow-live/releases');FRONTENDS=Path('/var/www/traceflow-live-releases')
 STATUS=Path('/var/www/traceflow-live-deploy-status')
+CURRENT_KEYS={'currentRelease','frontendRoot','nginxSha256','proxySha256'}
 def run(a,timeout=45):
  p=subprocess.run([str(x) for x in a],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout,env={**os.environ,'HOME':'/nonexistent','LANG':'C.UTF-8','GH_PROMPT_DISABLED':'1'})
  need(p.returncode==0,'COMMAND_'+Path(str(a[0])).name.upper().replace('-','_'));return p.stdout
@@ -48,7 +49,7 @@ class Host:
   self.old={str(p):p.read_bytes() if p.exists() else None for p in self.units.values()}
   self.proxy=Path('/etc/nginx/traceflow-live/proxy.conf');self.nginx=Path('/etc/nginx/conf.d/traceflow.conf')
   self.old_proxy=self.proxy.read_bytes();self.old_nginx=self.nginx.read_bytes();self.frontend=FRONTENDS/root.name
-  self.previous=Path(cfg['currentRelease'])
+  self.previous=Path(cfg['currentRelease']);self.previous_state={k:cfg[k] for k in CURRENT_KEYS}
   self.candidate=Path('/etc/systemd/system/traceflow-live-cd-candidate.service')
  def unit(self,role):
   return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\nExecStart=\nExecStart=/usr/bin/node '+str(self.root/'backend/src'/('server.js' if role=='api' else 'github-worker.js'))+'\n'
@@ -123,7 +124,11 @@ class Host:
   content=run(['curl','--fail','--silent','--show-error','--max-time','15','https://traceflow.dev/'],timeout=20)
   need(b'<html' in content and sha(self.frontend/'index.html')==hashlib.sha256(content).hexdigest(),'PUBLIC_FRONTEND')
   run(['systemctl','is-active','traceflow-live-backup.timer','traceflow-live-monitor.timer','traceflow-live-retention.timer'])
+ def commit(self):
+  value={'currentRelease':str(self.root),'frontendRoot':str(self.frontend),'nginxSha256':sha(self.nginx),'proxySha256':sha(self.proxy)}
+  atomic(STATE/'current.json',value);self.cfg.update(value)
  def restore_previous(self):
+  atomic(STATE/'current.json',self.previous_state);self.cfg.update(self.previous_state)
   self.proxy.write_bytes(self.old_proxy);self.nginx.write_bytes(self.old_nginx)
   for path,data in self.old.items():
    p=Path(path)
@@ -132,6 +137,7 @@ class Host:
   run(['systemctl','daemon-reload']);run(['systemctl','restart','traceflow-live-api'],timeout=90);run(['systemctl','restart','traceflow-live-worker'],timeout=120);run(['nginx','-t']);run(['systemctl','reload','nginx'])
  def previous_ready(self):self.ready(3001);run(['systemctl','is-active','traceflow-live-worker'])
  def stop_candidate(self):
+  if not self.candidate.exists():return
   run(['systemctl','stop','traceflow-live-cd-candidate'],timeout=90)
   # Only this newly-created transient candidate unit is removed; immutable releases/evidence stay.
   if self.candidate.exists():self.candidate.unlink();run(['systemctl','daemon-reload'])
@@ -161,7 +167,6 @@ def process(release,cfg):
   root=RELEASES/(req['appSha']+'-'+req['packageSha256'][:12]);manifest=unpack(work/'release.tar.gz',root,req['packageSha256'])
   need(manifest['commit']==req['appSha'] and sha(root/'cd-manifest.json')==req['manifestSha256'] and manifest['arch']=='aarch64','PACKAGE_IDENTITY')
   host=Host(root,manifest,req,work,cfg);promote(host)
-  cfg.update(currentRelease=str(root),frontendRoot=str(host.frontend),nginxSha256=sha(host.nginx),proxySha256=sha(host.proxy));atomic(CONFIG,cfg)
   result.update(status='SUCCESS',release=str(root),rollback='not-required',operationalConfigurationPreserved=True)
  except BaseException as error:
   result.update(code=str(error) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(error)) else 'DEPLOY_FAILED',rollback='inspect-preserved-transaction')
@@ -172,6 +177,8 @@ def process(release,cfg):
 def main():
  need(os.geteuid()==0,'ROOT_REQUIRED');os.umask(0o077)
  cfg=json.loads(CONFIG.read_bytes());need(CONFIG.stat().st_uid==0 and CONFIG.stat().st_mode&0o077==0,'CONFIG_CUSTODY')
+ if (STATE/'current.json').exists():
+  current=json.loads((STATE/'current.json').read_bytes());need(set(current)==CURRENT_KEYS,'CURRENT_STATE_FIELDS');cfg.update(current)
  with (STATE/'deploy.lock').open('a+') as lock,Path('/var/lib/traceflow-live-ops/backup.lock').open('a+') as backup_lock:
   fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   fcntl.flock(backup_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
