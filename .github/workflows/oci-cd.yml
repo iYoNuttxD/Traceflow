@@ -74,9 +74,21 @@ jobs:
         run: |
           epoch=$(git -C source1 show -s --format=%ct "$APP_SHA")
           for pass in 1 2; do
-            docker run --rm --network host -e APP_SHA -e SOURCE_DATE_EPOCH="$epoch" -e PASS="$pass" -e OPS_ROOT=/ops -e SOURCE_ROOT=/src -v "$PWD/ops:/ops:ro" -v "$PWD/source$pass:/src" -v "$PWD/out:/out" traceflow-builder bash /ops/deploy/cd/build.sh
+            mkdir -p "$PWD/out/root-$pass"
+            docker run --rm --network host -e APP_SHA -e SOURCE_DATE_EPOCH="$epoch" -e PASS="$pass" -e OPS_ROOT=/ops -e SOURCE_ROOT=/src -v "$PWD/ops:/ops:ro" -v "$PWD/source$pass:/src" -v "$PWD/out:/out" -v "$PWD/out/root-$pass:/package" traceflow-builder bash /ops/deploy/cd/build.sh
           done
-          cmp out/release-1.tar.gz out/release-2.tar.gz
+          if ! cmp out/release-1.tar.gz out/release-2.tar.gz; then
+            python3 - <<'PYDIFF'
+          import json
+          from pathlib import Path
+          one=json.loads(Path('out/root-1/cd-manifest.json').read_text())
+          two=json.loads(Path('out/root-2/cd-manifest.json').read_text())
+          differences=[name for name in sorted(set(one['files'])|set(two['files'])) if one['files'].get(name)!=two['files'].get(name)]
+          metadata=[name for name in sorted(set(one)|set(two)) if name!='files' and one.get(name)!=two.get(name)]
+          print(json.dumps({'status':'REPRODUCIBILITY_REFUSED','differentFiles':differences,'differentMetadata':metadata}))
+          PYDIFF
+            exit 1
+          fi
           cp out/release-1.tar.gz out/release.tar.gz
           cp out/identity-1.json out/identity.json
           cp out/root-1/cd-manifest.json out/cd-manifest.json

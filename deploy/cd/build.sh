@@ -25,13 +25,13 @@ if [ "$PASS" = 1 ]; then
 else
  (cd backend && npx prisma generate)
 fi
-npm --prefix frontend run build
+NODE_ENV=production npm --prefix frontend run build
 git diff --exit-code
 test -z "$(git ls-files --others --exclude-standard backend/src backend/prisma frontend/src)"
-mkdir -p "/out/root-$PASS/backend" "/out/root-$PASS/frontend"
-cp -a backend/src backend/prisma backend/node_modules backend/package.json backend/package-lock.json "/out/root-$PASS/backend/"
-cp -a frontend/dist/. "/out/root-$PASS/frontend/"
+mkdir -p "/package/backend" "/package/frontend"
+cp -a backend/src backend/prisma backend/node_modules backend/package.json backend/package-lock.json "/package/backend/"
+cp -a frontend/dist/. "/package/frontend/"
 # Prune only the disposable package copy; npm may normalize generated lock metadata.
-npm --prefix "/out/root-$PASS/backend" prune --omit=dev --no-audit --no-fund
+npm --prefix "/package/backend" prune --omit=dev --no-audit --no-fund
 git diff --exit-code
-python3 "$OPS_ROOT/deploy/cd/package.py" "/out/root-$PASS" "/out/release-$PASS.tar.gz" --commit "$APP_SHA" --epoch "$SOURCE_DATE_EPOCH" > "/out/identity-$PASS.json"
+python3 "$OPS_ROOT/deploy/cd/package.py" "/package" "/out/release-$PASS.tar.gz" --commit "$APP_SHA" --epoch "$SOURCE_DATE_EPOCH" > "/out/identity-$PASS.json"
