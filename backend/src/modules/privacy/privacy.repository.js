@@ -177,6 +177,11 @@ export const privacyRepository = {
           where: { executedByUserId: request.userId },
           data: { executedByDisplayNameSnapshot: anonymous.name }
         });
+        // S2-06: o relatório congela nome e usuário; números e IDs permanecem.
+        await tx.projectReportPerson.updateMany({
+          where: { userId: request.userId },
+          data: { displayNameSnapshot: anonymous.name, usernameSnapshot: anonymous.username }
+        });
         await tx.$executeRaw`
           UPDATE TestCaseHistoryEntry
           SET metadataJson = JSON_SET(metadataJson, '$.from.name', ${anonymous.name})

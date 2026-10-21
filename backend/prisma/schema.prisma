@@ -184,6 +184,13 @@ enum GitHubSyncRunStatus {
   FAILED
 }
 
+enum ProjectReportStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 enum GitHubSyncStep {
   QUEUED
   REPOSITORY
@@ -266,6 +273,7 @@ model User {
   emailChangeRequests              EmailChangeRequest[]
   accountReactivationTokens        AccountReactivationToken[]
   requestedGitHubSyncRuns          GitHubSyncRun[]
+  requestedProjectReports          ProjectReport[]
   taskComments                     TaskComment[]                     @relation("TaskCommentAuthor")
   deletedTaskComments              TaskComment[]                     @relation("TaskCommentDeleter")
   deletedSprints                   Sprint[]                          @relation("SprintDeleter")
@@ -448,6 +456,7 @@ model Project {
   githubConnectionStates     GitHubAppConnectionState[]
   githubBranches             GitBranch[]
   githubSyncRuns             GitHubSyncRun[]
+  reports                    ProjectReport[]
   sprints                    Sprint[]
   milestones                 Milestone[]
   sprintTasks                SprintTask[]
@@ -1357,6 +1366,55 @@ model GitHubSyncRun {
   @@index([projectId, createdAt])
   @@index([status, updatedAt])
   @@index([requestedByUserId, createdAt])
+}
+
+// S2-06: relatório do projeto gerado em segundo plano. `snapshot` congela os números
+// do momento da geração; nomes de pessoas ficam somente em ProjectReportPerson.
+// `activeProjectId` reserva no banco uma única geração ativa por projeto.
+model ProjectReport {
+  id                Int                 @id @default(autoincrement())
+  projectId         Int
+  requestedByUserId Int?
+  activeProjectId   Int?                @unique
+  status            ProjectReportStatus @default(QUEUED)
+  startDate         String?             @db.VarChar(10)
+  endDate           String?             @db.VarChar(10)
+  timeZone          String?             @db.VarChar(100)
+  sprintId          Int?
+  snapshotVersion   Int?
+  snapshot          Json?
+  startedAt         DateTime?
+  heartbeatAt       DateTime?
+  finishedAt        DateTime?
+  durationMs        Int?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedByUser User?                 @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  people          ProjectReportPerson[]
+
+  @@index([projectId, createdAt])
+  @@index([status, finishedAt])
+  @@index([requestedByUserId, createdAt])
+}
+
+// Nome e usuário congelados no momento da geração. `userId` é identidade histórica
+// sem FK; a anonimização é a única exceção que neutraliza estes valores.
+model ProjectReportPerson {
+  id                  Int      @id @default(autoincrement())
+  reportId            Int
+  userId              Int
+  displayNameSnapshot String
+  usernameSnapshot    String?
+  createdAt           DateTime @default(now())
+
+  report ProjectReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+  @@index([userId])
 }
 
 // Um commit canônico pode estar contido em várias branches simultaneamente.

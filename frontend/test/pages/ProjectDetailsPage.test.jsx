@@ -201,7 +201,7 @@ describe('ProjectDetailsPage E9', () => {
     const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
-    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(12);
+    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(13);
     expect(within(projectNavigation).getByRole('link', { name: 'Casos de teste' })).toHaveAttribute(
       'href',
       '/projects/1/test-cases'

@@ -1,5 +1,31 @@
 # Registro de risco de dependências
 
+## S2-06/S2-07 — patches transitivos do gate — 20/10/2026
+
+Alertas publicados depois da baseline bloquearam o gate `check-npm-audit` nos dois projetos (também
+no `main`). Aplicado `npm audit fix` sem `--force`: só os lockfiles mudaram, dentro das faixas já
+declaradas; nenhum manifest, exceção ou override novo.
+
+| Origem | Advisory | Patch validado |
+| --- | --- | --- |
+| `vite` 8.0.16 (frontend, direta) e 8.1.5 (backend, via Vitest) | [GHSA-587h-7wmj-h5pm](https://github.com/advisories/GHSA-587h-7wmj-h5pm) (high), [GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv), [GHSA-r825-w8mm-5pxw](https://github.com/advisories/GHSA-r825-w8mm-5pxw) | `8.3.4` |
+| `follow-redirects` 1.16.0 (frontend, via Axios) | [GHSA-q3jh-wrc6-jgq8](https://github.com/advisories/GHSA-q3jh-wrc6-jgq8), [GHSA-8r9p-f939-6h3c](https://github.com/advisories/GHSA-8r9p-f939-6h3c) (high) | `1.16.1` |
+
+**CORRIGIDO:** gate `scripts/check-npm-audit.mjs` aprovado nos dois projetos (0 high, 0 critical);
+build, lint e suítes reexecutados depois da atualização.
+
+## S2-07 — geração de PDF (pdfmake) e leitura em testes (unpdf) — 15/10/2026
+
+| Pacote | Origem | Aplicabilidade | Decisão | Estado |
+| --- | --- | --- | --- | --- |
+| `pdfmake` 0.3.11 (MIT) | direta, runtime | monta o PDF do relatório (RF57) a partir do snapshot; traz `pdfkit` 0.19.1, `fontkit`, `linebreak`, `xmldoc`, `png-js`, `@noble/ciphers`, `js-md5` e `sax` (BlueOak-1.0.0, permissiva), sem scripts de instalação | versão exata; URL negada para qualquer recurso externo e leitura local restrita às quatro fontes Roboto do próprio pacote; montagem em worker thread com heap de 512 MB, prazo de 30 s e no máximo 2 simultâneas; textos do projeto entram como texto, nunca como marcação | ACEITO |
+| `unpdf` 1.8.1 (MIT) | direta, **desenvolvimento** | extrai o texto dos PDFs nos testes de conteúdo; sem dependências; o peer opcional `@napi-rs/canvas` não é instalado | versão exata; fora do runtime de produção | ACEITO |
+
+Alternativa descartada: renderização por navegador embutido (Playwright/Chromium) — mais fiel à
+tela, mas pesada para a VM da OCI e com manutenção de binário; decisão no
+[ADR-025](../architecture/ADR-025-RELATORIOS-E-PDF.md). `npm audit` e o gate
+`scripts/check-npm-audit.mjs` passaram sem exceção nova depois da inclusão.
+
 ## PR23-FIX-04 — patches transitivos do gate final — 06/10/2026
 
 O audit corrente encontrou advisories publicados após a baseline anterior. Foram aplicados

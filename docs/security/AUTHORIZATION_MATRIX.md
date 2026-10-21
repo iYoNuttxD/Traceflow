@@ -52,6 +52,9 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `GET /api/projects/:projectId/schedule`                                                                        |     401 |      L |           L |       L |     L | RF10; agregado somente-leitura e DTO minimizado                                                                |
 | `GET /api/sprints/:id/progress`                                                                                |     401 |      L |           L |       L |     L | RF35; somente-leitura, sem recorte por responsável                                                             |
 | `PATCH/DELETE /api/tasks/:id/sprint`                                                                           |     401 |    403 |           E |       E |     E | tarefa e sprint no mesmo projeto; recurso alheio recebe 404 opaco                                              |
+| `POST /api/projects/:projectId/reports` | 401 | 403 | E | E | E | S2-06; CSRF e limiter `project-report` por ator/projeto; uma geração ativa por projeto; pedido e conclusão auditados |
+| `GET /api/projects/:projectId/reports`, `.../reports/:reportId` | 401 | L | L | L | L | S2-06; relatório de outro projeto ou inexistente recebe o mesmo 404 opaco; nomes congelados na geração |
+| `GET /api/projects/:projectId/reports/:reportId/pdf` | 401 | L | L | L | L | S2-07; só relatório SUCCEEDED (409); limiter `project-report-pdf`; download auditado (sem auditoria, sem arquivo) |
 | `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |           E |       E |     E | start exige e-mail verificado; lista usa App ACTIVE e Installation Token                                       |
 | `GET /api/github-app/callback`                                                                                 |     302 |    302 |         302 |     302 |   302 | state/sessão/conta/instalação; não exige GitHubIdentity; tokens efêmeros                                       |
 | `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; vínculo inicial; ACTIVE repetido e troca retornam 409                                                        |
@@ -137,6 +140,11 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
   uma sessão em andamento por tarefa (trava de linha; `409` em concorrência). Exclusão segue a
   política dos comentários: quem iniciou a sessão ou MANAGER/OWNER. `Task.actualEffort` é derivado
   das sessões e recusa escrita direta (`400`); toda operação é auditada com origem e duração.
+- Relatórios (S2-06/S2-07): gerar exige MEMBER+, porque cada geração percorre todas as visões do
+  painel; consultar e baixar o PDF ficam abertos a qualquer membro ativo, inclusive VIEWER, pois o
+  relatório só reúne dados que esse papel já lê nas abas de origem. O snapshot não recebe nomes de
+  pessoas (só `userId`); o nome exibido é o congelado na geração. O PDF é montado sob demanda,
+  sem arquivo persistido, e cada download fica registrado em `REPORT_PDF_EXPORTED`.
 
 ## S1-07 — Casos de teste
 

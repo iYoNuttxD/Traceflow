@@ -66,11 +66,11 @@ revalidação.
 
 <!-- INVENTORY_COUNTS_START -->
 
-- Total surfaces: 245
+- Total surfaces: 253
 - `C2 COMPLETE`: 203
 - `LEGACY`: 1
 - `HYBRID`: 18
-- `NOT REVIEWED`: 23
+- `NOT REVIEWED`: 31
 - `NOT APPLICABLE`: 0
 
 | Domain | Total |
@@ -91,6 +91,7 @@ revalidação.
 | Privacy Settings | 5 |
 | Project Overview | 2 |
 | Projects | 14 |
+| Reports | 8 |
 | Repository / GitHub | 5 |
 | Requirements | 7 |
 | Security Settings | 3 |
@@ -103,7 +104,7 @@ revalidação.
 Validation evidence:
 
 - `VISUALLY APPROVED`: 54
-- `TECHNICALLY VERIFIED`: 190
+- `TECHNICALLY VERIFIED`: 198
 - `STRUCTURALLY IDENTIFIED`: 1
 - `ENVIRONMENT BLOCKED`: 0
 - `NOT VALIDATED`: 0
@@ -922,3 +923,19 @@ histórica; a apresentação das regras foi atribuída ao pacote FIX-02.1. No PR
 | `PROJECT-INDICATORS-CUSTOM-EDITOR` | Indicators | Personalização | `/projects/:projectId/indicators?view=custom` | Personalizar painel | Dialog | `features/indicators/components/DashboardEditor.jsx` | Personalizar | VIEWER+ | Selecionar, ordenar, restaurar, salvar, cancelar, draft/erro | Tokens existentes; sem nova inspeção | Tokens existentes; sem nova inspeção | Implementação existente; sem nova homologação | Primitives e testes existentes; não certificação visual | C2 COMPLETE | TECHNICALLY VERIFIED | — | S2-04 / S2-05 | PR23-FIX-06: owner/rota conferidos; evidência histórica no log, sem capturas ou promoção visual nesta rodada. |
 
 | `SHARED-SWITCH` | Global / Shell | Boolean preference | Project GitHub settings | Preferência automática confirmada | Primitive | `shared/components/Switch.jsx` | Alterar preferência | OWNER no consumer; backend autoriza | Checked, unchecked, busy, disabled, erro preserva valor | PASS runtime Chromium | PASS runtime Chromium | VERIFIED: 1440/768/390; target 44px | Input nativo role switch, Space e foco visível | C2 COMPLETE | TECHNICALLY VERIFIED | — | GITHUB-04.1 | GITHUB-04.1: Settings C2 com identidade/status juntos, ação e datas próximas, Switch com descrição, agenda e disponibilidade distintas. Repository sem CTA. Runtime PASS em 1440/768/390, Light/Dark, com worker em processo separado; [relatório](../deliveries/GITHUB_04_1_AUTOSYNC_RELIABILITY_UX_REFINEMENT_REPORT.md). Sem capturas ou homologação visual completa. |
+
+## Reports — S2-06/S2-07 (2026-10-15)
+
+| ID | Domain | Flow | Route / Context | Surface | Type | Component / Owner | Trigger | Roles | States | Light | Dark | Responsive | Accessibility | Visual Status | Validation Status | Priority | Target UX Scope | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `REPORTS-LIST` | Reports | Lista | `/projects/:projectId/reports` | Relatórios do projeto | Page | `pages/ReportsPage.jsx`; `features/reports/ReportsScreen.jsx`; `ReportCard.jsx` | Aba Relatórios na navegação do projeto | VIEWER+ | Carregando, erro, vazio (com/sem permissão de gerar), cards por status, mais relatórios, teto de 100 | Inspecionado com API real em 14/10 (Chrome) | Tokens existentes; sem inspeção | Grade `sprint-grid` existente; sem inspeção dedicada | Lista com `role=list`, cards nomeados, status textual | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-06 | Reutiliza `sprint-card`, `new-milestone-card` e tokens; ReportsScreen.test.jsx. |
+| `REPORTS-SUMMARY` | Reports | Resumo | `/projects/:projectId/reports` | Visão geral dos relatórios | Summary | `ReportsSummary.jsx`; `SummaryPanel` (shared) | Abrir a aba Relatórios | VIEWER+ | Carregando, sem relatórios, totais do projeto (independentes dos filtros) | Tokens existentes; sem inspeção | Inspecionado com API real em 20/10 (tema escuro, desktop) | Grade do `SummaryPanel` compartilhado | `section` nomeada, `dl` com rótulo e valor | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-06 | Mesmo painel das abas Indicadores e Casos de teste. |
+| `REPORTS-FILTERS` | Reports | Buscar e filtrar | `/projects/:projectId/reports` | Filtros da lista de relatórios | Filter panel | `ReportFilters.jsx`; `CollapsibleFilterPanel` (schedule) | Botão Buscar e filtrar | VIEWER+ | Recolhido, aberto, filtros ativos, período inválido, lista filtrada vazia, Limpar filtros | Inspecionado com API real em 15/10 (filtro por Sprint e limpar) | Tema escuro inspecionado em 15/10 (desktop) | Grade `auto-fit`; sem inspeção em larguras menores | Labels nos campos, erro do período com `role=alert` e `aria-invalid` | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-06 | Mesmo painel e campos `sprint-filter` de Sprints e Defeitos; filtros aplicados pela API. |
+| `REPORTS-GENERATION-STATUS` | Reports | Geração em segundo plano | Card na lista | Estado da geração | State | `ReportStatusBadge.jsx`; `useProjectReports.js` | Pedido de geração ou geração ativa | VIEWER+ | Na fila, Gerando (pulso; sem animação com reduced motion), Pronto, Falhou com motivo | Inspecionado com API real em 14/10 (Chrome) | Tokens existentes; sem inspeção | Herdado do card | Selo textual; polling só com geração ativa | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-06 | Polling de 2,5 s apenas enquanto houver QUEUED/RUNNING. |
+| `REPORTS-REQUEST-DIALOG` | Reports | Gerar relatório | Lista de relatórios | Diálogo Gerar relatório | Dialog | `SprintDialog`; `ReportRequestForm.jsx` | Card Gerar relatório (MEMBER+) | MEMBER+ | Período opcional, Sprint opcional, validação local, erro da API, enviando, geração já ativa | Inspecionado com API real em 14/10 (Chrome) | Tokens existentes; sem inspeção | Campos em grade `auto-fit` | Foco inicial na data, labels, erros por campo, retorno de foco | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-06 | Mesmas regras de período do backend (366 dias). |
+| `REPORTS-DOCUMENT` | Reports | Documento | `/projects/:projectId/reports/:reportId` | Relatório aberto | Page | `ReportsScreen.jsx` (`ProjectReport`); `ReportDocument.jsx` | Abrir relatório | VIEWER+ | Carregando, erro, gerando, falhou, documento com Planejamento (Burndown), Rastreabilidade e Indicadores | Inspecionado com API real em 14/10 (Chrome) | Tokens existentes; sem inspeção | Tabelas largas rolam no próprio contêiner | Sumário por âncoras, tabelas com caption e scope | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-06 | Nomes congelados na geração; títulos dos indicadores iguais aos do painel. Resumo no topo, status de cada métrica (selo, motivo e referência) e cores por situação desde 20/10, inspecionados no tema escuro. |
+| `REPORTS-PDF-DOWNLOAD` | Reports | Exportar PDF | Card pronto e relatório aberto | Baixar PDF | Action | `ReportCard.jsx`; `ReportsScreen.jsx`; `useReportPdfDownload.js` | Botão Baixar PDF | VIEWER+ | Só relatório pronto, gerando PDF (desabilitado), erro/limite exibido no FeedbackRegion | Tokens existentes; sem inspeção | Tokens existentes; sem inspeção | Ações do card quebram linha | Nome acessível com o número do relatório; `aria-busy` | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-07 | Download por blob com revogação da URL; sessão do navegador expirada impediu a inspeção visual do botão em 15/10. |
+| `REPORTS-PDF-DOCUMENT` | Reports | Exportar PDF | Arquivo baixado | PDF do relatório | Document | `backend/src/modules/reports/report-pdf.document.js` | Download | VIEWER+ | Cabeçalho e rodapé por página, sumário, cards de Sprint indivisíveis, tabelas com cabeçalho repetido | Cores dos tokens claros | NOT APPLICABLE ao arquivo | A4 retrato | Texto extraível com acentuação; sem dependência de cor para o significado | NOT REVIEWED | TECHNICALLY VERIFIED | — | S2-07 | Páginas renderizadas e revisadas em imagem (pymupdf) com o relatório de demonstração e com 2.000 requisitos. |
+
+O tema escuro e as larguras responsivas da aba Relatórios ainda não foram inspecionados; por isso
+as surfaces ficam `NOT REVIEWED`, sem promoção a `C2 COMPLETE`.

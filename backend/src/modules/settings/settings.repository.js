@@ -513,6 +513,24 @@ export const settingsRepository = {
             executedAt: true
           }
         },
+        // S2-06: só metadados do pedido; o conteúdo do relatório é dado do projeto.
+        requestedProjectReports: {
+          where: {
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            status: true,
+            startDate: true,
+            endDate: true,
+            timeZone: true,
+            sprintId: true,
+            createdAt: true,
+            finishedAt: true
+          },
+          orderBy: { createdAt: 'desc' }
+        },
         testEvidence: {
           where: {
             uploadedByUserId: userId,

@@ -12,6 +12,7 @@ import { auditRoutes } from '../modules/audit/index.js';
 import { settingsRoutes } from '../modules/settings/index.js';
 import { notificationRoutes } from '../modules/notifications/index.js';
 import { indicatorsRoutes } from '../modules/indicators/index.js';
+import { reportRoutes } from '../modules/reports/index.js';
 
 const routes = Router();
 
@@ -27,5 +28,6 @@ routes.use('/', auditRoutes);
 routes.use('/', settingsRoutes);
 routes.use('/', notificationRoutes);
 routes.use('/', indicatorsRoutes);
+routes.use('/', reportRoutes);
 
 export default routes;
