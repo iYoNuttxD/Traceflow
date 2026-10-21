@@ -23,11 +23,15 @@ def inventory(root):
    need(stat.S_ISREG(s.st_mode) and s.st_nlink==1,'UNSAFE_FILE');need(p.name not in ('.env','.npmrc') and not p.name.startswith('.env.'),'SECRET_FILE')
    result[name]={'bytes':s.st_size,'sha256':sha(p),'mode':0o755 if s.st_mode&0o111 else 0o644}
  return result
-def pack(root,out,commit,epoch):
+def pack(root,out,commit,epoch,source_root=None):
  need(re.fullmatch('[a-f0-9]{40}',commit),'FULL_COMMIT_REQUIRED')
+ source_root=Path.cwd() if source_root is None else Path(source_root)
+ need(subprocess.check_output(['git','rev-parse','HEAD'],cwd=source_root,text=True).strip()==commit,'SOURCE_COMMIT')
+ subprocess.run(['git','diff','--exit-code'],cwd=source_root,check=True,stdout=subprocess.PIPE)
+ locks={p:hashlib.sha256(subprocess.check_output(['git','show',commit+':'+p],cwd=source_root)).hexdigest() for p in ['backend/package-lock.json','frontend/package-lock.json']}
  files=inventory(root);need('backend/src/server.js' in files and 'frontend/index.html' in files,'PACKAGE_INCOMPLETE')
  migrations=[{'name':p.parent.name,'sha256':sha(p)} for p in sorted((root/'backend/prisma/migrations').glob('*/migration.sql'))]
- manifest={'formatVersion':1,'kind':'traceflow-clean-cd','commit':commit,'node':subprocess.check_output(['node','--version'],text=True).strip(),'prisma':json.loads((root/'backend/node_modules/@prisma/client/package.json').read_text())['version'],'arch':platform.machine(),'os':Path('/etc/oracle-release').read_text().strip() if Path('/etc/oracle-release').exists() else 'test-only','schemaSha256':sha(root/'backend/prisma/schema.prisma'),'migrations':migrations,'files':files}
+ manifest={'formatVersion':1,'kind':'traceflow-clean-cd','commit':commit,'sourceState':'committed','sourceLockfiles':locks,'npm':subprocess.check_output(['npm','--version'],text=True).strip(),'node':subprocess.check_output(['node','--version'],text=True).strip(),'prisma':json.loads((root/'backend/node_modules/@prisma/client/package.json').read_text())['version'],'arch':platform.machine(),'os':Path('/etc/oracle-release').read_text().strip() if Path('/etc/oracle-release').exists() else 'test-only','schemaSha256':sha(root/'backend/prisma/schema.prisma'),'migrations':migrations,'files':files}
  (root/'cd-manifest.json').write_bytes(canonical(manifest));out.parent.mkdir(parents=True,exist_ok=True)
  with out.open('wb') as raw,gzip.GzipFile(filename='',fileobj=raw,mode='wb',mtime=0) as gz,tarfile.open(fileobj=gz,mode='w|',format=tarfile.PAX_FORMAT) as tar:
   for p in sorted(root.rglob('*')):
