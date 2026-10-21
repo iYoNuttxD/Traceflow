@@ -130,7 +130,10 @@ describe('S2-06 — falha nunca vira relatório pronto', () => {
     const p = await project(owner);
     const report = await requested(p, owner);
     await executeProjectReport(report.id, {
-      build: () => new Promise(() => {}),
+      build: (_input, { signal }) =>
+        new Promise((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        ),
       maxDurationMs: 50,
       cancelGraceMs: 50
     });
@@ -237,20 +240,46 @@ describe('S2-06 — cancelamento da geração (prazo e reserva perdida)', () => 
     expect(again.report.id).not.toBe(report.id);
   });
 
-  it('consulta que não termina na carência: a geração é encerrada sem iniciar outra etapa', async () => {
+  it('consulta após a carência mantém a reserva e heartbeat até terminar, sem sucesso tardio', async () => {
     const owner = await user();
     const p = await project(owner);
     const report = await requested(p, owner);
     const { reads, release } = holdFirstDashboardRead();
-    await executeProjectReport(report.id, { maxDurationMs: 50, cancelGraceMs: 100 });
+    const execution = executeProjectReport(report.id, {
+      maxDurationMs: 50,
+      cancelGraceMs: 100,
+      heartbeatMs: 20
+    });
+    try {
+      await vi.waitFor(() => expect(reads).toHaveLength(1));
+      await pause(300);
+      const during = await stored(report.id);
+      expect(during).toMatchObject({ status: 'RUNNING', activeProjectId: p.id });
+      expect(during.heartbeatAt.getTime()).toBeGreaterThan(during.startedAt.getTime() + 150);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const retry = await reportService.request(
+          p.id,
+          {},
+          { actorUserId: owner.id, requestId: 'retry-after-grace' },
+          { schedule: noSchedule }
+        );
+        expect(retry).toMatchObject({ alreadyRunning: true, report: { id: report.id } });
+      }
+    } finally {
+      release();
+      await execution;
+    }
     expect(await stored(report.id)).toMatchObject({
       status: 'FAILED',
       activeProjectId: null,
+      snapshot: null,
       errorCode: 'REPORT_TIMEOUT'
     });
-    release();
-    await pause(300);
     expect(reads).toHaveLength(1);
+    const next = await requested(p, owner);
+    expect(next.id).not.toBe(report.id);
+    await executeProjectReport(next.id);
+    expect((await stored(next.id)).status).toBe('SUCCEEDED');
   });
 
   it('reserva perdida durante a composição interrompe as próximas consultas', async () => {

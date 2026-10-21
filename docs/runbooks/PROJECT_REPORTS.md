@@ -21,8 +21,8 @@ Decisão: [ADR-025](../architecture/ADR-025-RELATORIOS-E-PDF.md). Contrato:
 | Período | 366 dias | `400` |
 | Sprints / requisitos no recorte | 100 / 2.000 | `FAILED` com `REPORT_VOLUME_LIMIT_EXCEEDED` |
 | Snapshot | 16 MiB | `FAILED` com `REPORT_TOO_LARGE` |
-| Montagem do snapshot | 4 min | `FAILED` com `REPORT_TIMEOUT`; nenhuma consulta nova começa depois do prazo |
-| Carência após o cancelamento | 30 s | a reserva só é liberada quando a consulta em andamento termina, ou ao fim da carência |
+| Montagem do snapshot | 4 min | nenhuma consulta nova começa depois do prazo; `FAILED` com `REPORT_TIMEOUT` quando a consulta pendente termina |
+| Carência após o cancelamento | 30 s | apenas alerta; reserva, heartbeat e vaga permanecem até a consulta em andamento terminar |
 | Sem heartbeat | 5 min | `FAILED` com `REPORT_GENERATION_STALE` na próxima leitura |
 | PDFs simultâneos por processo | 2 | `503 REPORT_PDF_BUSY` |
 | Montagem do PDF | 30 s | `500 REPORT_PDF_FAILED` |
@@ -36,14 +36,16 @@ Decisão: [ADR-025](../architecture/ADR-025-RELATORIOS-E-PDF.md). Contrato:
 | `project_report_failed` | geração terminou FAILED; `errorCode` público e `sourceErrorCode` técnico |
 | `project_report_stale` | geração sem batimento encerrada na leitura |
 | `project_report_lease_lost` | execução perdeu a reserva antes de concluir; nada foi gravado como pronto |
-| `project_report_cancel_overdue` | a consulta em andamento não terminou na carência após o cancelamento; a geração foi encerrada mesmo assim |
+| `project_report_cancel_overdue` | a consulta em andamento não terminou na carência após o cancelamento; a geração continua contabilizada até a consulta terminar |
 | `project_report_heartbeat_failed` / `project_report_worker_failed` | falha de banco no batimento / erro inesperado fora do fluxo |
 | `project_report_pdf_failed` | PDF não montado (`REPORT_PDF_FAILED` ou `REPORT_PDF_BUSY`) |
 
 ## Diagnóstico
 
-- **Relatório parado em "Gerando".** A API reiniciou no meio da geração. Depois de 5 min sem
-  heartbeat, a próxima leitura da lista encerra o registro como FAILED e libera um novo pedido.
+- **Relatório parado em "Gerando".** Se há heartbeat e `project_report_cancel_overdue`, a consulta
+  cancelada ainda está pendente: a reserva e a vaga continuam ocupadas, sem bloquear a resposta
+  HTTP. Investigar a consulta no banco; não liberar a reserva enquanto ela roda. Se a API
+  reiniciou, depois de 5 min sem heartbeat a próxima leitura encerra o registro como FAILED.
 - **Falhou com `REPORT_SOURCE_UNAVAILABLE`.** Uma fonte do painel ficou indisponível durante a
   geração (banco ocupado, por exemplo). Gerar de novo; se persistir, conferir o painel de
   Indicadores do mesmo recorte.

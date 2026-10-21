@@ -16,7 +16,7 @@ import {
 export const REPORT_LEASE_MS = 5 * 60 * 1000;
 export const REPORT_HEARTBEAT_MS = 30 * 1000;
 export const REPORT_MAX_DURATION_MS = 4 * 60 * 1000;
-// Prazo + carência fica abaixo do lease: a reserva não vence enquanto a consulta termina.
+// Carência para alertar sobre consulta lenta; não autoriza devolver a reserva.
 export const REPORT_CANCEL_GRACE_MS = 30 * 1000;
 
 const STALE_FAILURE = Object.freeze({
@@ -83,27 +83,27 @@ const leaseLostError = () =>
   reportGenerationError('REPORT_LEASE_LOST', 'A geração perdeu a reserva antes de concluir.');
 
 // Depois do cancelamento nenhuma etapa nova começa, mas a consulta em andamento não pode
-// ser interrompida: a reserva só é devolvida quando ela termina. Se ela não terminar
-// dentro da carência, a geração é encerrada mesmo assim (no máximo uma consulta sobra).
-function settleAfterAbort(work, signal, graceMs, reportId) {
-  return new Promise((resolve, reject) => {
-    let timer;
-    const onAbort = () => {
-      timer = setTimeout(() => {
-        logger.warn('Consulta da geração de relatório não terminou após o cancelamento.', {
-          event: 'project_report_cancel_overdue',
-          reportId
-        });
-        reject(signal.reason);
-      }, graceMs);
-      timer.unref?.();
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-    work.then(resolve, reject).finally(() => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
-    });
-  });
+// ser interrompida. A carência só alerta: reserva, heartbeat e vaga permanecem até a
+// consulta terminar de fato. O HTTP não espera este worker (scheduleInProcess).
+async function settleAfterAbort(work, signal, graceMs, reportId) {
+  let timer;
+  const onAbort = () => {
+    timer = setTimeout(() => {
+      logger.warn('Consulta da geração de relatório não terminou após o cancelamento.', {
+        event: 'project_report_cancel_overdue',
+        reportId
+      });
+    }, graceMs);
+    timer.unref?.();
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+  if (signal.aborted) onAbort();
+  try {
+    return await work;
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', onAbort);
+  }
 }
 
 // Limite de gerações simultâneas por processo, como o das montagens de PDF: a composição
