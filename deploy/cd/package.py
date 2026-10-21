@@ -27,7 +27,7 @@ def pack(root,out,commit,epoch):
  need(re.fullmatch('[a-f0-9]{40}',commit),'FULL_COMMIT_REQUIRED')
  files=inventory(root);need('backend/src/server.js' in files and 'frontend/index.html' in files,'PACKAGE_INCOMPLETE')
  migrations=[{'name':p.parent.name,'sha256':sha(p)} for p in sorted((root/'backend/prisma/migrations').glob('*/migration.sql'))]
- manifest={'formatVersion':1,'kind':'traceflow-clean-cd','commit':commit,'node':subprocess.check_output(['node','--version'],text=True).strip(),'arch':platform.machine(),'os':Path('/etc/oracle-release').read_text().strip() if Path('/etc/oracle-release').exists() else 'test-only','schemaSha256':sha(root/'backend/prisma/schema.prisma'),'migrations':migrations,'files':files}
+ manifest={'formatVersion':1,'kind':'traceflow-clean-cd','commit':commit,'node':subprocess.check_output(['node','--version'],text=True).strip(),'prisma':json.loads((root/'backend/node_modules/@prisma/client/package.json').read_text())['version'],'arch':platform.machine(),'os':Path('/etc/oracle-release').read_text().strip() if Path('/etc/oracle-release').exists() else 'test-only','schemaSha256':sha(root/'backend/prisma/schema.prisma'),'migrations':migrations,'files':files}
  (root/'cd-manifest.json').write_bytes(canonical(manifest));out.parent.mkdir(parents=True,exist_ok=True)
  with out.open('wb') as raw,gzip.GzipFile(filename='',fileobj=raw,mode='wb',mtime=0) as gz,tarfile.open(fileobj=gz,mode='w|',format=tarfile.PAX_FORMAT) as tar:
   for p in sorted(root.rglob('*')):
