@@ -194,7 +194,7 @@ resource "oci_identity_dynamic_group" "backup" {
   compartment_id = var.compartment_id
   name           = var.backup_dynamic_group_name
   description    = "Existing VM backup principal - preserve legacy policies separately"
-  matching_rule  = "ALL {instance.id = '${var.existing.instance_id}'}"
+  matching_rule  = "ALL {instance.id = '${oci_core_instance.app[each.key].id}'}"
   lifecycle { prevent_destroy = true }
 }
 resource "oci_identity_policy" "backup" {
@@ -202,6 +202,6 @@ resource "oci_identity_policy" "backup" {
   compartment_id = var.compartment_id
   name           = "traceflow-live-backup-objects"
   description    = "Clean production prefix only, no overwrite permission"
-  statements     = ["Allow dynamic-group ${var.backup_dynamic_group_name} to manage objects in tenancy where all {request.principal.id = '${var.existing.instance_id}', target.bucket.name = '${var.bucket_name}', target.object.name = 'production-live-v1/*', any {request.permission = 'OBJECT_CREATE', request.permission = 'OBJECT_READ', request.permission = 'OBJECT_DELETE'}}"]
+  statements     = ["Allow dynamic-group ${var.backup_dynamic_group_name} to manage objects in tenancy where all {request.principal.id = '${oci_core_instance.app[each.key].id}', target.bucket.name = '${var.bucket_name}', target.object.name = 'production-live-v1/*', any {request.permission = 'OBJECT_CREATE', request.permission = 'OBJECT_READ', request.permission = 'OBJECT_DELETE'}}"]
   lifecycle { prevent_destroy = true }
 }

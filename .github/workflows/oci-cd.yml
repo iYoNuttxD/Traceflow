@@ -1,6 +1,10 @@
 name: OCI Controlled CD
-run-name: OCI CD ${{ inputs.app_sha }}
+run-name: OCI CD ${{ inputs.app_sha || '9bc3dad199566afc6fa43d67abba400665d843ea' }}
 on:
+  pull_request:
+    paths:
+      - .github/workflows/oci-cd.yml
+      - deploy/cd/**
   workflow_dispatch:
     inputs:
       app_sha:
@@ -18,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build-homologate:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     services:
@@ -41,18 +45,18 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.app_sha }}
+          ref: ${{ inputs.app_sha || '9bc3dad199566afc6fa43d67abba400665d843ea' }}
           path: source1
           persist-credentials: false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.app_sha }}
+          ref: ${{ inputs.app_sha || '9bc3dad199566afc6fa43d67abba400665d843ea' }}
           path: source2
           persist-credentials: false
       - name: Exact commit and existing CI policy
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_SHA: ${{ inputs.app_sha }}
+          APP_SHA: ${{ inputs.app_sha || '9bc3dad199566afc6fa43d67abba400665d843ea' }}
         working-directory: source1
         run: python3 ../ops/deploy/cd/ci_gate.py "$APP_SHA"
       - name: Isolated CD integrity and rollback failure lab
@@ -66,7 +70,7 @@ jobs:
           docker build --build-arg BASE_IMAGE="$base" -t traceflow-builder -f ops/deploy/cd/Dockerfile ops/deploy/cd
       - name: Two independent ARM64 builds with identical package bytes
         env:
-          APP_SHA: ${{ inputs.app_sha }}
+          APP_SHA: ${{ inputs.app_sha || '9bc3dad199566afc6fa43d67abba400665d843ea' }}
         run: |
           epoch=$(git -C source1 show -s --format=%ct "$APP_SHA")
           for pass in 1 2; do
@@ -91,7 +95,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   production:
-    if: inputs.promote
+    if: github.event_name == 'workflow_dispatch' && inputs.promote
     needs: build-homologate
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -109,7 +113,7 @@ jobs:
           path: candidate
       - name: Bind approved artifact to this production authorization
         env:
-          APP_SHA: ${{ inputs.app_sha }}
+          APP_SHA: ${{ inputs.app_sha || '9bc3dad199566afc6fa43d67abba400665d843ea' }}
           WORKFLOW_SHA: ${{ github.sha }}
         run: |
           python3 - <<'PY'
@@ -130,7 +134,7 @@ jobs:
       - name: Publish the approved, signed deployment request
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_SHA: ${{ inputs.app_sha }}
+          APP_SHA: ${{ inputs.app_sha || '9bc3dad199566afc6fa43d67abba400665d843ea' }}
           ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           cp "$ATTESTATION_BUNDLE" candidate/request.sigstore.json

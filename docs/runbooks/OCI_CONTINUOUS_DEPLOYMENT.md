@@ -9,7 +9,7 @@ Não usa controladores antigos, recoveryProof ou ledger legado.
 1. Escolher o SHA completo aprovado. O workflow vem da `main`, mas o código da
    aplicação vem **somente do SHA informado**. Não usar a branch como identidade.
 2. Actions → **OCI Controlled CD** → Run workflow (`main`), `app_sha` completo.
-   Inicialmente `promote=false` valida sem publicar. Para uma promoção aprovada,
+   A PR dos componentes CD já executa build/homologação da baseline sem acesso à produção. `promote=false` também valida sem publicar. Para uma promoção aprovada,
    executar com `promote=true` e revisar o candidato antes de aprovar `production`.
 3. A revisão funcional já publicada `9bc3dad199566afc6fa43d67abba400665d843ea`
    conserva sua homologação anterior e recebe agora lint, auditoria, testes de
