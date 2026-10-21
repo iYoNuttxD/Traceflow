@@ -1,0 +1,16 @@
+#cloud-config
+# Runtime bootstrap only. No application, environment secrets or DB passwords.
+package_update: false
+packages:
+  - nginx
+  - firewalld
+  - policycoreutils-python-utils
+  - python3
+runcmd:
+  - [dnf, module, enable, 'nodejs:22', -y]
+  - [dnf, install, nodejs, -y]
+  - [useradd, --system, --home-dir, /nonexistent, --shell, /sbin/nologin, traceflow-live]
+  - [install, -d, -m, '0700', /etc/traceflow-live]
+  - [install, -d, -o, traceflow-live, -g, traceflow-live, -m, '0700', /var/lib/traceflow-live/test-evidence]
+  # Network, secret provisioning, TLS and first application bootstrap require the
+  # reviewed runbook; the image must never start a service with fabricated config.

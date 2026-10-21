@@ -1,0 +1,14 @@
+region              = "sa-saopaulo-1"
+compartment_id      = "REPLACE_WITH_EXISTING_COMPARTMENT_OCID"
+availability_domain = "JEpm:SA-SAOPAULO-1-AD-1"
+image_id            = "REPLACE_WITH_APPROVED_ARM64_IMAGE_OCID"
+manage_resources    = false
+admin_cidrs         = ["203.0.113.10/32"]
+existing = {
+  instance_id   = "REPLACE_WITH_EXISTING_INSTANCE_OCID"
+  app_subnet_id = "REPLACE_WITH_EXISTING_PUBLIC_SUBNET_OCID"
+  db_subnet_id  = "REPLACE_WITH_EXISTING_PRIVATE_SUBNET_OCID"
+  mysql_id      = "REPLACE_WITH_EXISTING_MYSQL_OCID"
+  app_nsg_id    = "REPLACE_WITH_EXISTING_APP_NSG_OCID"
+  db_nsg_id     = "REPLACE_WITH_EXISTING_DB_NSG_OCID"
+}
