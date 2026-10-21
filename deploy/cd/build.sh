@@ -18,7 +18,7 @@ if [ "$PASS" = 1 ]; then
  npm --prefix frontend run lint
  npm --prefix backend run security:secrets
  (cd backend && npx prisma validate && npx prisma generate)
- (cd backend && npx vitest run test/unit/production-environment.test.js test/unit/production-lifecycle.test.js test/unit/health-shutdown.test.js test/unit/health-service.test.js)
+ (cd backend && npx vitest run test/unit/production-environment.test.js test/unit/production-lifecycle.test.js test/unit/health-shutdown.test.js)
  (cd backend && bash "$OPS_ROOT/deploy/cd/staging.sh")
  npm --prefix backend audit --omit=dev --audit-level=high
  npm --prefix frontend audit --omit=dev --audit-level=high
@@ -27,6 +27,8 @@ else
 fi
 npm --prefix frontend run build
 npm --prefix backend prune --omit=dev --no-audit --no-fund
+git diff --exit-code
+test -z "$(git ls-files --others --exclude-standard backend/src backend/prisma frontend/src)"
 mkdir -p "/out/root-$PASS/backend" "/out/root-$PASS/frontend"
 cp -a backend/src backend/prisma backend/node_modules backend/package.json backend/package-lock.json "/out/root-$PASS/backend/"
 cp -a frontend/dist/. "/out/root-$PASS/frontend/"

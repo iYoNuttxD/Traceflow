@@ -15,10 +15,21 @@ def install(source,gh_archive,workflow):
  for unit in ['traceflow-live-api','traceflow-live-worker','traceflow-live-backup.timer','traceflow-live-monitor.timer','traceflow-live-retention.timer']:run(['systemctl','is-active',unit])
  cfgpath=Path('/etc/traceflow-live/cd.json');need(not cfgpath.exists(),'EXCLUSIVE_INSTALLATION_NO_RETRY')
  need(hashlib.sha256(gh_archive.read_bytes()).hexdigest()==GH_ARCHIVE_SHA,'GH_TOOL_DIGEST')
- state=Path('/var/lib/traceflow-live-cd');state.mkdir(mode=0o700)
- archive=state/'installation-baseline';archive.mkdir(mode=0o700)
+ # All fixed prerequisites are checked before installing any file or SELinux rule.
+ need(run(['uname','-m']).strip()==b'aarch64' and run(['getenforce']).strip()==b'Enforcing','NATIVE_ENFORCING_REQUIRED')
+ need(not run(['ss','-H','-ltn','sport = :3002']).strip(),'CANDIDATE_PORT_BUSY')
+ local=run(['semanage','port','-l','-C']).decode()
+ need(not any('3002' in line for line in local.splitlines()),'CANDIDATE_PORT_ALREADY_CUSTOMIZED')
+ for name in ('/var/lib/traceflow-live-cd','/usr/local/libexec/traceflow-live-cd','/opt/traceflow-tools/gh-2.103.0','/etc/systemd/system/traceflow-live-cd.service','/etc/systemd/system/traceflow-live-cd.timer'):
+  need(not Path(name).exists(),'EXCLUSIVE_INSTALLATION_NO_RETRY')
+ authority=['.github/workflows/oci-cd.yml']+['deploy/cd/'+name for name in ['package.py','build.sh','ci_gate.py','staging.sh','Dockerfile']]
+ for name in authority:need((source.parents[1]/name).is_file(),'AUTHORITY_SOURCE_MISSING')
  nginx=Path('/etc/nginx/conf.d/traceflow.conf');proxy=Path('/etc/nginx/traceflow-live/proxy.conf');original=nginx.read_text()
  need(original.count('root /var/www/traceflow-live;')==1 and '/deploy-status/' not in original,'NGINX_BASELINE')
+ need(proxy.read_bytes().count(b'proxy_pass http://127.0.0.1:3001;')==1,'PROXY_BASELINE')
+ run(['nginx','-t'])
+ state=Path('/var/lib/traceflow-live-cd');state.mkdir(mode=0o700)
+ archive=state/'installation-baseline';archive.mkdir(mode=0o700)
  for p in [nginx,proxy]:shutil.copyfile(p,archive/p.name)
  for role in ('api','worker'):
   p=Path('/etc/systemd/system/traceflow-live-'+role+'.service');shutil.copyfile(p,archive/p.name)
@@ -33,8 +44,6 @@ def install(source,gh_archive,workflow):
  for p in ('/opt/traceflow-live','/opt/traceflow-live/releases','/var/www/traceflow-live-releases','/var/www/traceflow-live-deploy-status'):
   Path(p).mkdir(parents=True,mode=0o755,exist_ok=True);Path(p).chmod(0o755)
  # Reserve only the second loopback API port under the already-approved custom type.
- local=run(['semanage','port','-l','-C']).decode()
- need(not any('3002' in line for line in local.splitlines()),'CANDIDATE_PORT_ALREADY_CUSTOMIZED')
  run(['semanage','port','-a','-t','traceflow_api_port_t','-p','tcp','3002'])
  candidate_location='''    # Non-sensitive CD receipts only; no environment, cookies or credentials.
     location ^~ /deploy-status/ {
@@ -51,7 +60,7 @@ def install(source,gh_archive,workflow):
  authority=['.github/workflows/oci-cd.yml']+['deploy/cd/'+name for name in ['package.py','build.sh','ci_gate.py','staging.sh','Dockerfile']]
  protected=list(Path('/etc/traceflow-live').glob('*.env'))+[Path('/etc/traceflow-live/operations.json'),Path('/usr/local/libexec/traceflow-live-ops.py'),Path('/usr/local/libexec/traceflow-live-retention.mjs')]+[p for p in Path('/etc/systemd/system').glob('traceflow-live-*') if p.is_file()]
  fingerprints={str(p):{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'uid':p.stat().st_uid,'gid':p.stat().st_gid,'mode':p.stat().st_mode&0o7777} for p in protected}
- cfg={'protectedFiles':fingerprints,'authorityFiles':{name:hashlib.sha256((source.parents[1]/name).read_bytes()).hexdigest() for name in authority},'formatVersion':1,'currentRelease':str(BASELINE),'frontendRoot':'/var/www/traceflow-live','nginxSha256':hashlib.sha256(nginx.read_bytes()).hexdigest(),'proxySha256':hashlib.sha256(proxy.read_bytes()).hexdigest(),'trustedWorkflowShas':[workflow],'gh':str(tool/'gh')}
+ cfg={'installedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'protectedFiles':fingerprints,'authorityFiles':{name:hashlib.sha256((source.parents[1]/name).read_bytes()).hexdigest() for name in authority},'formatVersion':1,'currentRelease':str(BASELINE),'frontendRoot':'/var/www/traceflow-live','nginxSha256':hashlib.sha256(nginx.read_bytes()).hexdigest(),'proxySha256':hashlib.sha256(proxy.read_bytes()).hexdigest(),'trustedWorkflowShas':[workflow],'gh':str(tool/'gh')}
  cfgpath.write_text(json.dumps(cfg,sort_keys=True)+'\n');cfgpath.chmod(0o600)
  unit='''[Unit]
 Description=TraceFlow pull-only human-approved signed CD
@@ -77,7 +86,7 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectHome=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/traceflow-live-cd /var/www/traceflow-live-releases /var/www/traceflow-live-deploy-status /opt/traceflow-live/releases /etc/systemd/system /etc/traceflow-live/cd.json /etc/nginx/conf.d/traceflow.conf /etc/nginx/traceflow-live/proxy.conf
+ReadWritePaths=/var/lib/traceflow-live-ops/backup.lock /var/lib/traceflow-live-cd /var/www/traceflow-live-releases /var/www/traceflow-live-deploy-status /opt/traceflow-live/releases /etc/systemd/system /etc/traceflow-live/cd.json /etc/nginx/conf.d/traceflow.conf /etc/nginx/traceflow-live/proxy.conf
 InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence
 ProtectKernelTunables=yes
 ProtectKernelModules=yes

@@ -29,6 +29,14 @@ def fetch(url,dest=None):
 def protected_fingerprints(paths):
  return {str(p):{'sha256':sha(p),'uid':p.stat().st_uid,'gid':p.stat().st_gid,'mode':p.stat().st_mode&0o7777} for p in map(Path,paths)}
 
+def valid_window(request,cfg):
+ now=dt.datetime.now(dt.timezone.utc).timestamp()
+ issued=dt.datetime.fromisoformat(request['issuedAt']);expires=dt.datetime.fromisoformat(request['expiresAt'])
+ need(issued.tzinfo is not None and expires.tzinfo is not None and 0<(expires-issued).total_seconds()<=1200,'DEPLOYMENT_DURATION')
+ need(dt.datetime.fromisoformat(cfg['installedAt']).timestamp()<=dt.datetime.fromisoformat(request['issuedAt']).timestamp()<=now<dt.datetime.fromisoformat(request['expiresAt']).timestamp(),'DEPLOYMENT_WINDOW')
+ value=fetch('https://api.github.com/repos/'+REPO+'/actions/runs/'+str(request['runId']))
+ need(value['status']=='in_progress' and value['event']=='workflow_dispatch' and value['head_sha']==request['workflowSha'] and value['path']==WORKFLOW,'WORKFLOW_NOT_ACTIVE')
+
 def current_manifest(path):
  schema=path/'backend/prisma/schema.prisma'
  return {'schemaSha256':sha(schema),'migrations':[{'name':p.parent.name,'sha256':sha(p)} for p in sorted((path/'backend/prisma/migrations').glob('*/migration.sql'))]}
@@ -45,6 +53,7 @@ class Host:
  def unit(self,role):
   return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\nExecStart=\nExecStart=/usr/bin/node '+str(self.root/'backend/src'/('server.js' if role=='api' else 'github-worker.js'))+'\n'
  def preflight(self):
+  valid_window(self.request,self.cfg)
   need(run(['getenforce']).strip()==b'Enforcing','SELINUX')
   need(protected_fingerprints(self.cfg['protectedFiles'])==self.cfg['protectedFiles'],'OPERATIONAL_CONFIG_CHANGED')
   metrics=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(not metrics['failures'] and time.time()-dt.datetime.fromisoformat(metrics['at']).timestamp()<180,'CURRENT_HEALTH')
@@ -67,7 +76,12 @@ class Host:
    if not source.is_file():continue
    need(not source.is_symlink(),'OLD_ASSET_LINK');target=self.frontend/'assets'/source.relative_to(old_assets)
    if target.exists():need(sha(target)==sha(source),'ASSET_NAME_COLLISION')
-   else:target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
+   else:
+    target.parent.mkdir(parents=True,exist_ok=True,mode=0o755)
+    for parent in (target.parent,*target.parent.parents):
+     if parent==self.frontend:break
+     parent.chmod(0o755)
+    shutil.copy2(source,target);target.chmod(0o644)
   run(['restorecon','-R',self.root,self.frontend])
  def start_candidate(self):
   base=Path('/etc/systemd/system/traceflow-live-api.service').read_text()
@@ -88,8 +102,9 @@ class Host:
   raise ValueError('READINESS_TIMEOUT')
  def candidate_ready(self):self.ready(3002)
  def route_candidate(self):
-  need(self.old_proxy.count(b'127.0.0.1:3001')>=1,'PROXY_CONTRACT')
-  self.proxy.write_bytes(self.old_proxy.replace(b'127.0.0.1:3001',b'127.0.0.1:3002'))
+  valid_window(self.request,self.cfg)
+  need(self.old_proxy.count(b'proxy_pass http://127.0.0.1:3001;')==1,'PROXY_CONTRACT')
+  self.proxy.write_bytes(self.old_proxy.replace(b'proxy_pass http://127.0.0.1:3001;',b'proxy_pass http://127.0.0.1:3002;',1))
   self.nginx.write_bytes(self.old_nginx.replace(('root '+self.cfg['frontendRoot']+';').encode(),('root '+str(self.frontend)+';').encode()))
   run(['nginx','-t']);run(['systemctl','reload','nginx'])
  def promote_services(self):
@@ -103,6 +118,7 @@ class Host:
   v=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(v['mysql'] and v['workerCount']>=1 and v['workerHeartbeatAgeSeconds']<=90,'WORKER_OR_MYSQL')
  def route_official(self):self.proxy.write_bytes(self.old_proxy);run(['nginx','-t']);run(['systemctl','reload','nginx'])
  def smoke(self):
+  valid_window(self.request,self.cfg)
   need(protected_fingerprints(self.cfg['protectedFiles'])==self.cfg['protectedFiles'],'OPERATIONAL_PRESERVATION')
   content=run(['curl','--fail','--silent','--show-error','--max-time','15','https://traceflow.dev/'],timeout=20)
   need(b'<html' in content and sha(self.frontend/'index.html')==hashlib.sha256(content).hexdigest(),'PUBLIC_FRONTEND')
@@ -136,10 +152,10 @@ def process(release,cfg):
   for name,digest in cfg['authorityFiles'].items():
    value=fetch('https://api.github.com/repos/'+REPO+'/contents/'+name+'?ref='+req['workflowSha'])
    need(value['type']=='file' and hashlib.sha256(base64.b64decode(value['content'])).hexdigest()==digest,'CD_AUTHORITY_CHANGED_REVIEW_REQUIRED')
- run([cfg['gh'],'attestation','verify',work/'request.json','--bundle',work/'request.sigstore.json','--repo',REPO,'--signer-workflow',REPO+'/'+WORKFLOW,'--source-ref','refs/heads/main','--source-digest',req['workflowSha'],'--deny-self-hosted-runners','--no-public-good'],timeout=90)
+ run([cfg['gh'],'attestation','verify',work/'request.json','--bundle',work/'request.sigstore.json','--repo',REPO,'--signer-workflow',REPO+'/'+WORKFLOW,'--source-ref','refs/heads/main','--source-digest',req['workflowSha'],'--deny-self-hosted-runners','--cert-oidc-issuer','https://token.actions.githubusercontent.com'],timeout=90)
  # Consumed exactly once, before any installation. Refusals/failures are terminal, never retried.
  atomic(marker,{'status':'STARTED','tag':tag,'appSha':req['appSha'],'at':dt.datetime.now(dt.timezone.utc).isoformat()})
- result={'runId':req['runId'],'appSha':req['appSha'],'packageSha256':req['packageSha256'],'status':'FAILED','rollback':'not-needed'}
+ result={'runId':req['runId'],'appSha':req['appSha'],'packageSha256':req['packageSha256'],'status':'FAILED','rollback':'not-needed','workflowSha':req['workflowSha'],'manifestSha256':req['manifestSha256']}
  try:
   fetch(assets['release.tar.gz']['browser_download_url'],work/'release.tar.gz')
   root=RELEASES/(req['appSha']+'-'+req['packageSha256'][:12]);manifest=unpack(work/'release.tar.gz',root,req['packageSha256'])
@@ -156,8 +172,9 @@ def process(release,cfg):
 def main():
  need(os.geteuid()==0,'ROOT_REQUIRED');os.umask(0o077)
  cfg=json.loads(CONFIG.read_bytes());need(CONFIG.stat().st_uid==0 and CONFIG.stat().st_mode&0o077==0,'CONFIG_CUSTODY')
- with (STATE/'deploy.lock').open('a+') as lock:
+ with (STATE/'deploy.lock').open('a+') as lock,Path('/var/lib/traceflow-live-ops/backup.lock').open('a+') as backup_lock:
   fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  fcntl.flock(backup_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   releases=fetch('https://api.github.com/repos/'+REPO+'/releases?per_page=10')
   for release in reversed(releases):
    if release['draft'] or not re.fullmatch('oci-cd-[0-9]+-[0-9]+',release['tag_name']):continue

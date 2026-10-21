@@ -40,7 +40,7 @@ def unpack(package,dest,expected):
   for name,entry in manifest['files'].items():
    p=dest/name
    if 'link' in entry:need(p.is_symlink() and os.readlink(p)==entry['link'],'MANIFEST_LINK')
-   else:need(not p.is_symlink() and p.stat().st_size==entry['bytes'] and sha(p)==entry['sha256'],'MANIFEST_FILE')
+   else:need(not p.is_symlink() and p.stat().st_size==entry['bytes'] and sha(p)==entry['sha256'] and p.stat().st_mode&0o7777==entry['mode'],'MANIFEST_FILE')
   return manifest
 
 def schema_gate(candidate,current):

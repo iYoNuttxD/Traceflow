@@ -32,7 +32,7 @@ Não usa controladores antigos, recoveryProof ou ledger legado.
    revisões fixadas ou que conservem exatamente todos os arquivos da autoridade CD
    aprovada (workflow e scripts), verificados no commit autenticado da main;
    política em `/etc/traceflow-live/cd.json` root 0600.
-8. Receiver mantém lock e marcador exclusivo antes de instalar. Falha fica terminal
+8. Receiver mantém lock de deploy e de backup, além de marcador exclusivo antes de instalar. Falha fica terminal
    e preservada; não se repete automaticamente a promoção da mesma autorização.
 9. Instala em `/opt/traceflow-live/releases/` e frontend em
    `/var/www/traceflow-live-releases/`, preservando releases anteriores. API candidata
@@ -43,7 +43,8 @@ Não usa controladores antigos, recoveryProof ou ledger legado.
    não é aberta no firewall público. Não há runner GitHub na VM.
 10. Smoke automático: HTTPS/front index exato, readiness/MySQL, heartbeat e unidades
     backup/monitor/retenção. Resultado root em `/var/lib/traceflow-live-cd/` e recibo
-    técnico sem segredos em `/deploy-status/RUN.json`; Actions arquiva o resultado.
+    técnico sem segredos em `/deploy-status/RUN.json`; Actions arquiva o resultado e o conserva como asset da release no GitHub, junto
+    ao pacote e request assinado. O código/agenda de backup da S2-10 não são alterados.
 
 ## Migrations e rollback
 
@@ -78,6 +79,13 @@ sem iniciar novo deploy por tentativa. Não usar ferramentas antigas de ativaç�
   substituir o receptor ou editar permissões/segredos.
 - Código, certificados e registros anteriores preservados; retenção de releases
   requer avaliação posterior de clientes/rollback, sem limpeza automática aqui.
+- Recuperação da configuração CD: os backups existentes protegem os segredos,
+  CA/TLS e ingress; os artefatos, requests e resultados de promoção ficam também
+  na release GitHub permanente. Reconstruir o receiver a partir do workflowSha
+  auditado e os drop-ins a partir do appSha/packageSHA verificados; não presumir
+  que o snapshot anterior já continha o estado local da CD. A trust policy nova
+  deve rejeitar autorizações emitidas antes da reinstalação. Nunca reaproveitar
+  a fila antiga ou fabricar marcadores. Nenhuma rotina de backup é substituída.
 - RPO alvo 24h/RTO planejado 4h continuam os da S2-10; RTO integral não medido.
   Não criar backup redundante para o deploy desta mesma versão.
 

@@ -119,7 +119,7 @@ jobs:
           assert identity['commit']==os.environ['APP_SHA']
           digest=hashlib.sha256((root/'release.tar.gz').read_bytes()).hexdigest()
           assert digest==identity['packageSha256']
-          request={'formatVersion':1,'operation':'promote-clean','repository':os.environ['GITHUB_REPOSITORY'],'appSha':identity['commit'],'workflowSha':os.environ['WORKFLOW_SHA'],'packageSha256':digest,'manifestSha256':identity['manifestSha256'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'expiresAt':(d.datetime.now(d.timezone.utc)+d.timedelta(minutes=20)).isoformat()}
+          request={'formatVersion':1,'operation':'promote-clean','repository':os.environ['GITHUB_REPOSITORY'],'appSha':identity['commit'],'workflowSha':os.environ['WORKFLOW_SHA'],'packageSha256':digest,'manifestSha256':identity['manifestSha256'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'issuedAt':d.datetime.now(d.timezone.utc).isoformat(),'expiresAt':(d.datetime.now(d.timezone.utc)+d.timedelta(minutes=20)).isoformat()}
           (root/'request.json').write_text(json.dumps(request,sort_keys=True)+'\n')
           PY
       - name: Federated GitHub OIDC attestation after human production approval
@@ -155,6 +155,14 @@ jobs:
             break
           else:raise SystemExit('RESULT_TIMEOUT_INSPECT_OCI_DO_NOT_RETRY')
           PY
+      - name: Preserve permanent release audit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f deployment-result.json ]; then
+            gh release upload "oci-cd-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" deployment-result.json --repo "$GITHUB_REPOSITORY"
+          fi
       - name: Preserve deployment result
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
