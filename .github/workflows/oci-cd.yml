@@ -1,0 +1,165 @@
+name: OCI Controlled CD
+run-name: OCI CD ${{ inputs.app_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      app_sha:
+        description: Full 40-character approved application commit (not the workflow revision)
+        required: true
+        type: string
+      promote:
+        description: Request production approval after build and isolated homologation
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: traceflow-clean-production
+  cancel-in-progress: false
+jobs:
+  build-homologate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.4.8
+        env:
+          MYSQL_DATABASE: traceflow_cd_test
+          MYSQL_USER: ci
+          MYSQL_PASSWORD: synthetic
+          MYSQL_ROOT_PASSWORD: synthetic-root-ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uci -psynthetic"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: ops
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.app_sha }}
+          path: source1
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.app_sha }}
+          path: source2
+          persist-credentials: false
+      - name: Exact commit and existing CI policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_SHA: ${{ inputs.app_sha }}
+        working-directory: source1
+        run: python3 ../ops/deploy/cd/ci_gate.py "$APP_SHA"
+      - name: Isolated CD integrity and rollback failure lab
+        run: python3 -B -m unittest discover -s ops/deploy/cd/tests -v
+      - name: Resolve and record Oracle Linux builder
+        run: |
+          mkdir -p out
+          docker pull oraclelinux@sha256:4750c036a007b76bf6269180536c23428ea20f8931edade7701676a2cbae5ce2
+          base=$(docker image inspect oraclelinux@sha256:4750c036a007b76bf6269180536c23428ea20f8931edade7701676a2cbae5ce2 --format '{{index .RepoDigests 0}}')
+          printf '%s\n' "$base" > out/builder-image.txt
+          docker build --build-arg BASE_IMAGE="$base" -t traceflow-builder -f ops/deploy/cd/Dockerfile ops/deploy/cd
+      - name: Two independent ARM64 builds with identical package bytes
+        env:
+          APP_SHA: ${{ inputs.app_sha }}
+        run: |
+          epoch=$(git -C source1 show -s --format=%ct "$APP_SHA")
+          for pass in 1 2; do
+            docker run --rm --network host -e APP_SHA -e SOURCE_DATE_EPOCH="$epoch" -e PASS="$pass" -e OPS_ROOT=/ops -e SOURCE_ROOT=/src -v "$PWD/ops:/ops:ro" -v "$PWD/source$pass:/src" -v "$PWD/out:/out" traceflow-builder bash /ops/deploy/cd/build.sh
+          done
+          cmp out/release-1.tar.gz out/release-2.tar.gz
+          cp out/release-1.tar.gz out/release.tar.gz
+          cp out/identity-1.json out/identity.json
+          cp out/root-1/cd-manifest.json out/cd-manifest.json
+          sha256sum out/release.tar.gz | tee out/SHA256SUMS
+          cat out/identity.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload immutable candidate and validation metadata
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oci-candidate-${{ github.run_id }}
+          path: |
+            out/release.tar.gz
+            out/identity.json
+            out/cd-manifest.json
+            out/builder-image.txt
+            out/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+  production:
+    if: inputs.promote
+    needs: build-homologate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://traceflow.dev
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: oci-candidate-${{ github.run_id }}
+          path: candidate
+      - name: Bind approved artifact to this production authorization
+        env:
+          APP_SHA: ${{ inputs.app_sha }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import datetime as d,hashlib,json,os
+          from pathlib import Path
+          root=Path('candidate');identity=json.loads((root/'identity.json').read_text())
+          assert identity['commit']==os.environ['APP_SHA']
+          digest=hashlib.sha256((root/'release.tar.gz').read_bytes()).hexdigest()
+          assert digest==identity['packageSha256']
+          request={'formatVersion':1,'operation':'promote-clean','repository':os.environ['GITHUB_REPOSITORY'],'appSha':identity['commit'],'workflowSha':os.environ['WORKFLOW_SHA'],'packageSha256':digest,'manifestSha256':identity['manifestSha256'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'expiresAt':(d.datetime.now(d.timezone.utc)+d.timedelta(minutes=20)).isoformat()}
+          (root/'request.json').write_text(json.dumps(request,sort_keys=True)+'\n')
+          PY
+      - name: Federated GitHub OIDC attestation after human production approval
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: candidate/request.json
+      - name: Publish the approved, signed deployment request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_SHA: ${{ inputs.app_sha }}
+          ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          cp "$ATTESTATION_BUNDLE" candidate/request.sigstore.json
+          tag="oci-cd-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          gh release create "$tag" candidate/release.tar.gz candidate/request.json candidate/request.sigstore.json --repo "$GITHUB_REPOSITORY" --target "$APP_SHA" --prerelease --latest=false --title "Approved OCI CD $APP_SHA" --notes "Human-approved production deployment. No production secrets. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: Await authenticated OCI promotion result and automatic smoke tests
+        run: |
+          python3 - <<'PY'
+          import json,os,time,urllib.request
+          from pathlib import Path
+          deadline=time.monotonic()+900
+          url='https://traceflow.dev/deploy-status/'+os.environ['GITHUB_RUN_ID']+'.json'
+          while time.monotonic()<deadline:
+            try:
+              req=urllib.request.Request(url,headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req,timeout=15) as response: result=json.load(response)
+            except Exception:time.sleep(15);continue
+            if str(result.get('runId'))!=os.environ['GITHUB_RUN_ID']:time.sleep(15);continue
+            Path('deployment-result.json').write_text(json.dumps(result,indent=2)+'\n')
+            print(json.dumps(result))
+            if result['status']!='SUCCESS':raise SystemExit('OCI_DEPLOY_FAILED_NO_RETRY')
+            break
+          else:raise SystemExit('RESULT_TIMEOUT_INSPECT_OCI_DO_NOT_RETRY')
+          PY
+      - name: Preserve deployment result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oci-result-${{ github.run_id }}
+          path: deployment-result.json
+          if-no-files-found: ignore
+          retention-days: 30
