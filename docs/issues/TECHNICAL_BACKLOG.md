@@ -13,7 +13,7 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 | E15-F10 | Testes E2E reais de navegador | login, projetos e jornadas críticas | MÉDIA | ambiente isolado, fixtures não runtime e gate de CI definido |
 | E15-F11 | Validação jurídica final de LGPD | base legal, controlador, DPO, fornecedores e transferência | ALTA | responsáveis jurídicos/operacionais definidos |
 | E15-F12 | Observabilidade, alertas e SLOs | incidentes e disponibilidade | MÉDIA | plataforma de logs/métricas e política de acesso/retenção |
-| E15-F13 | Funcionalidades oficiais ainda fora do produto | RF15–RF18, RF29–RF34, RF36, RF37, RF42–RF46, RF54–RF57, RF62–RF64 (o RF35 saiu da lista: foi entregue no S1-04; RF13, RF39, RF40 e RF58 saíram com o S2-01; RF59 com o S2-02; RF60 e RF61 com o S2-03) | PRODUTO | priorização funcional e incrementos próprios; não são cleanup E15 |
+| E15-F13 | Funcionalidades oficiais ainda fora do produto | RF15–RF18, RF29–RF34, RF36, RF42–RF46, RF54–RF56, RF62–RF64 (o RF35 saiu da lista: foi entregue no S1-04; RF13, RF39, RF40 e RF58 saíram com o S2-01; RF59 com o S2-02; RF60 e RF61 com o S2-03; RF37 com o S2-06 e RF57 com o S2-07) | PRODUTO | priorização funcional e incrementos próprios; não são cleanup E15 |
 
 ## Pendências abertas pelo S1-04 / RF10
 

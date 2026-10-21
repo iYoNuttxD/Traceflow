@@ -25,6 +25,13 @@ export async function runPrivacyRetention({
     },
     notificationDecisions: {
       decidedAt: { lt: daysAgo(configuration.notificationRetentionDays, now) }
+    },
+    // S2-06: só gerações encerradas com falha; SUCCEEDED segue o ciclo do projeto e
+    // nenhuma geração com reserva ativa entra na seleção.
+    failedProjectReports: {
+      status: 'FAILED',
+      activeProjectId: null,
+      finishedAt: { lt: daysAgo(configuration.reportFailedRetentionDays, now) }
     }
   };
   const counts = {
@@ -39,6 +46,9 @@ export async function runPrivacyRetention({
     }),
     notificationDecisions: await client.notificationDecision.count({
       where: filters.notificationDecisions
+    }),
+    failedProjectReports: await client.projectReport.count({
+      where: filters.failedProjectReports
     })
   };
   if (apply) {
@@ -49,6 +59,7 @@ export async function runPrivacyRetention({
       await tx.notification.deleteMany({ where: filters.notifications });
       await tx.gitHubArtifactEvent.deleteMany({ where: filters.githubArtifactEvents });
       await tx.notificationDecision.deleteMany({ where: filters.notificationDecisions });
+      await tx.projectReport.deleteMany({ where: filters.failedProjectReports });
       await tx.auditEvent.create({
         data: {
           actorType: 'SYSTEM',

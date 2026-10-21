@@ -140,6 +140,7 @@ async function buildExportArchive(userId, now) {
     'test-cases.json': data.responsibleTestCases || [],
     'test-executions.json': data.testExecutions || [],
     'test-evidence.json': data.testEvidence || [],
+    'project-reports.json': data.requestedProjectReports || [],
     'responsible-defects.json': data.responsibleDefects || [],
     'defect-history.json': data.defectHistory || [],
     'task-effort-history.json': data.effortHistory || [],

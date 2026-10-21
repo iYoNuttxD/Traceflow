@@ -195,6 +195,8 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     createSensitiveAttemptLogger({ logger, event: 'traceability_alerts_reconcile' }),
     rateLimiters.alertReconcile
   );
+  app.post('/api/projects/:projectId/reports', rateLimiters.reportGeneration);
+  app.get('/api/projects/:projectId/reports/:reportId/pdf', rateLimiters.reportPdf);
   app.use('/api', csrf);
   app.use('/api', requireAccountState);
   app.use('/api', createProjectAuthorizationMiddleware());
