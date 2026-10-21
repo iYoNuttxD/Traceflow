@@ -588,6 +588,8 @@ notificações, OCI ou validação acadêmica.
 
 ### S2-08 - Definir arquitetura e provisionar ambiente na OCI
 
+**Estado: PARTIAL (21/10/2026).** Ver evidências e limites no relatório consolidado.
+
 **Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
 **Descrição:** definir e provisionar infraestrutura na Oracle Cloud Infrastructure (OCI), preferencialmente elegível ao Oracle Cloud Free Tier / Always Free, compatível com React/Vite, Node/Express, Prisma e MySQL. A arquitetura de referência planeja uma VM de aplicação com Nginx, frontend React e backend Node.js e uma VM de dados com MySQL, conectadas por rede privada; a ADR deve confirmar a topologia final conforme capacidade, custos e disponibilidade.
 
@@ -607,14 +609,19 @@ notificações, OCI ou validação acadêmica.
 
 **Checklist técnico:**
 
-- [ ] criar ADR e diagrama da implantação planejada;
-- [ ] validar elegibilidade e capacidade do Free Tier / Always Free e estimar custos excedentes;
-- [ ] criar IaC e parâmetros por ambiente;
-- [ ] configurar VCN, sub-redes, rede privada, firewall, DNS, TLS, identidade e segredos;
-- [ ] configurar inventário de variáveis, URLs, callbacks e webhooks da GitHub App;
-- [ ] provisionar homologação e validar conectividade entre aplicação e MySQL.
+- [x] criar ADR e diagrama da implantação planejada;
+- [x] validar elegibilidade e capacidade do Free Tier / Always Free e estimar custos excedentes;
+- [x] criar IaC e parâmetros por ambiente;
+- [x] configurar VCN, sub-redes, rede privada, firewall, DNS, TLS, identidade e segredos;
+- [x] configurar inventário de variáveis, URLs, callbacks e webhooks da GitHub App;
+- [x] provisionar homologação e validar conectividade entre aplicação e MySQL.
+
+**Evidência consolidada (21/10/2026):** [S2-08/S2-09 OCI CD](docs/deliveries/S2_08_S2_09_OCI_CD_REPORT.md).
+Arquitetura real em [ADR-018](https://github.com/iYoNuttxD/Traceflow/blob/0619482a360df2233c335e8373447f7b92b468ee/docs/architecture/ADR-018-OCI-LIVE-ARCHITECTURE-CD.md): uma VM A1 e HeatWave privado gerenciado, sem segunda VM de banco. A homologação é descartável no runner ARM64, com MySQL e storage próprios e sem segredos produtivos. IaC foi criada e validada com planos reais somente leitura/modelo sem apply; gestão/importação dos recursos existentes e reconstrução integral **PARTIAL**. O checklist de criação não comprova adoção integral por IaC ou disponibilidade futura gratuita.
 
 ### S2-09 - Automatizar build, migrations e deploy na OCI
+
+**Estado: PARTIAL (21/10/2026).** Ver evidências e limites no relatório consolidado.
 
 **Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
 **Descrição:** criar entrega contínua para o ambiente OCI com gates, artefatos imutáveis, migrations controladas e rollback verificável.
@@ -635,11 +642,13 @@ notificações, OCI ou validação acadêmica.
 **Checklist técnico:**
 
 - [ ] criar pipeline de homologação e promoção;
-- [ ] configurar build, artefatos imutáveis, Nginx e runtime Node.js;
+- [x] configurar build, artefatos imutáveis, Nginx e runtime Node.js;
 - [ ] automatizar migration com bloqueio e observabilidade;
-- [ ] atualizar e validar URLs, callbacks e webhooks da GitHub App;
-- [ ] implementar health/readiness e smoke tests;
+- [x] atualizar e validar URLs, callbacks e webhooks da GitHub App;
+- [x] implementar health/readiness e smoke tests;
 - [ ] executar e documentar ensaio de rollback.
+
+**Resultado comprovado (21/10/2026): PARTIAL.** [Relatório consolidado](docs/deliveries/S2_08_S2_09_OCI_CD_REPORT.md). PR #28 integrada; receptor pull-only instalado, approval production/OIDC e pacote ARM64 reproduzível demonstrados. A primeira promoção (39686258330) foi recusada antes do cutover por prazo de 1200,000021s. Produção 9bc3dad e S2-10 preservadas. Correções na PR #29: instante UTC único, transporte curl HTTPS e diagnóstico de status; 21 testes locais PASS. Nenhuma segunda promoção automática. Promoção real, migrations novas e ensaio integrado dos adapters de rollback continuam pendentes; implementação de smoke não equivale a smoke pós-promoção aprovado.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
