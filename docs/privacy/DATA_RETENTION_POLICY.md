@@ -32,6 +32,9 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | cobertura dos eventos do GitHub (`GitHubEventCoverage`)   | MySQL                               |                                                  ciclo do projeto | uma linha por projeto com o corte e o trecho lido por completo, sem pessoa; o purge do projeto remove por cascata |
 | lease dos jobs (`ScheduledJobLease`)                      | MySQL                               |                                    uma linha por job, sobrescrita | nome do job, dono técnico (UUID do worker ou do comando) e validade, sem pessoa |
 | IDs técnicos P1 de autoria/responsabilidade                | MySQL                               |                                           ciclo do artefato       | `Commit.authorGithubUserId` externo e `TaskMovement.responsibleUserIdSnapshot` nullable; sem nome/e-mail novos; legado permanece null                             |
+| relatório pronto (`ProjectReport` SUCCEEDED) e nomes congelados | MySQL | ciclo do projeto | retrato imutável; cascade no purge do projeto; anonimização neutraliza `ProjectReportPerson` |
+| geração de relatório que falhou (`ProjectReport` FAILED) | MySQL | 180 dias após o término | `privacy:retention` (`REPORT_FAILED_RETENTION_DAYS`, 30–3650); só registros sem reserva ativa |
+| PDF de relatório | resposta sob demanda | não armazenado | montado na hora a partir do snapshot; `no-store`; nenhum arquivo temporário ou público |
 | logs                                                       | destino operacional                 |              a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador                                                                                                               |
 | e-mails técnicos                                           | provedor SMTP                       |                                              política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação                                                                                                     |
 | backup                                                     | infraestrutura                      |                                        a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros                                |
@@ -183,3 +186,19 @@ PR23-FIX-07 / D-D: retenção interna não implica exposição geral. O presente
 `authorGithubUserId` do payload de listagem; a correlação interna continua exata. A exportação
 pessoal e seus filtros não foram ampliados. `TaskMovement.responsibilitySnapshotState` registra
 somente ASSIGNED/UNASSIGNED, sem identidade adicional; estado nulo continua legado desconhecido.
+
+## S2-06/S2-07 — Relatórios e PDF
+
+- Relatório `SUCCEEDED` é um retrato do projeto e acompanha o ciclo do projeto: não tem expurgo
+  próprio, desaparece no purge por cascade e fica inacessível enquanto o projeto está excluído
+  logicamente.
+- Geração `FAILED` não tem valor de negócio depois do diagnóstico. `privacy:retention` remove as
+  encerradas há mais de `REPORT_FAILED_RETENTION_DAYS` (padrão 180), sem tocar em reserva ativa,
+  e informa a contagem `failedProjectReports` no resultado do job.
+- Nomes de pessoas não ficam no snapshot; ficam em `ProjectReportPerson`, congelados na geração.
+  A anonimização da conta neutraliza esse registro, então nenhum relatório ou PDF posterior mostra
+  o nome original. O nome é lido com a conta travada na mesma transação que o grava, então uma
+  geração concluída durante a anonimização também não guarda o nome anterior. PDFs baixados antes
+  disso estão fora do controle do sistema.
+- O PDF não é persistido: não há arquivo temporário, URL pública nem cache. A auditoria
+  `REPORT_PDF_EXPORTED` segue a retenção de `AuditEvent` (365 dias).

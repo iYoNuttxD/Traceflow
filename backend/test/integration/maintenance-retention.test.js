@@ -143,7 +143,8 @@ describe('maintenance retention against real persisted rows', () => {
       configuration: {
         privacyRequestRetentionDays: 30,
         auditRetentionDays: 365,
-        notificationRetentionDays: 180
+        notificationRetentionDays: 180,
+        reportFailedRetentionDays: 180
       }
     };
     const counts = {
@@ -152,7 +153,8 @@ describe('maintenance retention against real persisted rows', () => {
       personalDataExports: 1,
       notifications: 0,
       githubArtifactEvents: 0,
-      notificationDecisions: 0
+      notificationDecisions: 0,
+      failedProjectReports: 0
     };
     expect(await runPrivacyRetention(options)).toEqual({ mode: 'dry-run', counts });
     expect(await ids(prisma.privacyRequest)).toEqual(requests.map(({ id }) => id));
@@ -193,7 +195,8 @@ describe('maintenance retention against real persisted rows', () => {
         personalDataExports: 0,
         notifications: 0,
         githubArtifactEvents: 0,
-        notificationDecisions: 0
+        notificationDecisions: 0,
+        failedProjectReports: 0
       }
     });
     expect(await ids(prisma.privacyRequest)).toEqual(retainedRequests);

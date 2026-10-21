@@ -167,8 +167,8 @@ O serviço gera `profile.json`, `memberships.json`, `projects.json`, `requiremen
 `defect-history.json`, `task-effort-history.json`, `tasks.json`, `task-comments.json`,
 `task-time-entries.json`, `sessions.json`, `privacy-requests.json`, `data-exports.json`,
 `email-change-history.json`, `audit-events.json`, `github-identity.json`,
-`github-integrations.json`, `indicator-preferences.json`, `task-responsibility-movements.json`
-e `github-authored-commits.json`, além do manifest. Os recortes e seleções são definidos pelo
+`github-integrations.json`, `indicator-preferences.json`, `task-responsibility-movements.json`,
+`github-authored-commits.json` e `project-reports.json`, além do manifest. Os recortes e seleções são definidos pelo
 [repository](../../backend/src/modules/settings/settings.repository.js) e os nomes pelo
 [serviço de export](../../backend/src/modules/settings/settings.service.js).
 A preferência exportada contém projeto, versão, configuração e timestamps; o titular é o
@@ -177,3 +177,18 @@ usuário do export, sem seleção de outro usuário na requisição.
 Autoridade de persistência: [schema](../../backend/prisma/schema.prisma).
 Evidência: [preferências/API](../../backend/test/api/indicators-p9.test.js) e
 [governança de privacidade](../../backend/test/api/privacy-governance.test.js).
+
+## S2-06/S2-07 — Relatórios do projeto e PDF
+
+| Dado | Conteúdo e finalidade | Acesso e identificação | Ciclo de vida / export |
+| --- | --- | --- | --- |
+| `ProjectReport` | recorte pedido (período, fuso, Sprint), status, tempos, erro sanitizado e snapshot JSON dos dados do projeto; finalidade: retrato reproduzível do RF37 | membros ativos do projeto, inclusive VIEWER; `requestedByUserId` identifica quem pediu | ciclo do projeto quando `SUCCEEDED`; `FAILED` encerrado é removido após 180 dias (`privacy:retention`); cascade no purge do projeto |
+| `ProjectReportPerson` | `userId`, nome de exibição e username **congelados na geração** de cada pessoa citada no relatório (solicitante, responsáveis, autores); finalidade: impedir que trocar o nome da conta altere um relatório antigo | mesmo acesso do relatório; o snapshot em si guarda só `userId`, sem nome, username, e-mail ou avatar | segue o relatório (cascade); a anonimização (LGPD) troca nome e username congelados pelos neutros da conta anonimizada; a leitura do nome trava a conta na transação que grava, sem corrida com a anonimização |
+| PDF do relatório (S2-07) | documento montado sob demanda a partir do snapshot e das pessoas congeladas | download por membro ativo; cada download gera `REPORT_PDF_EXPORTED` | não é armazenado: existe só na resposta HTTP (`Cache-Control: no-store`); depois de baixado, o arquivo fica sob controle de quem baixou |
+
+O export pessoal (`project-reports.json`) traz apenas metadados dos relatórios que o titular
+pediu em projetos com membership ativa (ID, projeto, status, recorte e datas), sem snapshot nem
+nomes de terceiros. Implementação: [schema](../../backend/prisma/schema.prisma),
+[remoção de nomes do snapshot](../../backend/src/modules/reports/report-people.js) e
+[anonimização](../../backend/src/modules/privacy/privacy.repository.js). Evidência:
+[integração](../../backend/test/integration/reports.test.js).

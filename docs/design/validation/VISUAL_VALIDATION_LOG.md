@@ -1532,3 +1532,32 @@ visual anterior é preservada como histórico; o inventário marca `REVALIDATION
 layout largo e fixação. Uma próxima execução com navegador conectado ao frontend deve verificar
 as larguras acima, nomes longos, filtros abertos/fechados, navegação e foco após Cancelar/Salvar,
 Fixar/Remover e retorno entre Overview/Indicadores.
+## 2026-10-15 — S2-06/S2-07: aba Relatórios e PDF, inspeção parcial
+
+Tela (Chrome, API real local, tema claro, desktop, 14/10): lista com cards por status,
+diálogo Gerar relatório, acompanhamento da geração até Pronto e documento com as três seções,
+sem erros no console. Correções aplicadas durante a inspeção: classes de formulário e de card,
+link sem sublinhado, ícones existentes e valores só nos estados exibíveis do painel. O botão
+Baixar PDF não foi inspecionado na tela porque a sessão do navegador expirou; o fluxo é coberto
+por testes de componente. Tema escuro, larguras menores e leitor de tela não foram verificados.
+
+PDF: páginas do relatório de demonstração e de um relatório sintético com 2.000 requisitos e
+100 Sprints renderizadas em imagem (pymupdf) e revisadas: cabeçalho com projeto e período,
+rodapé com relatório, geração e página em todas as páginas, cabeçalho das tabelas repetido nas
+continuações, nenhuma linha dividida, Burndown legível e acentuação correta. Texto extraído com
+unpdf nos testes automatizados.
+
+Status canônico das surfaces: **NOT REVIEWED** / **TECHNICALLY VERIFIED**, sem promoção a
+C2 COMPLETE. [Relatório S2-07](../../deliveries/S2_07_REPORT_PDF_EXPORT_REPORT.md).
+
+## 2026-10-20 — S2-06/S2-07: resumo, status das métricas e cores por situação
+
+Tela (Chrome, API real local, tema escuro, desktop) no relatório #8 do projeto de exemplo:
+resumo com quatro números e barras, contagem de Sprints e de indicadores por status, cartões de
+Sprint com borda e barra na cor da situação, requisitos com selo e barra de progresso, tabela de
+indicadores com coluna Status, motivo e referência. Correção feita durante a inspeção: o título da
+visão ficava abaixo do cabeçalho da tabela por `display: flex` no `caption`.
+
+PDF do mesmo relatório renderizado em imagem e revisado: resumo na capa, Planejamento em página
+própria, selos com cor de fundo (o fundo da célula-pai cobria o selo e foi retirado), barras e
+coluna Status. Tema claro, larguras menores e leitor de tela não foram verificados nesta rodada.

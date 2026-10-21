@@ -104,6 +104,8 @@ export async function cleanTestDatabase(prisma) {
     await tx.gitHubInstallationAuthorization.deleteMany();
     await tx.gitHubInstallation.deleteMany();
     await tx.gitHubSyncRun.deleteMany();
+    await tx.projectReportPerson.deleteMany();
+    await tx.projectReport.deleteMany();
     await tx.auditEvent.deleteMany();
     await tx.personalDataExport.deleteMany();
     await tx.privacyRequest.deleteMany();

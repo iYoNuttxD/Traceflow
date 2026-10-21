@@ -573,11 +573,14 @@ notificações, OCI ou validação acadêmica.
 
 **Checklist técnico:**
 
-- [ ] definir contrato e snapshot dos dados;
-- [ ] implementar serviço de geração e status;
-- [ ] implementar visualização e filtros;
-- [ ] testar consistência, autorização, volume e falha;
-- [ ] documentar API, retenção e matriz RF.
+- [x] definir contrato e snapshot dos dados;
+- [x] implementar serviço de geração e status;
+- [x] implementar visualização e filtros;
+- [x] testar consistência, autorização, volume e falha;
+- [x] documentar API, retenção e matriz RF.
+
+Entrega: [relatório S2-06](docs/deliveries/S2_06_PROJECT_REPORTS_REPORT.md) e
+[ADR-025](docs/architecture/ADR-025-RELATORIOS-E-PDF.md).
 
 ### S2-07 - Exportar relatórios em PDF
 
@@ -598,11 +601,14 @@ notificações, OCI ou validação acadêmica.
 
 **Checklist técnico:**
 
-- [ ] registrar decisão de biblioteca e estratégia de geração;
-- [ ] implementar template e paginação;
-- [ ] proteger geração, armazenamento e download;
-- [ ] criar testes de conteúdo e renderização;
-- [ ] atualizar operação, privacidade e matriz RF.
+- [x] registrar decisão de biblioteca e estratégia de geração;
+- [x] implementar template e paginação;
+- [x] proteger geração, armazenamento e download;
+- [x] criar testes de conteúdo e renderização;
+- [x] atualizar operação, privacidade e matriz RF.
+
+Entrega: [relatório S2-07](docs/deliveries/S2_07_REPORT_PDF_EXPORT_REPORT.md). O PDF é montado
+sob demanda e não é armazenado ([ADR-025](docs/architecture/ADR-025-RELATORIOS-E-PDF.md)).
 
 ### S2-08 - Definir arquitetura e provisionar ambiente na OCI
 

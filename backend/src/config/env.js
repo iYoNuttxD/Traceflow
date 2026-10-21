@@ -562,6 +562,12 @@ export function createEnvironment(source = {}) {
       'PRIVACY_REQUEST_RETENTION_DAYS',
       { defaultValue: 365, min: 30, max: 3650 }
     ),
+    // S2-06: gerações que falharam só servem ao diagnóstico; as concluídas seguem o projeto.
+    reportFailedRetentionDays: parseInteger(
+      source.REPORT_FAILED_RETENTION_DAYS,
+      'REPORT_FAILED_RETENTION_DAYS',
+      { defaultValue: 180, min: 30, max: 3650 }
+    ),
     accountDeletionGraceDays: parseInteger(
       source.ACCOUNT_DELETION_GRACE_DAYS,
       'ACCOUNT_DELETION_GRACE_DAYS',

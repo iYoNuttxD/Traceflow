@@ -2328,3 +2328,147 @@ O campo é transitório: não altera datas persistidas, durações encerradas,
 permissões nem o esforço legado. Não é uma garantia de sincronização subsegundo:
 a latência entre a observação e a recepção não é somada. Clientes mantêm fallback
 para snapshots antigos sem o campo, que ainda dependem do relógio local.
+
+## S2-06 e S2-07 — Relatórios do projeto e exportação em PDF (RF37/RF57)
+
+Relatório é um **retrato congelado**: a geração lê, com o mesmo recorte, os services que
+alimentam Cronograma/Sprints, Rastreabilidade e Indicadores, e grava o resultado em
+`ProjectReport.snapshot` (JSON, `schemaVersion: 1`). Depois de pronto, nada no projeto altera o
+relatório. Decisões em [ADR-025](../architecture/ADR-025-RELATORIOS-E-PDF.md); modelo de dados
+em [REPORT_HISTORY](../data/REPORT_HISTORY.md).
+
+| Método | Rota | Papel mínimo | Resposta |
+| --- | --- | --- | --- |
+| `POST` | `/api/projects/:projectId/reports` | MEMBER | `202 { report, alreadyRunning }` |
+| `GET` | `/api/projects/:projectId/reports?page&limit&status&sprintId&requestedByUserId&startDate&endDate` | VIEWER | `{ items, pagination }`, mais recente primeiro |
+| `GET` | `/api/projects/:projectId/reports/:reportId` | VIEWER | `{ report }` com `snapshot` e `people` |
+| `GET` | `/api/projects/:projectId/reports/:reportId/pdf?timeZone` | VIEWER | `application/pdf` (download) |
+
+Não membro, projeto excluído logicamente e relatório de outro projeto respondem o mesmo `404`
+opaco (`RESOURCE_NOT_FOUND`) de um ID inexistente. A geração passa pelo limitador
+`project-report` (ator + projeto) e o PDF pelo `project-report-pdf`.
+
+### Filtros da lista
+
+Todos opcionais e combináveis; `pagination.total` já é o total filtrado. `status`:
+`SUCCEEDED`, `FAILED` ou `ACTIVE` (QUEUED/RUNNING). `sprintId`: ID da Sprint do recorte ou
+`none` (relatórios sem Sprint escolhida). `requestedByUserId`: quem pediu. `startDate`/`endDate`
+(`YYYY-MM-DD`): relatórios cujo período tem interseção com o intervalo; relatórios de todo o
+histórico não entram. Valor inválido, início maior que o fim ou parâmetro desconhecido: `400`.
+
+A resposta da lista traz também `summary` do projeto inteiro, sem os filtros:
+`{ total, succeeded, active, failed, latestSucceeded: { id, finishedAt } | null }` (`active` soma
+QUEUED e RUNNING). A aba Relatórios usa esse resumo no painel "Visão geral dos relatórios".
+
+### Pedido de geração
+
+Corpo estrito: `{ startDate?, endDate?, timeZone?, sprintId? }`. O período exige os três campos
+juntos (`YYYY-MM-DD`, fuso IANA), início ≤ fim e no máximo **366 dias** (o teto das visões
+FLOW/TASK/QUALITY do painel). Sem período, o relatório cobre todo o histórico. `sprintId` precisa
+ser Sprint não excluída do projeto (`404 SPRINT_NOT_FOUND`); com Sprint, ela entra mesmo fora do período,
+como no filtro do painel.
+
+A geração roda em segundo plano (`setImmediate`), no mesmo modelo de reserva da sincronização
+manual do GitHub: `activeProjectId` único garante **uma geração ativa por projeto**. Pedido
+durante uma geração ativa devolve essa geração com `alreadyRunning: true`, sem criar outra.
+Ciclo: `QUEUED → RUNNING → SUCCEEDED | FAILED`. Heartbeat a cada 30 s; RUNNING sem batimento por
+5 min é encerrado como `FAILED`/`REPORT_GENERATION_STALE` na próxima leitura; a montagem tem
+prazo de 4 min (`REPORT_TIMEOUT`). Snapshot, pessoas congeladas e liberação da reserva são
+gravados na mesma transação, depois de conferir que a reserva ainda é desta execução.
+
+Após timeout, nenhuma nova etapa da composição começa. A carência de cancelamento apenas
+registra um aviso: reserva, heartbeat e slot de concorrência permanecem até a consulta
+subjacente terminar de fato. Só então a execução é encerrada e a capacidade é liberada.
+
+```json
+{
+  "report": {
+    "id": 3,
+    "projectId": 2,
+    "status": "SUCCEEDED",
+    "filters": { "startDate": "2026-09-01", "endDate": "2026-09-30", "timeZone": "America/Sao_Paulo", "sprintId": null },
+    "requestedBy": { "userId": 1, "displayName": "Ana", "username": "ana" },
+    "snapshotVersion": 1,
+    "createdAt": "2026-10-15T01:43:25.000Z",
+    "startedAt": "2026-10-15T01:43:25.500Z",
+    "finishedAt": "2026-10-15T01:43:27.100Z",
+    "durationMs": 1600,
+    "error": null
+  },
+  "alreadyRunning": false
+}
+```
+
+Falhas nunca viram relatório pronto. `error.code` expõe só códigos do módulo:
+
+| Código | Quando |
+| --- | --- |
+| `REPORT_SOURCE_UNAVAILABLE` | alguma visão do painel devolveu aviso `SOURCE_UNAVAILABLE` |
+| `REPORT_VOLUME_LIMIT_EXCEEDED` | mais de 100 Sprints ou 2.000 requisitos no recorte |
+| `REPORT_TOO_LARGE` | snapshot acima de 16 MiB |
+| `REPORT_TIMEOUT` | montagem acima de 4 min |
+| `REPORT_GENERATION_STALE` | execução perdeu o batimento |
+| `REPORT_FILTER_RESOURCE_NOT_FOUND` | item do recorte (como a Sprint) deixou de existir |
+| `REPORT_GENERATION_FAILED` | qualquer outra falha; mensagem genérica, sem detalhe interno |
+
+### Conteúdo do snapshot
+
+- `project {id,name}`, `generatedAt`, `filters` (com `sprint {id,name,status}` quando houver).
+- `planning`: `range`, `sprints[]` do contrato do Cronograma sem a lista de tarefas, cada uma com
+  `progress` igual a `GET /sprints/:id/progress` (inclui `burndown`); `milestones[]` com
+  `sprintCount` no recorte; `unassignedTaskCount` (nulo quando há Sprint escolhida).
+- `traceability`: `summary` e `items[]` iguais a `GET .../traceability/requirements`, percorrendo
+  todas as páginas; `scope: "CURRENT"` (situação no momento da geração).
+- `indicators.views[]`: uma entrada por visão pública do painel (GENERAL, PLANNING, GITHUB, FLOW,
+  SPRINT, TASK, QUALITY, TRACEABILITY) com `viewState`, `requestedFilters`, `freshness`,
+  `warnings`, `projectHealth` (quando houver) e `sections` iguais a `GET .../indicators/dashboard`;
+  `indicators.catalog[]` congela título, descrição, unidade e RF dos indicadores presentes.
+
+O snapshot guarda **apenas `userId`** onde houver pessoa; nomes, usernames, e-mails e avatares são
+removidos. `people[]` traz o nome e o username **congelados na geração**
+(`ProjectReportPerson`); trocar o nome da conta depois não altera o relatório. A anonimização
+(LGPD) é a única exceção e neutraliza esses nomes. Os testes de API comparam cada indicador,
+a rastreabilidade e a evolução da Sprint do relatório com as APIs de origem para o mesmo recorte.
+
+### PDF (S2-07)
+
+O PDF é montado **na hora** a partir do snapshot persistido, com pdfmake e fontes Roboto
+embutidas; nenhum arquivo é gravado. Só relatórios `SUCCEEDED` são exportados
+(`409 REPORT_NOT_READY` para QUEUED/RUNNING/FAILED). `timeZone` (IANA, opcional) só formata os
+instantes de relatórios sem período; com período, vale o fuso do relatório; sem nenhum, `UTC`.
+Parâmetros desconhecidos recebem `400`.
+
+Cabeçalhos: `Content-Type: application/pdf`, `Content-Disposition: attachment;
+filename="traceflow-relatorio-{id}-{projeto-sem-acentos}.pdf"`, `Content-Length`,
+`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`.
+
+Conteúdo: A4; cabeçalho de toda página com projeto e período; rodapé com `Relatório #N`, data de
+geração (com o fuso) e `Página X de Y`; sumário; mesmas três seções e o mesmo vocabulário da tela.
+Tabelas repetem legenda e cabeçalho em cada página e nunca dividem uma linha. Conteúdo que não
+caberia numa página (objetivo longo de Sprint, lista grande de observações de um indicador)
+continua em linhas seguintes, com o nome do indicador repetido como "(continuação)"; nada é
+omitido. O cartão de cada Sprint mantém juntos o cabeçalho com os metadados e o Burndown.
+
+**Leitura visual (tela e PDF).** O relatório abre com um resumo tirado do snapshot: progresso do
+projeto (I01), requisitos na situação Concluído (mesma regra do I65), Saúde do Projeto (nota e
+status de `projectHealth`) e defeitos pendentes (`I53.value.active`), mais a contagem de Sprints
+por situação e de indicadores por status. Cada indicador mostra o **status** da avaliação de saúde
+do painel (`assessment.status`: Saudável, Atenção, Crítico, Dados insuficientes, Não se aplica;
+sem avaliação, Informativo), com o mesmo motivo e a mesma referência/variação do cartão. Sprint em
+andamento depois do fim aparece como Atrasada (regra do Cronograma, com a data da geração como
+referência) e marco vencido como Atrasado. Nenhum campo novo é gravado: tudo é derivado do snapshot,
+então relatórios já gerados ganham a mesma apresentação.
+
+A montagem roda numa worker thread (no máximo 2 simultâneas por processo, prazo de 30 s):
+
+| Código | Status | Quando |
+| --- | --- | --- |
+| `REPORT_PDF_BUSY` | 503 | outros PDFs ocupam a capacidade do processo |
+| `REPORT_PDF_FAILED` | 500 | erro ou prazo excedido na montagem; mensagem genérica |
+
+### Auditoria
+
+`REPORT_REQUESTED` (metadata `scope: PERIOD|ALL`, `sprintId?`), `REPORT_GENERATED`
+(`SUCCESS`/`FAILURE` com `reasonCode`) e `REPORT_PDF_EXPORTED` (metadata `format: PDF`;
+`FAILURE` com `REPORT_PDF_FAILED` ou `REPORT_PDF_BUSY`). O registro do download é obrigatório:
+se a auditoria não grava, o arquivo não é entregue.

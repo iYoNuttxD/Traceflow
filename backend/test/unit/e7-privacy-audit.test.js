@@ -66,7 +66,8 @@ describe('E7 auditoria, privacidade e retenção', () => {
       personalDataExport: { deleteMany: vi.fn() },
       notification: { deleteMany: vi.fn() },
       gitHubArtifactEvent: { deleteMany: vi.fn() },
-      notificationDecision: { deleteMany: vi.fn() }
+      notificationDecision: { deleteMany: vi.fn() },
+      projectReport: { deleteMany: vi.fn() }
     };
     const client = {
       auditEvent: { count: vi.fn().mockResolvedValue(2) },
@@ -75,31 +76,33 @@ describe('E7 auditoria, privacidade e retenção', () => {
       notification: { count: vi.fn().mockResolvedValue(4) },
       gitHubArtifactEvent: { count: vi.fn().mockResolvedValue(5) },
       notificationDecision: { count: vi.fn().mockResolvedValue(0) },
+      projectReport: { count: vi.fn().mockResolvedValue(4) },
       $transaction: vi.fn(async (callback) => callback(tx))
+    };
+    const configuration = {
+      auditRetentionDays: 30,
+      privacyRequestRetentionDays: 30,
+      notificationRetentionDays: 180,
+      reportFailedRetentionDays: 180
     };
     expect(
       await runPrivacyRetention({
         client,
         now,
         apply: false,
-        configuration: {
-          auditRetentionDays: 30,
-          privacyRequestRetentionDays: 30,
-          notificationRetentionDays: 180
-        }
+        configuration
       })
-    ).toMatchObject({ mode: 'dry-run', counts: { auditEvents: 2, githubArtifactEvents: 5 } });
+    ).toMatchObject({
+      mode: 'dry-run',
+      counts: { auditEvents: 2, githubArtifactEvents: 5, failedProjectReports: 4 }
+    });
     expect(client.$transaction).not.toHaveBeenCalled();
     expect(
       await runPrivacyRetention({
         client,
         now,
         apply: true,
-        configuration: {
-          auditRetentionDays: 30,
-          privacyRequestRetentionDays: 30,
-          notificationRetentionDays: 180
-        }
+        configuration
       })
     ).toMatchObject({ mode: 'apply' });
     expect(tx.privacyRequest.deleteMany).toHaveBeenCalledExactlyOnceWith({
@@ -114,11 +117,19 @@ describe('E7 auditoria, privacidade e retenção', () => {
     expect(tx.personalDataExport.deleteMany).toHaveBeenCalledExactlyOnceWith({
       where: { expiresAt: { lt: now } }
     });
+    // S2-06: somente FAILED encerrado (sem reserva) e mais antigo que o prazo configurado.
+    expect(tx.projectReport.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        status: 'FAILED',
+        activeProjectId: null,
+        finishedAt: { lt: new Date('2029-08-05T00:00:00.000Z') }
+      }
+    });
     expect(tx.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           action: 'RETENTION_CLEANUP_EXECUTED',
-          metadataJson: { count: 15 }
+          metadataJson: { count: 19 }
         })
       })
     );

@@ -15,6 +15,7 @@ import {
   recordGithubEvent
 } from '../helpers/github-lifecycle.js';
 import { slowQuery } from '../helpers/slow-statement.js';
+import { anchoredAt } from '../helpers/anchored-clock.js';
 
 const boundary = vi.hoisted(() => ({ client: null }));
 const loggerMock = vi.hoisted(() => ({
@@ -56,11 +57,11 @@ vi.mock('../../src/database/prismaClient.js', async () => {
   return { prisma: client };
 });
 
-const NOW = new Date('2026-10-20T12:00:00.000Z');
-const OCCURRED = new Date('2026-10-20T10:00:00.000Z');
+const NOW = anchoredAt('12:00:00.000');
+const OCCURRED = anchoredAt('10:00:00.000');
 const MINUTE = 60_000;
 const at = (ms) => new Date(NOW.getTime() + ms);
-const PROJECT_CREATED_AT = new Date('2026-08-01T12:00:00.000Z');
+const PROJECT_CREATED_AT = anchoredAt('12:00:00.000', -80);
 
 const STORAGE_MESSAGE =
   'Não foi possível gravar os dados da sincronização. Tente de novo em instantes.';
