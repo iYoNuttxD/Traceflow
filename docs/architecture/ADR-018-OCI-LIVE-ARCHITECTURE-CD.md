@@ -69,8 +69,8 @@ flowchart LR
 | Operação | Backup diário 03h BRT, retenção 02:30 BRT, monitor a cada minuto; SMTP e ONS confirmados; RPO alvo 24h, RTO planejado 4h (integral não medido) |
 | CD | Runner hospedado ARM64 + Oracle Linux 9; request assinado GitHub OIDC após aprovação; pull outbound na VM, sem abertura SSH ou credencial Oracle/DB no runner |
 
-A VM observada cabe nominalmente no limite público Always Free A1 de 4 OCPUs/24GiB
-agregados. O DB usa a shape MySQL.Free, reconhecida pela documentação oficial como
+A VM observada cabe nominalmente no limite público Always Free A1 vigente de 1.500 OCPU-h e 9.000 GiB-h
+mensais (equivalentes a 2 OCPUs/12GiB contínuos). O DB usa a shape MySQL.Free, reconhecida pela documentação oficial como
 Always Free. O campo `is-free-tier` não foi fornecido pela consulta usada; não
 fabricar esse booleano. O console mostrou trial com R$0 utilizados e créditos
 restantes. Não se infere garantia de capacidade regional, gratuidade global ou
