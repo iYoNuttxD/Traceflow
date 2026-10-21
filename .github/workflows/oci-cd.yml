@@ -135,7 +135,8 @@ jobs:
           assert identity['commit']==os.environ['APP_SHA']
           digest=hashlib.sha256((root/'release.tar.gz').read_bytes()).hexdigest()
           assert digest==identity['packageSha256']
-          request={'formatVersion':1,'operation':'promote-clean','repository':os.environ['GITHUB_REPOSITORY'],'appSha':identity['commit'],'workflowSha':os.environ['WORKFLOW_SHA'],'packageSha256':digest,'manifestSha256':identity['manifestSha256'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'issuedAt':d.datetime.now(d.timezone.utc).isoformat(),'expiresAt':(d.datetime.now(d.timezone.utc)+d.timedelta(minutes=20)).isoformat()}
+          now=d.datetime.now(d.timezone.utc)
+          request={'formatVersion':1,'operation':'promote-clean','repository':os.environ['GITHUB_REPOSITORY'],'appSha':identity['commit'],'workflowSha':os.environ['WORKFLOW_SHA'],'packageSha256':digest,'manifestSha256':identity['manifestSha256'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'issuedAt':now.isoformat(),'expiresAt':(now+d.timedelta(minutes=20)).isoformat()}
           (root/'request.json').write_text(json.dumps(request,sort_keys=True)+'\n')
           PY
       - name: Federated GitHub OIDC attestation after human production approval
@@ -155,15 +156,21 @@ jobs:
       - name: Await authenticated OCI promotion result and automatic smoke tests
         run: |
           python3 - <<'PY'
-          import json,os,time,urllib.request
+          import json,os,time,subprocess
           from pathlib import Path
           deadline=time.monotonic()+900
           url='https://traceflow.dev/deploy-status/'+os.environ['GITHUB_RUN_ID']+'.json'
           while time.monotonic()<deadline:
             try:
-              req=urllib.request.Request(url,headers={'Cache-Control':'no-cache'})
-              with urllib.request.urlopen(req,timeout=15) as response: result=json.load(response)
-            except Exception:time.sleep(15);continue
+              probe=subprocess.run(['curl','--silent','--show-error','--proto','=https','--max-time','15','--output','status-response.json','--write-out','%{http_code}',url],capture_output=True,text=True,timeout=20)
+              if probe.returncode or probe.stdout.strip()!='200':
+                code=probe.stdout.strip()
+                print(json.dumps({'status':'OCI_RESULT_PENDING','httpStatus':code if len(code)==3 and code.isdigit() else 'UNAVAILABLE','transportExit':probe.returncode}),flush=True)
+                time.sleep(15);continue
+              result=json.loads(Path('status-response.json').read_text())
+            except (subprocess.TimeoutExpired,OSError,ValueError):
+              print(json.dumps({'status':'OCI_RESULT_PENDING','reason':'TRANSPORT_OR_JSON_ERROR'}),flush=True)
+              time.sleep(15);continue
             if str(result.get('runId'))!=os.environ['GITHUB_RUN_ID']:time.sleep(15);continue
             Path('deployment-result.json').write_text(json.dumps(result,indent=2)+'\n')
             print(json.dumps(result))
