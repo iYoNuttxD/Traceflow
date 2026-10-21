@@ -3,7 +3,7 @@
 Data: 21/10/2026. Escopo exclusivo: instalação limpa `traceflow_live`,
 `traceflow-live-api` e `traceflow-live-worker`. Legado preservado.
 
-**Resultado da entrega: PARTIAL — receptor instalado e candidato íntegro; promoção recusada antes do cutover. Produção 9bc3dad preservada e online.**
+**Resultado da entrega: PARTIAL — CD instalada, build/homologação reproduzíveis e coleta automática do resultado comprovados; promoção adicional BLOCKED em `LIVE_MIGRATION_CHAIN`, antes do startup/cutover. Produção 9bc3dad preservada e online.**
 
 ## Identidades e segregação
 
@@ -48,10 +48,11 @@ exige state privado e plano revisado sem substituições; não houve adoção po
 | Critério | Estado | Evidência e limite |
 | --- | --- | --- |
 | CI, lint, testes, build e segurança na revisão exata | DONE PARA O CANDIDATO | [CI fonte](https://github.com/iYoNuttxD/Traceflow/actions/runs/39680721855), [CI operacional](https://github.com/iYoNuttxD/Traceflow/actions/runs/39683645246), [CD ARM64](https://github.com/iYoNuttxD/Traceflow/actions/runs/39683645226) |
-| Identidade efêmera/menor privilégio | DONE | Ambiente production com iYoNuttxD revisor, main somente, sem bypass administrativo; token/OIDC somente após aprovação. VM pull-only verifica repo/workflow/ref/digest e bundle Sigstore |
-| Migrations de produção controladas | PARTIAL | Cadeia de 68 conferida; `prisma migrate deploy` real no MySQL isolado. A V1 recusa qualquer mudança de schema/cadeia antes do cutover. Migrações novas em produção ainda exigem compatibilidade dos contratos de backup e custódia/autorização do migrador; não estão automatizadas nesta entrega |
+| Identidade efêmera/menor privilégio | DONE | Ambiente production com iYoNuttxD revisor, main somente, sem bypass administrativo; token/OIDC somente após aprovação. VM pull-only verifica repo/workflow/ref/digest e bundle Sigstore. A proteção de revisão da main tem ressalva própria abaixo |
+| Revisão dos componentes privilegiados | PARTIAL | PR #28 teve revisão exigida; PR #29 foi integrada diretamente pelo operador, com Protect main desabilitada. Exceção explícita e restrita autorizada para a única execução adicional; não há revisão independente registrada da PR #29. Approval de production continuou obrigatório e foi comprovado |
+| Migrations de produção controladas | PARTIAL | Schema/cadeia de 68 do pacote e runtime conferidos; confronto SELECT real recusado na execução adicional. `prisma migrate deploy` real no MySQL isolado. A V1 recusa qualquer mudança de schema/cadeia antes do cutover. Migrações novas em produção ainda exigem compatibilidade dos contratos de backup e custódia/autorização do migrador; não estão automatizadas nesta entrega |
 | Variáveis/URLs corretas | CONFIGURADO | Frontend `/api`; configurações da produção ficam fora do pacote e não são sobrescritas |
-| Promoção coordenada Nginx/frontend/API/worker | BLOCKED | Execução 39686258330 recusada em `valid_window()` por prazo de 1200,000021 s; nenhum startup/cutover. Correção revisável na PR #29, sem segunda tentativa automática |
+| Promoção coordenada Nginx/frontend/API/worker | BLOCKED | Primeira execução recusada por prazo; correção integrada na PR #29. Execução adicional autorizada 39691643874 passou prazo/assinatura/pacote, mas recusou `LIVE_MIGRATION_CHAIN` antes de startup/cutover. Nenhum retry |
 | Smoke automático/MySQL/worker | PARTIAL | Homologação nativa isolada aprovada; instalação/revisão final da baseline HTTPS/API/MySQL/worker/timers saudável. Smoke pós-promoção não ocorreu porque não houve promoção |
 | Rollback e recuperação | PARTIAL | 17 testes direcionados da CD exercitam a mesma transação `promote()` com HTTP loopback e um adapter de laboratório: falhas de startup/readiness/worker/artefato/schema/interrupção/commit. As trocas de unidades/ingress são simuladas nesse adapter; isso não comprova rollback integrado de systemd/Nginx. Nenhum incidente foi provocado na OCI. Restore isolado S2-10 preservado, sem repetição |
 
@@ -92,7 +93,7 @@ Referência histórica de operação e restore:
 [S2-10 em f36dff3](https://github.com/iYoNuttxD/Traceflow/blob/f36dff3f4208ff58722630f069d414129a8cebb0/docs/deliveries/S2_10_OCI_OPERATIONS_REPORT.md).
 Nenhum novo backup ou restore foi executado para testar a CD.
 
-## Execução real e estado final
+## Histórico da primeira execução real
 
 - [PR #28](https://github.com/iYoNuttxD/Traceflow/pull/28) aprovada no head `ca56a6c3` e integrada sem bypass; merge `0619482a360df2233c335e8373447f7b92b468ee`.
 - Bootstrap `d2bee297edba42c5a8351b008a5407dd5fe7b68e9250df80474fa4fff824ac44`; GH CLI 2.103.0 ARM64, arquivo oficial `7f322df34e624d14f5ec0c4acb121fd6dfa14392fdbbd1066aa8e0a05ac3721e`. Uma instalação, 13 arquivos de bootstrap conferidos; syntax/systemd/ACL/SELinux por política aprovados; timer habilitado a cada cinco minutos. Nenhuma porta pública nova.
@@ -105,7 +106,7 @@ Nenhum novo backup ou restore foi executado para testar a CD.
 
 Estado observado em 21/10/2026 22:44:45Z: HTTPS200, readiness API200, MySQL=true, um worker/heartbeat7s, zero5xx, monitor sem falhas; timers backup/monitor/retenção ativos. Legado, backups, dados e 68 migrations preservados. A CD não executou migrations, SQL operacional de escrita, restore ou captura; a aplicação continuou em funcionamento normal.
 
-S2-08 permanece **PARTIAL** pela adoção/reconstrução IaC não demonstradas. S2-09 permanece **PARTIAL**, com a promoção real **BLOCKED** pela recusa documentada, migrations novas não automatizadas e limitação do ensaio do adapter de rollback descrita acima. Não declarar CD integralmente operacional ou esses dois itens encerrados enquanto esses gates estiverem pendentes. S2-10 permanece preservada.
+S2-08 permanece **PARTIAL** pela adoção/reconstrução IaC não demonstradas. S2-09 permanece **PARTIAL**: promoção real bloqueada, migrations novas não automatizadas, ensaio integrado dos adapters de rollback não comprovado e proteção de revisão da main desabilitada pelo operador. S2-10 permanece preservada. O resultado adicional abaixo substitui somente a situação pendente da primeira tentativa; seus registros históricos permanecem preservados.
 
 Nenhum recurso OCI foi criado pelo plano; zero apply. Runners padrão ARM64 para
 repositório público são gratuitos segundo o
@@ -113,3 +114,21 @@ repositório público são gratuitos segundo o
 Retenção planejada: candidato Actions 14 dias, resultado Actions 30 dias e release
 GitHub com pacote/request/resultado; observar franquias de armazenamento. Não foi
 criado recurso pago adicional ou runner permanente na VM.
+
+## Execução adicional autorizada e encerramento
+
+- [PR #29](https://github.com/iYoNuttxD/Traceflow/pull/29), head `815e158c50ae3af02855a030af7faa4cfb265a1e`, integrada pelo operador no merge `86e6fe4bdff0b82300af17cb8b93008071febc97`. O GitHub registra zero reviews e Protect main desabilitada; o operador confirmou a desativação e depois autorizou explicitamente a exceção à revisão independente **somente para esta execução adicional**. Não se registra aprovação do João ou bypass realizado pelo agente. A revisão automática inicialmente recusou a alteração root; a ação só foi executada após essa exceção explícita.
+- [CI da PR](https://github.com/iYoNuttxD/Traceflow/actions/runs/39688116886), [CI do merge](https://github.com/iYoNuttxD/Traceflow/actions/runs/39689355831) e [homologação ARM64/21 testes CD](https://github.com/iYoNuttxD/Traceflow/actions/runs/39688116871): PASS. Árvore do merge idêntica ao head testado. Nenhuma nova regressão geral foi disparada manualmente.
+- Trust policy root: alterado exclusivamente `authorityFiles[.github/workflows/oci-cd.yml]`, de `bb86815917ab442365cdbd4035302f9cc9e398b93ba43d495d1c94c4e42b063a` para `e7520ee562fb6673e972aa1f785e66c795f7d2670d47434281f6b1feab8b94cd`. SHA do arquivo: `40cfaea195583f5ba24962f80c1c3460a611d06b76628469e9a4a4cdbda3a57a` → `e1a013d0302d8f8743791731b982a06aa256823cedbf5f926aae8ef56b8bd64a`. `installedAt`, lista anterior de SHAs e demais campos preservados; receptor não reinstalado.
+- A extração **inativa** da primeira tentativa foi integralmente conferida e renomeada, no mesmo filesystem, para `/opt/traceflow-live/releases/b9c1beb9f6ded49ce9257d346c086a8893f700c9-4a7dbc5f5223.preserved-failed-39686258330-1`. Mesmo inode 51746491, 3.228 arquivos, conteúdo/modos/proprietários preservados; nenhum diretório ativo ou legado alterado. Snapshot da policy e novo registro root em `/var/lib/traceflow-live-cd/approved-workflow-update-815e158c/`; recibos anteriores inalterados.
+- [Execução adicional única 39691643874](https://github.com/iYoNuttxD/Traceflow/actions/runs/39691643874): build/homologação PASS em 171 s; pacote novamente byte-idêntico (`4a7dbc5f…dafd02a`). Aprovação de production por iYoNuttxD efetivamente registrada. Job de produção: 305 s, incluindo espera pelo timer; resultado **FAIL**. Nenhuma outra execução foi iniciada.
+- Request assinado: emitido `2026-10-21T23:15:22.238811Z`, expira `23:35:22.238811Z`, duração **1200 s exatos**. O receptor iniciou pelo timer às `23:19:56Z`; recusou às `23:20:11.963293Z` (20h20min11s de São Paulo) em `Host.preflight()`, comparação `LIVE_MIGRATION_CHAIN`.
+- O schema/cadeia do pacote passou na comparação com o runtime anterior. Em seguida, a lista SELECT de `migration_name/checksum`, ordenada pelo MySQL, não igualou a lista ordenada do manifesto. O recibo não conserva as linhas observadas; portanto **não comprova alteração de checksum, nome, ordem ou schema**. A causa comprovada é essa recusa de igualdade, ainda sem diferenciação dos componentes. Não foram alterados o gate, a cadeia ou o banco para obter PASS.
+- Falha anterior à cópia do frontend e aos arquivos transacionais: nenhum `current.json`, candidata, listener 3002, drop-in de promoção ou cutover. A extração nova fica inativa e preservada. Nginx/proxy continuam byte-idênticos à baseline instalada. O campo genérico `rollback=inspect-preserved-transaction` do recibo não significa que houve troca ou rollback; a ausência de alterações foi conferida diretamente.
+- O transporte corrigido coletou o FAILED e encerrou o job, **sem timeout nem retry**; [asset permanente](https://github.com/iYoNuttxD/Traceflow/releases/tag/oci-cd-39691643874-1) e artefato Actions arquivados automaticamente. Recibo root/público SHA-256 `c359b06155c212d3c3a02a79ff621a5e016fda22990a034c5b075c1632ce0f21`; asset GitHub `e6a9657bde55480727e0b548e9e583a83790e27412e5194659b2929269d620ff`. Conteúdo JSON exatamente igual; o workflow reformata com indentação, por isso os bytes/hashes diferem. Nenhum recibo foi sobrescrito para igualar hashes.
+
+Verificação final **21/10/2026 20h22min19s America/Sao_Paulo**: HTTPS200 com índice SHA `58d9f744ae95f8f58eade7b1c23ab1b9b5e1090d5c40ffb4ba28a16b540da4f9`; readiness200/MySQL=true; um worker/heartbeat5s; zero5xx e monitor sem falhas. API PID413284 e worker PID413285, zero reinícios; 17 arquivos operacionais com hashes/modos/proprietários preservados; 2.252 arquivos do runtime 9bc3dad novamente verificados. SELinux Enforcing, nginx válido, timers backup/monitor/retenção/CD ativos e habilitados. Credencial temporária do serviço CD removida; backup diário original/readback preservados. Sem migrations, SQL administrativo de escrita, captura, restore ou recurso OCI pago novo.
+
+Evidências locais complementares, sem segredos: `build/oci-cd-final/EXPLICIT_REVIEW_EXCEPTION.json`, `ADDITIONAL_TRUST_AND_PRESERVATION_APPLIED.json`, `ADDITIONAL_PRODUCTION_CANDIDATE.json`, `ADDITIONAL_PRODUCTION_APPROVAL.json`, `ADDITIONAL_REQUEST_IDENTITY.json`, `ADDITIONAL_TERMINAL_RESULT.json` e `ADDITIONAL_FINAL_PRESERVATION.json`. Permanecem locais; os links GitHub acima conservam código, checks, pacote, request e resultado públicos verificáveis.
+
+**Encerramento: BLOCKED para promoção por `LIVE_MIGRATION_CHAIN`; TraceFlow permanece online na versão 9bc3dad.** A revisão b9c1beb9 não foi promovida. Não há autorização remanescente para nova tentativa nesta entrega. Não declarar S2-08/S2-09 integralmente concluídas ou a promoção bem-sucedida.
