@@ -115,7 +115,7 @@ resource "oci_core_subnet" "app" {
   vcn_id                     = oci_core_vcn.live[each.key].id
   cidr_block                 = var.app_cidr
   display_name               = "${var.name}-app"
-  dns_label                  = "app"
+  dns_label                  = "sub10120424530"
   route_table_id             = oci_core_route_table.app[each.key].id
   security_list_ids          = [oci_core_security_list.private_baseline[each.key].id]
   prohibit_public_ip_on_vnic = false
