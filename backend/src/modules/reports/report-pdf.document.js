@@ -61,6 +61,84 @@ const VALUE_BAR_TONES = Object.freeze({
 const PAGE_MARGINS = [40, 72, 40, 56];
 const CONTENT_WIDTH = 595.28 - PAGE_MARGINS[0] - PAGE_MARGINS[2];
 const CARD_PADDING = 12;
+const CARD_TEXT_WIDTH = CONTENT_WIDTH - 2 * CARD_PADDING - 3;
+const INDICATOR_WIDTHS = [138, 76, 74, '*'];
+const NOTES_WIDTH = CONTENT_WIDTH - 138 - 76 - 74 - 4 * 12;
+const LIST_INDENT = 10;
+
+// O pdfmake não divide um bloco indivisível (linha com `dontBreakRows`) entre páginas:
+// o que passa da primeira página some do arquivo sem erro. Por isso nenhum bloco
+// indivisível pode passar deste orçamento, metade da área útil da página (folga para o
+// cabeçalho repetido das tabelas e para erro da estimativa); texto maior continua em
+// linhas seguintes. A estimativa supõe caracteres largos (0,6 em) e entrelinha de 1,4.
+const PAGE_BODY_HEIGHT = 841.89 - PAGE_MARGINS[1] - PAGE_MARGINS[3];
+export const BLOCK_BUDGET = PAGE_BODY_HEIGHT / 2;
+const LINE_FACTOR = 1.4;
+const charsPerLine = (width, fontSize) => Math.max(1, Math.floor(width / (fontSize * 0.6)));
+const visualLines = (line, perLine) => Math.max(1, Math.ceil(line.length / perLine));
+
+export function estimateTextHeight(text, width, fontSize) {
+  const perLine = charsPerLine(width, fontSize);
+  const lines = String(text)
+    .split('\n')
+    .reduce((sum, line) => sum + visualLines(line, perLine), 0);
+  return lines * fontSize * LINE_FACTOR;
+}
+
+// Linha maior que um bloco inteiro é cortada no último espaço antes do limite.
+function splitLongLine(line, maxChars) {
+  const parts = [];
+  let rest = line;
+  while (rest.length > maxChars) {
+    const space = rest.lastIndexOf(' ', maxChars);
+    const cut = space > 0 ? space : maxChars;
+    parts.push(rest.slice(0, cut));
+    rest = rest.slice(space > 0 ? cut + 1 : cut);
+  }
+  parts.push(rest);
+  return parts;
+}
+
+// Divide o texto em pedaços que cabem no orçamento, sem perder nenhum caractere visível.
+export function splitText(text, width, fontSize, budget = BLOCK_BUDGET) {
+  const perLine = charsPerLine(width, fontSize);
+  const maxLines = Math.max(1, Math.floor(budget / (fontSize * LINE_FACTOR)));
+  const pieces = [];
+  let current = [];
+  let used = 0;
+  for (const line of String(text).split('\n')) {
+    for (const part of splitLongLine(line, perLine * maxLines)) {
+      const cost = visualLines(part, perLine);
+      if (current.length && used + cost > maxLines) {
+        pieces.push(current.join('\n'));
+        current = [];
+        used = 0;
+      }
+      current.push(part);
+      used += cost;
+    }
+  }
+  if (current.length) pieces.push(current.join('\n'));
+  return pieces;
+}
+
+// Agrupa blocos com altura estimada em pedaços dentro do orçamento, na ordem original.
+function packBlocks(blocks, budget = BLOCK_BUDGET) {
+  const chunks = [];
+  let current = [];
+  let used = 0;
+  for (const block of blocks) {
+    if (current.length && used + block.height > budget) {
+      chunks.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(block);
+    used += block.height;
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
 
 const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
 const tone = (name) => TONES[name] ?? TONES.neutral;
@@ -76,16 +154,17 @@ const tableLayout = Object.freeze({
   paddingBottom: () => 4
 });
 
-// Cartão com a borda esquerda na cor da situação, como na tela.
+// Cartão com a borda esquerda na cor da situação, como na tela. Cada parte do cartão é
+// uma linha da tabela, sem traço entre elas, para o cartão continuar na página seguinte.
 const cardLayout = (accent) => ({
-  hLineWidth: () => 0.75,
+  hLineWidth: (index, node) => (index === 0 || index === node.table.body.length ? 0.75 : 0),
   vLineWidth: (index) => (index === 0 ? 3 : 0.75),
   hLineColor: () => PDF_COLORS.border,
   vLineColor: (index) => (index === 0 ? accent : PDF_COLORS.border),
   paddingLeft: () => CARD_PADDING,
   paddingRight: () => CARD_PADDING,
-  paddingTop: () => CARD_PADDING,
-  paddingBottom: () => CARD_PADDING
+  paddingTop: (index) => (index === 0 ? CARD_PADDING : 0),
+  paddingBottom: (index, node) => (index === node.table.body.length - 1 ? CARD_PADDING : 0)
 });
 
 function badge(label, toneName = 'neutral') {
@@ -154,7 +233,8 @@ function metaGrid(entries, columns = 3) {
   };
 }
 
-// Tabela com legenda e cabeçalho repetidos em cada página; linhas nunca se dividem.
+// Tabela com legenda e cabeçalho repetidos em cada página; linhas nunca se dividem
+// (quem monta as linhas mantém cada uma dentro de BLOCK_BUDGET).
 function dataTable({ caption, columns, rows, widths }) {
   return {
     layout: tableLayout,
@@ -298,7 +378,7 @@ function sprintCard(sprint, generatedAt) {
   const chart = sprint.progress?.burndown ? burndownChart(sprint.progress.burndown) : null;
   const situation = sprintSituation(sprint, generatedAt);
   const progress = progressBar(sprint.progress?.current);
-  const stack = [
+  const head = [
     {
       columns: [
         { text: sprint.name, style: 'h3', width: '*' },
@@ -321,21 +401,27 @@ function sprintCard(sprint, generatedAt) {
       4
     )
   ];
-  if (sprint.objective) stack.push({ text: sprint.objective, style: 'help', margin: [0, 0, 0, 8] });
+  // Objetivo longo segue em partes; o gráfico (altura fixa) fica inteiro numa parte só.
+  const pieces = sprint.objective ? splitText(sprint.objective, CARD_TEXT_WIDTH, 8) : [];
+  const objective = pieces.map((piece, index) => [
+    { text: piece, style: 'help', margin: [0, 0, 0, index === pieces.length - 1 ? 8 : 0] }
+  ]);
+  const burndown = [];
   if (chart?.svg)
-    stack.push({ text: 'Burndown', style: 'h4' }, legend(chart.hasIdeal), {
+    burndown.push({ text: 'Burndown', style: 'h4' }, legend(chart.hasIdeal), {
       svg: chart.svg,
       width: CONTENT_WIDTH - 2 * CARD_PADDING,
       margin: [0, 0, 0, 4]
     });
-  for (const note of chart?.notes ?? []) stack.push({ text: note, style: 'help' });
+  for (const note of chart?.notes ?? []) burndown.push({ text: note, style: 'help' });
+  const parts = [head, ...objective, ...(burndown.length ? [burndown] : [])];
   return {
     layout: cardLayout(situation.tone === 'neutral' ? PDF_COLORS.border : tone(situation.tone).bar),
     margin: [0, 0, 0, 12],
     table: {
       widths: ['*'],
       dontBreakRows: true,
-      body: [[{ stack }]]
+      body: parts.map((stack) => [{ stack }])
     }
   };
 }
@@ -452,28 +538,51 @@ function traceabilitySection(traceability) {
   return content;
 }
 
-function notesCell(indicator, status) {
+// Observações em pedaços dentro de BLOCK_BUDGET: a lista de pessoas não tem limite.
+// Itens consecutivos do mesmo grupo voltam a formar uma única lista em cada pedaço.
+function notesCells(indicator, status) {
   const notes = indicatorNotes(indicator);
-  const stack = [];
+  const blocks = [];
   if (status.reason || status.reference)
-    stack.push({
-      text: [
-        ...(status.reason ? [{ text: status.reason }] : []),
-        ...(status.reason && status.reference ? [' '] : []),
-        ...(status.reference ? [{ text: status.reference, color: PDF_COLORS.secondary }] : [])
-      ],
-      margin: [0, 0, 0, 2]
+    blocks.push({
+      height:
+        estimateTextHeight(`${status.reason ?? ''} ${status.reference ?? ''}`, NOTES_WIDTH, 8) + 2,
+      node: {
+        text: [
+          ...(status.reason ? [{ text: status.reason }] : []),
+          ...(status.reason && status.reference ? [' '] : []),
+          ...(status.reference ? [{ text: status.reference, color: PDF_COLORS.secondary }] : [])
+        ],
+        margin: [0, 0, 0, 2]
+      }
     });
-  if (notes.items.length) stack.push({ ul: notes.items });
-  if (notes.breakdown.length) stack.push({ ul: notes.breakdown });
-  if (notes.limitations.length)
-    stack.push({ ul: notes.limitations, color: PDF_COLORS.secondary, fontSize: 7.5 });
-  if (notes.people.length) stack.push({ ul: notes.people });
-  if (!stack.length) return { text: '—' };
-  return { stack, fontSize: 8 };
+  const lists = [
+    ['items', notes.items, {}],
+    ['breakdown', notes.breakdown, {}],
+    ['limitations', notes.limitations, { color: PDF_COLORS.secondary, fontSize: 7.5 }],
+    ['people', notes.people, {}]
+  ];
+  for (const [group, items, style] of lists)
+    for (const item of items)
+      blocks.push({
+        group,
+        style,
+        item,
+        height: estimateTextHeight(item, NOTES_WIDTH - LIST_INDENT, style.fontSize ?? 8)
+      });
+  if (!blocks.length) return [{ text: '—' }];
+  return packBlocks(blocks).map((chunk) => {
+    const stack = [];
+    for (const block of chunk) {
+      if (block.node) stack.push(block.node);
+      else if (stack.at(-1)?.group === block.group) stack.at(-1).ul.push(block.item);
+      else stack.push({ ul: [block.item], ...block.style, group: block.group });
+    }
+    return { stack: stack.map(({ group: _group, ...node }) => node), fontSize: 8 };
+  });
 }
 
-function indicatorRow(indicator, definition) {
+function indicatorRows(indicator, definition) {
   const title = METRIC_TITLES[indicator.metricId] ?? definition?.title ?? indicator.metricId;
   const status = indicatorStatus(indicator);
   const value = indicatorValue(indicator, definition?.unit);
@@ -481,7 +590,8 @@ function indicatorRow(indicator, definition) {
     definition?.unit === 'PERCENT' && value !== '—'
       ? progressBar({ percentage: indicator.value })
       : null;
-  return [
+  const [notes, ...continued] = notesCells(indicator, status);
+  const first = [
     {
       text: [
         { text: title, bold: true },
@@ -504,7 +614,22 @@ function indicatorRow(indicator, definition) {
       ]
     },
     badge(status.label, status.tone),
-    notesCell(indicator, status)
+    notes
+  ];
+  // Continuação: o nome do indicador se repete para a observação não perder a associação.
+  return [
+    first,
+    ...continued.map((cell) => [
+      {
+        text: [
+          { text: title, bold: true },
+          { text: ' (continuação)', style: 'help' }
+        ]
+      },
+      { text: '' },
+      { text: '' },
+      cell
+    ])
   ];
 }
 
@@ -533,8 +658,8 @@ function indicatorsSection(indicators) {
           ]
         },
         columns: ['Indicador', 'Valor', 'Status', 'Observações'],
-        widths: [138, 76, 74, '*'],
-        rows: rows.map((indicator) => indicatorRow(indicator, catalog.get(indicator.metricId)))
+        widths: INDICATOR_WIDTHS,
+        rows: rows.flatMap((indicator) => indicatorRows(indicator, catalog.get(indicator.metricId)))
       })
     );
   }

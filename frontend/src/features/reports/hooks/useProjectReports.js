@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { normalizeApiError } from '../../../shared/index.js';
 import { reportsApi } from '../api/reports.api.js';
 import { isReportActive } from '../model/report-display.js';
+import { pollRetryDelay } from '../model/report-polling.js';
 
 export const REPORTS_PAGE_SIZE = 12;
 export const REPORTS_MAX_LISTED = 100;
@@ -16,7 +17,8 @@ export function useProjectReports(projectId, { pollMs = REPORT_POLL_MS, params =
     pagination: null,
     summary: null,
     loading: true,
-    error: null
+    error: null,
+    failures: 0
   });
   const generation = useRef(0);
   const controller = useRef(null);
@@ -42,7 +44,8 @@ export function useProjectReports(projectId, { pollMs = REPORT_POLL_MS, params =
           pagination: data.pagination,
           summary: data.summary ?? null,
           loading: false,
-          error: null
+          error: null,
+          failures: 0
         });
         return data;
       } catch (error) {
@@ -50,7 +53,8 @@ export function useProjectReports(projectId, { pollMs = REPORT_POLL_MS, params =
         setState((previous) => ({
           ...previous,
           loading: false,
-          error: normalizeApiError(error, 'Não foi possível carregar os relatórios.')
+          error: normalizeApiError(error, 'Não foi possível carregar os relatórios.'),
+          failures: silent ? previous.failures + 1 : 1
         }));
         return null;
       }
@@ -68,11 +72,12 @@ export function useProjectReports(projectId, { pollMs = REPORT_POLL_MS, params =
   }, [load]);
 
   const hasActive = state.items.some(isReportActive);
+  const delay = state.error ? pollRetryDelay(state.error, state.failures, pollMs) : pollMs;
   useEffect(() => {
-    if (!hasActive || state.error) return undefined;
-    const timer = window.setTimeout(() => void load({ silent: true }), pollMs);
+    if (!hasActive || delay == null) return undefined;
+    const timer = window.setTimeout(() => void load({ silent: true }), delay);
     return () => window.clearTimeout(timer);
-  }, [hasActive, state.items, state.error, load, pollMs]);
+  }, [hasActive, delay, state.items, state.error, load]);
 
   // A API aceita no máximo 100 por página; acima disso a tela avisa o recorte.
   const loadMore = useCallback(() => {

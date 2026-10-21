@@ -14,6 +14,7 @@ import {
   openLinkPeriod,
   recordGithubEvent
 } from '../helpers/github-lifecycle.js';
+import { anchoredAt } from '../helpers/anchored-clock.js';
 
 const boundary = vi.hoisted(() => ({ client: null }));
 const queries = vi.hoisted(() => ({ enabled: false, count: 0 }));
@@ -39,13 +40,13 @@ vi.mock('../../src/database/prismaClient.js', async () => {
   return { prisma: client };
 });
 
-const NOW = new Date('2026-10-20T12:00:00.000Z');
-const OCCURRED = new Date('2026-10-20T10:00:00.000Z');
+const NOW = anchoredAt('12:00:00.000');
+const OCCURRED = anchoredAt('10:00:00.000');
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const at = (ms) => new Date(NOW.getTime() + ms);
-const PROJECT_CREATED_AT = new Date('2026-08-01T12:00:00.000Z');
+const PROJECT_CREATED_AT = anchoredAt('12:00:00.000', -80);
 
 let prisma;
 let env;
@@ -252,8 +253,8 @@ const effort = (task, starter, { ender = starter, running = false } = {}) =>
       projectId: task.projectId,
       taskId: task.id,
       source: running ? 'TIMER' : 'MANUAL',
-      startedAt: new Date('2026-10-19T10:00:00.000Z'),
-      endedAt: running ? null : new Date('2026-10-19T11:00:00.000Z'),
+      startedAt: anchoredAt('10:00:00.000', -1),
+      endedAt: running ? null : anchoredAt('11:00:00.000', -1),
       durationSeconds: running ? null : 3600,
       startedById: starter.id,
       endedById: running ? null : ender.id
@@ -356,13 +357,13 @@ describe('S2-03 bateria — bloco T (D2)', () => {
   it('EV-T-11 fechar, reabrir e fechar em três sincronizações dá três eventos e três avisos', async () => {
     const { project, issue, responsible } = await linkedIssueScenario();
 
-    await closeIssue(issue, { when: new Date('2026-10-20T09:00:00.000Z') });
+    await closeIssue(issue, { when: anchoredAt('09:00:00.000') });
     await reopenIssue(issue, {
-      when: new Date('2026-10-20T09:30:00.000Z'),
+      when: anchoredAt('09:30:00.000'),
       detectedAt: at(MINUTE)
     });
     await closeIssue(issue, {
-      when: new Date('2026-10-20T10:00:00.000Z'),
+      when: anchoredAt('10:00:00.000'),
       detectedAt: at(2 * MINUTE)
     });
     await runJob(at(3 * MINUTE));
@@ -381,7 +382,7 @@ describe('S2-03 bateria — bloco T (D2)', () => {
     const { project, issue, task } = await linkedIssueScenario();
     await prisma.task.delete({ where: { id: task.id } });
 
-    const result = await closeIssue(issue, { when: new Date('2026-10-20T09:00:00.000Z') });
+    const result = await closeIssue(issue, { when: anchoredAt('09:00:00.000') });
     await traceabilityAlertService.reconcileAfterSync(project.id);
 
     expect(result.recorded).toBe(0);

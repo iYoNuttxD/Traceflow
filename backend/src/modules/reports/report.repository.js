@@ -1,8 +1,13 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import { isProjectWriteBusy, withActiveProjectWrite } from '../projects/active-project-write.js';
+import { freezePeople } from './report-people.js';
 
 const ACTIVE_STATUSES = ['QUEUED', 'RUNNING'];
+// Conclusão espera no máximo isto pelo projeto e pelas contas das pessoas (NOWAIT com
+// novas tentativas); depois disso a geração falha, sem gravar nome desatualizado.
+const SUCCEED_LOCK_WAIT_MS = 15000;
 
 const reportSelect = {
   id: true,
@@ -33,6 +38,20 @@ async function lockedReport(tx, id) {
     SELECT id, projectId, status, activeProjectId, heartbeatAt, updatedAt
     FROM ProjectReport WHERE id = ${id} FOR UPDATE`;
   return rows[0] || null;
+}
+
+// Nomes congelados são lidos com a linha de User travada, na mesma transação que os
+// grava. A anonimização (transação SERIALIZABLE) lê e altera essa mesma linha: ou ela
+// espera este commit e neutraliza as pessoas recém-criadas, ou já terminou e o nome
+// lido é o neutro. NOWAIT (com novas tentativas de quem chama) evita esperar atrás de
+// uma anonimização em andamento, o que formaria um ciclo com o lock de ProjectReportPerson.
+async function lockedPeople(tx, userIds) {
+  if (!userIds.length) return [];
+  const users = await tx.$queryRaw`
+    SELECT id, name, username FROM User
+    WHERE id IN (${Prisma.join(userIds)})
+    ORDER BY id FOR UPDATE NOWAIT`;
+  return freezePeople(userIds, users);
 }
 
 const livenessAt = (report) => report.heartbeatAt || report.updatedAt;
@@ -79,28 +98,14 @@ export const reportRepository = {
     });
   },
 
-  findUser(id) {
-    return prisma.user.findUnique({
-      where: { id },
-      select: { id: true, name: true, username: true }
-    });
-  },
-
-  findUsers(ids) {
-    if (!ids.length) return Promise.resolve([]);
-    return prisma.user.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, name: true, username: true }
-    });
-  },
-
   // A reserva `activeProjectId` é única: duas solicitações simultâneas não criam duas
   // gerações; a perdedora recebe P2002 e o service devolve a ativa. NOWAIT evita esperar
   // atrás de uma escrita longa do projeto (o service tenta de novo algumas vezes).
-  create({ projectId, requestedByUserId, filters, requester, auditEvent }) {
+  create({ projectId, requestedByUserId, filters, auditEvent }) {
     return withActiveProjectWrite(
       projectId,
       async (tx) => {
+        const [requester = null] = await lockedPeople(tx, [requestedByUserId]);
         const report = await tx.projectReport.create({
           data: {
             projectId,
@@ -115,7 +120,7 @@ export const reportRepository = {
           select: reportSelect
         });
         await auditRepository.create({ ...auditEvent, resourceId: String(report.id) }, tx);
-        return report;
+        return { ...report, requester };
       },
       { nowait: true }
     );
@@ -176,13 +181,14 @@ export const reportRepository = {
   succeed(
     id,
     projectId,
-    { snapshot, snapshotVersion, people, finishedAt, durationMs, leaseCutoff }
+    { snapshot, snapshotVersion, userIds, finishedAt, durationMs, leaseCutoff }
   ) {
     return withActiveProjectWrite(
       projectId,
       async (tx) => {
         const report = await lockedReport(tx, id);
         if (!ownsLease(report, projectId, leaseCutoff)) return null;
+        const people = await lockedPeople(tx, userIds);
         await tx.projectReport.update({
           where: { id },
           data: {
@@ -204,7 +210,7 @@ export const reportRepository = {
           });
         return tx.projectReport.findUnique({ where: { id }, select: reportSelect });
       },
-      { inactiveResult: null, timeout: 15000 }
+      { inactiveResult: null, timeout: 15000, lockWaitLimitMs: SUCCEED_LOCK_WAIT_MS }
     );
   },
 

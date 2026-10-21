@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { normalizeApiError } from '../../../shared/index.js';
 import { reportsApi } from '../api/reports.api.js';
 import { isReportActive } from '../model/report-display.js';
+import { pollRetryDelay } from '../model/report-polling.js';
 import { REPORT_POLL_MS } from './useProjectReports.js';
 
 export function useReport(projectId, reportId, { pollMs = REPORT_POLL_MS } = {}) {
-  const [state, setState] = useState({ report: null, loading: true, error: null });
+  const [state, setState] = useState({ report: null, loading: true, error: null, failures: 0 });
   const generation = useRef(0);
   const controller = useRef(null);
 
@@ -21,13 +22,15 @@ export function useReport(projectId, reportId, { pollMs = REPORT_POLL_MS } = {})
           signal: request.signal,
           fresh: true
         });
-        if (current === generation.current) setState({ report, loading: false, error: null });
+        if (current === generation.current)
+          setState({ report, loading: false, error: null, failures: 0 });
       } catch (error) {
         if (request.signal.aborted || current !== generation.current) return;
         setState((previous) => ({
           ...previous,
           loading: false,
-          error: normalizeApiError(error, 'Não foi possível carregar o relatório.')
+          error: normalizeApiError(error, 'Não foi possível carregar o relatório.'),
+          failures: silent ? previous.failures + 1 : 1
         }));
       }
     },
@@ -42,12 +45,22 @@ export function useReport(projectId, reportId, { pollMs = REPORT_POLL_MS } = {})
     };
   }, [load]);
 
+  // Falha na atualização mantém o relatório anterior na tela; `polling` diz se ainda há
+  // uma nova consulta agendada, para a tela não prometer atualização que parou.
   const active = isReportActive(state.report);
+  const delay = state.error ? pollRetryDelay(state.error, state.failures, pollMs) : pollMs;
+  const polling = active && delay != null;
   useEffect(() => {
-    if (!active || state.error) return undefined;
-    const timer = window.setTimeout(() => void load({ silent: true }), pollMs);
+    if (!polling) return undefined;
+    const timer = window.setTimeout(() => void load({ silent: true }), delay);
     return () => window.clearTimeout(timer);
-  }, [active, state.report, state.error, load, pollMs]);
+  }, [polling, delay, state.report, state.error, load]);
 
-  return { ...state, reload: load };
+  return {
+    report: state.report,
+    loading: state.loading,
+    error: state.error,
+    polling,
+    reload: load
+  };
 }

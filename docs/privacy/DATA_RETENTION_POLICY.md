@@ -197,6 +197,8 @@ somente ASSIGNED/UNASSIGNED, sem identidade adicional; estado nulo continua lega
   e informa a contagem `failedProjectReports` no resultado do job.
 - Nomes de pessoas não ficam no snapshot; ficam em `ProjectReportPerson`, congelados na geração.
   A anonimização da conta neutraliza esse registro, então nenhum relatório ou PDF posterior mostra
-  o nome original. PDFs baixados antes disso estão fora do controle do sistema.
+  o nome original. O nome é lido com a conta travada na mesma transação que o grava, então uma
+  geração concluída durante a anonimização também não guarda o nome anterior. PDFs baixados antes
+  disso estão fora do controle do sistema.
 - O PDF não é persistido: não há arquivo temporário, URL pública nem cache. A auditoria
   `REPORT_PDF_EXPORTED` segue a retenção de `AuditEvent` (365 dias).

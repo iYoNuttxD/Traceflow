@@ -2369,8 +2369,10 @@ filename="traceflow-relatorio-{id}-{projeto-sem-acentos}.pdf"`, `Content-Length`
 
 Conteúdo: A4; cabeçalho de toda página com projeto e período; rodapé com `Relatório #N`, data de
 geração (com o fuso) e `Página X de Y`; sumário; mesmas três seções e o mesmo vocabulário da tela.
-Tabelas repetem legenda e cabeçalho em cada página e nunca dividem uma linha; cada Sprint, com o
-Burndown, é um bloco indivisível.
+Tabelas repetem legenda e cabeçalho em cada página e nunca dividem uma linha. Conteúdo que não
+caberia numa página (objetivo longo de Sprint, lista grande de observações de um indicador)
+continua em linhas seguintes, com o nome do indicador repetido como "(continuação)"; nada é
+omitido. O cartão de cada Sprint mantém juntos o cabeçalho com os metadados e o Burndown.
 
 **Leitura visual (tela e PDF).** O relatório abre com um resumo tirado do snapshot: progresso do
 projeto (I01), requisitos na situação Concluído (mesma regra do I65), Saúde do Projeto (nota e

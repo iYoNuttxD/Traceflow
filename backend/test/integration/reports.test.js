@@ -131,7 +131,8 @@ describe('S2-06 — falha nunca vira relatório pronto', () => {
     const report = await requested(p, owner);
     await executeProjectReport(report.id, {
       build: () => new Promise(() => {}),
-      maxDurationMs: 50
+      maxDurationMs: 50,
+      cancelGraceMs: 50
     });
     expect((await stored(report.id)).errorCode).toBe('REPORT_TIMEOUT');
   });
@@ -175,6 +176,139 @@ describe('S2-06 — falha nunca vira relatório pronto', () => {
     expect(row.errorCode).toBe('REPORT_GENERATION_STALE');
     expect(row.snapshot).toBeNull();
     expect(await reportAudits(report.id)).toEqual([]);
+  });
+});
+
+describe('S2-06 — cancelamento da geração (prazo e reserva perdida)', () => {
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Segura a primeira leitura real do painel até `release`, contando as leituras.
+  function holdFirstDashboardRead() {
+    let release;
+    const held = new Promise((resolve) => (release = resolve));
+    const original = dashboardService.read.bind(dashboardService);
+    const reads = [];
+    vi.spyOn(dashboardService, 'read').mockImplementation(async (projectId, query, ...rest) => {
+      reads.push(query.view);
+      if (reads.length === 1) await held;
+      return original(projectId, query, ...rest);
+    });
+    return { reads, release };
+  }
+
+  it('prazo vencido: nenhuma etapa nova começa e a reserva só volta quando a consulta termina', async () => {
+    const owner = await user();
+    const p = await project(owner);
+    const report = await requested(p, owner);
+    const { sprintService } = await import('../../src/modules/sprints/index.js');
+    const schedule = vi.spyOn(sprintService, 'getSchedule');
+    const { reads, release } = holdFirstDashboardRead();
+    const execution = executeProjectReport(report.id, { maxDurationMs: 100, cancelGraceMs: 10000 });
+    await pause(400);
+    // Prazo vencido, mas a consulta ainda está em andamento: a reserva continua ocupada.
+    const during = await stored(report.id);
+    expect(during).toMatchObject({ status: 'RUNNING', activeProjectId: p.id });
+    const retry = await reportService.request(
+      p.id,
+      {},
+      { actorUserId: owner.id, requestId: 'retry' },
+      { schedule: noSchedule }
+    );
+    expect(retry).toMatchObject({ alreadyRunning: true, report: { id: report.id } });
+    release();
+    const failed = await execution;
+    expect(failed).toMatchObject({ status: 'FAILED' });
+    const row = await stored(report.id);
+    expect(row).toMatchObject({
+      status: 'FAILED',
+      activeProjectId: null,
+      errorCode: 'REPORT_TIMEOUT'
+    });
+    // Só a visão que já estava em andamento foi lida; agenda e demais visões, nunca.
+    expect(reads).toHaveLength(1);
+    expect(schedule).not.toHaveBeenCalled();
+    const again = await reportService.request(
+      p.id,
+      {},
+      { actorUserId: owner.id, requestId: 'again' },
+      { schedule: noSchedule }
+    );
+    expect(again.alreadyRunning).toBe(false);
+    expect(again.report.id).not.toBe(report.id);
+  });
+
+  it('consulta que não termina na carência: a geração é encerrada sem iniciar outra etapa', async () => {
+    const owner = await user();
+    const p = await project(owner);
+    const report = await requested(p, owner);
+    const { reads, release } = holdFirstDashboardRead();
+    await executeProjectReport(report.id, { maxDurationMs: 50, cancelGraceMs: 100 });
+    expect(await stored(report.id)).toMatchObject({
+      status: 'FAILED',
+      activeProjectId: null,
+      errorCode: 'REPORT_TIMEOUT'
+    });
+    release();
+    await pause(300);
+    expect(reads).toHaveLength(1);
+  });
+
+  it('reserva perdida durante a composição interrompe as próximas consultas', async () => {
+    const owner = await user();
+    const p = await project(owner);
+    const report = await requested(p, owner);
+    const { reads, release } = holdFirstDashboardRead();
+    const execution = executeProjectReport(report.id, { heartbeatMs: 20, cancelGraceMs: 10000 });
+    await vi.waitFor(() => expect(reads).toHaveLength(1));
+    // Outra leitura considerou a geração abandonada e encerrou a reserva.
+    await prisma.projectReport.update({
+      where: { id: report.id },
+      data: { status: 'FAILED', activeProjectId: null, errorCode: 'REPORT_GENERATION_STALE' }
+    });
+    await pause(150);
+    release();
+    expect(await execution).toBeNull();
+    expect(reads).toHaveLength(1);
+    expect((await stored(report.id)).errorCode).toBe('REPORT_GENERATION_STALE');
+  });
+
+  it('gerações de projetos diferentes respeitam o limite de execuções simultâneas', async () => {
+    const { createGenerationSlots } = await import('../../src/modules/reports/report.service.js');
+    const slots = createGenerationSlots(2);
+    const owner = await user();
+    const reports = [];
+    for (let index = 0; index < 3; index++)
+      reports.push(await requested(await project(owner), owner));
+    let active = 0;
+    let peak = 0;
+    const gates = [];
+    const build = async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => gates.push(resolve));
+      active--;
+      return { snapshot: { schemaVersion: 1 }, userIds: [], bytes: 20 };
+    };
+    const executions = reports.map((report) => executeProjectReport(report.id, { build, slots }));
+    await vi.waitFor(() => expect(gates).toHaveLength(2));
+    await pause(200);
+    expect(gates).toHaveLength(2);
+    // Quem espera a vaga continua QUEUED, sem reivindicar a geração.
+    const statuses = await Promise.all(
+      reports.map(async (report) => (await stored(report.id)).status)
+    );
+    expect(statuses.filter((status) => status === 'QUEUED')).toHaveLength(1);
+    gates[0]();
+    await vi.waitFor(() => expect(gates).toHaveLength(3));
+    gates[1]();
+    gates[2]();
+    const outcomes = await Promise.all(executions);
+    expect(outcomes.map((outcome) => outcome.status)).toEqual([
+      'SUCCEEDED',
+      'SUCCEEDED',
+      'SUCCEEDED'
+    ]);
+    expect(peak).toBe(2);
   });
 });
 
@@ -296,6 +430,167 @@ describe('S2-06 — privacidade, retenção e ciclo do projeto', () => {
     ]);
     expect(after.snapshot).toEqual(before.snapshot);
     expect(after.requestedByUserId).toBe(member.id);
+  });
+
+  // PR27-01: a conclusão e a anonimização disputam a mesma linha de User. Em qualquer
+  // ordem, nenhuma pessoa gravada depois da anonimização pode reter o nome anterior.
+  function gate() {
+    let open;
+    const promise = new Promise((resolve) => (open = resolve));
+    return { promise, open };
+  }
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function raceSetup(memberName) {
+    const owner = await user('Dona do projeto');
+    const member = await user(memberName);
+    const p = await project(owner);
+    await prisma.projectMembership.create({
+      data: { projectId: p.id, userId: member.id, role: 'MEMBER' }
+    });
+    await prisma.privacyRequest.create({
+      data: { userId: member.id, type: 'ACCOUNT_DELETION', scheduledFor: new Date(Date.now() - 1) }
+    });
+    const { buildReportSnapshot } =
+      await import('../../src/modules/reports/report-snapshot.service.js');
+    // A pessoa entra no snapshot (não só como solicitante): a conclusão insere a linha dela.
+    const build = async (input, options) => {
+      const result = await buildReportSnapshot(input, options);
+      const userIds = [...new Set([...result.userIds, member.id])].sort((a, b) => a - b);
+      return { ...result, userIds };
+    };
+    const { privacyService } = await import('../../src/modules/privacy/privacy.service.js');
+    return { owner, member, p, build, privacyService };
+  }
+
+  // Pausa a anonimização logo depois de ela ler a conta (lock da transação SERIALIZABLE).
+  async function pauseAnonymization() {
+    const { auditRepository } = await import('../../src/modules/audit/audit.repository.js');
+    const reached = gate();
+    const release = gate();
+    const original = auditRepository.create.bind(auditRepository);
+    vi.spyOn(auditRepository, 'create').mockImplementation(async (data, tx) => {
+      if (data.action === 'ACCOUNT_ANONYMIZATION_STARTED') {
+        reached.open();
+        await release.promise;
+      }
+      return original(data, tx);
+    });
+    return { reached: reached.promise, release: release.open };
+  }
+
+  async function expectNeutralized({ p, report, owner, member, formerName }) {
+    const anonymized = await prisma.user.findUnique({ where: { id: member.id } });
+    expect(anonymized.accountStatus).toBe('ANONYMIZED');
+    const row = await stored(report.id);
+    expect(row.status).toBe('SUCCEEDED');
+    expect(row.people.find((person) => person.userId === member.id)).toMatchObject({
+      displayNameSnapshot: 'Usuário excluído',
+      usernameSnapshot: anonymized.username
+    });
+    const detail = await reportService.read(p.id, report.id);
+    expect(detail.people.map((person) => person.userId)).toContain(member.id);
+    expect(JSON.stringify(detail)).not.toContain(formerName);
+    const { extractText, getDocumentProxy } = await import('unpdf');
+    const { buffer } = await reportService.exportPdf(
+      p.id,
+      report.id,
+      {},
+      {
+        actorUserId: owner.id,
+        requestId: 'race-pdf'
+      }
+    );
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const text = (await extractText(pdf, { mergePages: true })).text.replace(/\s+/g, ' ');
+    expect(text).toContain(`Relatório #${report.id}`);
+    expect(text).not.toContain(formerName);
+    expect(text).not.toContain(member.username);
+  }
+
+  it('anonimização durante a conclusão espera o commit e neutraliza as pessoas gravadas', async () => {
+    const { owner, member, p, build, privacyService } = await raceSetup('Pessoa Conclusão Antes');
+    const report = await requested(p, owner);
+    const reached = gate();
+    const release = gate();
+    const original = prisma.$transaction.bind(prisma);
+    // Segura a conclusão depois de ler e travar as contas, antes de inserir as pessoas.
+    vi.spyOn(prisma, '$transaction').mockImplementation((work, options) => {
+      if (typeof work !== 'function') return original(work, options);
+      return original((tx) => {
+        const people = new Proxy(tx.projectReportPerson, {
+          get(target, key) {
+            if (key !== 'createMany') return Reflect.get(target, key);
+            return async (args) => {
+              reached.open();
+              await release.promise;
+              return target.createMany(args);
+            };
+          }
+        });
+        return work(
+          new Proxy(tx, {
+            get(target, key) {
+              if (key === 'projectReportPerson') return people;
+              const value = Reflect.get(target, key);
+              return typeof value === 'function' ? value.bind(target) : value;
+            }
+          })
+        );
+      }, options);
+    });
+    const completion = executeProjectReport(report.id, { build });
+    await reached.promise;
+    const deletion = privacyService.processDueDeletions({ dryRun: false });
+    await pause(300);
+    const during = await prisma.user.findUnique({ where: { id: member.id } });
+    expect(during.accountStatus).not.toBe('ANONYMIZED');
+    release.open();
+    expect(await completion).toMatchObject({ status: 'SUCCEEDED' });
+    expect(await deletion).toMatchObject({ processed: 1, failed: 0 });
+    vi.restoreAllMocks();
+    await expectNeutralized({ p, report, owner, member, formerName: 'Pessoa Conclusão Antes' });
+  });
+
+  it('conclusão durante a anonimização espera e grava só o nome neutralizado', async () => {
+    const { owner, member, p, build, privacyService } = await raceSetup(
+      'Pessoa Anonimização Antes'
+    );
+    const report = await requested(p, owner);
+    const anonymization = await pauseAnonymization();
+    const deletion = privacyService.processDueDeletions({ dryRun: false });
+    await anonymization.reached;
+    const completion = executeProjectReport(report.id, { build });
+    await pause(300);
+    expect((await stored(report.id)).status).toBe('RUNNING');
+    anonymization.release();
+    expect(await deletion).toMatchObject({ processed: 1, failed: 0 });
+    expect(await completion).toMatchObject({ status: 'SUCCEEDED' });
+    vi.restoreAllMocks();
+    await expectNeutralized({ p, report, owner, member, formerName: 'Pessoa Anonimização Antes' });
+  });
+
+  it('solicitante anonimizado durante a solicitação fica só com o nome neutralizado', async () => {
+    const { member, p, privacyService } = await raceSetup('Solicitante em Corrida');
+    const anonymization = await pauseAnonymization();
+    const deletion = privacyService.processDueDeletions({ dryRun: false });
+    await anonymization.reached;
+    const request = reportService.request(
+      p.id,
+      {},
+      { actorUserId: member.id, requestId: 'race-request' },
+      { schedule: noSchedule }
+    );
+    await pause(80);
+    anonymization.release();
+    expect(await deletion).toMatchObject({ processed: 1, failed: 0 });
+    const { report } = await request;
+    vi.restoreAllMocks();
+    const row = await stored(report.id);
+    expect(row.people).toEqual([
+      expect.objectContaining({ userId: member.id, displayNameSnapshot: 'Usuário excluído' })
+    ]);
+    expect(JSON.stringify(report)).not.toContain('Solicitante em Corrida');
   });
 
   it('exportação pessoal traz só os metadados dos relatórios solicitados', async () => {

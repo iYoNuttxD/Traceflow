@@ -10,6 +10,7 @@ import {
   openLinkPeriod,
   recordGithubEvent
 } from '../helpers/github-lifecycle.js';
+import { anchoredAt } from '../helpers/anchored-clock.js';
 
 const boundary = vi.hoisted(() => ({ client: null, calls: 0 }));
 const loggerMock = vi.hoisted(() => ({
@@ -31,9 +32,9 @@ vi.mock('../../src/modules/github/github.client.js', () => ({
   }
 }));
 
-const NOW = new Date('2026-10-20T12:00:00.000Z');
-const OCCURRED = new Date('2026-10-20T10:00:00.000Z');
-const LONG_AGO = new Date('2026-10-12T10:00:00.000Z');
+const NOW = anchoredAt('12:00:00.000');
+const OCCURRED = anchoredAt('10:00:00.000');
+const LONG_AGO = anchoredAt('10:00:00.000', -8);
 const LATER = (ms) => new Date(NOW.getTime() + ms);
 const MINUTE = 60_000;
 const SECRET_TITLE = 'Título sigiloso\r\n{"level":"error","forjado":true}';
@@ -228,8 +229,8 @@ const effort = (task, user) =>
       projectId: task.projectId,
       taskId: task.id,
       source: 'MANUAL',
-      startedAt: new Date('2026-10-19T10:00:00.000Z'),
-      endedAt: new Date('2026-10-19T11:00:00.000Z'),
+      startedAt: anchoredAt('10:00:00.000', -1),
+      endedAt: anchoredAt('11:00:00.000', -1),
       durationSeconds: 3600,
       startedById: user.id,
       endedById: user.id
@@ -919,7 +920,7 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
     await linkIssue(taskB, closed);
     const reopened = await openIssue(project, 2);
     await linkIssue(taskC, reopened);
-    await closeIssue(reopened, { at: new Date('2026-10-19T10:00:00.000Z') });
+    await closeIssue(reopened, { at: anchoredAt('10:00:00.000', -1) });
     const outside = await openIssue(project, 3);
     await linkIssue(taskD, outside);
     const excluded = await openIssue(project, 4);
@@ -981,7 +982,7 @@ describe('S2-03 métrica oficial (C7, D14)', () => {
     await linkPullRequest(taskB, closed);
     const reopened = await openPullRequest(project, 12);
     await linkPullRequest(taskC, reopened);
-    await closePullRequest(reopened, { at: new Date('2026-10-19T10:00:00.000Z') });
+    await closePullRequest(reopened, { at: anchoredAt('10:00:00.000', -1) });
     await prisma.gitHubArtifactEvent.deleteMany();
     const outside = await openPullRequest(project, 13);
     await linkPullRequest(taskD, outside);

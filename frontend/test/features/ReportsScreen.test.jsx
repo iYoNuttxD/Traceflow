@@ -285,6 +285,8 @@ describe('S2-06 — resumo da página', () => {
     expect(
       within(summary).getByRole('heading', { name: 'Visão geral dos relatórios' })
     ).toBeInTheDocument();
+    // O painel aparece em carregamento antes da lista chegar; espera os totais.
+    await waitFor(() => expect(summary).toHaveTextContent('Total5relatórios gerados'));
     for (const text of [
       'Total5relatórios gerados',
       'Prontos3Disponíveis para baixar em PDF',
@@ -614,5 +616,83 @@ describe('S2-07 — baixar PDF', () => {
     page('/projects/1/reports/3');
     expect(await screen.findByText(/A geração está em andamento/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Baixar PDF/ })).not.toBeInTheDocument();
+  });
+});
+
+// PR27-04: falha ao atualizar um relatório em geração não pode deixar a tela parada
+// prometendo atualização automática, sem erro nem forma de retomar.
+describe('S2-06 — acompanhamento do relatório com falha de atualização', () => {
+  const running = () => ({
+    ...report({ status: 'RUNNING', finishedAt: null }),
+    snapshot: null,
+    people: []
+  });
+  const ready = () => ({ ...report(), snapshot, people: [requester] });
+  const httpError = (status) =>
+    Object.assign(new Error('falha'), { response: { status, data: {} } });
+
+  async function advanceUntil(check) {
+    await waitFor(
+      async () => {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2500);
+        });
+        check();
+      },
+      { timeout: 60000 }
+    );
+  }
+
+  it('falha transitória tenta de novo sozinha e chega ao relatório pronto sem recarregar', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mocks.get
+      .mockResolvedValueOnce(running())
+      .mockRejectedValueOnce(httpError(503))
+      .mockResolvedValue(ready());
+    page('/projects/1/reports/3');
+    expect(await screen.findByText(/atualizada automaticamente/)).toBeInTheDocument();
+    await advanceUntil(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tentando atualizar novamente');
+    expect(screen.getByText(/atualizada automaticamente/)).toBeInTheDocument();
+    await advanceUntil(() => expect(mocks.get).toHaveBeenCalledTimes(3));
+    expect(await screen.findByRole('heading', { name: 'Planejamento' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('falhas seguidas param a atualização, avisam e permitem retomar até o resultado', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mocks.get.mockResolvedValueOnce(running()).mockRejectedValue(httpError(503));
+    page('/projects/1/reports/3');
+    await screen.findByText(/atualizada automaticamente/);
+    // Primeira falha e as três novas tentativas automáticas (espera crescente).
+    await advanceUntil(() => expect(mocks.get).toHaveBeenCalledTimes(5));
+    expect(await screen.findByText(/a atualização automática parou/)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível atualizar o relatório.');
+    expect(screen.queryByText(/atualizada automaticamente/)).not.toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(mocks.get).toHaveBeenCalledTimes(5);
+
+    mocks.get.mockResolvedValue(ready());
+    await act(async () => {
+      screen.getByRole('button', { name: 'Tentar novamente' }).click();
+    });
+    expect(await screen.findByRole('heading', { name: 'Planejamento' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('sem permissão para o relatório a atualização para na hora, com o erro visível', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mocks.get.mockResolvedValueOnce(running()).mockRejectedValue(httpError(403));
+    page('/projects/1/reports/3');
+    await screen.findByText(/atualizada automaticamente/);
+    await advanceUntil(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/a atualização automática parou/)).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
 });

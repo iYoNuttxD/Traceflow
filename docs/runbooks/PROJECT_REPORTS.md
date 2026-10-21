@@ -17,10 +17,12 @@ Decisão: [ADR-025](../architecture/ADR-025-RELATORIOS-E-PDF.md). Contrato:
 | Limite | Valor | Resposta |
 | --- | --- | --- |
 | Gerações ativas por projeto | 1 | pedido devolve a ativa com `alreadyRunning: true` |
+| Gerações executando por processo | 2 | as demais esperam a vaga como `QUEUED` |
 | Período | 366 dias | `400` |
 | Sprints / requisitos no recorte | 100 / 2.000 | `FAILED` com `REPORT_VOLUME_LIMIT_EXCEEDED` |
 | Snapshot | 16 MiB | `FAILED` com `REPORT_TOO_LARGE` |
-| Montagem do snapshot | 4 min | `FAILED` com `REPORT_TIMEOUT` |
+| Montagem do snapshot | 4 min | `FAILED` com `REPORT_TIMEOUT`; nenhuma consulta nova começa depois do prazo |
+| Carência após o cancelamento | 30 s | a reserva só é liberada quando a consulta em andamento termina, ou ao fim da carência |
 | Sem heartbeat | 5 min | `FAILED` com `REPORT_GENERATION_STALE` na próxima leitura |
 | PDFs simultâneos por processo | 2 | `503 REPORT_PDF_BUSY` |
 | Montagem do PDF | 30 s | `500 REPORT_PDF_FAILED` |
@@ -34,6 +36,7 @@ Decisão: [ADR-025](../architecture/ADR-025-RELATORIOS-E-PDF.md). Contrato:
 | `project_report_failed` | geração terminou FAILED; `errorCode` público e `sourceErrorCode` técnico |
 | `project_report_stale` | geração sem batimento encerrada na leitura |
 | `project_report_lease_lost` | execução perdeu a reserva antes de concluir; nada foi gravado como pronto |
+| `project_report_cancel_overdue` | a consulta em andamento não terminou na carência após o cancelamento; a geração foi encerrada mesmo assim |
 | `project_report_heartbeat_failed` / `project_report_worker_failed` | falha de banco no batimento / erro inesperado fora do fluxo |
 | `project_report_pdf_failed` | PDF não montado (`REPORT_PDF_FAILED` ou `REPORT_PDF_BUSY`) |
 
@@ -45,6 +48,11 @@ Decisão: [ADR-025](../architecture/ADR-025-RELATORIOS-E-PDF.md). Contrato:
   geração (banco ocupado, por exemplo). Gerar de novo; se persistir, conferir o painel de
   Indicadores do mesmo recorte.
 - **Falhou por volume ou tamanho.** Reduzir o período ou escolher uma Sprint.
+- **Falhou com `REPORT_TIMEOUT`.** O prazo cancela a composição: a etapa em andamento termina e
+  nenhuma outra começa; só então a reserva é liberada para um novo pedido. Reduzir o período ou
+  escolher uma Sprint. `project_report_cancel_overdue` frequente indica consulta lenta no banco.
+- **Relatório esperando em "Na fila".** Já há duas gerações executando no processo; a vaga é
+  liberada quando uma termina. Na fila por mais de 5 min, a geração é encerrada como FAILED.
 - **`503 REPORT_PDF_BUSY` frequente.** Muitos downloads simultâneos no mesmo processo. Avaliar
   CPU/memória da VM antes de aumentar o limite.
 - **Backend reinicia no primeiro download em desenvolvimento.** `npm run dev` usa `node --watch`,

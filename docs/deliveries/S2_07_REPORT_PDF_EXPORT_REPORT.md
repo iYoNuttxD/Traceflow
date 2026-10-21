@@ -12,9 +12,11 @@
   - cabeçalho em toda página com o projeto e o período;
   - rodapé com `Relatório #N`, data e fuso da geração e `Página X de Y`;
   - capa com os metadados e sumário com o número da página de cada seção;
-  - Planejamento com um cartão indivisível por Sprint (Burndown em SVG) e tabela de marcos;
+  - Planejamento com um cartão por Sprint (Burndown em SVG) e tabela de marcos;
   - Rastreabilidade e Indicadores em páginas próprias, com o vocabulário da tela.
-- Tabelas com legenda e cabeçalho repetidos em cada página e linhas que nunca se dividem.
+- Tabelas com legenda e cabeçalho repetidos em cada página e linhas que nunca se dividem;
+  conteúdo maior que uma página (objetivo de Sprint, lista de pessoas de um indicador) continua
+  em linhas seguintes, sem omitir nada (PR27-02).
 - Acentuação do português com as fontes Roboto embutidas e texto extraível do PDF.
 - Leitura visual igual à da tela: resumo no topo (progresso, requisitos concluídos, Saúde do
   Projeto e defeitos pendentes, com barras), selos coloridos de situação em Sprints, marcos e
@@ -52,7 +54,7 @@ mesmos títulos de indicador do painel.
   distribuições e nome do arquivo).
 - `report-pdf-document.test.js`: identificação em cabeçalho e rodapé, fuso, conteúdo das três
   seções, nomes congelados, valores indisponíveis sem zero, tabelas com cabeçalho repetido e
-  linhas indivisíveis, Sprints indivisíveis, estados vazios e Burndown (lacunas, Sprint
+  linhas indivisíveis, cartão de Sprint em partes, estados vazios e Burndown (lacunas, Sprint
   encerrada, um dia, sem dados, escape do SVG).
 - `report-pdf-render.test.js`: PDF real com 120 requisitos lido por `unpdf` (acentuação,
   identificação e número em todas as páginas, cabeçalho repetido nas continuações), conteúdo

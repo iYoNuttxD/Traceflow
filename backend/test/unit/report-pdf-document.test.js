@@ -133,16 +133,17 @@ describe('S2-07 — definição do PDF', () => {
     }
     const requirements = found.find((table) => table.body[0][0].text === 'Requisitos');
     expect(requirements.body).toHaveLength(62);
-    // Cada Sprint é um cartão de linha única que não se divide entre páginas.
+    // Cada Sprint é um cartão; cada parte (cabeçalho, objetivo, gráfico) é uma linha
+    // indivisível, e o cartão pode continuar na página seguinte entre as partes.
     const cards = tables(definition.content).filter(
-      (table) =>
-        table.dontBreakRows &&
-        table.widths?.length === 1 &&
-        table.body.length === 1 &&
-        table.body[0][0].stack
+      (table) => table.dontBreakRows && table.widths?.length === 1 && table.body[0][0].stack
     );
     expect(cards).toHaveLength(3);
-    expect(cards[0].body[0][0].stack.some((node) => node.svg)).toBe(true);
+    expect(cards[0].body.map((row) => row[0].stack.some((node) => node.svg))).toEqual([
+      false,
+      false,
+      true
+    ]);
   });
 
   it('seções de rastreabilidade e indicadores começam em página nova e entram no sumário', () => {

@@ -37,14 +37,18 @@ congelado seria um relatório incompleto marcado como pronto.
 
 **Segundo plano com reserva por projeto.** Mesmo modelo da sincronização manual do GitHub
 (ADR-017): `activeProjectId` único, `setImmediate`, claim `QUEUED → RUNNING`, heartbeat de 30 s,
-lease de 5 min e prazo de montagem de 4 min. A conclusão confere a lease e grava snapshot,
-pessoas e liberação da reserva na mesma transação. Tetos explícitos (100 Sprints, 2.000
+lease de 5 min e prazo de montagem de 4 min. Prazo vencido ou lease perdida cancelam a composição:
+nenhuma consulta nova começa e a reserva só é liberada quando a consulta em andamento termina
+(carência de 30 s). No máximo duas gerações executam por processo. A conclusão confere a lease e
+grava snapshot, pessoas e liberação da reserva na mesma transação. Tetos explícitos (100 Sprints, 2.000
 requisitos, 16 MiB de snapshot) fazem a geração falhar com código próprio em vez de recortar.
 
 **Nomes congelados à parte.** O snapshot passa por `stripPeople`: onde há `userId`, nome, username,
 e-mail e avatar são removidos. `ProjectReportPerson` guarda nome e username de cada pessoa no
 momento da geração. A apresentação (tela e PDF) recoloca esses nomes. A anonimização (LGPD) é a
 única operação que altera esse registro, trocando-o pelos valores neutros da conta anonimizada.
+Os nomes são lidos com a linha de `User` travada na mesma transação que os grava, para uma
+anonimização concorrente nunca deixar para trás um nome anterior.
 
 **PDF sob demanda com pdfmake (S2-07).** O PDF é montado a partir do snapshot persistido a cada
 download, sem arquivo armazenado. pdfmake usa layout declarativo (tabelas com cabeçalho
@@ -53,7 +57,9 @@ acentuação. O vocabulário do PDF é uma cópia dos rótulos do frontend, prot
 paridade que importa os módulos do frontend. Como o layout do pdfmake é síncrono (cerca de 1,2 s
 de CPU no teto de volume), a montagem roda numa worker thread com heap de 512 MB, prazo de 30 s e
 no máximo duas simultâneas por processo (`503 REPORT_PDF_BUSY` acima disso). Políticas do pdfmake
-negam qualquer URL e só permitem ler as quatro fontes do próprio pacote.
+negam qualquer URL e só permitem ler as quatro fontes do próprio pacote. O pdfmake descarta sem
+erro o que passa da primeira página de um bloco indivisível; por isso cada linha indivisível tem
+altura estimada abaixo de meia página, e texto maior segue em linhas de continuação.
 
 ## Consequências positivas
 

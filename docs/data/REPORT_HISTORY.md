@@ -40,6 +40,18 @@ que venceu a corrida; sem ela, há até cinco tentativas curtas. A execução re
 e batimento dentro da lease e só então grava `SUCCEEDED`, o snapshot e as pessoas. Uma execução
 que perdeu a lease não sobrescreve o `FAILED` gravado pela expiração.
 
+O prazo (4 min) e a perda da lease (heartbeat sem a reserva) cancelam a composição: nenhuma
+consulta nova começa depois disso, a consulta em andamento termina e só então a geração é
+encerrada e a reserva liberada (carência de 30 s). No máximo duas gerações executam por processo;
+as demais esperam como `QUEUED`.
+
+Os nomes congelados são lidos de `User` com a linha travada (`FOR UPDATE NOWAIT`), dentro da
+mesma transação que grava `ProjectReportPerson`, tanto no pedido (solicitante) quanto na
+conclusão (pessoas do snapshot). A anonimização roda em transação `SERIALIZABLE` que lê e altera
+a mesma linha: ou ela espera o commit do relatório e neutraliza as linhas recém-criadas, ou já
+terminou e o nome lido é o neutro. Conta ocupada faz o pedido ou a conclusão tentar de novo
+(até 15 s na conclusão); nenhum nome é lido fora dessa seção.
+
 ## Retenção, anonimização e exclusão
 
 - `SUCCEEDED`: ciclo do projeto; remoção por cascade no purge do projeto.

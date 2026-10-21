@@ -1,6 +1,11 @@
 import pdfmake from 'pdfmake';
 import { extractText, getDocumentProxy } from 'unpdf';
 import { describe, expect, it } from 'vitest';
+import {
+  BLOCK_BUDGET,
+  estimateTextHeight,
+  splitText
+} from '../../src/modules/reports/report-pdf.document.js';
 import { renderReportPdf } from '../../src/modules/reports/report-pdf.renderer.js';
 import { renderReportPdfInWorker } from '../../src/modules/reports/report-pdf.runner.js';
 import { reportFixture } from '../fixtures/report-snapshot.js';
@@ -90,5 +95,80 @@ describe('S2-07 — PDF renderizado', () => {
       renderReportPdfInWorker({}, {}, { workerUrl: fixture('invalid-result.worker.js') })
     ).rejects.toThrow('resultado inválido');
     expect(await renderReportPdfInWorker(reportFixture(), {})).toBeInstanceOf(Buffer);
+  });
+});
+// PR27-02: um bloco indivisível maior que a página sumia do PDF sem erro. Conteúdo no
+// limite aceito pela API precisa aparecer inteiro, com cabeçalhos e associação.
+describe('S2-07 — conteúdo maior que uma página', () => {
+  const markers = (text, prefix) =>
+    new Set([...text.join(' ').matchAll(new RegExp(`${prefix}(\\d+)`, 'g'))].map((m) => m[1]));
+
+  function withObjective(objective, sprints = 1) {
+    const report = reportFixture({ sprints });
+    for (const sprint of report.snapshot.planning.sprints) sprint.objective = objective;
+    return report;
+  }
+
+  it('objetivo de Sprint com muitas linhas continua na página seguinte, sem perder a Sprint', async () => {
+    const objective = Array.from({ length: 120 }, (_, index) => `ObjectiveLine${index}`).join('\n');
+    expect(objective.length).toBeLessThanOrEqual(2000);
+    const { totalPages, text } = await pages(await renderReportPdf(withObjective(objective)));
+    const all = text.join(' ');
+    expect(all).toContain('Sprint 1 — Integração');
+    expect(all).toContain('Burndown');
+    expect(markers(text, 'ObjectiveLine').size).toBe(120);
+    expect(all).toContain('ObjectiveLine0');
+    expect(all).toContain('ObjectiveLine119');
+    const objectivePages = text.filter((page) => page.includes('ObjectiveLine'));
+    expect(objectivePages.length).toBeGreaterThan(1);
+    // Cabeçalho e rodapé continuam em todas as páginas.
+    text.forEach((page, index) => expect(page).toContain(`Página ${index + 1} de ${totalPages}`));
+  });
+
+  it('objetivo de 2.000 caracteres sem quebra de linha aparece do início ao fim', async () => {
+    const words = Array.from({ length: 400 }, (_, index) => `W${String(index).padStart(3, '0')}`);
+    const objective = words.join(' ').slice(0, 2000);
+    const report = withObjective(objective, 3);
+    const { text } = await pages(await renderReportPdf(report));
+    const all = text.join(' ');
+    for (const sprint of [1, 2, 3]) expect(all).toContain(`Sprint ${sprint} — Integração`);
+    expect(markers(text, 'W').size).toBe(400);
+  });
+
+  it('lista de pessoas maior que a página segue em linhas de continuação do indicador', async () => {
+    const report = reportFixture();
+    const people = Array.from({ length: 80 }, (_, index) => ({
+      userId: 100 + index,
+      displayName: `PersonMarker${index}`,
+      username: `p${index}`
+    }));
+    report.people.push(...people);
+    const i03 = report.snapshot.indicators.views[1].sections[0].indicators[2];
+    i03.people = people.map(({ userId }) => ({ userId, completedTasks: 1 }));
+    const { text } = await pages(await renderReportPdf(report));
+    expect(markers(text, 'PersonMarker').size).toBe(80);
+    const all = text.join(' ');
+    expect(all).toContain('Tasks concluídas por responsável (continuação)');
+    // Toda página com pessoas da lista repete o cabeçalho da tabela de indicadores.
+    for (const page of text.filter((item) => item.includes('PersonMarker')))
+      expect(page).toContain('Indicador Valor Status Observações');
+    // O que vem depois da tabela continua no PDF.
+    expect(all).toContain('Requisitos com Tasks');
+  });
+});
+
+describe('S2-07 — divisão de texto do PDF', () => {
+  it('pedaços cabem no orçamento e, juntos, guardam todo o texto visível', () => {
+    const text = [
+      'curta',
+      'x'.repeat(5000),
+      Array.from({ length: 300 }, (_, i) => `palavra${i}`).join(' ')
+    ].join('\n');
+    const pieces = splitText(text, 300, 8);
+    expect(pieces.length).toBeGreaterThan(1);
+    for (const piece of pieces)
+      expect(estimateTextHeight(piece, 300, 8)).toBeLessThanOrEqual(BLOCK_BUDGET);
+    const visible = (value) => value.replace(/\s+/g, '');
+    expect(visible(pieces.join(''))).toBe(visible(text));
   });
 });

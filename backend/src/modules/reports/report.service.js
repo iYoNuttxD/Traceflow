@@ -1,7 +1,6 @@
 import { auditService, buildAuditEvent } from '../audit/index.js';
 import { resourceNotFoundError } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
-import { freezePeople } from './report-people.js';
 import { renderReportPdfInWorker, reportPdfError } from './report-pdf.runner.js';
 import { publicReport, publicReportDetail, publicReportSummary } from './report.presenter.js';
 import { reportRepository } from './report.repository.js';
@@ -17,6 +16,8 @@ import {
 export const REPORT_LEASE_MS = 5 * 60 * 1000;
 export const REPORT_HEARTBEAT_MS = 30 * 1000;
 export const REPORT_MAX_DURATION_MS = 4 * 60 * 1000;
+// Prazo + carência fica abaixo do lease: a reserva não vence enquanto a consulta termina.
+export const REPORT_CANCEL_GRACE_MS = 30 * 1000;
 
 const STALE_FAILURE = Object.freeze({
   code: 'REPORT_GENERATION_STALE',
@@ -73,25 +74,69 @@ async function findActiveReport(projectId, now, leaseMs) {
   return reportRepository.findActive(projectId);
 }
 
-function withDeadline(work, ms) {
-  let timer;
-  const deadline = new Promise((_, reject) => {
-    timer = setTimeout(
-      () =>
-        reject(
-          reportGenerationError(
-            'REPORT_TIMEOUT',
-            'A geração excedeu o tempo máximo. Reduza o período ou selecione uma Sprint.'
-          )
-        ),
-      ms
-    );
-    timer.unref?.();
+const timeoutError = () =>
+  reportGenerationError(
+    'REPORT_TIMEOUT',
+    'A geração excedeu o tempo máximo. Reduza o período ou selecione uma Sprint.'
+  );
+const leaseLostError = () =>
+  reportGenerationError('REPORT_LEASE_LOST', 'A geração perdeu a reserva antes de concluir.');
+
+// Depois do cancelamento nenhuma etapa nova começa, mas a consulta em andamento não pode
+// ser interrompida: a reserva só é devolvida quando ela termina. Se ela não terminar
+// dentro da carência, a geração é encerrada mesmo assim (no máximo uma consulta sobra).
+function settleAfterAbort(work, signal, graceMs, reportId) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    const onAbort = () => {
+      timer = setTimeout(() => {
+        logger.warn('Consulta da geração de relatório não terminou após o cancelamento.', {
+          event: 'project_report_cancel_overdue',
+          reportId
+        });
+        reject(signal.reason);
+      }, graceMs);
+      timer.unref?.();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(resolve, reject).finally(() => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+    });
   });
-  return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
 
-export async function executeProjectReport(
+// Limite de gerações simultâneas por processo, como o das montagens de PDF: a composição
+// usa o mesmo pool de banco e a mesma CPU da API. Quem espera continua QUEUED.
+export function createGenerationSlots(max) {
+  let running = 0;
+  const waiting = [];
+  return {
+    async acquire() {
+      if (running < max) running++;
+      else await new Promise((resolve) => waiting.push(resolve));
+    },
+    release() {
+      const next = waiting.shift();
+      if (next) next();
+      else running--;
+    }
+  };
+}
+export const REPORT_MAX_CONCURRENT = 2;
+const generationSlots = createGenerationSlots(REPORT_MAX_CONCURRENT);
+
+export async function executeProjectReport(reportId, options = {}) {
+  const { slots = generationSlots } = options;
+  await slots.acquire();
+  try {
+    return await executeClaimed(reportId, options);
+  } finally {
+    slots.release();
+  }
+}
+
+async function executeClaimed(
   reportId,
   {
     now = () => new Date(),
@@ -99,8 +144,9 @@ export async function executeProjectReport(
     limits = REPORT_LIMITS,
     heartbeatMs = REPORT_HEARTBEAT_MS,
     maxDurationMs = REPORT_MAX_DURATION_MS,
+    cancelGraceMs = REPORT_CANCEL_GRACE_MS,
     leaseMs = REPORT_LEASE_MS
-  } = {}
+  }
 ) {
   const report = await reportRepository.findForExecution(reportId);
   if (!report) return null;
@@ -119,6 +165,13 @@ export async function executeProjectReport(
     reportId: report.id
   });
 
+  const controller = new AbortController();
+  const cancel = (error) => {
+    if (!controller.signal.aborted) controller.abort(error);
+  };
+  const deadline = setTimeout(() => cancel(timeoutError()), maxDurationMs);
+  deadline.unref?.();
+
   let heartbeatTimer;
   let heartbeatWork;
   let finished = false;
@@ -126,6 +179,10 @@ export async function executeProjectReport(
     heartbeatTimer = setTimeout(() => {
       heartbeatWork = reportRepository
         .heartbeat(report.id, report.projectId, now())
+        .then((alive) => {
+          // Outra leitura já encerrou esta geração (lease vencido): parar de consultar.
+          if (!alive) cancel(leaseLostError());
+        })
         .catch((error) => {
           logger.warn('Heartbeat do relatório indisponível.', {
             event: 'project_report_heartbeat_failed',
@@ -142,7 +199,7 @@ export async function executeProjectReport(
   heartbeat();
 
   try {
-    const { snapshot, userIds, bytes } = await withDeadline(
+    const { snapshot, userIds, bytes } = await settleAfterAbort(
       build(
         {
           projectId: report.projectId,
@@ -155,16 +212,19 @@ export async function executeProjectReport(
           asOf: startedAt,
           requestId: `report-${report.id}`
         },
-        { limits }
+        { limits, signal: controller.signal }
       ),
-      maxDurationMs
+      controller.signal,
+      cancelGraceMs,
+      report.id
     );
-    const people = freezePeople(userIds, await reportRepository.findUsers(userIds));
+    // Composição que terminou depois do prazo não vira sucesso tardio.
+    controller.signal.throwIfAborted();
     const finishedAt = now();
     const completed = await reportRepository.succeed(report.id, report.projectId, {
       snapshot,
       snapshotVersion: REPORT_SNAPSHOT_VERSION,
-      people,
+      userIds,
       finishedAt,
       durationMs: finishedAt.getTime() - startedAt.getTime(),
       leaseCutoff: new Date(finishedAt.getTime() - leaseMs)
@@ -184,10 +244,12 @@ export async function executeProjectReport(
       reportId: report.id,
       durationMs: completed.durationMs,
       bytes,
-      people: people.length
+      people: userIds.length
     });
     return completed;
-  } catch (error) {
+  } catch (thrown) {
+    // Depois do cancelamento, o motivo é o cancelamento, não o erro da etapa interrompida.
+    const error = controller.signal.aborted ? controller.signal.reason : thrown;
     const failure = failureOf(error);
     const finishedAt = now();
     const failed = await reportRepository
@@ -216,6 +278,7 @@ export async function executeProjectReport(
     return failed;
   } finally {
     finished = true;
+    clearTimeout(deadline);
     clearTimeout(heartbeatTimer);
     await heartbeatWork;
   }
@@ -276,8 +339,6 @@ export const reportService = {
     const active = await findActiveReport(id, now, leaseMs);
     if (active) return { report: publicReport(active), alreadyRunning: true };
 
-    const user = await reportRepository.findUser(context.actorUserId);
-    const requester = user ? freezePeople([user.id], [user])[0] : null;
     const auditEvent = buildAuditEvent({
       actorUserId: context.actorUserId,
       projectId: id,
@@ -296,7 +357,6 @@ export const reportService = {
           projectId: id,
           requestedByUserId: context.actorUserId,
           filters,
-          requester,
           auditEvent
         });
         break;
@@ -313,7 +373,7 @@ export const reportService = {
       }
     }
     schedule(report.id);
-    return { report: publicReport({ ...report, requester }), alreadyRunning: false };
+    return { report: publicReport(report), alreadyRunning: false };
   },
 
   async list(projectId, query = {}, { now = new Date(), leaseMs = REPORT_LEASE_MS } = {}) {

@@ -33,9 +33,14 @@ function volumeExceeded(subject, limit) {
 // Cópia JSON: datas viram ISO e nada mutável dos serviços de origem vai para o snapshot.
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-async function readPlanning(projectId, filters, limits) {
+// Cancelamento (prazo ou reserva perdida): nenhuma consulta nova começa depois dele.
+// A consulta já em andamento termina normalmente; quem chama espera por ela.
+const checkpoint = (signal) => signal?.throwIfAborted();
+
+async function readPlanning(projectId, filters, limits, signal) {
   // Com Sprint escolhida, ela entra mesmo fora do período, como no filtro do painel.
   const windowed = filters.startDate && !filters.sprintId;
+  checkpoint(signal);
   const schedule = await sprintService.getSchedule(projectId, {
     ...(windowed ? { from: filters.startDate, to: filters.endDate } : {})
   });
@@ -48,6 +53,7 @@ async function readPlanning(projectId, filters, limits) {
     // A lista de tarefas da agenda fica fora: o relatório é resumido por Sprint.
     const summary = { ...sprint };
     delete summary.tasks;
+    checkpoint(signal);
     sprints.push({
       ...summary,
       progress: await sprintService.getSprintProgress(sprint.id)
@@ -68,13 +74,15 @@ async function readPlanning(projectId, filters, limits) {
   };
 }
 
-async function readTraceability(projectId, limits) {
+async function readTraceability(projectId, limits, signal) {
   const pageSize = limits.requirementPageSize;
+  checkpoint(signal);
   const first = await requirementProjectionService.list(projectId, { page: 1, limit: pageSize });
   if (first.summary.total > limits.requirements)
     throw volumeExceeded('requisitos', limits.requirements);
   const items = new Map(first.items.map((item) => [item.requirement.id, item]));
   for (let page = 2; page <= first.pagination.totalPages; page++) {
+    checkpoint(signal);
     const next = await requirementProjectionService.list(projectId, { page, limit: pageSize });
     for (const item of next.items) items.set(item.requirement.id, item);
   }
@@ -92,7 +100,7 @@ function sourceUnavailable(view) {
   );
 }
 
-async function readIndicators(projectId, filters, asOf, requestId) {
+async function readIndicators(projectId, filters, asOf, requestId, signal) {
   const query = {
     ...(filters.startDate
       ? { startDate: filters.startDate, endDate: filters.endDate, timeZone: filters.timeZone }
@@ -104,6 +112,7 @@ async function readIndicators(projectId, filters, asOf, requestId) {
   // Sequencial de propósito: cada visão já paraleliza as próprias fontes, e o relatório
   // roda em segundo plano sem disputar o pool com as telas abertas.
   for (const { view } of publicDashboardViews()) {
+    checkpoint(signal);
     const dashboard = await dashboardService.read(projectId, { view, ...query }, () => asOf, {
       requestId
     });
@@ -145,11 +154,12 @@ async function readIndicators(projectId, filters, asOf, requestId) {
 // Cronograma, Sprints, Rastreabilidade e Indicadores, com o mesmo recorte.
 export async function buildReportSnapshot(
   { projectId, filters, asOf, requestId },
-  { limits = REPORT_LIMITS } = {}
+  { limits = REPORT_LIMITS, signal } = {}
 ) {
-  const { project, indicators } = await readIndicators(projectId, filters, asOf, requestId);
-  const planning = await readPlanning(projectId, filters, limits);
-  const traceability = await readTraceability(projectId, limits);
+  const { project, indicators } = await readIndicators(projectId, filters, asOf, requestId, signal);
+  const planning = await readPlanning(projectId, filters, limits, signal);
+  const traceability = await readTraceability(projectId, limits, signal);
+  checkpoint(signal);
   const sprint = filters.sprintId
     ? (planning.sprints.find((item) => item.id === filters.sprintId) ?? null)
     : null;

@@ -197,7 +197,7 @@ function ProjectReports({ project }) {
 }
 
 function ProjectReport({ project, reportId }) {
-  const { report, loading, error, reload } = useReport(project.id, reportId);
+  const { report, loading, error, polling, reload } = useReport(project.id, reportId);
   const pdf = useReportPdfDownload(project.id, project.name);
   const downloading = pdf.downloadingId === report?.id;
   return (
@@ -225,6 +225,17 @@ function ProjectReport({ project, reportId }) {
       />
       {loading && !report && <LoadingState message="Carregando relatório…" />}
       {error && !report && <ContextualErrorPage embedded error={error} onRetry={() => reload()} />}
+      {error && report && (
+        <ErrorState
+          message={
+            polling
+              ? `${error.message} Tentando atualizar novamente…`
+              : `Não foi possível atualizar o relatório. ${error.message}`
+          }
+          retryAfterSeconds={error.retryAfterSeconds ?? 0}
+          onRetry={() => reload()}
+        />
+      )}
       {report && report.status !== 'SUCCEEDED' && (
         <section className="report-empty-panel" aria-live="polite">
           <h2>
@@ -233,7 +244,9 @@ function ProjectReport({ project, reportId }) {
           <p>
             {report.status === 'FAILED'
               ? (report.error?.message ?? 'O relatório não foi gerado.')
-              : 'A geração está em andamento. Esta tela é atualizada automaticamente.'}
+              : polling
+                ? 'A geração está em andamento. Esta tela é atualizada automaticamente.'
+                : 'A geração está em andamento, mas a atualização automática parou. Use "Tentar novamente" para ver o resultado.'}
           </p>
         </section>
       )}

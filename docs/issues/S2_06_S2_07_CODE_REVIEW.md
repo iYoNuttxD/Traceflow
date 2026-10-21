@@ -105,13 +105,30 @@ responsável pelas tasks, antes da revisão por outro colega.
 
 - A geração roda no processo da API (`setImmediate`): um restart durante a geração deixa o registro
   RUNNING até a lease vencer (5 min), quando a próxima leitura o encerra como FAILED.
-- O limite de duas montagens de PDF simultâneas é por processo.
+- Os limites de duas gerações e duas montagens de PDF simultâneas são por processo; o orçamento
+  agregado entre projetos precisa ser medido na homologação OCI antes da ativação.
 - PDFs já baixados ficam fora da retenção e da anonimização.
-- Falhas que não vêm destas tasks: 6 testes do S2-03 (`s203-bateria`, `s203-correcoes`,
-  `s203-github-event-dispatch`) falham também no `main` puro nesta máquina; 2 testes de permissão e
-  symlink e 6 testes de CSS com CRLF falham só no Windows.
+- Falhas só do Windows, que não ocorrem no CI: 2 testes de permissão e symlink e 6 testes de CSS
+  com CRLF. As seis falhas do S2-03 herdadas da base foram corrigidas (ver a seção da PR #27).
 
 ## Merge recommendation
 
-Sem finding aberto que exija mudança no código das tasks. Antes do merge: rodar a CI completa da PR
-e avisar o autor do S2-03 sobre os seis testes que falham localmente.
+Sem finding aberto que exija mudança no código das tasks. Antes do merge: CI completa da PR verde
+e revisão das correções da PR #27 (seção abaixo).
+
+# Revisão independente da PR #27 — correções
+
+A [revisão independente](https://github.com/iYoNuttxD/Traceflow/pull/27#issuecomment-6307012858)
+sobre `7ce33b63` pediu quatro correções (PR27-01 a PR27-04) e o desbloqueio das seis falhas de
+backend herdadas da base. Todas foram corrigidas, cada uma com teste que falha no código anterior.
+
+| ID | Severidade | Correção | Evidência |
+| --- | --- | --- | --- |
+| PR27-01 | ALTO | Nomes congelados lidos de `User` com a linha travada (`FOR UPDATE NOWAIT`) na mesma transação que grava `ProjectReportPerson`, no pedido (solicitante) e na conclusão; `findUser`/`findUsers` fora da transação removidos | `reports.test.js` (integração): anonimização durante a conclusão, conclusão durante a anonimização e solicitante anonimizado durante o pedido; DTO e PDF sem o nome anterior, snapshot preservado |
+| PR27-02 | ALTO | Nenhuma linha indivisível passa de meia página (altura estimada); objetivo de Sprint e observações dos indicadores continuam em linhas seguintes, com o nome do indicador e "(continuação)"; cartão da Sprint em partes | `report-pdf-render.test.js`: objetivo de 120 linhas (primeira e última presentes, Sprint e Burndown no PDF), 2.000 caracteres sem quebra em três Sprints, 80 pessoas no I03 com cabeçalho repetido |
+| PR27-03 | MÉDIO | Prazo e lease perdida cancelam a composição por `AbortSignal`: nenhuma consulta nova começa; a reserva só volta quando a consulta em andamento termina (carência de 30 s); no máximo duas gerações por processo | `reports.test.js`: prazo vencido mantém a reserva até a consulta terminar e lê só a primeira visão; carência vencida; lease perdida; limite de duas execuções entre projetos |
+| PR27-04 | MÉDIO | Acompanhamento com nova tentativa limitada (rede/408/5xx com espera crescente, 429 com `Retry-After`, 401/403/404 param); a tela mantém o relatório, mostra o erro com "Tentar novamente" e só promete atualização automática enquanto ela continua | `ReportsScreen.test.jsx`: falha transitória → recuperação → pronto sem recarregar; falhas seguidas → aviso → retomada manual → pronto; 403 para na hora; `report-polling.test.js` |
+| CI | — | Os seis testes do S2-03 usavam o dia fixo 2026-10-20 para os eventos do GitHub, enquanto cobertura e vínculos usam o relógio real: depois dessa data os eventos ficaram fora da janela de cobertura e eram descartados. As datas passaram a usar um dia-âncora relativo à execução (`test/helpers/anchored-clock.js`), com os mesmos horários; nenhum teste foi ignorado nem o gate relaxado | `s203-bateria`, `s203-correcoes` e `s203-github-event-dispatch`: 81 PASS |
+
+Arquitetura mantida conforme a orientação da revisão: composição na API e PDF em worker threads.
+A homologação da composição OCI segue como gate antes da ativação.
