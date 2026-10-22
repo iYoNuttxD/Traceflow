@@ -1,3 +1,4 @@
+import { isEngineHealthy } from '../../database/engine-health.js';
 import { env } from '../../config/env.js';
 import { checkDatabaseReadiness } from '../../database/readiness.js';
 
@@ -39,18 +40,22 @@ export function createReadinessCheck({
 
 export const checkReadiness = createReadinessCheck();
 
-export function createHealthHandlers({ readinessCheck = checkReadiness } = {}) {
+export function createHealthHandlers({
+  readinessCheck = checkReadiness,
+  engineHealthy = isEngineHealthy
+} = {}) {
   return Object.freeze({
     health(req, res) {
       return res.json({ status: 'ok', message: 'TRACEFLOW backend structure is ready.' });
     },
     live(req, res) {
+      if (!engineHealthy()) return res.status(503).json({ status: 'not_live' });
       return res.json({ status: 'ok' });
     },
     async ready(req, res) {
       res.setHeader('Cache-Control', 'no-store');
       try {
-        if (!(await readinessCheck())) throw new Error('not ready');
+        if (!engineHealthy() || !(await readinessCheck())) throw new Error('not ready');
         return res.json({ status: 'ready' });
       } catch {
         return res

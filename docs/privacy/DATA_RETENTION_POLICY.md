@@ -20,8 +20,21 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | requisitos, tarefas, movements, histórico RF38 e artifacts | MySQL                               | ciclo do projeto; projeto excluído tem carência exata de 30 × 24h | `TaskHistoryEntry` é histórico funcional; hard delete da Task remove movement/history na transação, mas preserva `AuditEvent`; purge do Project remove o grafo  |
 | histórico de Planning e tombstones                         | `Sprint`, `SprintTask`, `Milestone` |                     ciclo do projeto, sem expurgo automático novo | excluir Sprint/Marco é lógico; preserva baseline, card mínimo, pontos e corte. IDs históricos não copiam nome/e-mail; dados legados ausentes não são fabricados |
 | vínculos `TaskCommit`, `TaskIssue` e `Task.pullRequestId`  | MySQL                               |                                           ciclo da tarefa/projeto | excluir Task remove joins/FK; Commit, PullRequest e Issue importados são preservados                                                                            |
+| notificação de tarefa (S2-02)                             | MySQL                               |                                       180 dias por default | `privacy:retention` (`NOTIFICATION_RETENTION_DAYS`, de 30 a 3650); purge do projeto remove por cascata; anonimização apaga as do titular |
+| notificação de evento de issue e PR (S2-03)               | MySQL                               |                                       180 dias por default | mesma regra da notificação de tarefa (`NOTIFICATION_RETENTION_DAYS`) |
+| aviso de inconsistência (PR #26)                          | MySQL                               |                                              180 dias por default | mesma regra da notificação de tarefa (`NOTIFICATION_RETENTION_DAYS`); o estado da fila (`noticeState`, `noticedAt`) fica no alerta e segue o ciclo do projeto |
+| fila de eventos de issue e PR (S2-03)                     | MySQL                               |                     180 dias depois de processado por default | `privacy:retention` apaga `GitHubArtifactEvent` `DISPATCHED` ou `FAILED` com `detectedAt` acima de `NOTIFICATION_RETENTION_DAYS`; `PENDING` e `PROCESSING` não expiram por idade; o retrato sai por cascata |
+| preferência de notificação (S2-02)                        | MySQL                               |                                       enquanto a conta existir | anonimização apaga |
+| decisão de notificação (PR #26)                           | MySQL                               |                                              180 dias por default | `privacy:retention` apaga `NotificationDecision` com `decidedAt` acima de `NOTIFICATION_RETENTION_DAYS`; purge do projeto remove por cascata; anonimização apaga o destinatário e mantém o resultado |
 | PR lifecycle (`PullRequestLifecycleEvent`)                | MySQL                               |                                           ciclo da PR/projeto     | eventos GitHub append-only; soft delete preserva; FK de Project/PR remove no hard purge; nenhum payload integral do evento é guardado                         |
+| issue lifecycle (`IssueLifecycleEvent`)                   | MySQL                               |                                            ciclo da issue/projeto | eventos `closed` e `reopened` de issue lidos do GitHub (segunda revisão da PR #26), append-only: id do evento, tipo e instante, sem pessoa nem payload; a exclusão da issue e o purge do projeto removem por cascata |
+| período de vínculo (`TaskArtifactLinkPeriod`)             | MySQL                               |                                                  ciclo do projeto | período de cada vínculo de tarefa com issue ou PR (segunda revisão da PR #26), sem pessoa; a exclusão da tarefa deixa o período sem ela; a da issue ou da PR o remove; o purge do projeto remove por cascata |
+| cobertura dos eventos do GitHub (`GitHubEventCoverage`)   | MySQL                               |                                                  ciclo do projeto | uma linha por projeto com o corte e o trecho lido por completo, sem pessoa; o purge do projeto remove por cascata |
+| lease dos jobs (`ScheduledJobLease`)                      | MySQL                               |                                    uma linha por job, sobrescrita | nome do job, dono técnico (UUID do worker ou do comando) e validade, sem pessoa |
 | IDs técnicos P1 de autoria/responsabilidade                | MySQL                               |                                           ciclo do artefato       | `Commit.authorGithubUserId` externo e `TaskMovement.responsibleUserIdSnapshot` nullable; sem nome/e-mail novos; legado permanece null                             |
+| relatório pronto (`ProjectReport` SUCCEEDED) e nomes congelados | MySQL | ciclo do projeto | retrato imutável; cascade no purge do projeto; anonimização neutraliza `ProjectReportPerson` |
+| geração de relatório que falhou (`ProjectReport` FAILED) | MySQL | 180 dias após o término | `privacy:retention` (`REPORT_FAILED_RETENTION_DAYS`, 30–3650); só registros sem reserva ativa |
+| PDF de relatório | resposta sob demanda | não armazenado | montado na hora a partir do snapshot; `no-store`; nenhum arquivo temporário ou público |
 | logs                                                       | destino operacional                 |              a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador                                                                                                               |
 | e-mails técnicos                                           | provedor SMTP                       |                                              política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação                                                                                                     |
 | backup                                                     | infraestrutura                      |                                        a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros                                |
@@ -192,3 +205,19 @@ anterior de logs foi preservado cifrado antes de limitar a retenção.
 
 Essa aprovação operacional não constitui parecer jurídico LGPD. Procedimentos,
 limites e incidentes: [operação OCI](../runbooks/OCI_LIVE_OPERATIONS.md).
+
+## S2-06/S2-07 — Relatórios e PDF
+
+- Relatório `SUCCEEDED` é um retrato do projeto e acompanha o ciclo do projeto: não tem expurgo
+  próprio, desaparece no purge por cascade e fica inacessível enquanto o projeto está excluído
+  logicamente.
+- Geração `FAILED` não tem valor de negócio depois do diagnóstico. `privacy:retention` remove as
+  encerradas há mais de `REPORT_FAILED_RETENTION_DAYS` (padrão 180), sem tocar em reserva ativa,
+  e informa a contagem `failedProjectReports` no resultado do job.
+- Nomes de pessoas não ficam no snapshot; ficam em `ProjectReportPerson`, congelados na geração.
+  A anonimização da conta neutraliza esse registro, então nenhum relatório ou PDF posterior mostra
+  o nome original. O nome é lido com a conta travada na mesma transação que o grava, então uma
+  geração concluída durante a anonimização também não guarda o nome anterior. PDFs baixados antes
+  disso estão fora do controle do sistema.
+- O PDF não é persistido: não há arquivo temporário, URL pública nem cache. A auditoria
+  `REPORT_PDF_EXPORTED` segue a retenção de `AuditEvent` (365 dias).

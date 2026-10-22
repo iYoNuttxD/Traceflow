@@ -52,6 +52,9 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `GET /api/projects/:projectId/schedule`                                                                        |     401 |      L |           L |       L |     L | RF10; agregado somente-leitura e DTO minimizado                                                                |
 | `GET /api/sprints/:id/progress`                                                                                |     401 |      L |           L |       L |     L | RF35; somente-leitura, sem recorte por responsável                                                             |
 | `PATCH/DELETE /api/tasks/:id/sprint`                                                                           |     401 |    403 |           E |       E |     E | tarefa e sprint no mesmo projeto; recurso alheio recebe 404 opaco                                              |
+| `POST /api/projects/:projectId/reports` | 401 | 403 | E | E | E | S2-06; CSRF e limiter `project-report` por ator/projeto; uma geração ativa por projeto; pedido e conclusão auditados |
+| `GET /api/projects/:projectId/reports`, `.../reports/:reportId` | 401 | L | L | L | L | S2-06; relatório de outro projeto ou inexistente recebe o mesmo 404 opaco; nomes congelados na geração |
+| `GET /api/projects/:projectId/reports/:reportId/pdf` | 401 | L | L | L | L | S2-07; só relatório SUCCEEDED (409); limiter `project-report-pdf`; download auditado (sem auditoria, sem arquivo) |
 | `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |           E |       E |     E | start exige e-mail verificado; lista usa App ACTIVE e Installation Token                                       |
 | `GET /api/github-app/callback`                                                                                 |     302 |    302 |         302 |     302 |   302 | state/sessão/conta/instalação; não exige GitHubIdentity; tokens efêmeros                                       |
 | `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; vínculo inicial; ACTIVE repetido e troca retornam 409                                                        |
@@ -63,6 +66,10 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | S1-09: `GET .../traceability/requirements`, `.../:requirementId/current`, `.../:requirementId/history`         |     401 |      L |           L |       L |     L | membership ativa; mesmo projeto; IDOR 404 opaco; cursor scoped; sem API de escrita de situation                |
 | `GET .../traceability/commit-suggestions`                                                                      |     401 |      L |           L |       L |     L | DTO minimizado; mesmo projeto                                                                                  |
 | `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject`                                                |     401 |    403 |           E |       E |     E | CSRF, membership ativa e relações no mesmo projeto                                                             |
+| S2-01: `GET .../traceability/alerts`, `.../alerts/index`, `.../alerts/summary`, `.../alerts/:alertId`, `.../tasks-without-technical-links` |     401 |      L |           L |       L |     L | membership ativa, conferida no middleware e de novo no serviço (TF-REV-001); alerta de outro projeto 404 opaco; DTO mínimo, sem e-mail                                   |
+| S2-01: `POST .../traceability/alerts/:alertId/dismiss`, `POST .../traceability/alerts/reconcile`               |     401 |    403 |         403 |       E |     E | MANAGER+, CSRF, revalidação no service; reprocessamento com limitador próprio; auditoria sem texto livre        |
+| S2-02: `GET /api/notifications`, `/notifications/unread-count`; `PATCH /notifications/:notificationId`; `POST /notifications/read-all` |     401 |      E |           E |       E |     E | só o destinatário (da sessão), com membership ativa no projeto da notificação; id alheio ou oculto 404 opaco; o cursor da lista só posiciona e não dá acesso; conta restrita não recebe; mutations exigem CSRF; leituras no limitador autenticado |
+| S2-02: `GET`, `PUT /api/settings/notifications`                                                              |     401 |      E |           E |       E |     E | titular; `PUT` estrito com as quatro chaves (desde 12/10/2026; antes, duas); auditoria só com os tipos alterados |
 | `/api/settings/account`, `/security`, `/privacy`, `/integrations`                                              |     401 |      E |           E |       E |     E | titular; middleware de estado restringe operações e mutations exigem CSRF                                      |
 | `POST /api/auth/github/reauth/start`                                                                           |     401 |      E |           E |       E |     E | somente GitHub-only; identidade vinculada, sessão e state; também permite `DELETION_PENDING` para cancelamento |
 | `GET /api/account/audit-events`                                                                                |     401 |      L |           L |       L |     L | somente eventos cujo ator é o titular                                                                          |
@@ -75,6 +82,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 - OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é read-only sobre dados compartilhados do projeto, com exceção das preferências estritamente pessoais descritas abaixo.
 - Respostas a convites são vinculadas ao destinatário, usam token hashado/expirável e recebem limiter de operação sensível; criação combina limiter sensível e de entrega de e-mail.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
+- O caminho da API é canônico. Qualquer `%` no caminho, fora da query string, recebe `404 RESOURCE_NOT_FOUND` com o corpo do 404 opaco, antes da autenticação e de qualquer consulta. Vale para anônimo, não membro e todos os papéis. Assim, o middleware de projeto decide sempre sobre o mesmo valor que o controller recebe (ADR-003, emenda de 15/10/2026, CONF-F51 e TF-REV-001).
 - O mesmo boundary exige `Project.deletedAt = null` para todo acesso normal. Somente as rotas
   explícitas de restore e exclusão definitiva resolvem o projeto excluído e revalidam no service a
   membership ativa preservada e o papel OWNER. Assim, recursos filhos de projeto em carência
@@ -88,6 +96,22 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 - As rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas
   canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
+- Alertas de rastreabilidade (S2-01, ADR-015) são do projeto: todo membro ativo os lê. Dispensar um
+  alerta esconde uma violação de processo e por isso exige MANAGER+, com justificativa; o mesmo vale
+  para o reprocessamento manual, que varre o projeto inteiro. Detecção e resolução não têm rota de
+  escrita: acontecem no servidor, na mesma transação das mutações de tarefa e vínculo, e ao fim do
+  sync. Vincular uma PR ou issue a partir do alerta usa as rotas de tarefa existentes (MEMBER+).
+- Notificações de tarefa (S2-02, ADR-016) são do destinatário, não do projeto: as rotas não têm
+  `projectId` e o papel no projeto não altera o que se vê. A visibilidade depende da membership
+  ativa no projeto de origem e do projeto não estar excluído; perder o acesso oculta sem apagar.
+  Não há rota que crie notificação.
+- Notificações de eventos de issue e PR (S2-03, ADR-018) usam as mesmas rotas e a mesma regra de
+  visibilidade. Os destinatários são calculados no servidor, a partir da participação registrada na
+  tarefa (responsável, comentário não excluído, esforço) e da membership ativa no projeto; nada vem
+  do cliente. A fila de eventos e o job `notifications:github-events` não têm rota: o despacho é
+  operação do servidor, e o reprocessamento manual é auditado como ação do sistema. O filtro
+  `group` da lista (13/10/2026) só escolhe a origem dentro das notificações visíveis do
+  destinatário: não muda papel, visibilidade nem o contador.
 - `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e
   não pode ser controlada pelo body.
 - A resolução project-scoped também cobre `/sprints/:id` e `/milestones/:id`; ausência de recurso e
@@ -116,6 +140,11 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
   uma sessão em andamento por tarefa (trava de linha; `409` em concorrência). Exclusão segue a
   política dos comentários: quem iniciou a sessão ou MANAGER/OWNER. `Task.actualEffort` é derivado
   das sessões e recusa escrita direta (`400`); toda operação é auditada com origem e duração.
+- Relatórios (S2-06/S2-07): gerar exige MEMBER+, porque cada geração percorre todas as visões do
+  painel; consultar e baixar o PDF ficam abertos a qualquer membro ativo, inclusive VIEWER, pois o
+  relatório só reúne dados que esse papel já lê nas abas de origem. O snapshot não recebe nomes de
+  pessoas (só `userId`); o nome exibido é o congelado na geração. O PDF é montado sob demanda,
+  sem arquivo persistido, e cada download fica registrado em `REPORT_PDF_EXPORTED`.
 
 ## S1-07 — Casos de teste
 

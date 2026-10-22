@@ -4,6 +4,7 @@ import { prisma } from '../../../database/prismaClient.js';
 import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
+import { notificationRepository } from '../../notifications/notification.repository.js';
 import { captureBurnupStatus } from '../../sprints/sprint-burnup.events.js';
 
 function movementWhere(projectId, filters = {}) {
@@ -128,6 +129,11 @@ export const taskMovementRepository = {
         const updatedTask = await tx.task.findUnique({
           where: { id: task.id },
           include: taskInclude
+        });
+        await notificationRepository.createStatusChangeNotification(tx, {
+          task: updatedTask,
+          movement,
+          actorUserId: actor.id
         });
         return { task: updatedTask, movement };
       }

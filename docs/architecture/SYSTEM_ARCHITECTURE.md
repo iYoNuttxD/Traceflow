@@ -211,6 +211,15 @@ in-memory é válido para uma instância Node, usa heartbeat compartilhado de 25
 backpressure, limpa subscribers desconectados e limita cada stream a 15 minutos para reautorizar na
 reconexão. Escala multi-node exige futuro adapter de broker; não há event log ou replay persistente.
 
+Relatórios do projeto (S2-06/S2-07, [ADR-025](ADR-025-RELATORIOS-E-PDF.md)) seguem o mesmo
+modelo de job persistido: `ProjectReport.activeProjectId` reserva uma geração por projeto, a
+execução roda em `setImmediate` com claim, heartbeat e lease, e a conclusão confere a lease antes
+de gravar snapshot, pessoas congeladas e liberação na mesma transação. O módulo `reports` não
+calcula indicadores: consome `dashboardService` (indicators), `sprintService` (sprints) e
+`requirementProjectionService` (traceability) pelos `index.js` públicos. O PDF é montado sob
+demanda numa worker thread (`report-pdf.worker.js`) para não bloquear a API com o layout síncrono
+do pdfmake; o processo admite no máximo duas montagens simultâneas e nenhum arquivo é gravado.
+
 ## Segurança e privacidade
 
 A API usa validação Zod, limite de body, Helmet, CORS allowlist, rate limiting, erros seguros, request ID, logging estruturado e redaction. Direitos técnicos do titular usam `/api/settings/*`; `/api/account/reactivation/*` permanece como fluxo específico. Direitos incluem consulta, correção, sessões, exportação, desativação e solicitação de exclusão. Conteúdo colaborativo entra na exportação somente com `ProjectMembership.isActive=true`; relação histórica não concede acesso atual.

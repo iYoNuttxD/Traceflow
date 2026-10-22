@@ -8,6 +8,7 @@ import {
 } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
 import { authorizationService } from '../authorization/authorization.service.js';
+import { traceabilityAlertService } from '../traceability/traceability-alert.service.js';
 import { githubAppCredentialProvider } from './github-credential.provider.js';
 import { githubInstallationClientFactory } from './github.client.js';
 import { collectGithubPages } from './github-pagination.js';
@@ -532,6 +533,7 @@ export const githubAppService = {
       throw forbidden('Somente OWNER pode alterar a integração GitHub.');
     if (result.outcome === 'INSTALLATION_FORBIDDEN') throw forbidden();
     if (result.outcome === 'ALREADY_CONNECTED') throw alreadyConnected();
+    await traceabilityAlertService.reconcileAfterIntegration(Number(projectId));
 
     let initialSync = null;
     if (result.outcome === 'CONNECTED') {

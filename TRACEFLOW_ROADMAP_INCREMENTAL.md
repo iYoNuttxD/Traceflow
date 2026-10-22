@@ -413,11 +413,29 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 
 **Checklist técnico:**
 
-- [ ] definir eventos, estados e chave de deduplicação;
-- [ ] modelar persistência e migration;
-- [ ] implementar processamento idempotente e consultas;
-- [ ] implementar interface de alertas;
-- [ ] testar detecção, concorrência, autorização e resolução.
+- [x] definir eventos, estados e chave de deduplicação;
+- [x] modelar persistência e migration;
+- [x] implementar processamento idempotente e consultas;
+- [x] implementar interface de alertas;
+- [x] testar detecção, concorrência, autorização e resolução.
+
+**Estado atual (2026-10-07): implementado localmente; aberto em homologação.** Detecção,
+resolução e dispensa dos alertas seguem o
+[ADR-015](docs/architecture/ADR-015-TRACEABILITY-ALERTS.md) e o
+[modelo técnico](docs/data/TRACEABILITY_ALERTS.md). Pendentes: publicação da branch e execução
+da CI; aprovação visual das telas de alertas e de tarefas sem vínculo técnico; homologação com
+GitHub real, porque os alertas de PR mesclada e de issue fechada só surgem ao fim de uma
+sincronização. As limitações conhecidas estão em `S201-F01..F06` no backlog técnico.
+
+**Campanha de testes e correções (08–09/10/2026):** a campanha
+([relatório](docs/issues/S2_01_RELATORIO_TESTES.md)) abriu nove achados. Os corrigíveis no cartão
+foram corrigidos em 09/10, com teste de regressão (`S201-F07..F12` fechados):
+- o sync não falha mais com textos longos do GitHub;
+- conectar o repositório reconcilia os alertas;
+- a falha da reconciliação fica visível;
+- a justificativa conta caracteres.
+
+Seguem fora do cartão o E2E (S104-F02) e a dependência relaxada no quadro Kanban.
 
 ### S2-02 - Notificar mudança de status e vencimento de tarefa
 
@@ -555,11 +573,14 @@ notificações, OCI ou validação acadêmica.
 
 **Checklist técnico:**
 
-- [ ] definir contrato e snapshot dos dados;
-- [ ] implementar serviço de geração e status;
-- [ ] implementar visualização e filtros;
-- [ ] testar consistência, autorização, volume e falha;
-- [ ] documentar API, retenção e matriz RF.
+- [x] definir contrato e snapshot dos dados;
+- [x] implementar serviço de geração e status;
+- [x] implementar visualização e filtros;
+- [x] testar consistência, autorização, volume e falha;
+- [x] documentar API, retenção e matriz RF.
+
+Entrega: [relatório S2-06](docs/deliveries/S2_06_PROJECT_REPORTS_REPORT.md) e
+[ADR-025](docs/architecture/ADR-025-RELATORIOS-E-PDF.md).
 
 ### S2-07 - Exportar relatórios em PDF
 
@@ -580,11 +601,14 @@ notificações, OCI ou validação acadêmica.
 
 **Checklist técnico:**
 
-- [ ] registrar decisão de biblioteca e estratégia de geração;
-- [ ] implementar template e paginação;
-- [ ] proteger geração, armazenamento e download;
-- [ ] criar testes de conteúdo e renderização;
-- [ ] atualizar operação, privacidade e matriz RF.
+- [x] registrar decisão de biblioteca e estratégia de geração;
+- [x] implementar template e paginação;
+- [x] proteger geração, armazenamento e download;
+- [x] criar testes de conteúdo e renderização;
+- [x] atualizar operação, privacidade e matriz RF.
+
+Entrega: [relatório S2-07](docs/deliveries/S2_07_REPORT_PDF_EXPORT_REPORT.md). O PDF é montado
+sob demanda e não é armazenado ([ADR-025](docs/architecture/ADR-025-RELATORIOS-E-PDF.md)).
 
 ### S2-08 - Definir arquitetura e provisionar ambiente na OCI
 
@@ -649,6 +673,12 @@ Arquitetura real em [ADR-018](https://github.com/iYoNuttxD/Traceflow/blob/061948
 - [ ] executar e documentar ensaio de rollback.
 
 **Resultado comprovado (21/10/2026): PARTIAL no conjunto; capacidade de CD operacional para releases sem mudança de schema.** [Relatório consolidado](docs/deliveries/OCI_CD_NGINX_SANDBOX_REPORT.md). PR #31 integrada; 38 testes CD, 28 testes nativos Host/transação/receptor e build ARM64 reproduzível PASS. Sandbox Nginx corrigido e comprovado em unidades transitórias restritas, com SELinux Enforcing; recuperação por etapa evita reinícios desnecessários. A única promoção explicitamente autorizada [39701470669](https://github.com/iYoNuttxD/Traceflow/actions/runs/39701470669) concluiu SUCCESS após aprovação humana de production. Versão b9c1beb9 publicada, fonte funcional igual à 9bc3dad/dependências corrigidas; runtime/frontend e recibos verificados independentemente, API/MySQL/worker/HTTPS saudáveis, históricos e operações preservados. Nenhuma funcionalidade nova da main incluída. Migrations novas em produção continuam recusadas e rollback integrado após falhas reais de serviços permanece sem comprovação própria; ensaios isolados e validação Nginx documentados. S2-08 segue PARTIAL por adoção/reconstrução IaC; S2-10 preservada. [Tentativa anterior](docs/deliveries/OCI_CD_MIGRATION_ORDER_REPORT.md) mantida como histórico.
+
+**Integração dos Ciclos 1 e 2 — em preparação:** união local de 84 migrations, com upgrade
+68→84, preservação de dados, 145 FKs e ausência de drift comprovados em MySQL descartável.
+Evolução da CD para plano de transição/OIDC, migrador dedicado e recuperação por etapa em
+homologação. A aplicação integrada ainda não foi promovida; não contabilizar esses resultados
+como prova produtiva. [Entrega consolidada](docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md).
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 

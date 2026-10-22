@@ -237,4 +237,37 @@ describe('configuração centralizada', () => {
       /CORS_ALLOWED_ORIGINS/
     );
   });
+
+  it('S2-02: valida o fuso de referência e a retenção; a janela de recuperação saiu (TF-REV-002)', () => {
+    expect(createEnvironment(validSource)).toMatchObject({
+      appTimeZone: 'America/Sao_Paulo',
+      notificationRetentionDays: 180
+    });
+    expect(createEnvironment(validSource)).not.toHaveProperty('notificationsDueLookbackDays');
+    expect(
+      createEnvironment({
+        ...validSource,
+        APP_TIMEZONE: 'Asia/Tokyo',
+        NOTIFICATIONS_DUE_LOOKBACK_DAYS: '0',
+        NOTIFICATION_RETENTION_DAYS: '30'
+      })
+    ).toMatchObject({
+      appTimeZone: 'Asia/Tokyo',
+      notificationRetentionDays: 30
+    });
+    for (const APP_TIMEZONE of ['Mars/Olympus', 'America/Sao Paulo', '-03:00'])
+      expect(() => createEnvironment({ ...validSource, APP_TIMEZONE })).toThrowError(
+        /APP_TIMEZONE/
+      );
+    expect(() =>
+      createEnvironment({ ...validSource, NOTIFICATION_RETENTION_DAYS: '29' })
+    ).toThrowError(/NOTIFICATION_RETENTION_DAYS/);
+  });
+
+  it('S2-03: a janela dos eventos de issue e PR saiu, e a variável antiga é ignorada (TF-REV-002)', () => {
+    for (const value of [undefined, '0', '7', 'sete'])
+      expect(
+        createEnvironment({ ...validSource, GITHUB_EVENT_NOTIFICATIONS_LOOKBACK_DAYS: value })
+      ).not.toHaveProperty('githubEventNotificationsLookbackDays');
+  });
 });

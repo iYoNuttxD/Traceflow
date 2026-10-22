@@ -96,6 +96,33 @@ export const traceabilityApi = {
         {}
       )
     );
+  },
+  alerts(projectId, params = {}, options = {}) {
+    return data(
+      httpClient.get(`/projects/${projectId}/traceability/alerts`, {
+        ...options,
+        params: compactParams(params)
+      })
+    );
+  },
+  alertIndex(projectId, params = {}, options = {}) {
+    return data(
+      httpClient.get(`/projects/${projectId}/traceability/alerts/index`, {
+        ...options,
+        params: compactParams(params)
+      })
+    );
+  },
+  alertSummary(projectId, options = {}) {
+    return data(httpClient.get(`/projects/${projectId}/traceability/alerts/summary`, options));
+  },
+  alert(projectId, alertId, options = {}) {
+    return data(httpClient.get(`/projects/${projectId}/traceability/alerts/${alertId}`, options));
+  },
+  dismissAlert(projectId, alertId, reason) {
+    return data(
+      httpClient.post(`/projects/${projectId}/traceability/alerts/${alertId}/dismiss`, { reason })
+    );
   }
 };
 
@@ -127,3 +154,14 @@ export const getRequirementsTraceability = (projectId, params, options) =>
   traceabilityApi.requirements(projectId, params, options);
 export const getRequirementSituationHistory = (projectId, requirementId, params, options) =>
   traceabilityApi.history(projectId, requirementId, params, options);
+
+export const getTraceabilityAlerts = (projectId, params, options) =>
+  traceabilityApi.alerts(projectId, params, options);
+export const getTraceabilityAlertIndex = (projectId, params, options) =>
+  traceabilityApi.alertIndex(projectId, params, options);
+export const getTraceabilityAlertSummary = (projectId, options) =>
+  traceabilityApi.alertSummary(projectId, options);
+export const getTraceabilityAlert = (projectId, alertId, options) =>
+  traceabilityApi.alert(projectId, alertId, options);
+export const dismissTraceabilityAlert = (projectId, alertId, reason) =>
+  traceabilityApi.dismissAlert(projectId, alertId, reason);

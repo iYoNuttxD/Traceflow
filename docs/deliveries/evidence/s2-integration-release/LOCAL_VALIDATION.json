@@ -1,0 +1,31 @@
+{
+  "status": "PASS_LOCAL_PREPRODUCTION",
+  "sourceMain": "daf5c1e87082b8bba24c1ee5c87e2e09da73d86b",
+  "sourceDanielDev": "f43ccb2cdbecc395f977414e9f58fe4066faf47d",
+  "migrations": {
+    "main": 83,
+    "danielDev": 68,
+    "union": 84,
+    "allOriginalSqlBytesPreserved": true
+  },
+  "tests": {
+    "lifecycleAndBudgets": 66,
+    "backendIntegration": 179,
+    "githubHealthUploads": 92,
+    "frontendAffected": 70,
+    "cd": 53,
+    "operations": 24,
+    "retention": 3,
+    "ciPolicy": 59
+  },
+  "schemaDrift": "NONE; negative control exit 2",
+  "productionDependenciesAudit": {
+    "backend": 0,
+    "frontend": 0
+  },
+  "nativeEngine": "MySQL 26.7.0 on macOS ARM64",
+  "cloudEngine": "26.7.0-cloud; grants/settings/own-query interruption verified, new DDL NOT_EXECUTED",
+  "productionMutation": "No schema change or promotion; only private diagnostic connections and their own temporary query interruption",
+  "ci": "NOT_EXECUTED_YET",
+  "arm64OracleLinuxBuild": "NOT_EXECUTED_YET"
+}

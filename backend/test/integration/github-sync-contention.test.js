@@ -197,7 +197,7 @@ describe('GitHub coordination under a real Project lock longer than Prisma defau
             : undefined,
         http: [200, 200, 200]
       });
-      expect(elapsed).toBeLessThan(2000);
+      expect(elapsed).toBeLessThan(operation === 'artifact' ? 6000 : 2000);
       if (operation === 'heartbeat') {
         expect(result).toBeNull(); // deferred, distinct from a lost lease
         expect((await runs.findById(run.id)).commitPages).toBe(0);

@@ -19,7 +19,8 @@ const projectSections = [
   { key: 'defects', label: 'Defeitos', path: 'defects' },
   { key: 'repository', label: 'Repositório', path: 'repository' },
   { key: 'traceability', label: 'Rastreabilidade', path: 'traceability' },
-  { key: 'indicators', label: 'Indicadores', path: 'indicators' }
+  { key: 'indicators', label: 'Indicadores', path: 'indicators' },
+  { key: 'reports', label: 'Relatórios', path: 'reports' }
 ];
 
 export function ProjectSectionNav({ projectId, activeSection }) {

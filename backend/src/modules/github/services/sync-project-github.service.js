@@ -1,5 +1,5 @@
 import { githubInstallationClientFactory } from '../github.client.js';
-import { normalizeGithubError } from '../github-error.js';
+import { githubSyncFailure } from '../github-error.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import {
   buildGithubRepositoryMetadata,
@@ -10,6 +10,7 @@ import { syncProjectCommits } from './sync-project-commits.service.js';
 import { syncProjectBranches } from './sync-project-branches.service.js';
 import { syncProjectIssues } from './sync-project-issues.service.js';
 import { syncProjectPullRequests } from './sync-project-pull-requests.service.js';
+import { syncProjectRepositoryEvents } from './sync-project-repository-events.service.js';
 import { logger } from '../../../shared/logger/index.js';
 
 const projectsInSync = new Set();
@@ -30,8 +31,7 @@ function linkedRepositoryCoordinates(integration) {
 }
 
 export function normalizeGithubSyncError(error) {
-  if (error instanceof ProjectServiceError) return error.message;
-  return normalizeGithubError(error).message;
+  return githubSyncFailure(error).message;
 }
 
 function logStep(event, projectId, step, startedAt, details = {}) {
@@ -190,6 +190,20 @@ export async function syncProjectGithubData(
     });
 
     stepStartedAt = Date.now();
+    logStep('started', parsedProjectId, 'events', stepStartedAt);
+    const eventSummary = await syncProjectRepositoryEvents({
+      project,
+      repository,
+      githubClient,
+      onProgress,
+      assertActive
+    });
+    logStep('completed', parsedProjectId, 'events', stepStartedAt, {
+      items: eventSummary.lifecycleEventsObserved + eventSummary.issueEventsObserved,
+      events: eventSummary.githubEventsRecorded
+    });
+
+    stepStartedAt = Date.now();
     await onProgress({ step: 'PERSIST' });
     await assertActive();
     logStep('started', parsedProjectId, 'persist', stepStartedAt);
@@ -205,7 +219,8 @@ export async function syncProjectGithubData(
         branches: branchResult.summary,
         commits: commitSummary,
         pullRequests: pullRequestSummary,
-        issues: issueSummary
+        issues: issueSummary,
+        events: eventSummary
       },
       project: updatedProject
     };
@@ -214,11 +229,19 @@ export async function syncProjectGithubData(
       // A delayed provider failure must not overwrite the integration after
       // another request has expired this worker and claimed a replacement.
       await onProgress({});
-      await projectRepository.markGithubSyncFailed(
-        parsedProjectId,
-        attemptedAt,
-        normalizeGithubSyncError(error).slice(0, 255)
-      );
+      await projectRepository
+        .markGithubSyncFailed(
+          parsedProjectId,
+          attemptedAt,
+          normalizeGithubSyncError(error).slice(0, 255)
+        )
+        .catch((markError) =>
+          logger.warn('Não foi possível registrar a falha da sincronização no projeto.', {
+            event: 'github_sync_project_failure_unrecorded',
+            projectId: parsedProjectId,
+            errorCode: String(markError?.code || 'UNKNOWN').slice(0, 64)
+          })
+        );
     }
     throw error;
   } finally {

@@ -204,6 +204,31 @@ class HashingWriter:
     def write(self,b):self.hash.update(b);self.size+=len(b);return self.writer.write(b)
     def flush(self):return self.writer.flush()
 
+def snapshot_contract(snapshot,cfg):
+    """Recognize a reviewed complete schema, never a fixed migration quantity."""
+    contracts=cfg.get('schemaContracts')
+    if contracts is None:
+        expected=json.loads((Path(cfg['release'])/'manifest.json').read_bytes())['schema']['migrations']
+        contracts=[{'migrations':expected,'tables':61,'foreignKeys':116}]
+    need(isinstance(contracts,list) and contracts,'SCHEMA_CONTRACT_REQUIRED')
+    observed=snapshot['migrations'];names=[m['name'] for m in observed]
+    need(len(set(names))==len(names),'MIGRATION_DUPLICATE')
+    matches=[c for c in contracts if sorted(c['migrations'],key=lambda m:m['name'])==observed]
+    need(len(matches)==1,'MIGRATION_SCHEMA_CHAIN')
+    contract=matches[0]
+    need(len(snapshot['tables'])==contract['tables'] and sum(v['foreignKeys'] for v in snapshot['tables'].values())==contract['foreignKeys'],'FOREIGN_KEY_SCHEMA_CHAIN')
+    if 'tableNames' in contract:need(sorted(snapshot['tables'])==sorted(contract['tableNames']),'TABLE_SCHEMA_CHAIN')
+    return contract
+
+def application_identity(cfg,contract):
+    state=Path('/var/lib/traceflow-live-cd/current.json')
+    if not state.exists():return {'releaseId':Path(cfg['release']).name,'descriptorSha256':cfg['descriptorSha256']}
+    root=Path(json.loads(state.read_bytes())['currentRelease'])
+    need(root.parent==Path('/opt/traceflow-live/releases') and root.stat().st_uid==0 and not root.is_symlink(),'APPLICATION_RELEASE_CUSTODY')
+    manifest=root/'cd-manifest.json';value=json.loads(manifest.read_bytes())
+    need(value.get('sourceState')=='committed' and value['migrations']==contract['migrations'],'APPLICATION_SCHEMA_BINDING')
+    return {'releaseId':value['commit'],'descriptorSha256':sha(manifest),'packagingKind':value['kind']}
+
 def backup(cfg):
     started=time.monotonic();ident=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex
     object_name=PREFIX+ident+'.tar.gz.age';need(OBJECT.fullmatch(object_name),'OBJECT_NAME')
@@ -226,9 +251,7 @@ def backup(cfg):
         with dump.open('xb') as output:run(mysql_args('mysqldump')+DUMP_FLAGS+[SCHEMA],stdout=output,timeout=300)
         need(0<dump.stat().st_size<cfg['maxPlainBytes'],'DATABASE_CAPACITY')
         snapshot=dump_manifest(dump)
-        expected=json.loads((Path(cfg['release'])/'manifest.json').read_bytes())['schema']['migrations']
-        need(snapshot['migrations']==expected and len(expected)==68 and len(snapshot['tables'])==61,'MIGRATION_SCHEMA_CHAIN')
-        need(sum(v['foreignKeys'] for v in snapshot['tables'].values())==116,'FOREIGN_KEY_CHAIN')
+        contract=snapshot_contract(snapshot,cfg)
         files=copy_storage(work/'storage',cfg['maxPlainBytes']-dump.stat().st_size)
         validate_references(snapshot,files)
         private=work/'configuration';private.mkdir(mode=0o700)
@@ -238,6 +261,8 @@ def backup(cfg):
         sources += list(Path('/etc/nginx/traceflow-live').glob('*.conf'))
         sources += sorted(Path('/etc/systemd/system').glob('traceflow-live-*.service'))
         sources += sorted(Path('/etc/systemd/system').glob('traceflow-live-*.timer'))
+        sources += sorted(Path('/etc/systemd/system').glob('traceflow-live-*.service.d/*.conf'))
+        sources += [p for p in [Path('/etc/traceflow-live/cd.json'),Path('/var/lib/traceflow-live-cd/current.json')] if p.exists()]
         retention=Path('/usr/local/libexec/traceflow-live-retention.mjs')
         if retention.exists():sources.append(retention)
         sources += [p for p in [Path('/etc/firewalld/firewalld.conf'),Path('/etc/firewalld/direct.xml'),Path('/etc/firewalld/zones/public.xml'),Path('/etc/systemd/journald.conf.d/60-traceflow-retention.conf'),Path('/etc/logrotate.d/nginx'),Path('/etc/logrotate.d/traceflow-live-ops')] if p.exists()]
@@ -247,8 +272,8 @@ def backup(cfg):
             name=str(source).lstrip('/');p=private/name;p.parent.mkdir(parents=True,mode=0o700,exist_ok=True)
             p.write_bytes(source.read_bytes());p.chmod(0o600);configurations[name]=sha(p)
         manifest={'formatVersion':1,'kind':'traceflow-clean-online-backup','id':ident,'capturedAt':utc(),'source':identity[:3],
-          'releaseId':Path(cfg['release']).name,'descriptorSha256':cfg['descriptorSha256'],'databaseSha256':sha(dump),
-          'snapshot':snapshot,'files':files,'configurationSha256':configurations,
+          **application_identity(cfg,contract),'databaseSha256':sha(dump),
+          'schemaContractSha256':hashlib.sha256(canonical(contract)).hexdigest(),'snapshot':snapshot,'files':files,'configurationSha256':configurations,
           'consistency':'mysqldump-single-transaction-innoDB-with-validated-storage-references-v1'}
         (work/'manifest.json').write_bytes(canonical(manifest))
         cipher=target.open('xb')
@@ -272,7 +297,7 @@ def backup(cfg):
         need(sha(readback)==sha(target),'EXTERNAL_READBACK_MISMATCH')
         receipt.update(status='SUCCESS',finishedAt=utc(),seconds=round(time.monotonic()-started,3),cipherBytes=target.stat().st_size,
           cipherSha256=sha(target),archiveSha256=stream.hash.hexdigest(),manifestSha256=sha(work/'manifest.json'),
-          tableCount=len(snapshot['tables']),migrationCount=68,foreignKeys=116,fileCount=len(files),
+          tableCount=len(snapshot['tables']),migrationCount=len(snapshot['migrations']),foreignKeys=sum(v['foreignKeys'] for v in snapshot['tables'].values()),fileCount=len(files),
           externalReadback=True,configurationFiles=len(configurations),databaseBytes=dump.stat().st_size)
         # Receipt contains no business data, keys, sessions or plaintext configurations.
         atomic(parent/(ident+'.json'),receipt);atomic(STATE/'last-backup.json',receipt)
@@ -325,6 +350,28 @@ def log_metrics(path,now):
     samples.sort();n=len(samples)
     return {'requests5m':n,'http5xx5m':errors,'p95Seconds5m':samples[min(n-1,int(n*.95))] if n else None}
 
+def scheduled_job_metrics():
+    """Read-only lease age and sanitized journal event counters for the existing worker."""
+    directory=run(['systemctl','show','traceflow-live-worker','--property=WorkingDirectory','--value']).decode().strip()
+    if not (Path(directory)/'src/jobs/job-runner.js').is_file():return {'enabled':False},[]
+    need(environment('/etc/traceflow-live/github-worker.env').get('JOBS_ENABLED')=='true','JOBS_CONFIGURATION')
+    expected={'notifications-due':2700,'github-event-dispatch':900,'traceability-notice-dispatch':900,'traceability-alerts':10800}
+    rows=[json.loads(r) for r in sql('SELECT JSON_ARRAY(name,TIMESTAMPDIFF(SECOND,acquiredAt,UTC_TIMESTAMP())) FROM ScheduledJobLease')]
+    ages={name:age for name,age in rows if name in expected}
+    since=int(run(['systemctl','show','traceflow-live-worker','--property=ActiveEnterTimestampMonotonic','--value']).strip())/1e6
+    warming=time.monotonic()-since<90
+    failures=[]
+    if not warming and (set(ages)!=set(expected) or any(ages[n]>limit for n,limit in expected.items() if n in ages)):failures.append('SCHEDULED_JOBS_STALE')
+    log=run(['journalctl','--unit=traceflow-live-worker','--since=-15min','--lines=1000','--output=json','--no-pager'])
+    failed=0
+    for line in log.decode().splitlines():
+        try:
+            message=json.loads(json.loads(line)['MESSAGE'])
+            if message.get('event') in ('scheduled_job_failed','scheduled_job_lease_lost','scheduled_job_lease_renew_failed') or (message.get('event')=='scheduled_job_completed' and message.get('level') in ('warn','error')):failed+=1
+        except (ValueError,KeyError,TypeError):continue
+    if failed:failures.append('SCHEDULED_JOB_FAILED')
+    return {'enabled':True,'warming':warming,'leaseAgeSeconds':ages,'failedEvents15m':failed},failures
+
 def monitor(cfg):
     now=time.time();failures=[];metrics={'at':utc(),'https':http('https://traceflow.dev/'),'api':http('http://127.0.0.1:3001/health/ready')}
     if metrics['https']['status']!=200:failures.append('HTTPS_UNAVAILABLE')
@@ -338,6 +385,9 @@ def monitor(cfg):
         if failed:failures.append('GITHUB_JOB_FAILED')
         if heartbeat[0]<1 or heartbeat[1]>90:failures.append('WORKER_HEARTBEAT_STALE')
     except Exception:metrics['mysql']=False;failures.append('MYSQL_UNAVAILABLE')
+    try:
+        metrics['scheduledJobs'],jobFailures=scheduled_job_metrics();failures.extend(jobFailures)
+    except Exception:failures.append('SCHEDULED_JOBS_MONITOR_FAILED')
     for role in ('api','worker'):
         unit='traceflow-live-'+role+'.service'
         p=subprocess.run(['systemctl','is-active',unit],capture_output=True,text=True)

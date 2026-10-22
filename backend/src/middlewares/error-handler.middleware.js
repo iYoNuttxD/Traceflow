@@ -1,10 +1,45 @@
+import { isEnginePanic, markEnginePanic } from '../database/engine-health.js';
+import { isLockWaitTimeout } from '../database/lock-wait.js';
+import { isTransactionDeadline } from '../database/transaction-guard.js';
 import { AppError, ERROR_CODES } from '../shared/errors/index.js';
 import { logger as defaultLogger, sanitizeText } from '../shared/logger/index.js';
 
 const defaultInternalMessage = 'Erro interno ao processar solicitação.';
+const resourceBusyMessage = 'Outra alteração está em andamento. Tente de novo em instantes.';
+const RESOURCE_BUSY_RETRY_AFTER_SECONDS = '2';
+const operationTimeoutMessage =
+  'A operação demorou mais que o permitido e foi desfeita. Tente de novo em instantes.';
+const OPERATION_TIMEOUT_RETRY_AFTER_SECONDS = '5';
+
+const isTransactionExpired = (error) =>
+  error?.name === 'PrismaClientKnownRequestError' && error.code === 'P2028';
+
+function prismaCauseCode(error) {
+  const name = String(error?.name ?? '');
+  if (!name.startsWith('PrismaClient')) return null;
+  return /^P\d{4}$/.test(String(error.code ?? '')) ? String(error.code) : name;
+}
 
 function normalizeKnownError(error) {
   if (error instanceof AppError) return error;
+  if (isLockWaitTimeout(error)) {
+    return new AppError({
+      message: resourceBusyMessage,
+      statusCode: 409,
+      code: ERROR_CODES.RESOURCE_BUSY,
+      exposeTechnicalDetails: true,
+      cause: error
+    });
+  }
+  if (isTransactionDeadline(error) || isTransactionExpired(error)) {
+    return new AppError({
+      message: operationTimeoutMessage,
+      statusCode: 503,
+      code: ERROR_CODES.OPERATION_TIMEOUT,
+      exposeTechnicalDetails: true,
+      cause: error
+    });
+  }
   if (error?.type === 'entity.too.large') {
     return new AppError({
       message: 'Payload excede o limite permitido.',
@@ -34,7 +69,39 @@ function normalizeKnownError(error) {
   return null;
 }
 
-export function createErrorHandler({ logger = defaultLogger, includeErrorStack = false } = {}) {
+function databaseEvent(error, causeCode) {
+  if (isLockWaitTimeout(error))
+    return {
+      level: 'warn',
+      text: 'Espera de trava esgotada no banco.',
+      event: 'database_lock_wait_timeout',
+      retryAfter: RESOURCE_BUSY_RETRY_AFTER_SECONDS,
+      causeCode
+    };
+  if (isTransactionDeadline(error))
+    return {
+      level: 'warn',
+      text: 'Transação desfeita no prazo próprio.',
+      event: 'database_transaction_deadline',
+      retryAfter: OPERATION_TIMEOUT_RETRY_AFTER_SECONDS,
+      causeCode: 'TRANSACTION_DEADLINE'
+    };
+  if (isTransactionExpired(error))
+    return {
+      level: 'error',
+      text: 'Transação expirada no banco.',
+      event: 'database_transaction_expired',
+      retryAfter: OPERATION_TIMEOUT_RETRY_AFTER_SECONDS,
+      causeCode
+    };
+  return null;
+}
+
+export function createErrorHandler({
+  logger = defaultLogger,
+  includeErrorStack = false,
+  onEnginePanic = markEnginePanic
+} = {}) {
   return function errorHandler(error, req, res, next) {
     if (res.headersSent) return next(error);
 
@@ -49,6 +116,40 @@ export function createErrorHandler({ logger = defaultLogger, includeErrorStack =
       : fallbackMessage;
     const errorCode = knownError?.code || ERROR_CODES.INTERNAL_ERROR;
     const logMessage = statusCode >= 500 ? fallbackMessage : message;
+    const causeCode = prismaCauseCode(error);
+
+    const database = databaseEvent(error, causeCode);
+    if (database) {
+      logger[database.level](database.text, {
+        event: database.event,
+        requestId,
+        method: req.method,
+        path: req.path,
+        statusCode,
+        errorCode,
+        causeCode: database.causeCode
+      });
+      res.set('Retry-After', database.retryAfter);
+      return res.status(statusCode).json(knownError.toPublic({ requestId, message }));
+    }
+
+    if (isEnginePanic(error)) {
+      onEnginePanic();
+      logger.error('O motor do banco entrou em pânico; o processo precisa reiniciar.', {
+        event: 'database_engine_panic',
+        requestId,
+        method: req.method,
+        path: req.path,
+        statusCode,
+        errorCode,
+        causeCode
+      });
+      return res.status(500).json({
+        message,
+        code: ERROR_CODES.INTERNAL_ERROR,
+        ...(requestId ? { requestId } : {})
+      });
+    }
 
     logger.error('HTTP request failed.', {
       requestId,
@@ -56,6 +157,7 @@ export function createErrorHandler({ logger = defaultLogger, includeErrorStack =
       path: req.path,
       statusCode,
       errorCode,
+      ...(causeCode ? { causeCode } : {}),
       error: {
         name: error?.name || 'Error',
         message: logMessage,

@@ -134,7 +134,7 @@ beforeEach(async () => {
     listBranchPages: vi.fn(() => pages([{ name: 'main', headSha: 'head-501' }])),
     listCommitPages: vi.fn(() => pages([])),
     listPullRequestPages: vi.fn(() => pages([])),
-    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
+    listRepositoryEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages([]))
   };
   boundary.forInstallation.mockResolvedValue(client);
@@ -810,9 +810,10 @@ describe('GITHUB-02 — conexão posterior pela rota canônica', () => {
     client.listPullRequestPages.mockImplementation(() =>
       pages([{ githubId: 'pr-501', number: 1, title: 'PR', state: 'open' }])
     );
-    client.listPullRequestLifecycleEventPages.mockImplementation(() =>
+    client.listRepositoryEventPages.mockImplementation(() =>
       pages([
         {
+          kind: 'PULL_REQUEST',
           providerEventId: 'event-501',
           number: 1,
           eventType: 'CLOSED',
@@ -831,7 +832,7 @@ describe('GITHUB-02 — conexão posterior pela rota canônica', () => {
     expect(failed.step).toBe('ISSUES');
     expect(await prisma.commit.count()).toBe(1);
     expect(await prisma.pullRequest.count()).toBe(1);
-    expect(await prisma.pullRequestLifecycleEvent.count()).toBe(1);
+    expect(await prisma.pullRequestLifecycleEvent.count()).toBe(0);
     expect(failed.error.message).not.toContain('Sensitive');
     expect(
       await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } })

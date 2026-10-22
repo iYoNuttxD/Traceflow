@@ -6,8 +6,8 @@ import {
   mapGithubCommit,
   mapGithubIssue,
   mapGithubPullRequest,
-  mapGithubPullRequestLifecycleEvent,
-  mapGithubRepository
+  mapGithubRepository,
+  mapGithubRepositoryEvent
 } from './github.mapper.js';
 import { paginateGithub } from './github-pagination.js';
 import { executeGithubRequest } from './github-request.js';
@@ -108,13 +108,13 @@ export function createGithubClient({
         { perPage: PAGE_SIZE }
       );
     },
-    listPullRequestLifecycleEventPages({ owner, repo }) {
+    listRepositoryEventPages({ owner, repo }) {
       return paginateGithub(
         ({ page, perPage }) =>
           requestPage(
             octokit.rest.issues.listEventsForRepo,
             { owner, repo, per_page: perPage, page },
-            mapGithubPullRequestLifecycleEvent,
+            mapGithubRepositoryEvent,
             { filter: Boolean }
           ),
         { perPage: PAGE_SIZE }

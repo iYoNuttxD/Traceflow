@@ -9,6 +9,9 @@ vi.mock('@prisma/client', () => ({
   }
 }));
 vi.mock('dotenv', () => ({ default: { config: loadEnv } }));
+vi.mock('../../src/shared/logger/index.js', () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+}));
 
 const testUrl = 'mysql://fixture:fixture@localhost/traceflow_test';
 const developmentUrl = 'mysql://fixture:fixture@localhost/traceflow';
@@ -40,6 +43,48 @@ describe('Prisma test datasource isolation without connecting to a database', ()
     vi.stubEnv('TEST_DATABASE_URL', target);
     await expect(loadClient()).rejects.toThrow();
     expect(construct).not.toHaveBeenCalled();
+  });
+
+  it('pins the recovery client to the same test datasource, with one connection and a 2 s pool wait', async () => {
+    await loadClient();
+    const { recoveryPrisma } = await import('../../src/database/recovery-prisma.js');
+    expect(construct).toHaveBeenCalledTimes(1);
+    recoveryPrisma();
+    recoveryPrisma();
+    expect(construct).toHaveBeenCalledTimes(2);
+    expect(construct).toHaveBeenLastCalledWith({
+      datasourceUrl: `${testUrl}?connection_limit=1&pool_timeout=2`
+    });
+  });
+
+  it('builds the production recovery client from DATABASE_URL, keeping its options', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TEST_DATABASE_URL', undefined);
+    vi.stubEnv('DATABASE_URL', `${developmentUrl}?sslaccept=strict`);
+    const { recoveryPrisma } = await import('../../src/database/recovery-prisma.js');
+    recoveryPrisma();
+    expect(construct).toHaveBeenCalledExactlyOnceWith({
+      datasourceUrl: `${developmentUrl}?sslaccept=strict&connection_limit=1&pool_timeout=2`
+    });
+  });
+
+  it('keeps the connection_limit of the test URL and ignores DATABASE_POOL_LIMIT (TF-REV-016)', async () => {
+    vi.stubEnv('TEST_DATABASE_URL', `${testUrl}?connection_limit=2`);
+    vi.stubEnv('DATABASE_POOL_LIMIT', '100');
+    await loadClient();
+    expect(construct).toHaveBeenCalledExactlyOnceWith({
+      datasourceUrl: `${testUrl}?connection_limit=2`
+    });
+  });
+
+  it('leaves the production datasource to DATABASE_URL, without overriding the pool (TF-REV-016)', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TEST_DATABASE_URL', undefined);
+    vi.stubEnv('DATABASE_URL', `${developmentUrl}?connection_limit=5`);
+    vi.stubEnv('DATABASE_POOL_LIMIT', '100');
+    await loadClient();
+    expect(loadEnv).not.toHaveBeenCalled();
+    expect(construct).toHaveBeenCalledExactlyOnceWith({});
   });
 
   it('keeps the chosen datasource when DATABASE_URL later changes', async () => {

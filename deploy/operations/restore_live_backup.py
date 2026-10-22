@@ -151,9 +151,10 @@ def run_restore(folder,run):
     need(all(re.fullmatch('[A-Za-z_][A-Za-z0-9_]*',x) for x in [table,ref,*cs,*rs]),'FK_IDENTIFIER')
     condition=' AND '.join('c.`'+x+'` IS NOT NULL' for x in cs);join=' AND '.join('c.`'+x+'`=p.`'+y+'`' for x,y in zip(cs,rs))
     need(lab.sql('migration','SELECT COUNT(*) FROM `'+table+'` c WHERE '+condition+' AND NOT EXISTS (SELECT 1 FROM `'+ref+'` p WHERE '+join+')').strip()==b'0','RESTORED_FOREIGN_KEY_ORPHAN')
-   need(len(rows)==116 and len(actual['migrations'])==68 and len(actual['tables'])==61,'RESTORED_COUNTS')
+   expected=manifest['snapshot']
+   need(len(rows)==sum(v['foreignKeys'] for v in expected['tables'].values()) and len(actual['migrations'])==len(expected['migrations']) and set(actual['tables'])==set(expected['tables']),'RESTORED_COUNTS')
    result={'status':'ISOLATED_RESTORE_PASS','id':receipt['id'],'cipherSha256':receipt['cipherSha256'],'manifestSha256':receipt['manifestSha256'],
-    'tables':61,'migrations':68,'foreignKeysChecked':116,'allTableDataHashesEqual':True,'allStructuresEqual':True,
+    'tables':len(actual['tables']),'migrations':len(actual['migrations']),'foreignKeysChecked':len(rows),'allTableDataHashesEqual':True,'allStructuresEqual':True,
     'rawDdlHashesEqual':all(actual['tables'][n]['structureSha256']==manifest['snapshot']['tables'][n]['structureSha256'] for n in actual['tables']),'structureComparison':'exact-ddl-except-proven-redundant-utf8mb4-charset','persistentFiles':len(files),'persistentFileHashesEqual':True,'configurationHashesEqual':True,'sourceMysql':manifest['source'][1],
     'isolatedMysql':'26.7.0','isolatedServerUuid':lab.uuid,'isolatedPort':lab.port,'productionDestination':False,'encryptedWorkspace':True}
  finally:

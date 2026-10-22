@@ -6,7 +6,7 @@ import {
   EMPTY_KANBAN_FILTERS,
   filterBoardBySprints,
   filterKanbanBoard,
-  formatTraceabilityCounts,
+  formatTraceabilityLine,
   getBoardTasks,
   getKanbanSummary,
   isTaskOverdue
@@ -65,7 +65,7 @@ describe('kanban-view', () => {
       total: 3,
       criticalPriority: 0,
       overdue: 1,
-      untraced: 1,
+      withoutTechnicalLink: 1,
       A_FAZER: 1,
       EM_ANDAMENTO: 1,
       CONCLUIDO: 1
@@ -83,7 +83,7 @@ describe('kanban-view', () => {
     expect(getBoardTasks(filtered).map((task) => task.id)).toEqual([1]);
   });
 
-  it('conta prioridade máxima, atraso e ausência total de rastreabilidade', () => {
+  it('conta prioridade máxima, atraso e ausência de vínculo técnico (RF58, TF-REV-008)', () => {
     const critical = {
       id: 4,
       title: 'Incidente crítico',
@@ -93,16 +93,17 @@ describe('kanban-view', () => {
       commits: [],
       issues: []
     };
+    const requirementOnly = { ...critical, id: 5, priority: 'BAIXA', requirement: { id: 2 } };
     const summary = getKanbanSummary(
-      { columns: { A_FAZER: [], EM_ANDAMENTO: [critical], CONCLUIDO: [] } },
+      { columns: { A_FAZER: [requirementOnly], EM_ANDAMENTO: [critical], CONCLUIDO: [] } },
       new Date(2026, 8, 15)
     );
 
     expect(summary).toMatchObject({
-      total: 1,
+      total: 2,
       criticalPriority: 1,
-      overdue: 1,
-      untraced: 1
+      overdue: 2,
+      withoutTechnicalLink: 2
     });
   });
 
@@ -141,6 +142,9 @@ describe('kanban-view', () => {
     }
     expect(ids({ ...filters, startDate: '', endDate: '' })).toEqual([10, 11, 15, 16, 17]);
     expect(countActiveKanbanFilters(filters)).toBe(5);
+    expect(countActiveKanbanFilters({ ...EMPTY_KANBAN_FILTERS, traceability: 'SEM_VINCULO' })).toBe(
+      1
+    );
   });
 
   it('trata atraso pelo prazo próprio e ignora tarefa concluída', () => {
@@ -150,9 +154,54 @@ describe('kanban-view', () => {
     expect(isTaskOverdue({ ...tasks[0], deadline: null }, now)).toBe(false);
   });
 
-  it('resume rastreabilidade sem expor os artefatos completos', () => {
-    expect(formatTraceabilityCounts(tasks[0])).toBe('1 req · 2 commits');
-    expect(formatTraceabilityCounts(tasks[1])).toBe('1 PR · 1 issue');
-    expect(formatTraceabilityCounts(tasks[2])).toBe('Sem rastreabilidade');
+  it('separa o vínculo técnico do requisito na linha de rastreabilidade (RF58, TF-REV-008)', () => {
+    expect(formatTraceabilityLine(tasks[0])).toBe('2 commits · 1 req');
+    expect(formatTraceabilityLine(tasks[1])).toBe('1 PR · 1 issue · Sem requisito');
+    expect(formatTraceabilityLine(tasks[2])).toBe('Sem vínculo técnico · Sem requisito');
+    expect(formatTraceabilityLine({ ...tasks[2], requirement: { id: 2 } })).toBe(
+      'Sem vínculo técnico · 1 req'
+    );
+    expect(formatTraceabilityLine({ id: 9, isFrozen: true })).toBe('Rastreabilidade indisponível');
+    expect(
+      formatTraceabilityLine({
+        id: 9,
+        isFrozen: true,
+        traceabilityCounts: { requirements: 0, pullRequests: 0, commits: 1, issues: 0 }
+      })
+    ).toBe('1 commit · Sem requisito');
+  });
+
+  it('filtra por sem vínculo técnico e por concluída sem commit com alerta aberto (RF58, RF13)', () => {
+    const openAlerts = new Map([[3, 70]]);
+    const ids = (traceability, alerts = openAlerts) =>
+      getBoardTasks(
+        filterKanbanBoard(board, { ...EMPTY_KANBAN_FILTERS, traceability }, alerts)
+      ).map((task) => task.id);
+
+    expect(ids('')).toEqual([1, 2, 3]);
+    expect(ids('SEM_VINCULO')).toEqual([3]);
+    expect(ids('SEM_COMMIT')).toEqual([3]);
+    expect(ids('SEM_COMMIT', new Map())).toEqual([]);
+    const frozen = {
+      columns: {
+        A_FAZER: [],
+        EM_ANDAMENTO: [],
+        CONCLUIDO: [{ ...tasks[2], isFrozen: true, traceabilityCounts: undefined }]
+      }
+    };
+    expect(
+      getBoardTasks(
+        filterKanbanBoard(
+          frozen,
+          { ...EMPTY_KANBAN_FILTERS, traceability: 'SEM_COMMIT' },
+          openAlerts
+        )
+      )
+    ).toEqual([]);
+    expect(
+      getBoardTasks(
+        filterKanbanBoard(frozen, { ...EMPTY_KANBAN_FILTERS, traceability: 'SEM_VINCULO' })
+      )
+    ).toEqual([]);
   });
 });

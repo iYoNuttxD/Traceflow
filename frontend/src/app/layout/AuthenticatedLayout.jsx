@@ -5,6 +5,7 @@ import {
   useAuth
 } from '../../features/auth/index.js';
 import { ProjectsCatalogProvider } from '../../features/projects/index.js';
+import { UnreadNotificationsProvider } from '../../features/notifications/index.js';
 import { AppShell } from './AppShell.jsx';
 
 export function AuthenticatedLayout() {
@@ -15,11 +16,13 @@ export function AuthenticatedLayout() {
 
   return (
     <ProjectsCatalogProvider>
-      <AppShell user={user} onLogout={logout}>
-        <EmailVerificationBanner user={user} />
-        <UsernameSetupBanner user={user} onUpdated={updateUser} />
-        <Outlet />
-      </AppShell>
+      <UnreadNotificationsProvider>
+        <AppShell user={user} onLogout={logout}>
+          <EmailVerificationBanner user={user} />
+          <UsernameSetupBanner user={user} onUpdated={updateUser} />
+          <Outlet />
+        </AppShell>
+      </UnreadNotificationsProvider>
     </ProjectsCatalogProvider>
   );
 }

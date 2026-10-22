@@ -7,15 +7,30 @@ import {
   formatRequirementLabel,
   requirementStatusLabels
 } from './kanban-display.js';
+import { TaskInconsistencySection } from '../../traceability/index.js';
 import {
   ArtifactCategory,
   GithubExternalAction,
   TaskTraceabilityGrid
 } from './TaskDetailsLayout.jsx';
 
-export function TaskTraceability({ task, projectId, onNavigate }) {
+export function TaskTraceability({ task, projectId, onNavigate, inconsistency = null }) {
   return (
-    <TaskTraceabilityGrid>
+    <TaskTraceabilityGrid
+      lead={
+        inconsistency && projectId && !task.isFrozen ? (
+          <TaskInconsistencySection
+            projectId={projectId}
+            taskId={task.id}
+            openAlertId={inconsistency.openAlertId}
+            focusOnLoad={inconsistency.focus}
+            canLink={inconsistency.canLink}
+            onLinkCommit={inconsistency.onLinkCommit}
+            onChanged={inconsistency.onChanged}
+          />
+        ) : null
+      }
+    >
       <ArtifactCategory label="Requisito" count={task.requirement ? 1 : 0}>
         {task.requirement ? (
           <EntityRow

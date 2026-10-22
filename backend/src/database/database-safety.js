@@ -13,6 +13,13 @@ export function parseDatabaseUrl(value, label = 'DATABASE_URL') {
   return parsed;
 }
 
+export function withConnectionLimits(value, { connectionLimit, poolTimeoutSeconds } = {}) {
+  const parsed = parseDatabaseUrl(value);
+  if (connectionLimit) parsed.searchParams.set('connection_limit', String(connectionLimit));
+  if (poolTimeoutSeconds) parsed.searchParams.set('pool_timeout', String(poolTimeoutSeconds));
+  return parsed.toString();
+}
+
 export function canonicalizeLocalDatabaseHost(hostname) {
   const normalized = String(hostname || '').toLowerCase();
   return localHostAliases.has(normalized) ? canonicalLocalHost : normalized;

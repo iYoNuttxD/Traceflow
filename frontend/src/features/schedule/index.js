@@ -7,3 +7,6 @@ export { SprintsScreen } from './pages/SprintsScreen.jsx';
 export { MilestonesScreen } from './pages/MilestonesScreen.jsx';
 export { SprintDialog } from './components/SprintDialog.jsx';
 export { SprintActionsMenu } from './components/SprintActionsMenu.jsx';
+// S2-06: o relatório reutiliza o burndown e os rótulos da aba Sprints/Marcos.
+export { SprintBurndownChart } from './components/SprintBurndownChart.jsx';
+export { milestoneStatusLabels, sprintStatusLabels } from './components/schedule-display.js';

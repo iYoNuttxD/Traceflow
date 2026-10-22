@@ -136,6 +136,28 @@ export function createRateLimiters(config = {}) {
       windowMs: value(config, 'rateLimitSensitiveWindowMs', legacyWindow),
       limit: Math.max(1, Math.min(5, value(config, 'rateLimitSensitiveMax', legacySensitiveMax))),
       keyGenerator: (req) => `${authenticatedKey(req)}:project:${req.params.projectId || 'unknown'}`
+    }),
+    alertReconcile: make({
+      scope: 'traceability-alerts-reconcile',
+      windowMs: value(config, 'rateLimitSensitiveWindowMs', legacyWindow),
+      limit: Math.max(1, Math.min(5, value(config, 'rateLimitSensitiveMax', legacySensitiveMax))),
+      keyGenerator: (req) => `${authenticatedKey(req)}:project:${req.params.projectId || 'unknown'}`
+    }),
+    // S2-06: cada geração percorre todas as visões do painel; o teto por ator/projeto
+    // evita enfileirar trabalho pesado em sequência (a reserva já impede paralelismo).
+    reportGeneration: make({
+      scope: 'project-report',
+      windowMs: value(config, 'rateLimitSensitiveWindowMs', legacyWindow),
+      limit: Math.max(1, Math.min(10, value(config, 'rateLimitSensitiveMax', legacySensitiveMax))),
+      keyGenerator: (req) => `${authenticatedKey(req)}:project:${req.params.projectId || 'unknown'}`
+    }),
+    // S2-07: cada PDF é montado na hora (CPU em worker thread); o teto por ator/projeto
+    // limita downloads repetidos do mesmo relatório.
+    reportPdf: make({
+      scope: 'project-report-pdf',
+      windowMs: value(config, 'rateLimitSensitiveWindowMs', legacyWindow),
+      limit: Math.max(1, Math.min(20, value(config, 'rateLimitSensitiveMax', legacySensitiveMax))),
+      keyGenerator: (req) => `${authenticatedKey(req)}:project:${req.params.projectId || 'unknown'}`
     })
   });
 }

@@ -1,3 +1,5 @@
+import { DISCONNECT_WAIT_MS, disconnectWithin } from './disconnect-within.js';
+
 export function createGracefulShutdown({
   server,
   disconnect,
@@ -6,6 +8,7 @@ export function createGracefulShutdown({
   closeStreams = () => {},
   waitForBackground = async () => {},
   timeoutMs = 10000,
+  disconnectWaitMs = DISCONNECT_WAIT_MS,
   exit = (code) => process.exit(code),
   setTimer = setTimeout,
   clearTimer = clearTimeout
@@ -30,6 +33,17 @@ export function createGracefulShutdown({
       resolveShutdown = resolve;
     });
     let completed = false;
+    let disconnecting = false;
+    let disconnectTimeoutLogged = false;
+    const logDisconnectTimeout = () => {
+      if (disconnectTimeoutLogged) return;
+      disconnectTimeoutLogged = true;
+      logger.error('O banco não desconectou no prazo; o processo sai assim mesmo.', {
+        event: 'database_disconnect_timeout',
+        signal,
+        waitMs: disconnectWaitMs
+      });
+    };
     let timer;
     const finish = (code) => {
       if (completed) return;
@@ -45,6 +59,7 @@ export function createGracefulShutdown({
       // Do not disconnect underneath active runs: termination leaves their persisted lease
       // for recovery. There is no artificial success/failure or authority release here.
       try {
+        if (disconnecting) logDisconnectTimeout();
         server.closeAllConnections?.();
       } finally {
         finish(1);
@@ -76,7 +91,10 @@ export function createGracefulShutdown({
       }
       if (completed) return;
       try {
-        await disconnect();
+        disconnecting = true;
+        const result = await disconnectWithin(disconnect, disconnectWaitMs);
+        if (result.timedOut) logDisconnectTimeout();
+        if (!result.ok) failed = true;
       } catch {
         failed = true;
       }

@@ -513,6 +513,24 @@ export const settingsRepository = {
             executedAt: true
           }
         },
+        // S2-06: só metadados do pedido; o conteúdo do relatório é dado do projeto.
+        requestedProjectReports: {
+          where: {
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            status: true,
+            startDate: true,
+            endDate: true,
+            timeZone: true,
+            sprintId: true,
+            createdAt: true,
+            finishedAt: true
+          },
+          orderBy: { createdAt: 'desc' }
+        },
         testEvidence: {
           where: {
             uploadedByUserId: userId,
@@ -664,6 +682,46 @@ export const settingsRepository = {
             reasonCode: true,
             failureCode: true
           }
+        },
+        notifications: {
+          select: {
+            id: true,
+            type: true,
+            projectId: true,
+            taskId: true,
+            taskTitle: true,
+            fromStatus: true,
+            toStatus: true,
+            dueDate: true,
+            githubEvent: true,
+            artifactNumber: true,
+            artifactTitle: true,
+            artifactUrl: true,
+            githubOccurredAt: true,
+            traceabilityAlertId: true,
+            batchSummary: true,
+            createdAt: true,
+            readAt: true,
+            project: {
+              select: {
+                deletedAt: true,
+                memberships: { where: { userId, isActive: true }, select: { id: true } }
+              }
+            }
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+        },
+        notificationPreferences: { select: { type: true, enabled: true } },
+        notificationDecisions: {
+          select: {
+            type: true,
+            eventKey: true,
+            projectId: true,
+            outcome: true,
+            occurredAt: true,
+            decidedAt: true
+          },
+          orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }]
         },
         personalDataExports: {
           select: {

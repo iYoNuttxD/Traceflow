@@ -1,12 +1,16 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { prisma } from './database/prismaClient.js';
+import { enforceConnectionBudget } from './database/connection-budget.js';
+import { disconnectDatabase } from './database/prismaClient.js';
+import { exitCodeFor, stopWhenEngineUnavailable } from './shared/runtime/engine-exit.js';
 import { logger } from './shared/logger/index.js';
 import { createGracefulShutdown } from './shared/runtime/graceful-shutdown.js';
 import { createLifecycle } from './shared/runtime/lifecycle.js';
 import { projectEventPublisher } from './shared/events/index.js';
 import { waitForManualGithubSyncRuns } from './modules/github/services/github-sync-run.service.js';
 import { testEvidenceStorage } from './modules/testCases/index.js';
+
+enforceConnectionBudget('api');
 
 const lifecycle = createLifecycle();
 const app = createApp({ lifecycle });
@@ -32,9 +36,12 @@ const shutdown = createGracefulShutdown({
   closeStreams: () => projectEventPublisher.closeAll('shutdown'),
   waitForBackground: waitForManualGithubSyncRuns,
   timeoutMs: env.shutdownTimeoutMs,
-  disconnect: () => prisma.$disconnect(),
+  disconnect: disconnectDatabase,
+  exit: (code) => process.exit(exitCodeFor(code)),
   logger
 });
 // Keep handlers installed: repeated signals must not bypass the shared shutdown promise.
 process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+stopWhenEngineUnavailable(shutdown, { logger });
