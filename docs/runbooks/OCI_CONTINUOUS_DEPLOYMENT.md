@@ -197,3 +197,7 @@ worker 3 + recuperação 1; comando Prisma até 2; diagnóstico 1; reserva opera
 planejado 24, abaixo das 200 conexões observadas no HeatWave. A API não inicia agenda: apenas
 `github-worker.js` inicia scheduler e job runner. Configurar explicitamente `JOBS_ENABLED=false`
 na API e `true` no worker. Não substituir a URL do comando pela URL de pool 3 do worker.
+
+A CI de pull request faz checkout do head SHA explícito. A CD aceita CI de push ou PR somente
+quando `head_sha`, workflow e os quatro checks pertencem à mesma execução exata da revisão
+promovida. Não utiliza um check verde de outra revisão nem a árvore implícita de merge da PR.
