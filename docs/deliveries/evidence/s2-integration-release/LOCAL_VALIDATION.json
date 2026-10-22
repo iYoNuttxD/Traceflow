@@ -29,5 +29,6 @@
   "ci": "Previous incomplete PR runs canceled after a proven containment defect; definitive head pending",
   "arm64OracleLinuxBuild": "NOT_EXECUTED_YET",
   "demoSchemaUpgrade": "83\u219284 PASS; no production import; Health source unchanged",
-  "diffCheck": "No whitespace errors in new implementation changes; inherited EOF blank lines in original migrations/docs/systemd units preserved"
+  "diffCheck": "No whitespace errors in new implementation changes; inherited EOF blank lines in original migrations/docs/systemd units preserved",
+  "diagnosticImportClosure": "PASS; seven required source files added, legacy inventories unchanged"
 }

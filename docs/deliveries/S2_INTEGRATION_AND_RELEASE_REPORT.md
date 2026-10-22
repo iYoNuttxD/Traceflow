@@ -94,3 +94,8 @@ operação de povoamento; não justificam alterar contas reais ou forçar result
 `git diff --check`: as alterações novas de implementação não têm erros. Permanecem linhas
 em branco de EOF herdadas de SQLs/documentos/unidades originais; os SQLs imutáveis não foram
 editados para eliminar avisos cosméticos.
+
+A revisão automática da PR identificou um fechamento incompleto de imports no pacote de
+diagnóstico. Sua allowlist passou a incluir sete arquivos já existentes do Prisma Client e
+logger; o inventário histórico não foi alterado, nem qualquer controlador legado instalado.
+Os testes específicos de empacotamento/execução offline foram executados após essa correção.

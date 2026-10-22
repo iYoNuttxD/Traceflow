@@ -28,6 +28,14 @@ LEGACY_SOURCES = (
     'backend/prisma/schema.prisma',
 )
 SOURCES = (*LEGACY_SOURCES,
+    # Complete relative-import closure of the integrated shared Prisma client.
+    'backend/src/database/recovery-prisma.js',
+    'backend/src/database/transaction-guard.js',
+    'backend/src/database/engine-health.js',
+    'backend/src/database/lock-wait.js',
+    'backend/src/shared/logger/index.js',
+    'backend/src/shared/logger/logger.js',
+    'backend/src/shared/logger/redaction.js',
     'backend/scripts/lib/heatwave-role-attestation.js',
     'backend/scripts/lib/heatwave-admin-audit.js',
     'backend/scripts/lib/heatwave-audit-evidence.js',
