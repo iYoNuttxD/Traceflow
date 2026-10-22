@@ -27,14 +27,25 @@ describe('sidebar toggle containment beside the notifications modal', () => {
   });
 
   it('reserves separate header rows instead of protruding into the modal by half a target', () => {
-    const toggle = ruleDeclarations(shell, `${collapsed} .trace-shell__collapse`);
-    expect(toggle).not.toHaveProperty('position');
-    expect(toggle).not.toHaveProperty('right');
-    expect(toggle).not.toHaveProperty('top');
+    expect(
+      Array.from(shell.cssRules).find(
+        (rule) => rule.selectorText === `${collapsed} .trace-shell__collapse`
+      )
+    ).toBeUndefined();
+    expect(ruleDeclarations(shell, '.trace-shell__collapse .trace-shell__icon')).toMatchObject({
+      width: 'var(--size-icon-sm)',
+      height: 'var(--size-icon-sm)'
+    });
+    expect(
+      ruleDeclarations(shell, '.trace-shell__icon-button, .trace-shell__pin-button')
+    ).toMatchObject({
+      width: 'var(--size-touch-target)',
+      height: 'var(--size-touch-target)'
+    });
     expect(ruleDeclarations(shell, `${collapsed} .trace-shell__sidebar-header`)).toMatchObject({
       'flex-direction': 'column',
-      'min-height': 'calc((2 * var(--size-touch-target)) + (2 * var(--space-1)))',
-      gap: '0px'
+      'min-height': 'calc((2 * var(--size-touch-target)) + (2 * var(--space-1)) + var(--space-2))',
+      gap: 'var(--space-2)'
     });
   });
 

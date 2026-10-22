@@ -1615,3 +1615,14 @@ sem homologação da API real ou de outros navegadores.
 
 [Relato, capturas e medições](../../deliveries/MAX_DEV_SIDEBAR_TOGGLE_20261022.md).
 Captura principal Library: `libfile_960201dedee48191ab66573c723648b4`.
+
+
+## 2026-10-22 — refinamento do peso e espaçamento do botão da sidebar
+
+Ícone 20→16px, alvo 44×44px mantido, círculo/sombra permanentes removidos e gap de 8px
+entre alvos no cabeçalho recolhido (24px visuais). Chrome/Mac: recolhida/expandida, painel
+aberto/fechado, 1280×800, 1440×900, 768×640 e conferência móvel 390×844. Clique,
+Enter/Espaço, foco visível, Shift+Tab e Escape conferidos, sem sobreposição nas transições.
+Fixture sintética, tema escuro; não é homologação da API ou de outros navegadores.
+[Relato e evidências](../../deliveries/MAX_DEV_SIDEBAR_TOGGLE_REFINEMENT_20261022.md).
+Library: `libfile_f78acca4a5088191ba4dc73ef1051b56`.

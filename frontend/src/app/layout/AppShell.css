@@ -164,14 +164,9 @@
 }
 
 .trace-shell__collapse .trace-shell__icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
   transition: transform var(--duration-normal) var(--ease-standard);
-}
-
-.trace-shell[data-sidebar-state='collapsed'] .trace-shell__collapse {
-  border-color: var(--color-border-default);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-primary);
-  box-shadow: var(--shadow-sm);
 }
 
 .trace-shell[data-sidebar-state='collapsed'] .trace-shell__collapse .trace-shell__icon {
@@ -442,10 +437,10 @@ button.trace-shell__nav-item {
 }
 
 .trace-shell[data-sidebar-state='collapsed'] .trace-shell__sidebar-header {
-  min-height: calc((2 * var(--size-touch-target)) + (2 * var(--space-1)));
+  min-height: calc((2 * var(--size-touch-target)) + (2 * var(--space-1)) + var(--space-2));
   flex-direction: column;
   justify-content: center;
-  gap: 0;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
 }
 

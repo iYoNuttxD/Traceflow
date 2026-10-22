@@ -1008,3 +1008,8 @@ transição de largura e animação do painel não atravessam a lateral. Modal c
 inert, foco preso e Escape. Chrome/Mac, fixture sintética, tema escuro, 1440/1280/768/390/320px,
 estados aberto/fechado e recolhido/expandido; overflow necessário preservado.
 Sem promoção global das surfaces. [Evidências e limites](../deliveries/MAX_DEV_SIDEBAR_TOGGLE_20261022.md).
+
+
+Refinamento pontual do botão em 22/10: seta de 16px em alvo de 44px, sem círculo
+permanente e com 8px entre alvos da marca e do toggle recolhido. Modal e contenção
+preservados. [Validação e limites](../deliveries/MAX_DEV_SIDEBAR_TOGGLE_REFINEMENT_20261022.md).
