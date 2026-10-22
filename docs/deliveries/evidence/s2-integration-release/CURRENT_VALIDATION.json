@@ -1,0 +1,326 @@
+{
+  "status": "BLOCKED_PRODUCTION_PRESERVED",
+  "candidate": {
+    "status": "IMMUTABLE_ARM64_CANDIDATE_VERIFIED",
+    "commit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+    "buildRun": 39714436779,
+    "buildAttempt": 3,
+    "independentBuildsByteIdentical": true,
+    "packageSha256": "a76e39a50011bad5da0e40029935156e0acfcf377562a8af6297d7d554b5998d",
+    "manifestSha256": "72f8e46a5a9d0e5b99fc4b882f1d3a34b2dd3dd9a3318f87dc7be1dca36683a9",
+    "packageBytes": 78694748,
+    "manifestFiles": 4640,
+    "sourceFilesCompared": 457,
+    "migrations": 84,
+    "node": "v22.23.2",
+    "prisma": "6.12.0",
+    "os": "Oracle Linux Server release 9.8",
+    "arch": "aarch64",
+    "packagedCliReadOnlyProof": "GitHub step PASS",
+    "nativeUpgrade": {
+      "from": 68,
+      "to": 84,
+      "foreignKeys": 145,
+      "preservedTables": 60,
+      "preservedRows": 10,
+      "seconds": 12.598,
+      "mysql": "8.4.8"
+    },
+    "productionDependencyAudits": "Both zero vulnerabilities in native job",
+    "at": "2026-10-22T03:36:33.735656+00:00",
+    "productionPromoted": false,
+    "runtimeExtractedInactive": true
+  },
+  "ci": {
+    "commit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+    "sourceCiRun": 39714436829,
+    "sourceCiAttempt": 2,
+    "sourceCiConclusion": "success",
+    "backend": {
+      "passed": 3370,
+      "skippedInherited": 5,
+      "statementCoverage": 93.89
+    },
+    "frontend": {
+      "passed": 1797,
+      "statementCoverage": 86.95
+    },
+    "supplyChain": "Both mandatory audit policies passed on fresh runner; no exception for transport failure",
+    "nativeBuildRun": 39714436779,
+    "nativeStatus": "SUCCESS: two byte-identical builds, isolated upgrade/runtime and packaged read-only Prisma CLI",
+    "at": "2026-10-22T03:36:33.735656+00:00",
+    "productionPromotion": false,
+    "nativeAttempt": 3
+  },
+  "mainMergeCi": {
+    "runId": 39718199802,
+    "conclusion": "success",
+    "dependencyReview": "not applicable on push; candidate PR dependency review PASS"
+  },
+  "custodyFailure": {
+    "component": "one-off migrator credential custody helper",
+    "mysqlError": 1819,
+    "name": "ER_NOT_VALID_PASSWORD",
+    "observedAtUtc": "2026-10-22T03:50:27Z",
+    "cause": "token_urlsafe did not guarantee all character classes required by observed MEDIUM policy"
+  },
+  "localCorrection": {
+    "status": "NATIVE_MYSQL_PASSWORD_POLICY_PASS",
+    "productionUsed": false,
+    "passwordsLogged": false,
+    "mysql": "26.7.0",
+    "sourceSha256": "c887a4ff1f2b1a259cd7a65f04e2c04b1c905cf51f2e802a14b6f3acd387fcac",
+    "policy": {
+      "name": "MEDIUM",
+      "minimumLength": 8,
+      "upperAndLowerEach": 1,
+      "digits": 1,
+      "special": 1,
+      "checkUsername": true
+    },
+    "exactAlterUserSslLimitUnlockVerified": true,
+    "originalGeneratorCounterexampleError": 1819,
+    "correctedAdversarialAndRandomCasesAccepted": 7,
+    "guaranteedCharactersAdded": "one uppercase, lowercase, digit, hyphen; original 288-bit random suffix preserved",
+    "noProductionRetry": true,
+    "ownedMysqlStopped": true
+  },
+  "production": {
+    "status": "ADDITIONAL_ATTEMPT_BLOCKED_PRODUCTION_PRESERVED",
+    "at": "2026-10-22T04:29:55.336396+00:00",
+    "currentCommit": "b9c1beb9f6ded49ce9257d346c086a8893f700c9",
+    "current": {
+      "currentRelease": "/opt/traceflow-live/releases/b9c1beb9f6ded49ce9257d346c086a8893f700c9-4a7dbc5f5223",
+      "frontendRoot": "/var/www/traceflow-live-releases/b9c1beb9f6ded49ce9257d346c086a8893f700c9-4a7dbc5f5223",
+      "nginxSha256": "133f319a5d48ecfe19ae2e682ff83c89118ed07380f147f289b7af6ec43fb64c",
+      "proxySha256": "9e00fb9c63460c16f587fb72520e03725ffb4f7d74886cef9ce5540af51e120f"
+    },
+    "currentStateSha256": "f158209c1e5abb755647972536164293247044f173dd8c1d6ccc445daf0ca350",
+    "receipt": {
+      "appSha": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+      "code": "COMMAND_SYSTEMD_RUN",
+      "finishedAt": "2026-10-22T04:28:07.964862+00:00",
+      "manifestSha256": "72f8e46a5a9d0e5b99fc4b882f1d3a34b2dd3dd9a3318f87dc7be1dca36683a9",
+      "migration": {
+        "status": "not-required"
+      },
+      "packageSha256": "a76e39a50011bad5da0e40029935156e0acfcf377562a8af6297d7d554b5998d",
+      "recovery": {
+        "status": "not-needed"
+      },
+      "rollback": "inspect-preserved-transaction",
+      "runId": "39721691174",
+      "status": "FAILED",
+      "workflowSha": "2fb62458e4c4b0bf6cbea5f6d31d9c9875fd4330"
+    },
+    "receiptSha256": "82ec2f26ebe3d037a15a3727d7207a602e75ef2b7b3db530630d2bd571553d17",
+    "database": {
+      "tables": 61,
+      "migrations": 68,
+      "foreignKeys": 116,
+      "chainNamesChecksumsExact": true,
+      "tls": "VERIFY_IDENTITY"
+    },
+    "services": {
+      "nginx": "active",
+      "traceflow-live-api": "active",
+      "traceflow-live-worker": "active",
+      "traceflow-live-backup.timer": "active",
+      "traceflow-live-monitor.timer": "active",
+      "traceflow-live-retention.timer": "active",
+      "traceflow-live-cd.timer": "active"
+    },
+    "serviceStartTimes": {
+      "traceflow-live-api": "Thu 2026-10-22 00:54:01 GMT",
+      "traceflow-live-worker": "Thu 2026-10-22 00:54:01 GMT"
+    },
+    "apiReady": true,
+    "httpsFrontendHashExact": true,
+    "metrics": {
+      "api": {
+        "seconds": 0.006252,
+        "status": 200
+      },
+      "apiUnitActive": true,
+      "at": "2026-10-22T04:29:37.271525+00:00",
+      "backupAgeHours": 2.044231069352892,
+      "consecutiveFailures": {},
+      "diskUsedPercent": 74.96,
+      "failedGitHubJobs15m": 0,
+      "failures": [],
+      "http5xx5m": 0,
+      "https": {
+        "seconds": 0.045708,
+        "status": 200
+      },
+      "memoryAvailablePercent": 88.67,
+      "mysql": true,
+      "p95Seconds5m": 0.0,
+      "requests5m": 20,
+      "scheduledJobs": {
+        "enabled": false
+      },
+      "schemaTransitionPending": false,
+      "workerCount": 1,
+      "workerHeartbeatAgeSeconds": 12,
+      "workerUnitActive": true
+    },
+    "backup": {
+      "id": "20261022T022652Z-9da9b993947b484e8b1b237e4b2a5653",
+      "status": "SUCCESS",
+      "externalReadback": true,
+      "cipherSha256": "018f919011c6c34118708762850bd7bb2338a10b5e4075d09f7e28c90e575e4a",
+      "manifestSha256": "028eac512d76e8fcf5598878f28e01bf7cb87da5d8cdbd6d6c87e675f55e41ed",
+      "finishedAt": "2026-10-22T02:26:58.039670+00:00"
+    },
+    "schemaGuardPresent": false,
+    "temporaryMigratorCredentialPresent": false,
+    "migratorClosed": {
+      "accountLocked": true,
+      "activeSessions": 0,
+      "at": "2026-10-22T04:29:10.836005+00:00",
+      "secretsPrinted": false,
+      "sourceCommit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+      "status": "MIGRATOR_CUSTODY_CLOSED",
+      "temporaryEncryptedCredentialRemoved": true
+    },
+    "candidateUnitPresent": false,
+    "candidatePort3002": false,
+    "protectedFilesIntact": true,
+    "selinux": "Enforcing",
+    "noMigrationStarted": true,
+    "noCutover": true,
+    "newPublicFunctionalQaExecuted": false
+  },
+  "independentReview": "Explicit operator exception; merge by owner with rule disabled; rule restored active without bypass; no approval fabricated",
+  "additionalProductionAttemptAuthorized": true,
+  "previousProductionAttempt": {
+    "runId": 39718652366,
+    "workflowConclusion": "cancelled",
+    "rootRefusal": "WORKFLOW_NOT_ACTIVE",
+    "schemaMigrationsExecuted": 0
+  },
+  "productionAttempt": {
+    "runId": 39721691174,
+    "workflowConclusion": "failure",
+    "rootRefusal": "COMMAND_SYSTEMD_RUN",
+    "failureStage": "Host.preflight migration_unit check=True",
+    "schemaMigrationsExecuted": 0,
+    "recovery": "not-needed",
+    "underlyingSystemdError": "not persisted; no specific cause established"
+  },
+  "additionalCandidate": {
+    "status": "ADDITIONAL_CANDIDATE_BYTE_IDENTICAL_PASS",
+    "runId": 39721691174,
+    "identity": {
+      "commit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+      "packageSha256": "a76e39a50011bad5da0e40029935156e0acfcf377562a8af6297d7d554b5998d",
+      "manifestSha256": "72f8e46a5a9d0e5b99fc4b882f1d3a34b2dd3dd9a3318f87dc7be1dca36683a9",
+      "files": 4640,
+      "migrations": 84
+    },
+    "byteComparison": true,
+    "at": "2026-10-22T04:23:10.473375+00:00"
+  },
+  "additionalPreparation": {
+    "status": "ADDITIONAL_PREPARATION_PASS",
+    "at": "2026-10-22T04:18:24.125742+00:00",
+    "transitionSha256": "24a2a4df45c9186178695108ad89ea1ea0da271ae00aaa8ba7d529880222a197",
+    "migrationsFrom": 68,
+    "migrationsTo": 84,
+    "backupId": "20261022T022652Z-9da9b993947b484e8b1b237e4b2a5653",
+    "archive": "/opt/traceflow-live/releases/81718c29ade2550d33fa7986defa3d96dc3c7b34-a76e39a50011-preserved-cancelled-39718652366",
+    "inventorySha256": "c8e8922a3a51372f5bb896f263c4d5fef487df07f296dc2f63c418ae337bf406",
+    "inodeContentAclSelinuxPreserved": true,
+    "currentStatePreserved": true,
+    "protectedFilesIntact": true,
+    "applicationUnchanged": true
+  },
+  "custodyProvision": {
+    "status": "MIGRATOR_CUSTODY_PROVISIONED",
+    "sourceCommit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+    "at": "2026-10-22T04:18:42.013782+00:00",
+    "user": "tf_live_migrator",
+    "host": "10.20.1.184",
+    "privileges": [
+      "ALTER",
+      "CREATE",
+      "INDEX",
+      "INSERT",
+      "REFERENCES",
+      "SELECT",
+      "UPDATE"
+    ],
+    "connectionLimit": 2,
+    "tls": "VERIFY_IDENTITY",
+    "encryptedCredentialSha256": "3e2aeb0153157b6affc5ec839af6fd602a38ba63655cfdcc05bb53010c7dd258",
+    "secretsPrinted": false
+  },
+  "custodyClosed": {
+    "status": "MIGRATOR_CUSTODY_CLOSED",
+    "sourceCommit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+    "at": "2026-10-22T04:29:10.836005+00:00",
+    "accountLocked": true,
+    "temporaryEncryptedCredentialRemoved": true,
+    "activeSessions": 0,
+    "secretsPrinted": false
+  },
+  "diagnostic": {
+    "traceflow-live-cd": [
+      {
+        "message": "Starting TraceFlow pull-only human-approved signed CD...",
+        "atMicros": "1792643272147792"
+      },
+      {
+        "runId": "39721691174",
+        "appSha": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+        "packageSha256": "a76e39a50011bad5da0e40029935156e0acfcf377562a8af6297d7d554b5998d",
+        "status": "FAILED",
+        "rollback": "inspect-preserved-transaction",
+        "workflowSha": "2fb62458e4c4b0bf6cbea5f6d31d9c9875fd4330",
+        "manifestSha256": "72f8e46a5a9d0e5b99fc4b882f1d3a34b2dd3dd9a3318f87dc7be1dca36683a9",
+        "code": "COMMAND_SYSTEMD_RUN",
+        "recovery": {
+          "status": "not-needed"
+        },
+        "migration": {
+          "status": "not-required"
+        },
+        "finishedAt": "2026-10-22T04:28:07.964862+00:00"
+      },
+      {
+        "status": "BLOCKED",
+        "code": "PROMOTION_FAILED_NO_RETRY",
+        "automaticRetry": false
+      },
+      {
+        "message": "traceflow-live-cd.service: Main process exited, code=exited, status=1/FAILURE",
+        "atMicros": "1792643287995899"
+      },
+      {
+        "message": "traceflow-live-cd.service: Failed with result 'exit-code'.",
+        "atMicros": "1792643287996076"
+      },
+      {
+        "message": "Failed to start TraceFlow pull-only human-approved signed CD.",
+        "atMicros": "1792643287996391"
+      },
+      {
+        "message": "traceflow-live-cd.service: Consumed 5.598s CPU time.",
+        "atMicros": "1792643287996613"
+      }
+    ],
+    "traceflow-live-cd-migrate-check-39721691174": [],
+    "traceflow-live-cd-migrate-39721691174": []
+  },
+  "approval": [
+    {
+      "state": "approved",
+      "user": "iYoNuttxD",
+      "environments": [
+        "production"
+      ]
+    }
+  ],
+  "noAdditionalExecutionRemaining": true
+}
