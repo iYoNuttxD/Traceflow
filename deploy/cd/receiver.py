@@ -38,6 +38,15 @@ def valid_window(request,cfg):
  value=fetch('https://api.github.com/repos/'+REPO+'/actions/runs/'+str(request['runId']))
  need(value['status']=='in_progress' and value['event']=='workflow_dispatch' and value['head_sha']==request['workflowSha'] and value['path']==WORKFLOW,'WORKFLOW_NOT_ACTIVE')
 
+def validate_migration_chain(actual,migrations):
+ expected=[x['name']+'\t'+x['sha256'] for x in migrations]
+ def normalized(rows):
+  pairs=[row.split('\t') for row in rows]
+  need(all(len(pair)==2 and all(pair) for pair in pairs),'LIVE_MIGRATION_CHAIN')
+  need(len({pair[0] for pair in pairs})==len(pairs),'LIVE_MIGRATION_CHAIN')
+  return sorted(pairs,key=lambda pair:pair[0])
+ need(len(actual)==len(expected) and normalized(actual)==normalized(expected),'LIVE_MIGRATION_CHAIN')
+
 def current_manifest(path):
  schema=path/'backend/prisma/schema.prisma'
  return {'schemaSha256':sha(schema),'migrations':[{'name':p.parent.name,'sha256':sha(p)} for p in sorted((path/'backend/prisma/migrations').glob('*/migration.sql'))]}
@@ -64,7 +73,7 @@ class Host:
   need(len(self.manifest['migrations'])==68,'OPERATIONAL_SCHEMA_COMPATIBILITY')
   spec=importlib.util.spec_from_file_location('live_ops_readonly','/usr/local/libexec/traceflow-live-ops.py');ops=importlib.util.module_from_spec(spec);spec.loader.exec_module(ops)
   actual=ops.sql('SELECT CONCAT(migration_name,CHAR(9),checksum) FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name')
-  need(actual==[x['name']+'\t'+x['sha256'] for x in self.manifest['migrations']],'LIVE_MIGRATION_CHAIN')
+  validate_migration_chain(actual,self.manifest['migrations'])
   need(not self.candidate.exists() and not self.frontend.exists(),'NO_PARTIAL_INSTALL')
   need(sha(self.nginx)==self.cfg['nginxSha256'] and sha(self.proxy)==self.cfg['proxySha256'],'CONFIG_CHANGED_REVIEW_REQUIRED')
   for unit in ['traceflow-live-api','traceflow-live-worker','traceflow-live-backup.timer','traceflow-live-monitor.timer','traceflow-live-retention.timer']:run(['systemctl','is-active',unit])
