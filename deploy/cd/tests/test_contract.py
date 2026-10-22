@@ -25,7 +25,9 @@ class Lab:
  def route_official(self):self.route='official';self.step('route_official')
  def smoke(self):self.step('smoke')
  def commit(self):self.step('commit')
- def restore_previous(self):self.route='previous';self.application='previous';self.step('rollback')
+ def restore_previous(self):self.route='previous';self.application='previous';self.step('rollback');return True
+ def recovery_complete(self):self.step('recovery_complete')
+ def recovery_failed(self,original,recovery):self.step('recovery_incomplete')
  def previous_ready(self):self.state['ready']=True;self.step('previous_ready')
  def stop_candidate(self):self.candidate=False;self.events.append('candidate_stopped')
  def close(self):self.http.shutdown();self.http.server_close();self.thread.join()

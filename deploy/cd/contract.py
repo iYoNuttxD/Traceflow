@@ -55,13 +55,15 @@ def promote(host):
   host.start_candidate();host.candidate_ready()
  except BaseException:
   host.stop_candidate();raise
- switched=False
  try:
-  switched=True;host.route_candidate()
+  host.route_candidate()
   host.promote_services();host.official_ready();host.route_official();host.smoke()
   host.stop_candidate();host.commit()
- except BaseException:
-  if switched:
-   host.restore_previous();host.previous_ready()
+ except BaseException as original:
+  try:
+   if host.restore_previous():host.previous_ready()
+   host.recovery_complete()
+  except BaseException as recovery:
+   host.recovery_failed(original,recovery);raise
   raise
  finally:host.stop_candidate()
