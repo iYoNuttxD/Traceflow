@@ -142,6 +142,21 @@ try {
     await client.$queryRaw`SELECT TABLE_NAME AS t, COLUMN_NAME AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME!='_prisma_migrations' ORDER BY TABLE_NAME,ORDINAL_POSITION`;
   const columns = {};
   for (const { t, c } of cols) (columns[t] ??= []).push(c);
+  const presentTables = new Set(Object.keys(columns));
+  // On a starting schema that already has the link/event tables, seed the same valid facts.
+  if (presentTables.has('TaskArtifactLinkPeriod')) {
+    await client.taskArtifactLinkPeriod.createMany({
+      data: [
+        { projectId: project.id, taskId: task.id, issueId: issue.id },
+        { projectId: project.id, taskId: task.id, pullRequestId: pr.id }
+      ]
+    });
+  }
+  if (presentTables.has('GitHubEventCoverage')) {
+    await client.gitHubEventCoverage.create({
+      data: { projectId: project.id, coverageFrom: new Date(), comparedBefore: true }
+    });
+  }
   const before = await snapshot(columns);
   deploy(resolve('prisma/schema.prisma'));
   assert.deepEqual(
@@ -189,6 +204,8 @@ try {
     JSON.stringify({
       status: 'ISOLATED_UPGRADE_PASS',
       baseline,
+      fromSchemaSha256: digest(git('show', `${baseline}:backend/prisma/schema.prisma`)),
+      toSchemaSha256: digest(await readFile('prisma/schema.prisma')),
       from: beforeHistory.length,
       to: history.length,
       added: expected.filter((x) => !beforeHistory.some((r) => r.migration_name === x.name)),

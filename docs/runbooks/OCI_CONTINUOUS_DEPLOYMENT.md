@@ -178,7 +178,7 @@ plano protegido e suas provas. Não preencher resultados antes de observá-los.
    `runtimeEvidenceSha256`, `previousAppCompatibleWithTarget=true`, os três hashes/ID do backup e validade de até 24 h.
    A autorização executável continua sendo o request OIDC novo de até 20 min, após a aprovação
    humana do ambiente. O plano e o backup precisam cobrir toda essa janela.
-7. Disparar uma única execução manual com `app_sha`, `promote=true` e `transition_sha256`.
+7. Disparar uma única execução manual com `app_sha`, `baseline_sha` (SHA atualmente instalado), `promote=true` e `transition_sha256`.
    A CD usa seus locks e o advisory lock Prisma, para e drena worker/API, grava o início
    exclusivo, executa `prisma migrate deploy` uma vez pelo CLI 6.12.0 imutável e reconfere a
    cadeia inteira. Só então inicia a candidata e promove API, worker e frontend.

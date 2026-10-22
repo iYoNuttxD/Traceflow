@@ -34,3 +34,20 @@ class JobMonitoringTests(unittest.TestCase):
     metrics,failures=ops.scheduled_job_metrics();self.assertEqual(failures,[]);self.assertEqual(set(metrics['leaseAgeSeconds']),set(names))
    with patch.object(ops,'run',side_effect=command),patch.object(ops,'environment',return_value={'JOBS_ENABLED':'true'}),patch.object(ops.time,'monotonic',return_value=200),patch.object(ops,'sql',return_value=[]):
     self.assertIn('SCHEDULED_JOBS_STALE',ops.scheduled_job_metrics()[1])
+
+class ApplicationSchemaCompatibilityTests(unittest.TestCase):
+ def test_rollback_binary_keeps_honest_identity_and_requires_explicit_compatibility(self):
+  import json,types
+  with tempfile.TemporaryDirectory() as d:
+   base=Path(d);release=base/'published';release.mkdir();state=base/'current.json';state.write_text(json.dumps({'currentRelease':str(release)}))
+   old=[{'name':'20260101_old','sha256':'a'*64}];new=old+[{'name':'20260102_new','sha256':'b'*64}]
+   manifest={'sourceState':'committed','commit':'c'*40,'schemaSha256':'d'*64,'migrations':old,'kind':'traceflow-clean-cd'}
+   path=release/'cd-manifest.json';path.write_text(json.dumps(manifest));contract={'schemaSha256':'e'*64,'migrations':new,'compatiblePriorApplications':{'c'*40:'d'*64}}
+   stat=Path.stat
+   def custody(p,*a,**k):
+    value=stat(p,*a,**k);return types.SimpleNamespace(st_uid=0,st_mode=value.st_mode) if p==release else value
+   with patch.object(ops,'CD_CURRENT',state),patch.object(ops,'CD_RELEASES',base),patch.object(Path,'stat',custody):
+    self.assertEqual(ops.application_identity({},contract)['releaseId'],'c'*40)
+    with self.assertRaises(ops.Refused):ops.application_identity({},{**contract,'compatiblePriorApplications':{}})
+    with self.assertRaises(ops.Refused):ops.application_identity({},{**contract,'migrations':[{'name':'20260101_old','sha256':'f'*64}]})
+    self.assertEqual(ops.application_identity({},{'schemaSha256':'d'*64,'migrations':old})['releaseId'],'c'*40)

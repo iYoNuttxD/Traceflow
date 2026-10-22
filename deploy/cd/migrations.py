@@ -28,6 +28,7 @@ def transition(plan, previous, candidate, app_sha, plan_sha, backup, restore, no
     need(hashlib.sha256(canonical(plan)).hexdigest() == plan_sha, 'TRANSITION_DIGEST')
     need(plan.get('formatVersion') == 1 and plan.get('operation') == 'migrate-and-promote-clean', 'TRANSITION_FORMAT')
     need(plan.get('appSha') == app_sha and plan.get('from') == previous and plan.get('to') == candidate, 'TRANSITION_IDENTITY')
+    need(plan.get('externalWritersExcluded') is True, 'TRANSITION_EXTERNAL_WRITERS')
     pending = additions(previous, candidate)
     need(pending and plan.get('added') == pending, 'TRANSITION_ADDITIONS')
     need(plan.get('upgradeEvidenceSha256') and re.fullmatch(r'[a-f0-9]{64}', plan['upgradeEvidenceSha256']), 'TRANSITION_HOMOLOGATION')

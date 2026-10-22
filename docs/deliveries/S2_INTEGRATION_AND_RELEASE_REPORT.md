@@ -58,8 +58,8 @@ não foram alterados nesta preparação. Não há dependência de ledgers/contro
 ## Validação
 
 [Evidências sanitizadas](evidence/s2-integration-release/LOCAL_VALIDATION.json): 66 testes de
-lifecycle/conexões, 179 de integração backend, 92 GitHub/Health/uploads, 70 frontend, 53 CD,
-24 operações, 3 retenção e 59 da política CI. Lint/formatação e scanner de segredos passaram;
+lifecycle/conexões, 179 de integração backend, 92 GitHub/Health/uploads, 70 frontend, 56 CD,
+25 operações, 3 retenção e 59 da política CI. Lint/formatação e scanner de segredos passaram;
 auditorias npm de produção: zero vulnerabilidades em ambos os pacotes. Os dois URLs falsos
 com senha de testes de retenção foram substituídos por URLs sem senha, sem alterar o scanner.
 
@@ -77,8 +77,16 @@ Não foram simulados recibos produtivos.
 | CD com migrations | PARTIAL | Contrato e recuperação isolados PASS; instalação administrativa e promoção dependem do GO |
 | Backup recuperável antes do DDL | PARTIAL | Backup automático atual íntegro; restore do conjunto selecionado para a promoção pendente |
 | Funcionalidades públicas integradas | PARTIAL | Testes direcionados locais PASS; produção segue a versão anterior |
-| Dataset da banca | PARTIAL | Preparação de compatibilidade e aplicação separada; nenhum import produtivo autorizado neste deploy |
+| Dataset da banca | PARTIAL | 83→84 PASS e fórmula Health preservada; aplicação posterior conforme runbook, sem import neste deploy |
 | S2-08 IaC | PARTIAL | Mantidas as ressalvas existentes; nenhuma infraestrutura recriada |
 
 Custos adicionais desta preparação: nenhum recurso OCI pago criado. Nenhuma alteração de
 schema, promoção, mudança na GitHub App ou importação de demonstração ocorreu.
+
+Preparação da banca: [procedimento separado](../runbooks/TCC_DEMO_AFTER_INTEGRATION.md).
+O gate de cronologia do ator e o versionamento dos scripts locais precisam ser conferidos na
+operação de povoamento; não justificam alterar contas reais ou forçar resultados nesta publicação.
+
+`git diff --check`: as alterações novas de implementação não têm erros. Permanecem linhas
+em branco de EOF herdadas de SQLs/documentos/unidades originais; os SQLs imutáveis não foram
+editados para eliminar avisos cosméticos.

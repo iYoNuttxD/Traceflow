@@ -56,3 +56,11 @@ Nenhum resultado de simulação é evidência de produção.
 
 O Prisma não detecta todo drift nem toda migration aplicada ausente em `migrate deploy`;
 essas recusas pertencem ao preflight da CD. DDL MySQL não oferece rollback transacional geral.
+
+
+Quando o binário anterior retorna sobre o schema expandido já concluído, o contrato de backup
+registra explicitamente esse commit e seu schema em `compatiblePriorApplications`. O backup
+conserva a identidade real do binário e a identidade separada do schema capturado; não exige
+que o binário antigo finja ter recebido migrations novas. Novos binários com o mesmo schema
+exato continuam elegíveis. Uma falha após DDL não autoriza outro deploy automático: o operador
+precisa revisar o recibo da transição e a cadeia real antes de preparar uma nova operação.

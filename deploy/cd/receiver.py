@@ -77,6 +77,10 @@ def applied_chain(ops):
  need(all(len(r)==4 and r[2:] == ['1','0'] for r in pairs),'LIVE_MIGRATION_HISTORY_INCOMPLETE')
  return [r[0]+'\t'+r[1] for r in pairs]
 
+def migration_unit(root,run_id,check=False):
+ need(str(run_id).isdigit(),'MIGRATION_RUN_ID')
+ return ['systemd-run','--quiet','--wait','--pipe','--collect','--unit=traceflow-live-cd-migrate-'+('check-' if check else '')+str(run_id),'-p','Type=exec','-p','User=root','-p','UMask=0077','-p','LoadCredentialEncrypted=mysql-migrator:/etc/credstore.encrypted/traceflow-live-mysql-migrator','-p','RuntimeMaxSec='+('60' if check else '300'),'-p','TimeoutStopSec=15','-p','KillMode=control-group','-p','Restart=no','-p','LimitCORE=0','-p','MemorySwapMax=0','-p','MemoryMax=512M','-p','ProtectSystem=strict','-p','ProtectHome=yes','-p','PrivateTmp=yes','-p','PrivateDevices=yes','-p','NoNewPrivileges=yes','/usr/bin/python3','-I','-B','/usr/local/libexec/traceflow-live-cd/migrate.py',root]+(['--check'] if check else [])
+
 class Host:
  def __init__(self,root,manifest,request,work,cfg):
   self.root=root;self.manifest=manifest;self.request=request;self.work=work;self.cfg=cfg
@@ -99,6 +103,7 @@ class Host:
   metrics=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(not metrics['failures'] and time.time()-dt.datetime.fromisoformat(metrics['at']).timestamp()<180,'CURRENT_HEALTH')
   backup=json.loads(Path('/var/lib/traceflow-live-ops/last-backup.json').read_bytes());need(backup['status']=='SUCCESS' and backup['externalReadback'] and time.time()-dt.datetime.fromisoformat(backup['finishedAt']).timestamp()<26*3600,'BACKUP_CURRENT')
   previous=current_manifest(self.previous);target={k:self.manifest[k] for k in ('schemaSha256','migrations')}
+  need(current_manifest(self.root)==target,'CANDIDATE_SCHEMA_MANIFEST_MISMATCH')
   spec=importlib.util.spec_from_file_location('live_ops_readonly','/usr/local/libexec/traceflow-live-ops.py');self.ops=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.ops)
   validate_migration_chain(applied_chain(self.ops),previous['migrations'])
   if previous!=target:
@@ -111,12 +116,16 @@ class Host:
    pending=transition(self.plan,previous,target,self.request['appSha'],digest,backup,restore)
    need(dt.datetime.fromisoformat(self.plan['expiresAt'])>=dt.datetime.fromisoformat(self.request['expiresAt']),'TRANSITION_WINDOW_TOO_SHORT')
    need((dt.datetime.fromisoformat(self.request['expiresAt'])-dt.datetime.fromisoformat(backup['finishedAt'])).total_seconds()<=26*3600,'BACKUP_WINDOW_TOO_SHORT')
+   need(upgrade.get('baseline')==runtime['previousCommit'] and upgrade.get('fromSchemaSha256')==previous['schemaSha256'] and upgrade.get('toSchemaSha256')==target['schemaSha256'],'TRANSITION_UPGRADE_BASELINE')
    need(upgrade.get('status')=='ISOLATED_UPGRADE_PASS' and upgrade.get('from')==len(previous['migrations']) and upgrade.get('to')==len(target['migrations']) and upgrade.get('added')==pending and upgrade.get('backfills') is True and upgrade.get('productionUsed') is False,'TRANSITION_UPGRADE_PROOF')
    # Operations must recognize both exact schemas before any DDL, including future backups.
    cfg_ops=json.loads(Path('/etc/traceflow-live/operations.json').read_bytes())
    contracts=cfg_ops.get('schemaContracts',[])
    need(all(any(c.get('migrations')==m['migrations'] and c.get('schemaSha256')==m['schemaSha256'] for c in contracts) for m in (previous,target)),'OPERATIONAL_SCHEMA_COMPATIBILITY')
    self.transition_digest=digest
+   migrator=json.loads(run(migration_unit(self.root,self.request['runId'],check=True),timeout=75))
+   need(migrator.get('status')=='MIGRATOR_PREFLIGHT_PASS','MIGRATOR_PREFLIGHT')
+   atomic(self.work/'migrator-preflight.json',migrator)
   else:
    schema_gate(self.manifest,previous)
    need(not self.request.get('transitionSha256'),'UNNECESSARY_TRANSITION')
@@ -151,7 +160,7 @@ class Host:
   validate_migration_chain(applied_chain(self.ops),self.plan['from']['migrations'])
   self.schema_started=True;atomic(marker,{'status':'DDL_STARTED','runId':self.request['runId'],'transitionSha256':self.transition_digest})
   try:
-   output=run(['systemd-run','--quiet','--wait','--pipe','--collect','--unit=traceflow-live-cd-migrate-'+str(self.request['runId']),'-p','Type=exec','-p','User=root','-p','UMask=0077','-p','LoadCredentialEncrypted=mysql-migrator:/etc/credstore.encrypted/traceflow-live-mysql-migrator','-p','RuntimeMaxSec=300','-p','TimeoutStopSec=15','-p','KillMode=control-group','-p','Restart=no','-p','LimitCORE=0','-p','MemorySwapMax=0','-p','MemoryMax=512M','-p','ProtectSystem=strict','-p','ProtectHome=yes','-p','PrivateTmp=yes','-p','PrivateDevices=yes','-p','NoNewPrivileges=yes','/usr/bin/python3','-I','-B','/usr/local/libexec/traceflow-live-cd/migrate.py',self.root],timeout=330)
+   output=run(migration_unit(self.root,self.request['runId']),timeout=330)
    self.migration_result=json.loads(output)
    need(self.migration_result.get('status')=='PRISMA_DEPLOY_PASS','PRISMA_DEPLOY_RESULT')
    validate_migration_chain(applied_chain(self.ops),self.plan['to']['migrations'])

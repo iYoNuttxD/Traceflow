@@ -13,7 +13,7 @@ class TransitionTests(unittest.TestCase):
   self.backup={'status':'SUCCESS','externalReadback':True,'id':'snapshot','cipherSha256':'c'*64,'manifestSha256':'d'*64,'finishedAt':now.isoformat()}
   binding={k:self.backup[k] for k in ('id','cipherSha256','manifestSha256')}
   self.restore={**binding,'status':'ISOLATED_RESTORE_PASS','productionDestination':False,**{k:True for k in ('allTableDataHashesEqual','allStructuresEqual','persistentFileHashesEqual','configurationHashesEqual','cleanup')}}
-  self.plan={'formatVersion':1,'operation':'migrate-and-promote-clean','appSha':'f'*40,'from':self.old,'to':self.new,'added':additions(self.old,self.new),'upgradeEvidenceSha256':'e'*64,'previousAppCompatibleWithTarget':True,'backup':binding,'issuedAt':(now-dt.timedelta(seconds=5)).isoformat(),'expiresAt':(now+dt.timedelta(hours=1)).isoformat()}
+  self.plan={'formatVersion':1,'operation':'migrate-and-promote-clean','appSha':'f'*40,'from':self.old,'to':self.new,'added':additions(self.old,self.new),'upgradeEvidenceSha256':'e'*64,'previousAppCompatibleWithTarget':True,'externalWritersExcluded':True,'backup':binding,'issuedAt':(now-dt.timedelta(seconds=5)).isoformat(),'expiresAt':(now+dt.timedelta(hours=1)).isoformat()}
  def validate(self,expected=None):
   digest=hashlib.sha256(canonical(self.plan)).hexdigest()
   return transition(self.plan,self.old,self.new,'f'*40,expected or digest,self.backup,self.restore)

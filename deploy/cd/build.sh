@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Executed only in the pinned-for-this-run Oracle Linux ARM64 container.
-: "${APP_SHA:?}" "${SOURCE_DATE_EPOCH:?}" "${PASS:?}" "${OPS_ROOT:?}" "${SOURCE_ROOT:?}"
+: "${BASELINE_SHA:?}" "${APP_SHA:?}" "${SOURCE_DATE_EPOCH:?}" "${PASS:?}" "${OPS_ROOT:?}" "${SOURCE_ROOT:?}"
 test "$(uname -m)" = aarch64
 grep -q 'release 9.8' /etc/oracle-release
 test "$(node --version)" = v22.23.2
@@ -24,7 +24,7 @@ if [ "$PASS" = 1 ]; then
  (cd backend && npx vitest run test/unit/production-environment.test.js test/unit/production-lifecycle.test.js test/unit/health-shutdown.test.js)
  if [ -f backend/scripts/validate-integration-upgrade.js ]; then
   (cd backend && node --input-type=module -e 'import {PrismaClient} from "@prisma/client";const p=new PrismaClient({datasourceUrl:"mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_test"});try{const existing=await p.$queryRawUnsafe("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=?","traceflow_cd_upgrade_test");if(existing.length)throw Error("UPGRADE_TARGET_EXISTS");await p.$executeRawUnsafe("CREATE DATABASE traceflow_cd_upgrade_test");}finally{await p.$disconnect();}')
-  (cd backend && NODE_ENV=test DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_dev_unused TEST_DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_upgrade_test node scripts/validate-integration-upgrade.js b9c1beb9f6ded49ce9257d346c086a8893f700c9) | tee /out/upgrade-proof.json
+  (cd backend && NODE_ENV=test DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_dev_unused TEST_DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_upgrade_test node scripts/validate-integration-upgrade.js "$BASELINE_SHA") | tee /out/upgrade-proof.json
  fi
  (cd backend && bash "$OPS_ROOT/deploy/cd/staging.sh")
  npm --prefix backend audit --omit=dev --audit-level=high

@@ -15,6 +15,8 @@ HOST = 'traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com'
 SERVER_UUID = '6e94bb7f-c601-11f1-9b91-02001704771f'
 CA = '/etc/pki/traceflow/mysql-ca.pem'
 STORAGE = Path('/var/lib/traceflow-live/test-evidence')
+CD_CURRENT = Path('/var/lib/traceflow-live-cd/current.json')
+CD_RELEASES = Path('/opt/traceflow-live/releases')
 IDENT = re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,63}\Z')
 OBJECT = re.compile(r'production-live-v1/[0-9]{8}T[0-9]{6}Z-[a-f0-9]{32}\.tar\.gz\.age\Z')
 DUMP_FLAGS = ['--default-character-set=utf8mb4', '--single-transaction', '--quick',
@@ -209,7 +211,7 @@ def snapshot_contract(snapshot,cfg):
     contracts=cfg.get('schemaContracts')
     if contracts is None:
         expected=json.loads((Path(cfg['release'])/'manifest.json').read_bytes())['schema']['migrations']
-        contracts=[{'migrations':expected,'tables':61,'foreignKeys':116}]
+        contracts=[{'schemaSha256':sha(Path(cfg['release'])/'backend/prisma/schema.prisma'),'migrations':expected,'tables':61,'foreignKeys':116}]
     need(isinstance(contracts,list) and contracts,'SCHEMA_CONTRACT_REQUIRED')
     observed=snapshot['migrations'];names=[m['name'] for m in observed]
     need(len(set(names))==len(names),'MIGRATION_DUPLICATE')
@@ -221,12 +223,17 @@ def snapshot_contract(snapshot,cfg):
     return contract
 
 def application_identity(cfg,contract):
-    state=Path('/var/lib/traceflow-live-cd/current.json')
+    state=CD_CURRENT
     if not state.exists():return {'releaseId':Path(cfg['release']).name,'descriptorSha256':cfg['descriptorSha256']}
     root=Path(json.loads(state.read_bytes())['currentRelease'])
-    need(root.parent==Path('/opt/traceflow-live/releases') and root.stat().st_uid==0 and not root.is_symlink(),'APPLICATION_RELEASE_CUSTODY')
+    need(root.parent==CD_RELEASES and root.stat().st_uid==0 and not root.is_symlink(),'APPLICATION_RELEASE_CUSTODY')
     manifest=root/'cd-manifest.json';value=json.loads(manifest.read_bytes())
-    need(value.get('sourceState')=='committed' and value['migrations']==contract['migrations'],'APPLICATION_SCHEMA_BINDING')
+    need(value.get('sourceState')=='committed','APPLICATION_SOURCE_STATE')
+    exact=value['migrations']==contract['migrations'] and value['schemaSha256']==contract.get('schemaSha256')
+    prior=contract.get('compatiblePriorApplications',{}).get(value['commit'])
+    target={m['name']:m['sha256'] for m in contract['migrations']}
+    compatible=prior==value['schemaSha256'] and all(target.get(m['name'])==m['sha256'] for m in value['migrations'])
+    need(exact or compatible,'APPLICATION_SCHEMA_BINDING')
     return {'releaseId':value['commit'],'descriptorSha256':sha(manifest),'packagingKind':value['kind']}
 
 def backup(cfg):
