@@ -1600,3 +1600,18 @@ Capturas sintéticas (não contêm dados pessoais reais):
 Captura principal salva também na Library: `libfile_0250bdd1efe481918a2314c7f700dcbf`.
 Os status históricos das surfaces são preservados; esta evidência é limitada aos ajustes
 de cor, navegação, reflow e overflow acima.
+
+
+## 2026-10-22 — botão da sidebar junto ao modal de notificações
+
+Regressão da PR #25 reproduzida no Chrome do Mac: o alvo recolhido ultrapassava a
+sidebar em 21px. Botão agora ocupa linha própria no cabeçalho e fica contido; animação
+do painel entra pela área de conteúdo e abertura do modal conclui a transição de largura.
+Sem alteração de z-index ou da semântica modal. Inspeção escura 1440×900, 1280×800,
+768×640 com três projetos, 390×844 e 320×640: estados recolhido/expandido, aberto/fechado,
+clique real, Enter/Espaço, foco preso, Escape e retorno ao sino. Rolagem necessária da lista
+preservada; abas 48/48px sem overflow vertical. Componentes reais em fixture sintética;
+sem homologação da API real ou de outros navegadores.
+
+[Relato, capturas e medições](../../deliveries/MAX_DEV_SIDEBAR_TOGGLE_20261022.md).
+Captura principal Library: `libfile_960201dedee48191ab66573c723648b4`.

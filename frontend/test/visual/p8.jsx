@@ -6,6 +6,7 @@ import { httpClient } from '../../src/api/http-client.js';
 import { ProjectDetailsScreen } from '../../src/features/projects/pages/ProjectDetailsScreen.jsx';
 import { ProjectsCatalogProvider } from '../../src/features/projects/hooks/ProjectsCatalogContext.jsx';
 import { AppShell } from '../../src/app/layout/AppShell.jsx';
+import { persistProjectIds, quickProjectStorageKeys } from '../../src/app/layout/quick-projects.js';
 import { UnreadNotificationsProvider } from '../../src/features/notifications/index.js';
 import { IndicatorsScreen } from '../../src/features/indicators/IndicatorsScreen.jsx';
 import { SettingsLayout } from '../../src/features/settings/SettingsLayout.jsx';
@@ -382,6 +383,13 @@ const defaultPreference = {
   isDefault: true,
   updatedAt: null
 };
+const shellProjects =
+  query.get('quickProjects') === '3'
+    ? [project, ...[2, 3].map((id) => ({ ...project, id, name: `Projeto de teste ${id}` }))]
+    : [project];
+if (query.get('quickProjects') === '3') {
+  persistProjectIds(window.localStorage, quickProjectStorageKeys(9).recent, [1, 2, 3]);
+}
 let preference = { ...defaultPreference, pinnedToOverview: query.get('pin') === '1' };
 const metricsById = new Map(
   Object.values(sections)
@@ -438,7 +446,7 @@ httpClient.defaults.adapter = async (config) => {
       nextCursor: offset + limit < items.length ? String(offset + limit) : null
     };
   } else if (path === '/settings/notifications') data = { preferences: notificationPreferences };
-  else if (path === '/projects') data = { projects: [project], deletedProjects: [] };
+  else if (path === '/projects') data = { projects: shellProjects, deletedProjects: [] };
   else if (path === '/projects/1') data = { project };
   else if (path === '/projects/1/indicator-preference') {
     if (config.method === 'put' || config.method === 'patch') {

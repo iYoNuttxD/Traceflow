@@ -11,6 +11,11 @@
   grid-template-columns: var(--layout-sidebar-collapsed) minmax(0, 1fr);
 }
 
+/* The modal uses the final sidebar offset, including when opened mid-collapse. */
+.trace-shell[data-notifications-state='open'] {
+  transition: none;
+}
+
 .trace-shell__skip-link {
   position: fixed;
   z-index: var(--z-tooltip);
@@ -163,9 +168,6 @@
 }
 
 .trace-shell[data-sidebar-state='collapsed'] .trace-shell__collapse {
-  position: absolute;
-  top: 1.125rem;
-  right: calc(var(--size-touch-target) / -2);
   border-color: var(--color-border-default);
   border-radius: var(--radius-pill);
   background: var(--color-surface-primary);
@@ -440,8 +442,11 @@ button.trace-shell__nav-item {
 }
 
 .trace-shell[data-sidebar-state='collapsed'] .trace-shell__sidebar-header {
+  min-height: calc((2 * var(--size-touch-target)) + (2 * var(--space-1)));
+  flex-direction: column;
   justify-content: center;
-  padding-inline: var(--space-3);
+  gap: 0;
+  padding: var(--space-1) var(--space-3);
 }
 
 .trace-shell[data-sidebar-state='collapsed'] .trace-shell__brand-label,
@@ -657,7 +662,10 @@ button.trace-shell__nav-item {
   }
 
   .trace-shell[data-sidebar-state='collapsed'] .trace-shell__sidebar-header {
+    min-height: 5rem;
+    flex-direction: row;
     justify-content: space-between;
+    gap: var(--space-3);
     padding: var(--space-4) var(--space-5);
   }
 

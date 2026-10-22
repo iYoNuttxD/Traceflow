@@ -999,3 +999,12 @@ Inspeção no Chrome do Mac: 1440/1280/768/390/320px, Light/Dark, sidebar expand
 menu móvel, abertura/fechamento do painel, Escape/retorno de foco e End nas abas de Indicadores.
 Componentes reais com fixture sintética; não é validação de gravações na API nem promoção
 global das surfaces. Evidência e limites no [registro visual](validation/VISUAL_VALIDATION_LOG.md#2026-10-21--sidebar-notificações-e-overflow-de-navegação-max-dev).
+
+
+## Botão da sidebar ao lado de notificações (2026-10-22)
+
+Correção pontual da PR #25: alvo recolhido contido no cabeçalho, sem elevar z-index;
+transição de largura e animação do painel não atravessam a lateral. Modal conserva
+inert, foco preso e Escape. Chrome/Mac, fixture sintética, tema escuro, 1440/1280/768/390/320px,
+estados aberto/fechado e recolhido/expandido; overflow necessário preservado.
+Sem promoção global das surfaces. [Evidências e limites](../deliveries/MAX_DEV_SIDEBAR_TOGGLE_20261022.md).

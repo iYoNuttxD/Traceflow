@@ -45,7 +45,7 @@
   @keyframes notifications-panel-in {
     from {
       opacity: 0;
-      transform: translateX(calc(-1 * var(--space-6)));
+      transform: translateX(var(--space-6));
     }
   }
 }
