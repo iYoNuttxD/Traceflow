@@ -109,3 +109,8 @@ continua exigindo sessão, CSRF e titularidade. Os cinco arquivos afetados passa
 O Supply Chain atingiu seu limite após dois installs de sete minutos e uma consulta de audit
 pendente. Foram removidos apenas os audits implícitos redundantes do install; audits explícitos
 e política de recusa permanecem obrigatórios, com falha de transporte limitada a 45 segundos.
+
+As auditorias comparativas no Mac também retornaram `FETCH_ERROR`/`request-timeout`, sem
+relatório v2. As instalações dos demais jobs passaram a evitar o mesmo audit implícito
+redundante; os dois audits dedicados continuam obrigatórios e bloqueiam a promoção se
+não houver resposta válida. Não foi criada exceção para indisponibilidade do registro.

@@ -35,11 +35,11 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Lint backend
         working-directory: backend
@@ -110,7 +110,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: backend
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Validate Prisma schema
         working-directory: backend
@@ -262,7 +262,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Lint
         working-directory: frontend
