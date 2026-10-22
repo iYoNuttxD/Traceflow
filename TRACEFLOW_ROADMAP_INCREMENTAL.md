@@ -641,14 +641,14 @@ Arquitetura real em [ADR-018](https://github.com/iYoNuttxD/Traceflow/blob/061948
 
 **Checklist técnico:**
 
-- [ ] criar pipeline de homologação e promoção;
+- [x] criar pipeline de homologação e promoção;
 - [x] configurar build, artefatos imutáveis, Nginx e runtime Node.js;
 - [ ] automatizar migration com bloqueio e observabilidade;
 - [x] atualizar e validar URLs, callbacks e webhooks da GitHub App;
 - [x] implementar health/readiness e smoke tests;
 - [ ] executar e documentar ensaio de rollback.
 
-**Resultado comprovado (21/10/2026): PARTIAL.** [Correção do sandbox e recuperação](docs/deliveries/OCI_CD_NGINX_SANDBOX_REPORT.md). PR #31 integrada; 38 testes CD, 28 testes nativos Host/transação/receptor e build ARM64 reproduzível PASS. Unidade/receptor/contrato atualizados sem bootstrap ou reinício da aplicação. Nginx candidato/oficial/restaurado e reload da mesma versão passaram em unidades transitórias restritas, com SELinux Enforcing e roteamento público preservado. Rollback acompanha efeitos tentados e não reinicia serviços após recusa anterior ao reload. Diretórios inativos renomeados com inventários e histórico intactos. Produção 9bc3dad saudável; nova promoção ainda não autorizada/executada e CD ainda não declarada operacional. Migrations novas e rollback integrado com falhas reais de serviços continuam sem comprovação própria. S2-10 preservada. [Tentativa anterior](docs/deliveries/OCI_CD_MIGRATION_ORDER_REPORT.md) mantida como histórico.
+**Resultado comprovado (21/10/2026): PARTIAL no conjunto; capacidade de CD operacional para releases sem mudança de schema.** [Relatório consolidado](docs/deliveries/OCI_CD_NGINX_SANDBOX_REPORT.md). PR #31 integrada; 38 testes CD, 28 testes nativos Host/transação/receptor e build ARM64 reproduzível PASS. Sandbox Nginx corrigido e comprovado em unidades transitórias restritas, com SELinux Enforcing; recuperação por etapa evita reinícios desnecessários. A única promoção explicitamente autorizada [39701470669](https://github.com/iYoNuttxD/Traceflow/actions/runs/39701470669) concluiu SUCCESS após aprovação humana de production. Versão b9c1beb9 publicada, fonte funcional igual à 9bc3dad/dependências corrigidas; runtime/frontend e recibos verificados independentemente, API/MySQL/worker/HTTPS saudáveis, históricos e operações preservados. Nenhuma funcionalidade nova da main incluída. Migrations novas em produção continuam recusadas e rollback integrado após falhas reais de serviços permanece sem comprovação própria; ensaios isolados e validação Nginx documentados. S2-08 segue PARTIAL por adoção/reconstrução IaC; S2-10 preservada. [Tentativa anterior](docs/deliveries/OCI_CD_MIGRATION_ORDER_REPORT.md) mantida como histórico.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
