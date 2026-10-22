@@ -1,0 +1,71 @@
+{
+  "evidence": "E02",
+  "origin": "LOCAL_INSPECTION_AND_PRIMARY_SOURCES",
+  "environment": "Prisma Client/CLI 6.12.0; exact connector and pinned driver",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": [
+    "inspect package-lock.json and shared prismaClient.js",
+    "inspect official source at immutable version/revision",
+    "npm exec -- prisma validate",
+    "npm exec -- prisma generate"
+  ],
+  "status": "PASS_LOCAL",
+  "result": {
+    "clientVersion": "6.12.0",
+    "cliVersion": "6.12.0",
+    "unchangedSharedClient": "1b2ad17bf1ca9bb9dc3763db6bfb97999637da865204dd79eecf116fe2614596",
+    "sources": [
+      {
+        "url": "https://github.com/prisma/prisma-engines/blob/6.12.0/quaint/src/connector/mysql/url.rs",
+        "downloadSha256": "b52972ec78342adb1bbfdb31d3e6892d73799bb87e7ab41b5e97f2044eff3a66"
+      },
+      {
+        "url": "https://github.com/prisma/prisma-engines/blob/6.12.0/quaint/src/connector/mysql/native/mod.rs",
+        "downloadSha256": "58691f675c90ad1df6c13a7c73faa0ca508dd313909f2dbc5df433eb470d102e"
+      },
+      {
+        "url": "https://github.com/prisma/prisma-engines/blob/6.12.0/Cargo.lock",
+        "downloadSha256": "9de2df4e8256e0c0b9986b63b96b0b50ef44709e48770daad8f96766e9cd322b"
+      },
+      {
+        "url": "https://github.com/prisma/mysql_async/blob/c4c841c9d03e361df7377264a075335a823534ee/src/conn/mod.rs",
+        "downloadSha256": "5085f1878c1ccaf83fab9ca157812843c9798cdbff49d32813f24181825c912c"
+      },
+      {
+        "url": "https://github.com/prisma/mysql_async/blob/c4c841c9d03e361df7377264a075335a823534ee/src/opts/mod.rs",
+        "downloadSha256": "f95500607b3eeb4a3797d381a9b5a7c38254ec63477cc3e1fbe91b325e03d5ba"
+      },
+      {
+        "url": "https://github.com/prisma/mysql_async/blob/c4c841c9d03e361df7377264a075335a823534ee/src/error/mod.rs",
+        "downloadSha256": "0358f615f508e28425d0313b67894bd8772c4f083b3d22b6ccea3c9875d311d6"
+      }
+    ],
+    "tls": {
+      "sslcert": "explicit public CA; absolute canonical path",
+      "sslaccept": "strict",
+      "hostnameVerification": true,
+      "plaintextFallback": "refused by driver before authentication response when server lacks TLS capability",
+      "warning": "native TLS trust may also include platform roots; not exclusive leaf pinning"
+    },
+    "canonicalCa": "/etc/pki/traceflow/mysql-ca.pem",
+    "diagnosticPool": {
+      "connection_limit": 1,
+      "connect_timeout": 5,
+      "pool_timeout": 5,
+      "socket_timeout": 10
+    },
+    "changes": [
+      "managed FQDN/CA path and DER fingerprint contract",
+      "public root CA/date/signature checks",
+      "protected files/parents and root-owned managed CA",
+      "mixed environment and insecure TLS environment refused",
+      "DNS and CURRENT_USER identity checks",
+      "PASS after disconnect"
+    ]
+  },
+  "limitations": [
+    "Exact implementation and local interoperability do not establish official unrestricted HeatWave 26.7 support.",
+    "No managed Prisma connection performed."
+  ]
+}

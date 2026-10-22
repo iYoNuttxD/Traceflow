@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Pull-only clean CD receiver. No inbound port, cloud credentials, legacy protocol or DB writes."""
+"""Pull-only clean CD receiver. No inbound port, cloud credentials, legacy protocol or legacy DB writes. Explicit reviewed schema transitions use a separate Prisma sandbox."""
+import resource
 import base64,datetime as dt,fcntl,hashlib,importlib.util,json,os,re,shutil,signal,subprocess,sys,time,urllib.request
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from contract import need,sha,canonical,unpack,schema_gate,promote
+from migrations import transition
 REPO='iYoNuttxD/Traceflow';WORKFLOW='.github/workflows/oci-cd.yml'
 CONFIG=Path('/etc/traceflow-live/cd.json');STATE=Path('/var/lib/traceflow-live-cd')
 RELEASES=Path('/opt/traceflow-live/releases');FRONTENDS=Path('/var/www/traceflow-live-releases')
@@ -11,7 +13,19 @@ STATUS=Path('/var/www/traceflow-live-deploy-status')
 CURRENT_KEYS={'currentRelease','frontendRoot','nginxSha256','proxySha256'}
 def run(a,timeout=45):
  p=subprocess.run([str(x) for x in a],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout,env={**os.environ,'HOME':'/nonexistent','LANG':'C.UTF-8','GH_PROMPT_DISABLED':'1'})
- need(p.returncode==0,'COMMAND_'+Path(str(a[0])).name.upper().replace('-','_'));return p.stdout
+ if p.returncode:
+  error=ValueError('COMMAND_'+Path(str(a[0])).name.upper().replace('-','_'))
+  if str(a[0])=='systemd-run':
+   diagnostics=[]
+   for line in p.stdout.splitlines():
+    try:
+     value=json.loads(line)
+     if value.get('status') in ('PRISMA_DEPLOY_FAILED','BLOCKED'):
+      diagnostics.append({k:v for k,v in value.items() if k in ('status','exitCode','prismaCode','seconds','outputSha256','code','automaticRetry')})
+    except (ValueError,AttributeError):pass
+   error.migration_diagnostics=diagnostics
+  raise error
+ return p.stdout
 
 def atomic(p,v,mode=0o600):
  t=p.with_name('.write-'+str(os.getpid()));t.write_bytes(canonical(v));t.chmod(mode);os.replace(t,p)
@@ -51,10 +65,42 @@ def current_manifest(path):
  schema=path/'backend/prisma/schema.prisma'
  return {'schemaSha256':sha(schema),'migrations':[{'name':p.parent.name,'sha256':sha(p)} for p in sorted((path/'backend/prisma/migrations').glob('*/migration.sql'))]}
 
+def protected_document(path):
+ path=Path(path)
+ for parent in (path,*path.parents):
+  st=parent.lstat();need(st.st_uid==0 and not st.st_mode&0o022 and not parent.is_symlink(),'TRANSITION_CUSTODY')
+ need(path.is_file() and path.stat().st_mode&0o077==0,'TRANSITION_CUSTODY')
+ return json.loads(path.read_bytes())
+
+def applied_chain(ops):
+ rows=ops.sql('SELECT CONCAT(migration_name,CHAR(9),checksum,CHAR(9),finished_at IS NOT NULL,CHAR(9),rolled_back_at IS NOT NULL) FROM _prisma_migrations ORDER BY migration_name')
+ pairs=[r.split('\t') for r in rows]
+ need(all(len(r)==4 and r[2:] == ['1','0'] for r in pairs),'LIVE_MIGRATION_HISTORY_INCOMPLETE')
+ return [r[0]+'\t'+r[1] for r in pairs]
+
+def migration_unit(root,run_id,check=False):
+ need(str(run_id).isdigit(),'MIGRATION_RUN_ID')
+ # No After=parent: the receiver is a oneshot still activating while awaiting this child.
+ return ['systemd-run','--quiet','--wait','--pipe','--collect','--unit=traceflow-live-cd-migrate-'+('check-' if check else '')+str(run_id),'-p','Type=exec','-p','BindsTo=traceflow-live-cd.service','-p','PartOf=traceflow-live-cd.service','-p','User=root','-p','UMask=0077','-p','LoadCredentialEncrypted=mysql-migrator:/etc/credstore.encrypted/traceflow-live-mysql-migrator','-p','RuntimeMaxSec='+('60' if check else '300'),'-p','TimeoutStopSec=15','-p','KillMode=control-group','-p','Restart=no','-p','LimitCORE=0','-p','MemorySwapMax=0','-p','MemoryMax=512M','-p','ProtectSystem=strict','-p','ProtectHome=yes','-p','PrivateTmp=yes','-p','PrivateDevices=yes','-p','NoNewPrivileges=yes','-p','ProtectKernelTunables=yes','-p','ProtectKernelModules=yes','-p','ProtectKernelLogs=yes','-p','ProtectControlGroups=yes','-p','RestrictSUIDSGID=yes','-p','RestrictRealtime=yes','-p','LockPersonality=yes','-p','RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6','-p','InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence /etc/traceflow-live /etc/nginx /etc/credstore.encrypted -/var/lib/systemd/credential.secret -/var/lib/traceflow-live-cd/gh-config','/usr/bin/python3','-I','-B','/usr/local/libexec/traceflow-live-cd/migrate.py',root]+(['--check'] if check else [])
+
+def data_fingerprint(ops):
+ """SELECT-only dump in anonymous RAM; only row hashes/counts leave this function."""
+ need(hasattr(os,'memfd_create'),'ANONYMOUS_MEMORY_REQUIRED')
+ limit=512*1024**2;fd=os.memfd_create('traceflow-migration-readonly',os.MFD_CLOEXEC)
+ with os.fdopen(fd,'w+b') as dump:
+  def bound():resource.setrlimit(resource.RLIMIT_FSIZE,(limit,limit))
+  p=subprocess.run(ops.mysql_args('mysqldump')+ops.DUMP_FLAGS+[ops.SCHEMA],stdin=subprocess.DEVNULL,stdout=dump,stderr=subprocess.PIPE,timeout=120,preexec_fn=bound,env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8'})
+  need(p.returncode==0 and 0<dump.tell()<=limit,'DATA_FINGERPRINT_CAPTURE_FAILED');dump.flush();dump.seek(0)
+  snapshot=ops.dump_manifest(Path('/proc/self/fd/'+str(fd)))
+ rows=ops.sql("SELECT CONCAT(migration_name,CHAR(9),SHA2(CAST(JSON_ARRAY(id,checksum,started_at,finished_at,rolled_back_at,applied_steps_count,SHA2(COALESCE(logs,''),256)) AS CHAR),256)) FROM _prisma_migrations ORDER BY migration_name")
+ pairs=[r.split('\t') for r in rows];need(all(len(r)==2 for r in pairs),'MIGRATION_AUDIT_FORMAT')
+ ledger=dict(pairs);need(len(ledger)==len(pairs),'MIGRATION_AUDIT_DUPLICATE')
+ return {'tables':{n:{k:v[k] for k in ('rows','dataSha256')} for n,v in snapshot['tables'].items() if n!='_prisma_migrations'},'ledger':ledger}
+
 class Host:
  def __init__(self,root,manifest,request,work,cfg):
   self.root=root;self.manifest=manifest;self.request=request;self.work=work;self.cfg=cfg
-  self.units={n:Path('/etc/systemd/system')/('traceflow-live-'+n+'.service.d/30-cd-release.conf') for n in ('api','worker')}
+  self.units={n:Path('/etc/systemd/system')/('traceflow-live-'+n+'.service.d/30-cd-release.conf') for n in ('api','worker','retention')}
   self.old={str(p):p.read_bytes() if p.exists() else None for p in self.units.values()}
   self.proxy=Path('/etc/nginx/traceflow-live/proxy.conf');self.nginx=Path('/etc/nginx/conf.d/traceflow.conf')
   self.old_proxy=self.proxy.read_bytes();self.old_nginx=self.nginx.read_bytes();self.frontend=FRONTENDS/root.name
@@ -63,20 +109,45 @@ class Host:
   # Mark attempts before side effects: even a failed command may have taken effect.
   self.routing_changed=False;self.reload_attempted=False;self.changed_units=set();self.restarted_units=set();self.state_attempted=False
   self.recovery={'status':'not-needed'}
+  self.schema_guard_claimed=False;self.retention_target_ready=False
+  self.plan=None;self.migration_quiesced=False;self.schema_started=False;self.schema_complete=False;self.migration_result={'status':'not-required'}
  def unit(self,role):
+  if role=='retention':return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\n'
   return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\nExecStart=\nExecStart=/usr/bin/node '+str(self.root/'backend/src'/('server.js' if role=='api' else 'github-worker.js'))+'\n'
  def preflight(self):
   valid_window(self.request,self.cfg)
+  need(not (STATE/'schema-transition-in-progress').exists(),'SCHEMA_TRANSITION_PENDING_REVIEW')
   need(run(['getenforce']).strip()==b'Enforcing','SELINUX')
   need(protected_fingerprints(self.cfg['protectedFiles'])==self.cfg['protectedFiles'],'OPERATIONAL_CONFIG_CHANGED')
   metrics=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(not metrics['failures'] and time.time()-dt.datetime.fromisoformat(metrics['at']).timestamp()<180,'CURRENT_HEALTH')
   backup=json.loads(Path('/var/lib/traceflow-live-ops/last-backup.json').read_bytes());need(backup['status']=='SUCCESS' and backup['externalReadback'] and time.time()-dt.datetime.fromisoformat(backup['finishedAt']).timestamp()<26*3600,'BACKUP_CURRENT')
-  schema_gate(self.manifest,current_manifest(self.previous))
-  # The current live backup contracts pin this migration chain; never override them here.
-  need(len(self.manifest['migrations'])==68,'OPERATIONAL_SCHEMA_COMPATIBILITY')
-  spec=importlib.util.spec_from_file_location('live_ops_readonly','/usr/local/libexec/traceflow-live-ops.py');ops=importlib.util.module_from_spec(spec);spec.loader.exec_module(ops)
-  actual=ops.sql('SELECT CONCAT(migration_name,CHAR(9),checksum) FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name')
-  validate_migration_chain(actual,self.manifest['migrations'])
+  previous=current_manifest(self.previous);target={k:self.manifest[k] for k in ('schemaSha256','migrations')}
+  need(current_manifest(self.root)==target,'CANDIDATE_SCHEMA_MANIFEST_MISMATCH')
+  spec=importlib.util.spec_from_file_location('live_ops_readonly','/usr/local/libexec/traceflow-live-ops.py');self.ops=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.ops)
+  validate_migration_chain(applied_chain(self.ops),previous['migrations'])
+  if previous!=target:
+   digest=self.request.get('transitionSha256','');need(re.fullmatch('[a-f0-9]{64}',digest),'SCHEMA_CHANGE_REQUIRES_APPROVED_TRANSITION')
+   folder=Path('/etc/traceflow-live/cd-transitions')/digest
+   self.plan=protected_document(folder/'plan.json');upgrade=protected_document(folder/'upgrade.json');restore=protected_document(folder/'restore.json');runtime=protected_document(folder/'runtime.json')
+   need(sha(folder/'upgrade.json')==self.plan['upgradeEvidenceSha256'] and sha(folder/'restore.json')==self.plan['restoreEvidenceSha256'],'TRANSITION_EVIDENCE_DIGEST')
+   need(sha(folder/'runtime.json')==self.plan['runtimeEvidenceSha256'],'TRANSITION_RUNTIME_DIGEST')
+   need(runtime.get('status')=='ISOLATED_RUNTIME_COMPATIBILITY_PASS' and runtime.get('previousApiReadyOnTarget') is True and runtime.get('previousClientReadsOnTarget') is True and runtime.get('previousApiExit')==0 and runtime.get('targetSchemaSha256')==target['schemaSha256'] and runtime.get('previousCommit')==json.loads((self.previous/'cd-manifest.json').read_bytes())['commit'],'TRANSITION_PREVIOUS_BINARY_PROOF')
+   pending=transition(self.plan,previous,target,self.request['appSha'],digest,backup,restore)
+   need(dt.datetime.fromisoformat(self.plan['expiresAt'])>=dt.datetime.fromisoformat(self.request['expiresAt']),'TRANSITION_WINDOW_TOO_SHORT')
+   need((dt.datetime.fromisoformat(self.request['expiresAt'])-dt.datetime.fromisoformat(backup['finishedAt'])).total_seconds()<=26*3600,'BACKUP_WINDOW_TOO_SHORT')
+   need(upgrade.get('baseline')==runtime['previousCommit'] and upgrade.get('fromSchemaSha256')==previous['schemaSha256'] and upgrade.get('toSchemaSha256')==target['schemaSha256'],'TRANSITION_UPGRADE_BASELINE')
+   need(upgrade.get('status')=='ISOLATED_UPGRADE_PASS' and upgrade.get('from')==len(previous['migrations']) and upgrade.get('to')==len(target['migrations']) and upgrade.get('added')==pending and upgrade.get('backfills') is True and upgrade.get('productionUsed') is False,'TRANSITION_UPGRADE_PROOF')
+   # Operations must recognize both exact schemas before any DDL, including future backups.
+   cfg_ops=json.loads(Path('/etc/traceflow-live/operations.json').read_bytes())
+   contracts=cfg_ops.get('schemaContracts',[])
+   need(all(any(c.get('migrations')==m['migrations'] and c.get('schemaSha256')==m['schemaSha256'] for c in contracts) for m in (previous,target)),'OPERATIONAL_SCHEMA_COMPATIBILITY')
+   self.transition_digest=digest
+   migrator=json.loads(run(migration_unit(self.root,self.request['runId'],check=True),timeout=75))
+   need(migrator.get('status')=='MIGRATOR_PREFLIGHT_PASS','MIGRATOR_PREFLIGHT')
+   atomic(self.work/'migrator-preflight.json',migrator)
+  else:
+   schema_gate(self.manifest,previous)
+   need(not self.request.get('transitionSha256'),'UNNECESSARY_TRANSITION')
   need(not self.candidate.exists() and not self.frontend.exists(),'NO_PARTIAL_INSTALL')
   need(sha(self.nginx)==self.cfg['nginxSha256'] and sha(self.proxy)==self.cfg['proxySha256'],'CONFIG_CHANGED_REVIEW_REQUIRED')
   for unit in ['traceflow-live-api','traceflow-live-worker','traceflow-live-backup.timer','traceflow-live-monitor.timer','traceflow-live-retention.timer']:run(['systemctl','is-active',unit])
@@ -96,6 +167,57 @@ class Host:
      parent.chmod(0o755)
     shutil.copy2(source,target);target.chmod(0o644)
   run(['restorecon','-R',self.root,self.frontend])
+ def release_schema_guard(self):
+  if not self.schema_guard_claimed:return
+  guard=STATE/'schema-transition-in-progress'
+  need(not guard.is_symlink() and json.loads(guard.read_bytes())['runId']==self.request['runId'],'SCHEMA_GUARD_OWNERSHIP')
+  guard.unlink();self.schema_guard_claimed=False
+  fd=os.open(STATE,os.O_RDONLY|os.O_DIRECTORY)
+  try:os.fsync(fd)
+  finally:os.close(fd)
+ def select_retention_target(self):
+  p=self.units['retention'];self.changed_units.add('retention')
+  p.parent.mkdir(mode=0o755,parents=True,exist_ok=True);p.write_text(self.unit('retention'));run(['restorecon',p]);run(['systemctl','daemon-reload'])
+  self.retention_target_ready=True
+ def apply_migrations(self):
+  if self.plan is None:return
+  valid_window(self.request,self.cfg)
+  marker=STATE/('migration-'+self.transition_digest+'.json')
+  with marker.open('xb') as out:out.write(canonical({'status':'QUIESCING','runId':self.request['runId'],'transitionSha256':self.transition_digest}))
+  guard=STATE/'schema-transition-in-progress'
+  with guard.open('xb') as out:
+   out.write(canonical({'runId':self.request['runId'],'at':dt.datetime.now(dt.timezone.utc).isoformat()}));out.flush();os.fsync(out.fileno())
+  self.schema_guard_claimed=True;self.migration_quiesced=True
+  fd=os.open(STATE,os.O_RDONLY|os.O_DIRECTORY)
+  try:os.fsync(fd)
+  finally:os.close(fd)
+  try:
+   need(run(['systemctl','show','traceflow-live-retention','--property=ActiveState','--value']).strip()==b'inactive','RETENTION_OPERATION_ACTIVE')
+   for role in ('worker','api'):
+    self.restarted_units.add(role);run(['systemctl','stop','traceflow-live-'+role],timeout=120)
+   validate_migration_chain(applied_chain(self.ops),self.plan['from']['migrations'])
+   before=data_fingerprint(self.ops);atomic(self.work/'data-before.json',before)
+   self.schema_started=True;atomic(marker,{'status':'DDL_STARTED','runId':self.request['runId'],'transitionSha256':self.transition_digest})
+   output=run(migration_unit(self.root,self.request['runId']),timeout=330)
+   self.migration_result=json.loads(output);need(self.migration_result.get('status')=='PRISMA_DEPLOY_PASS','PRISMA_DEPLOY_RESULT')
+   validate_migration_chain(applied_chain(self.ops),self.plan['to']['migrations'])
+   after=data_fingerprint(self.ops);atomic(self.work/'data-after.json',after)
+   need(all(after['tables'].get(n)==v for n,v in before['tables'].items()),'PREEXISTING_DATA_CHANGED_BY_MIGRATION')
+   need(all(after['ledger'].get(n)==v for n,v in before['ledger'].items()),'HISTORICAL_MIGRATION_RECORD_CHANGED')
+   self.schema_complete=True;self.select_retention_target()
+   self.migration_result.update(status='SCHEMA_TRANSITION_COMPLETE',transitionSha256=self.transition_digest,added=self.plan['added'],preexistingDataPreserved=True,dataBeforeSha256=sha(self.work/'data-before.json'),dataAfterSha256=sha(self.work/'data-after.json'))
+   atomic(marker,self.migration_result);atomic(self.work/'migration.json',self.migration_result)
+  except BaseException as error:
+   containment='not-started'
+   if self.schema_started:
+    containment='requires-verification'
+    try:
+     run(['systemctl','stop','traceflow-live-cd-migrate-'+str(self.request['runId'])],timeout=30);containment='unit-stop-confirmed'
+    except BaseException:pass
+   self.migration_result={'containment':containment,'databaseStability':'requires-administrative-verification' if self.schema_started else 'ddl-not-started','databaseSchemaComplete':self.schema_complete,'status':'SCHEMA_TRANSITION_INCOMPLETE','transitionSha256':self.transition_digest,'automaticRetry':False,'diagnostics':getattr(error,'migration_diagnostics',[])}
+   try:self.migration_result['observedHistory']=self.ops.sql('SELECT CONCAT(migration_name,CHAR(9),checksum,CHAR(9),finished_at IS NOT NULL,CHAR(9),rolled_back_at IS NOT NULL) FROM _prisma_migrations ORDER BY migration_name')
+   except BaseException:self.migration_result['historyObservationUnavailable']=True
+   atomic(marker,self.migration_result);atomic(self.work/'migration.json',self.migration_result);raise
  def start_candidate(self):
   base=Path('/etc/systemd/system/traceflow-live-api.service').read_text()
   lines=[]
@@ -133,7 +255,18 @@ class Host:
   for unit in ('traceflow-live-api','traceflow-live-worker'):run(['systemctl','is-active',unit])
   # Use the existing read-only monitor/credential, never an administrative DB client.
   run(['systemctl','start','traceflow-live-monitor.service'],timeout=100)
-  v=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(v['mysql'] and v['workerCount']>=1 and v['workerHeartbeatAgeSeconds']<=90,'WORKER_OR_MYSQL')
+  v=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes());need(v['mysql'] and v['workerCount']==1 and v['workerHeartbeatAgeSeconds']<=90,'WORKER_OR_MYSQL')
+  if (self.root/'backend/src/jobs/job-runner.js').exists():
+   until=time.monotonic()+30
+   expected={'notifications-due','github-event-dispatch','traceability-notice-dispatch','traceability-alerts'}
+   while time.monotonic()<until:
+    names=set(self.ops.sql('SELECT name FROM ScheduledJobLease'))
+    if names==expected:break
+    time.sleep(1)
+   need(names==expected,'SCHEDULED_JOBS_NOT_STARTED')
+   run(['systemctl','start','traceflow-live-monitor.service'],timeout=100)
+   jobs=json.loads(Path('/var/lib/traceflow-live-ops/metrics.json').read_bytes()).get('scheduledJobs',{})
+   need(jobs.get('enabled') is True and jobs.get('failedEvents15m')==0 and set(jobs.get('leaseAgeSeconds',{}))==expected,'SCHEDULED_JOBS_HEALTH')
  def route_official(self):self.proxy.write_bytes(self.old_proxy);run(['nginx','-t']);run(['systemctl','reload','nginx'])
  def smoke(self):
   valid_window(self.request,self.cfg)
@@ -143,12 +276,14 @@ class Host:
   run(['systemctl','is-active','traceflow-live-backup.timer','traceflow-live-monitor.timer','traceflow-live-retention.timer'])
  def commit(self):
   value={'currentRelease':str(self.root),'frontendRoot':str(self.frontend),'nginxSha256':sha(self.nginx),'proxySha256':sha(self.proxy)}
-  self.state_attempted=True;atomic(STATE/'current.json',value);self.cfg.update(value)
+  self.state_attempted=True;atomic(STATE/'current.json',value);self.cfg.update(value);self.release_schema_guard()
  def restore_previous(self):
+  need(not self.schema_started or self.schema_complete,'MIGRATION_INCOMPLETE_OPERATOR_REQUIRED')
   self.recovery={'status':'started','routingChanged':self.routing_changed,'reloadAttempted':self.reload_attempted,'restartedUnits':sorted(self.restarted_units),'changedDropins':sorted(self.changed_units),'stateAttempted':self.state_attempted}
   if self.state_attempted:atomic(STATE/'current.json',self.previous_state);self.cfg.update(self.previous_state)
   if self.routing_changed:self.proxy.write_bytes(self.old_proxy);self.nginx.write_bytes(self.old_nginx)
   for role in sorted(self.changed_units):
+   if role=='retention' and self.schema_complete:continue
    p=self.units[role];data=self.old[str(p)]
    if data is None:p.unlink(missing_ok=True)
    else:p.write_bytes(data)
@@ -158,7 +293,9 @@ class Host:
   if self.routing_changed:run(['nginx','-t'])
   if self.reload_attempted:run(['systemctl','reload','nginx'])
   return self.reload_attempted or bool(self.restarted_units)
- def recovery_complete(self):self.recovery['status']='complete'
+ def recovery_complete(self):
+  need(not self.schema_started or (self.schema_complete and self.retention_target_ready),'SCHEMA_TRANSITION_REQUIRES_INTERVENTION')
+  self.release_schema_guard();self.recovery['status']='complete'
  def recovery_failed(self,original,recovery):
   def code(error):return str(error) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(error)) else 'UNCLASSIFIED_FAILURE'
   self.recovery.update(status='incomplete',originalFailure=code(original),recoveryFailure=code(recovery))
@@ -199,7 +336,7 @@ def process(release,cfg):
  except BaseException as error:
   result.update(code=str(error) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(error)) else 'DEPLOY_FAILED',rollback='inspect-preserved-transaction')
  finally:
-  if host is not None:result['recovery']=host.recovery
+  if host is not None:result['recovery']=host.recovery;result['migration']=host.migration_result
   result['finishedAt']=dt.datetime.now(dt.timezone.utc).isoformat();atomic(marker,result);atomic(STATUS/(str(req['runId'])+'.json'),result,0o644)
  print(json.dumps(result));need(result['status']=='SUCCESS','PROMOTION_FAILED_NO_RETRY')
 

@@ -202,6 +202,15 @@ padrão; 15 s em tarefas, requisitos, defeitos, casos de teste e alertas).
 | GET      | `/health/ready`   | Nenhuma | `200`, `{status:"ready"}`           | `503` dependência indisponível ou pânico do motor do banco |
 | qualquer | rota desconhecida | —       | —                                   | `404`, `ROUTE_NOT_FOUND`       |
 
+OCI-DEPLOY-03 preserva esses endpoints. Readiness acrescenta estado startup/draining, storage
+privado existente e ledger/tabelas operacionais ao SELECT 1, com deadline (default 3s), no-store
+e resposta 503 genérica. Não executa escrita, DDL ou criação de diretórios. Liveness independe
+da disponibilidade de MySQL/SMTP/GitHub, mas recusa pânico do motor Prisma (ADR-020). Durante draining, novas requisições de aplicação recebem 503
+`{code:"SERVICE_DRAINING",message:"Serviço em encerramento."}` e Connection: close. Requests
+já em andamento são drenadas dentro do orçamento; a reserva persistida do sync não é alterada
+pelo encerramento. Exposição do ingress e detalhes estão no [contrato OCI](../runbooks/OCI_ENVIRONMENT.md).
+
+
 ## Projects e memberships
 
 GITHUB-01 reutiliza os dois cadastros existentes. `POST /projects` exige `name` e
@@ -1991,6 +2000,64 @@ Matriz completa e decisões: [Painel pessoal v1](../indicators/PERSONALIZED_DASH
   ou default sem SHA continua interrompendo explicitamente o estágio, sem confirmar uma varredura incompleta.
 - Velocity exige fechamento conhecido (cutoff, status e estimativas); ausência de baseline
   planejada, isoladamente, não invalida esse fechamento. Estimativas desconhecidas continuam excluídas.
+
+
+## OCI-DEPLOY-04.1 — Evidências retomáveis (protocolo v1)
+
+Prefixo `/api`. Sessão autenticada e verificada, membership ativo, papel OWNER/MANAGER/MEMBER,
+autoria do upload e projeto ativo em todas as operações. POST/PUT/DELETE exigem `X-CSRF-Token`.
+
+| Método | Endpoint | Resposta |
+|---|---|---|
+| POST | `/test-cases/:id/execution-uploads` | 201, recibo de upload |
+| GET | `/test-cases/:id/execution-uploads` | 200 `{uploads}`; até 10, prioriza pendentes |
+| GET | `/test-cases/:id/execution-uploads/:uploadId` | 200, recibo |
+| PUT | `/test-cases/:id/execution-uploads/:uploadId/files/:fileId/parts/:index` | 200, recibo atualizado |
+| POST | `/test-cases/:id/execution-uploads/:uploadId/complete` | 200 `{execution}` canônica |
+| DELETE | `/test-cases/:id/execution-uploads/:uploadId` | 200, recibo cancelado |
+
+Inicialização JSON (IDs e hash abaixo descrevem tipos; não são segredos/configuração):
+
+```text
+{
+  idempotencyKey: UUIDv4,
+  testCaseVersion: integer,
+  files: [{name: string, field: "evidence" | "stepEvidence.N", sizeBytes: integer, sha256: hex64}]
+}
+```
+
+Recibo: `uploadId`, `testCaseVersion`, `sessionStatus`, `chunkSize` (8388608), `expiresAt`,
+`executionId` nullable, `confirmedBytes`, `totalBytes`, `files[]` com `id`, `name`, `field`,
+`sizeBytes`, `sha256`, `receivedParts[{index,sizeBytes,sha256}]`. Nenhum path/storageKey.
+
+Parte binária: `Content-Type: application/octet-stream`, `X-Chunk-SHA256: hex64`,
+`X-Chunk-Offset: index*8388608`. Índice zero-based, tamanho esperado exato. Não é multipart.
+Partes fora de ordem e replays idênticos são aceitos; divergentes retornam 409.
+
+Complete recebe diretamente o JSON do `payload` da execução S1-07, incluindo `retest` S1-08,
+sem arquivos nem wrapper multipart. Parser específico de até 6 MiB, após autenticação e CSRF.
+A finalização valida todos os arquivos, registra uma única execução e todos os seus efeitos
+na transação canônica. GET de execução continua usando `evidence` e downloads autenticados.
+Não muda o contrato histórico de versões, defeitos ou snapshots.
+
+Estados: OPEN → FINALIZING → COMPLETED. Falha recuperável volta para OPEN; cancelamento/TTL
+produzem CANCELLED/EXPIRED. Prazo padrão 24h; lease 90s; recibo até expiry+7dias.
+Repetir init com mesma chave/manifesto retorna mesma sessão. Repetir Complete com payload
+normalizado idêntico retorna a mesma execução; conteúdo diferente retorna 409. A idempotência
+é por operação explícita; uma nova chave representa uma nova execução intencional.
+
+Erros: 400 offset/tamanho/contrato; 401 autenticação/sessão; 403 permissão/CSRF; 404 contexto;
+409 conflito/partes ausentes/lease; 410 upload encerrado; 413 limite; 415 Content-Type;
+422 checksum; 429 rate/quota/lease; 507 disco; 503 storage. Busy/quota retornam Retry-After: 3;
+rate limiter usa seu prazo restante. A UI limita retries a três tentativas por requisição.
+
+Limites funcionais preservados: 50 MiB vídeo, 10 MiB outro, 100 MiB total, 20 arquivos,
+5 gerais, 3 por passo, JSON 6 MiB. Transporte 8 MiB/parte e no máximo 40 partes/sessão.
+As cotas operacionais estão em [OCI_RESUMABLE_UPLOADS.md](../runbooks/OCI_RESUMABLE_UPLOADS.md).
+
+O POST multipart `/test-cases/:id/executions` continua disponível para clientes existentes
+(e para a UI sem arquivos). A UI com arquivos usa sempre o protocolo retomável. Multipart
+acima de 100 MB continua incompatível com a borda Cloudflare; usar partes para preservar o envelope.
 
 ## S2-01 — Alertas de rastreabilidade (RF13, RF39, RF40, RF58)
 

@@ -52,9 +52,17 @@ def promote(host):
  """
  host.preflight()
  try:
+  if hasattr(host,'apply_migrations'):host.apply_migrations()
   host.start_candidate();host.candidate_ready()
- except BaseException:
-  host.stop_candidate();raise
+ except BaseException as original:
+  host.stop_candidate()
+  if getattr(host,'migration_quiesced',False):
+   try:
+    if host.restore_previous():host.previous_ready()
+    host.recovery_complete()
+   except BaseException as recovery:
+    host.recovery_failed(original,recovery);raise
+  raise
  try:
   host.route_candidate()
   host.promote_services();host.official_ready();host.route_official();host.smoke()

@@ -1,0 +1,198 @@
+{
+  "mode": "LOCAL_ISOLATED",
+  "version": "26.7.0",
+  "checks": [
+    {
+      "name": "strict-read-only-diagnostic",
+      "result": {
+        "formatVersion": 1,
+        "status": "PASS",
+        "mode": "local-isolated",
+        "checkedAt": "2026-10-15T01:23:40.534Z",
+        "version": "26.7.0",
+        "prisma": "6.12.0",
+        "tls": {
+          "verified": true,
+          "protocol": "TLSv1.3",
+          "cipher": "TLS_AES_128_GCM_SHA256",
+          "certificateSha256": "fc2ed90e117bb05fa150eb437cf7e66a4a41bced857a32570600123aa7682d34",
+          "validFrom": "2026-10-15T01:23:38.000Z",
+          "validTo": "2026-10-17T01:23:38.000Z",
+          "identityVerified": true
+        },
+        "tlsSession": {
+          "Ssl_cipher": "TLS_AES_128_GCM_SHA256",
+          "Ssl_version": "TLSv1.3"
+        },
+        "grants": [
+          "SELECT"
+        ],
+        "parameters": {
+          "versionComment": "MySQL Community Server - GPL",
+          "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+          "transactionIsolation": "REPEATABLE-READ",
+          "timeZone": "+00:00",
+          "systemTimeZone": "UTC",
+          "characterSet": "utf8mb4",
+          "collation": "utf8mb4_0900_ai_ci",
+          "lowerCaseTableNames": "0",
+          "maxConnections": "32",
+          "waitTimeout": "28800",
+          "connectTimeout": "10",
+          "requireSecureTransport": "1",
+          "engine": "InnoDB"
+        },
+        "pool": {
+          "connectionLimit": 1,
+          "connectTimeout": 5,
+          "poolTimeout": 5,
+          "socketTimeout": 10
+        },
+        "writes": false
+      }
+    },
+    {
+      "name": "authentication-pool-timeouts",
+      "result": {
+        "status": "PASS",
+        "checks": [
+          {
+            "name": "invalid-authentication",
+            "rejected": true,
+            "code": "P1000",
+            "seconds": 0.011
+          },
+          {
+            "name": "privileged-metadata-denied",
+            "rejected": true,
+            "code": "P2010",
+            "seconds": 0.001
+          },
+          {
+            "name": "pool-exhaustion-bounded",
+            "rejected": true,
+            "code": "P2024",
+            "seconds": 1.005,
+            "connectionLimit": 2
+          },
+          {
+            "name": "query-timeout-bounded",
+            "rejected": true,
+            "code": "P2010",
+            "seconds": 1.032
+          },
+          {
+            "name": "server-connection-limit",
+            "established": 31,
+            "maximum": 32,
+            "rejected": true,
+            "code": "P2037"
+          },
+          {
+            "name": "connection-budget-released",
+            "recovered": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown-ca",
+      "diagnostic": {
+        "status": "FAIL",
+        "code": "SELF_SIGNED_CERT_IN_CHAIN",
+        "writes": false
+      },
+      "prisma": {
+        "rejected": true,
+        "code": "P1011",
+        "seconds": 0.014
+      }
+    },
+    {
+      "name": "wrong-identity",
+      "diagnostic": {
+        "status": "FAIL",
+        "code": "ERR_TLS_CERT_ALTNAME_INVALID",
+        "writes": false
+      },
+      "prisma": {
+        "rejected": true,
+        "code": "P1011",
+        "seconds": 0.014
+      }
+    },
+    {
+      "name": "expired",
+      "diagnostic": {
+        "status": "FAIL",
+        "code": "CERT_HAS_EXPIRED",
+        "writes": false
+      },
+      "prisma": {
+        "rejected": true,
+        "code": "P1011",
+        "seconds": 0.014
+      }
+    },
+    {
+      "name": "recovery-after-certificate-replacement",
+      "result": {
+        "formatVersion": 1,
+        "status": "PASS",
+        "mode": "local-isolated",
+        "checkedAt": "2026-10-15T01:23:49.960Z",
+        "version": "26.7.0",
+        "prisma": "6.12.0",
+        "tls": {
+          "verified": true,
+          "protocol": "TLSv1.3",
+          "cipher": "TLS_AES_128_GCM_SHA256",
+          "certificateSha256": "fc2ed90e117bb05fa150eb437cf7e66a4a41bced857a32570600123aa7682d34",
+          "validFrom": "2026-10-15T01:23:38.000Z",
+          "validTo": "2026-10-17T01:23:38.000Z",
+          "identityVerified": true
+        },
+        "tlsSession": {
+          "Ssl_cipher": "TLS_AES_128_GCM_SHA256",
+          "Ssl_version": "TLSv1.3"
+        },
+        "grants": [
+          "SELECT"
+        ],
+        "parameters": {
+          "versionComment": "MySQL Community Server - GPL",
+          "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+          "transactionIsolation": "REPEATABLE-READ",
+          "timeZone": "+00:00",
+          "systemTimeZone": "UTC",
+          "characterSet": "utf8mb4",
+          "collation": "utf8mb4_0900_ai_ci",
+          "lowerCaseTableNames": "0",
+          "maxConnections": "32",
+          "waitTimeout": "28800",
+          "connectTimeout": "10",
+          "requireSecureTransport": "1",
+          "engine": "InnoDB"
+        },
+        "pool": {
+          "connectionLimit": 1,
+          "connectTimeout": 5,
+          "poolTimeout": 5,
+          "socketTimeout": 10
+        },
+        "writes": false
+      }
+    },
+    {
+      "name": "inaccessible-port",
+      "result": {
+        "rejected": true,
+        "code": "P1001",
+        "seconds": 0.006
+      }
+    }
+  ],
+  "status": "PASS",
+  "productionCertified": false,
+  "cleanedUp": true
+}

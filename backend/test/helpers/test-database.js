@@ -80,6 +80,7 @@ export async function cleanTestDatabase(prisma) {
     // Check the actual connection in the same transaction as every deletion.
     // Environment variables alone cannot identify an already initialized client.
     await assertConnectedTestDatabase(tx);
+    await tx.evidenceUpload.deleteMany();
     await tx.gitHubSchedulerWorker.deleteMany();
     await tx.scheduledJobLease.deleteMany();
     await tx.projectPurgeStorageCleanup.deleteMany();

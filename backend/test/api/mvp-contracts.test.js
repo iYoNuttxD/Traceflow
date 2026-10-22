@@ -129,7 +129,7 @@ describe('GET /health', () => {
     const { createHealthHandlers } = await import('../../src/shared/http/health.js');
     const readinessCheck = vi.fn();
     const handlers = createHealthHandlers({ readinessCheck });
-    const res = { json: vi.fn(), status: vi.fn() };
+    const res = { json: vi.fn(), status: vi.fn(), setHeader: vi.fn() };
     res.status.mockReturnValue(res);
     handlers.live({}, res);
     handlers.health({}, res);
@@ -140,6 +140,7 @@ describe('GET /health', () => {
       else readinessCheck.mockResolvedValue(result);
       await handlers.ready({}, res);
       expect(readinessCheck).toHaveBeenCalledExactlyOnceWith();
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
       expect(res.status).toHaveBeenLastCalledWith(503);
       expect(res.json).toHaveBeenLastCalledWith({
         status: 'not_ready',

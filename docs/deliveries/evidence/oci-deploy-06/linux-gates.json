@@ -1,0 +1,108 @@
+{
+  "platform": "linux-arm64",
+  "checks": [
+    {
+      "command": "node_modules/prisma/build/index.js validate",
+      "exitCode": 0,
+      "seconds": 0.392
+    },
+    {
+      "command": "node_modules/prisma/build/index.js generate",
+      "exitCode": 0,
+      "seconds": 0.692
+    },
+    {
+      "command": "node_modules/prisma/build/index.js migrate deploy",
+      "exitCode": 0,
+      "seconds": 2.285
+    },
+    {
+      "command": "node_modules/prisma/build/index.js migrate status",
+      "exitCode": 0,
+      "seconds": 0.312
+    },
+    {
+      "command": "scripts/lr5-schema-audit.js --enforce --test",
+      "exitCode": 0,
+      "seconds": 0.073
+    },
+    {
+      "command": "scripts/validate-empty-migrations.js",
+      "exitCode": 0,
+      "seconds": 2.459
+    },
+    {
+      "command": "scripts/validate-lr5-migration.js",
+      "exitCode": 0,
+      "seconds": 6.012
+    },
+    {
+      "command": "scripts/validate-lr9-migration.js",
+      "exitCode": 0,
+      "seconds": 2.636
+    },
+    {
+      "command": "scripts/validate-lr2-legacy-migration.js",
+      "exitCode": 0,
+      "seconds": 4.924
+    },
+    {
+      "command": "scripts/validate-s2-p1-migration.js",
+      "exitCode": 0,
+      "seconds": 2.731
+    },
+    {
+      "command": "scripts/validate-s2-p3-migration.js",
+      "exitCode": 0,
+      "seconds": 2.556
+    },
+    {
+      "command": "scripts/validate-s2-p5-1-migration.js",
+      "exitCode": 0,
+      "seconds": 3.068
+    },
+    {
+      "command": "scripts/validate-dashboard-preference-migration.js",
+      "exitCode": 0,
+      "seconds": 2.657
+    },
+    {
+      "command": "scripts/validate-task-responsibility-migration.js",
+      "exitCode": 0,
+      "seconds": 2.714
+    },
+    {
+      "command": "scripts/validate-github-sync-migration.js",
+      "exitCode": 0,
+      "seconds": 4.132
+    },
+    {
+      "command": "scripts/validate-github-sync-migration.js --liveness",
+      "exitCode": 0,
+      "seconds": 3.962
+    },
+    {
+      "command": "scripts/validate-github-sync-migration.js --actor",
+      "exitCode": 0,
+      "seconds": 3.141
+    },
+    {
+      "command": "scripts/validate-schema-drift.js",
+      "exitCode": 0,
+      "seconds": 3.033
+    },
+    {
+      "command": "node_modules/vitest/vitest.mjs run test/unit/heatwave-tls.test.js test/unit/heatwave-connection.test.js",
+      "exitCode": 0,
+      "seconds": 0.638
+    }
+  ],
+  "status": "PASS",
+  "runtime": {
+    "node": "v22.23.2",
+    "architecture": "aarch64",
+    "os": "Oracle Linux Server release 9.8",
+    "selinux": "Enforcing"
+  },
+  "cleanedUp": true
+}

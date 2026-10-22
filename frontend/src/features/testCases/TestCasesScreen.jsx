@@ -134,7 +134,8 @@ function ProjectTestCases({ project }) {
       if (!state.scope.valid(context)) return;
       const error = normalizeApiError(e, 'Não foi possível concluir a operação.');
       const conflict = error.code === 'TEST_CASE_VERSION_CONFLICT';
-      const uncertain = error.isNetworkError || error.isTimeout || !error.status;
+      const uncertain =
+        !e.resumableUpload && (error.isNetworkError || error.isTimeout || !error.status);
       const message = conflict
         ? 'O caso foi atualizado por outra pessoa. Seu rascunho foi preservado. Revise-o e feche este diálogo para recarregar a versão atual antes de salvar novamente.'
         : uncertain
@@ -509,8 +510,12 @@ function ProjectTestCases({ project }) {
                     dialog.caseId
                   )
                 }
-                onRegister={(body) =>
-                  mutate('execute', () => testCasesApi.record(dialog.caseId, body), dialog.caseId)
+                onRegister={(body, options) =>
+                  mutate(
+                    'execute',
+                    () => testCasesApi.record(dialog.caseId, body, options),
+                    dialog.caseId
+                  )
                 }
                 onView={switchView}
                 onDelete={(event) =>

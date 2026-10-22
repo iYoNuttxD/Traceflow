@@ -612,6 +612,8 @@ sob demanda e não é armazenado ([ADR-025](docs/architecture/ADR-025-RELATORIOS
 
 ### S2-08 - Definir arquitetura e provisionar ambiente na OCI
 
+**Estado: PARTIAL (21/10/2026).** Ver evidências e limites no relatório consolidado.
+
 **Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
 **Descrição:** definir e provisionar infraestrutura na Oracle Cloud Infrastructure (OCI), preferencialmente elegível ao Oracle Cloud Free Tier / Always Free, compatível com React/Vite, Node/Express, Prisma e MySQL. A arquitetura de referência planeja uma VM de aplicação com Nginx, frontend React e backend Node.js e uma VM de dados com MySQL, conectadas por rede privada; a ADR deve confirmar a topologia final conforme capacidade, custos e disponibilidade.
 
@@ -631,14 +633,19 @@ sob demanda e não é armazenado ([ADR-025](docs/architecture/ADR-025-RELATORIOS
 
 **Checklist técnico:**
 
-- [ ] criar ADR e diagrama da implantação planejada;
-- [ ] validar elegibilidade e capacidade do Free Tier / Always Free e estimar custos excedentes;
-- [ ] criar IaC e parâmetros por ambiente;
-- [ ] configurar VCN, sub-redes, rede privada, firewall, DNS, TLS, identidade e segredos;
-- [ ] configurar inventário de variáveis, URLs, callbacks e webhooks da GitHub App;
-- [ ] provisionar homologação e validar conectividade entre aplicação e MySQL.
+- [x] criar ADR e diagrama da implantação planejada;
+- [x] validar elegibilidade e capacidade do Free Tier / Always Free e estimar custos excedentes;
+- [x] criar IaC e parâmetros por ambiente;
+- [x] configurar VCN, sub-redes, rede privada, firewall, DNS, TLS, identidade e segredos;
+- [x] configurar inventário de variáveis, URLs, callbacks e webhooks da GitHub App;
+- [x] provisionar homologação e validar conectividade entre aplicação e MySQL.
+
+**Evidência consolidada (21/10/2026):** [S2-08/S2-09 OCI CD](docs/deliveries/S2_08_S2_09_OCI_CD_REPORT.md).
+Arquitetura real em [ADR-018](https://github.com/iYoNuttxD/Traceflow/blob/0619482a360df2233c335e8373447f7b92b468ee/docs/architecture/ADR-018-OCI-LIVE-ARCHITECTURE-CD.md): uma VM A1 e HeatWave privado gerenciado, sem segunda VM de banco. A homologação é descartável no runner ARM64, com MySQL e storage próprios e sem segredos produtivos. IaC foi criada e validada com planos reais somente leitura/modelo sem apply; gestão/importação dos recursos existentes e reconstrução integral **PARTIAL**. O checklist de criação não comprova adoção integral por IaC ou disponibilidade futura gratuita.
 
 ### S2-09 - Automatizar build, migrations e deploy na OCI
+
+**Estado: PARTIAL (21/10/2026).** Ver evidências e limites no relatório consolidado.
 
 **Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
 **Descrição:** criar entrega contínua para o ambiente OCI com gates, artefatos imutáveis, migrations controladas e rollback verificável.
@@ -658,14 +665,25 @@ sob demanda e não é armazenado ([ADR-025](docs/architecture/ADR-025-RELATORIOS
 
 **Checklist técnico:**
 
-- [ ] criar pipeline de homologação e promoção;
-- [ ] configurar build, artefatos imutáveis, Nginx e runtime Node.js;
+- [x] criar pipeline de homologação e promoção;
+- [x] configurar build, artefatos imutáveis, Nginx e runtime Node.js;
 - [ ] automatizar migration com bloqueio e observabilidade;
-- [ ] atualizar e validar URLs, callbacks e webhooks da GitHub App;
-- [ ] implementar health/readiness e smoke tests;
+- [x] atualizar e validar URLs, callbacks e webhooks da GitHub App;
+- [x] implementar health/readiness e smoke tests;
 - [ ] executar e documentar ensaio de rollback.
 
+**Resultado comprovado (21/10/2026): PARTIAL no conjunto; capacidade de CD operacional para releases sem mudança de schema.** [Relatório consolidado](docs/deliveries/OCI_CD_NGINX_SANDBOX_REPORT.md). PR #31 integrada; 38 testes CD, 28 testes nativos Host/transação/receptor e build ARM64 reproduzível PASS. Sandbox Nginx corrigido e comprovado em unidades transitórias restritas, com SELinux Enforcing; recuperação por etapa evita reinícios desnecessários. A única promoção explicitamente autorizada [39701470669](https://github.com/iYoNuttxD/Traceflow/actions/runs/39701470669) concluiu SUCCESS após aprovação humana de production. Versão b9c1beb9 publicada, fonte funcional igual à 9bc3dad/dependências corrigidas; runtime/frontend e recibos verificados independentemente, API/MySQL/worker/HTTPS saudáveis, históricos e operações preservados. Nenhuma funcionalidade nova da main incluída. Migrations novas em produção continuam recusadas e rollback integrado após falhas reais de serviços permanece sem comprovação própria; ensaios isolados e validação Nginx documentados. S2-08 segue PARTIAL por adoção/reconstrução IaC; S2-10 preservada. [Tentativa anterior](docs/deliveries/OCI_CD_MIGRATION_ORDER_REPORT.md) mantida como histórico.
+
+**Integração dos Ciclos 1 e 2 — em preparação:** união local de 84 migrations, com upgrade
+68→84, preservação de dados, 145 FKs e ausência de drift comprovados em MySQL descartável.
+Evolução da CD para plano de transição/OIDC, migrador dedicado e recuperação por etapa em
+homologação. A aplicação integrada ainda não foi promovida; não contabilizar esses resultados
+como prova produtiva. [Entrega consolidada](docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md).
+
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
+
+**Estado: DONE (20/10/2026).** Instalação limpa em produção, backup diário habilitado,
+restore isolado real e alerta entregue. [Relatório e limites comprovados](docs/deliveries/S2_10_OCI_OPERATIONS_REPORT.md).
 
 **Requisitos relacionados:** critérios transversais de segurança, LGPD e operação.  
 **Descrição:** concluir monitoramento, logs, alertas operacionais, firewall, backup/restore, retenção e resposta a incidentes do ambiente OCI.
@@ -685,12 +703,12 @@ sob demanda e não é armazenado ([ADR-025](docs/architecture/ADR-025-RELATORIOS
 
 **Checklist técnico:**
 
-- [ ] configurar telemetria, dashboards e alertas;
-- [ ] revisar redaction, retenção e controle de acesso;
-- [ ] revisar firewall e exposição pública das instâncias;
-- [ ] configurar backups e executar restore de teste;
-- [ ] validar ASVS aplicável e dependências;
-- [ ] finalizar runbooks e checklist operacional.
+- [x] configurar telemetria, dashboards e alertas;
+- [x] revisar redaction, retenção e controle de acesso;
+- [x] revisar firewall e exposição pública das instâncias;
+- [x] configurar backups e executar restore de teste;
+- [x] validar ASVS aplicável e dependências;
+- [x] finalizar runbooks e checklist operacional.
 
 ## 10. Marco de conclusão da Sprint 2
 

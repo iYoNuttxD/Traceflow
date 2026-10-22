@@ -309,6 +309,9 @@ describe('S202-F33 — F2-02 e F2-05 handler e saúde', () => {
         this.headers[name] = value;
         return this;
       },
+      setHeader(name, value) {
+        this.headers[name] = value;
+      },
       json(body) {
         this.body = body;
         return this;
@@ -428,5 +431,9 @@ describe('S202-F33 — F2-02 e F2-05 handler e saúde', () => {
     expect([ready.statusCode, ready.body.status]).toEqual([503, 'not_ready']);
     expect([liveOk.statusCode, liveOk.body.status]).toEqual([200, 'ok']);
     expect([readyOk.statusCode, readyOk.body.status]).toEqual([200, 'ready']);
+    expect([ready.headers['Cache-Control'], readyOk.headers['Cache-Control']]).toEqual([
+      'no-store',
+      'no-store'
+    ]);
   });
 });

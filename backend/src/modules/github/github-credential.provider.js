@@ -3,13 +3,15 @@ import { Octokit } from '@octokit/rest';
 import { env } from '../../config/env.js';
 import { ERROR_CODES, ExternalServiceError } from '../../shared/errors/index.js';
 import { executeGithubRequest } from './github-request.js';
+import { githubFetch, githubId } from './github-json.js';
 
 const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
 
 function installationDto(item) {
   return {
-    githubInstallationId: String(item.id),
-    accountId: String(item.account?.id),
+    githubInstallationId: githubId(item.id),
+    accountId: githubId(item.account?.id),
+    isSuspended: item.suspended_at != null,
     accountLogin: item.account?.login || item.account?.name || 'unknown',
     accountType: item.account?.type || 'Unknown',
     installedAt: item.created_at ? new Date(item.created_at) : new Date()
@@ -57,7 +59,7 @@ export function createGithubAppCredentialProvider({
     return new OctokitClass({
       auth: appJwt(),
       baseUrl: 'https://api.github.com',
-      request: { timeout: environment.githubRequestTimeoutMs }
+      request: { timeout: environment.githubRequestTimeoutMs, fetch: githubFetch(fetchImpl) }
     });
   }
   function userClient(userAccessToken) {
@@ -65,7 +67,7 @@ export function createGithubAppCredentialProvider({
     return new OctokitClass({
       auth: userAccessToken,
       baseUrl: 'https://api.github.com',
-      request: { timeout: environment.githubRequestTimeoutMs }
+      request: { timeout: environment.githubRequestTimeoutMs, fetch: githubFetch(fetchImpl) }
     });
   }
   async function exchangeUserCode({ code, redirectUri, codeVerifier }) {
@@ -103,7 +105,7 @@ export function createGithubAppCredentialProvider({
       try {
         const response = await requestExecutor(() =>
           appClient().rest.apps.createInstallationAccessToken({
-            installation_id: Number(installationId)
+            installation_id: githubId(installationId)
           })
         );
         return response.data.token;
@@ -116,7 +118,7 @@ export function createGithubAppCredentialProvider({
         const response = await requestExecutor(
           () =>
             appClient().rest.apps.getInstallation({
-              installation_id: Number(installationId)
+              installation_id: githubId(installationId)
             }),
           { maxRetries: environment.githubRetryMax }
         );
@@ -125,8 +127,13 @@ export function createGithubAppCredentialProvider({
         throw unavailable(error);
       }
     },
-    exchangeInstallationUserCode(code) {
-      return exchangeUserCode({ code, redirectUri: environment.githubAppCallbackUrl });
+    exchangeInstallationUserCode(code, { existingInstallation = false } = {}) {
+      return exchangeUserCode({
+        code,
+        redirectUri: existingInstallation
+          ? environment.githubLoginCallbackUrl
+          : environment.githubAppCallbackUrl
+      });
     },
     exchangeLoginUserCode({ code, codeVerifier }) {
       return exchangeUserCode({

@@ -1,0 +1,51 @@
+{
+  "result": "EQUIVALENT",
+  "method": "Sort INFORMATION_SCHEMA row arrays by full JSON row with sorted keys; preserve every field and index column position; compare complete objects. Raw Linux index order places _prisma_migrations last.",
+  "environments": {
+    "mysql-8.4.8-macos-arm64.json": {
+      "rawStructureSha256": "513e1b004de263323ce79df3a295b7f18bb61994856afd5ab89bc3bb0a38cbdd",
+      "canonicalStructureSha256": "64fc2fa786d60e873c956a888a77cc45b05ca4c76a388b6c6c253ebed34cc93f",
+      "indexes": 274,
+      "indexColumns": 408,
+      "foreignKeys": 116,
+      "checks": 6,
+      "tests": {
+        "total": 838,
+        "passed": 833,
+        "failed": 0,
+        "pending": 5,
+        "success": true
+      }
+    },
+    "mysql-26.7.0-macos-arm64.json": {
+      "rawStructureSha256": "513e1b004de263323ce79df3a295b7f18bb61994856afd5ab89bc3bb0a38cbdd",
+      "canonicalStructureSha256": "64fc2fa786d60e873c956a888a77cc45b05ca4c76a388b6c6c253ebed34cc93f",
+      "indexes": 274,
+      "indexColumns": 408,
+      "foreignKeys": 116,
+      "checks": 6,
+      "tests": {
+        "total": 838,
+        "passed": 833,
+        "failed": 0,
+        "pending": 5,
+        "success": true
+      }
+    },
+    "mysql-26.7.0-oracle-linux-9.8-arm64.json": {
+      "rawStructureSha256": "256c9a66fc03bf71dca249ed9f540a7e7a69c1e638f862d72b8cc4b721ad8ec4",
+      "canonicalStructureSha256": "64fc2fa786d60e873c956a888a77cc45b05ca4c76a388b6c6c253ebed34cc93f",
+      "indexes": 274,
+      "indexColumns": 408,
+      "foreignKeys": 116,
+      "checks": 6,
+      "tests": {
+        "total": 838,
+        "passed": 833,
+        "failed": 0,
+        "pending": 5,
+        "success": true
+      }
+    }
+  }
+}

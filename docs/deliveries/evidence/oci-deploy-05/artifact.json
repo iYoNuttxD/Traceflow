@@ -1,0 +1,91 @@
+{
+  "formatVersion": 1,
+  "releaseId": "20261014T225322Z-3e52d69c4ac5abf17881d185284fe1b1afb83398-feafe1d76104",
+  "descriptorSha256": "764d84fb22bc5fc9224a9fd651d20e8219044e9d56b6fdbc5477b94c5c8f903f",
+  "artifacts": {
+    "admin": {
+      "file": "admin.tar.gz",
+      "manifestSha256": "688a928c9c5e06d5cbcc49bffcc7b67a5e9941572c43d2720d3da50aeb3fa1dc",
+      "sha256": "270db19e2dbfb65ff1c8b44263c991df2900a97081c6812bb5107b7ae9eab6c7"
+    },
+    "runtime": {
+      "file": "runtime.tar.gz",
+      "manifestSha256": "7974d2421f02dc1e951e8168a56c1677f54d61f65a792e36d488ec9d01f7b683",
+      "sha256": "39272c26dac9136b69c130362b5f73d5a4c4d2c308d8daa5f539ba0ddf884650"
+    }
+  },
+  "manifest": {
+    "application": "TraceFlow",
+    "buildId": "feafe1d76104",
+    "buildTimestampUtc": "2026-10-14T22:53:22Z",
+    "checks": {
+      "frontendBuild": true,
+      "nativeSmoke": {
+        "architecture": "arm64",
+        "argon2": true,
+        "artifactSmoke": "PASS",
+        "databaseAccess": false,
+        "engine": "linux-arm64-openssl-3.0.x",
+        "node": "22.23.2",
+        "platform": "linux",
+        "prisma": "6.12.0"
+      },
+      "schemaValidated": true
+    },
+    "commitSha": "3e52d69c4ac5abf17881d185284fe1b1afb83398",
+    "formatVersion": 1,
+    "frontend": {
+      "apiBase": "/api",
+      "promotableAcrossOrigins": true,
+      "timeoutMs": 15000
+    },
+    "kind": "runtime",
+    "nodeVersion": "22.23.2",
+    "npmVersion": "10.9.8",
+    "openssl": "OpenSSL 3.5.8 25 Aug 2026 (Library: OpenSSL 3.5.8 25 Aug 2026)",
+    "platform": {
+      "architecture": "arm64",
+      "distribution": "Oracle Linux 9.8",
+      "opensslMajor": 3,
+      "os": "linux"
+    },
+    "prismaVersion": "6.12.0",
+    "recipeSha256": "062811ac57f20bc8dc5377ed9fde7e34574e82ba0565a91f71de2efb466649fc",
+    "releaseId": "20261014T225322Z-3e52d69c4ac5abf17881d185284fe1b1afb83398-feafe1d76104",
+    "sourceSha256": "398a554baa4a3b49d4c84f5ecb00953e277946f2311768ca3e06e3d78ea7c0c1",
+    "sourceState": "candidate"
+  },
+  "schema": {
+    "schemaSha256": "2927409ce92c10cab9a83b808bedf1837d78634897d0e027fd6475c60c4de16e",
+    "chainSha256": "c633161b2b59731c6386636607a3cc9d96351eef2b2ba7bfe8700253e8194251",
+    "migrationCount": 67
+  },
+  "fileCounts": {
+    "runtime": 2088,
+    "admin": 4053
+  },
+  "archiveBytes": {
+    "runtime": 37344909,
+    "admin": 85816920
+  },
+  "reproducibility": {
+    "independentBuilds": 2,
+    "identicalDescriptorArchivesAndManifests": true,
+    "inputs": {
+      "epoch": 1792018402,
+      "buildId": "feafe1d76104",
+      "sourceSha256": "398a554baa4a3b49d4c84f5ecb00953e277946f2311768ca3e06e3d78ea7c0c1"
+    }
+  },
+  "copiedBackToHostAndVerified": true,
+  "localArtifactDirectory": "/private/tmp/tf05-0o6wkvjh/artifacts/20261014T225322Z-3e52d69c4ac5abf17881d185284fe1b1afb83398-feafe1d76104",
+  "productionDeployable": false,
+  "reason": "candidate recipes intentionally uncommitted; production gates remain blocked",
+  "publicToolProvenance": {
+    "oracleLinuxImageSha256": "4793c3ec49d9f8b27a932d3bd88ec45d08249c5195faa3b0fac876ab0d5f5856",
+    "nodeLinuxArm64Sha256": "fff4078c5def658577f92c88db7db3bc0072924bfb93fe52c1e744a54e94abb8",
+    "mysqlLinuxArm64Sha256": "452113d14185d2560cd797b5b602eb3d7bed9981c8020b3f525bd66cb5948fc9",
+    "mysqlSigningFingerprint": "BCA43417C3B485DD128EC6D4B7B3B788A8D3785C",
+    "mysqlVersion": "8.4.8"
+  }
+}

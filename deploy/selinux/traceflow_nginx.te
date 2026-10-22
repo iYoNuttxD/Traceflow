@@ -1,0 +1,13 @@
+module traceflow_nginx 1.0;
+
+require {
+    type httpd_t;
+    attribute port_type;
+    class tcp_socket name_connect;
+}
+
+# Permit only connections to the port type assigned to the loopback API.
+# Bind=127.0.0.1 and firewall remain independent, mandatory controls.
+type traceflow_api_port_t;
+typeattribute traceflow_api_port_t port_type;
+allow httpd_t traceflow_api_port_t:tcp_socket name_connect;

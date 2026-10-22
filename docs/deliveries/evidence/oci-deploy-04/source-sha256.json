@@ -1,0 +1,32 @@
+{
+  "baselineHead": "19922ae17dd4175846f416423b2068509aa4ac9f",
+  "baselineSourceFilesCompared": 1172,
+  "baselineSourceDrift": [],
+  "sha256": {
+    "README.md": "8bbbf1831a9a5f3f113a273ecc158e7517284ce8a2e8408233564c815b706566",
+    "deploy/nginx/snippets/cloudflare.conf": "92be6a74e32d6e1eaf1dc1174e8f676129eb093091e75864024cd3d125e524f6",
+    "deploy/nginx/snippets/proxy.conf": "5c85f56797043475e5d9c84894aa6c7619dd85613f0515d73d32a342f947e908",
+    "deploy/nginx/snippets/static-headers.conf": "c233a8e000a7decddbb5d11d56f4d38dfdfef85836b902006077c147d1c9fd48",
+    "deploy/nginx/traceflow.conf": "d11c5636f9490c4cbf0b9ad77e93cf401ce0efc60b7c89e491e5fbc770d7c869",
+    "deploy/scripts/check-runtime.sh": "81bc2d63c2147c3449987df8286bc58a0b6ad7c21c30beae00340aac9b3f1e92",
+    "deploy/scripts/configure-selinux.sh": "92e6740c1b6074e7884694d9e49f8d00415fc59beffe52beb3d73739cf9499d0",
+    "deploy/scripts/prepare-runtime-directories.py": "5dfd35e1da1cd1e7cf0e2919a95d499d96f99d5f3e674ede82315446080bb054",
+    "deploy/scripts/update-cloudflare-ips.py": "db6b4c193f97414ce6f087a8f20864703796b2e51976008e82ab625ffcdfb04c",
+    "deploy/scripts/validate-nginx.sh": "7db9341a756afca0514965c4e1cbfd4266a7c0f4ee1047465b2eb740b4af395b",
+    "deploy/scripts/validate-service-environment.mjs": "04ff08c8f8b28e6ed9ebf8d7b1d61a8d23266877d3863bd54ede942c867a2188",
+    "deploy/scripts/validate-systemd.sh": "15b701500474ac12ecd7dd10e49a2c90970ed5f5ef7dbfa475d9e0810c177520",
+    "deploy/selinux/traceflow_nginx.te": "c679f01f57302ca7807fa08588bc744aba9e79c87ee7e7d8f8bdf5a92cf006fd",
+    "deploy/systemd/traceflow-api.service": "e6c4d6635ed896db4eacb364b22843fe5608dd0fd5f6dce5ef6c5f8eeef0e90d",
+    "deploy/systemd/traceflow-github-worker.service": "790fb54f3702043e3edd232d51eee2c6eb90b67f6eae492bc70a9ed0ebbae4d0",
+    "deploy/tests/controlled-upstream.mjs": "59347973e2e678913bf984096b2c6db98806dcc31e677ba65dde10e6bda79d3b",
+    "deploy/tests/run-linux.py": "82af2a25b14be6195a37b14fa3d4953bc277bcdce2efe314f9b3f11adb718ece",
+    "deploy/tests/test_operations.py": "fa2852072b074db2e718975b1b5cb326e1fc10aecace39a6ddf52a6b79aa5319",
+    "deploy/tests/worker-sandbox.mjs": "78aadba5058578c1ff3916a6bfa8e1ca2d8f6d6337b0239cd1d9c0edd06c49a8",
+    "docs/deliveries/OCI_DEPLOY_04_NGINX_SYSTEMD_STORAGE_REPORT.md": "a2d58cbcce03d216d50c5b97ac0f44577aae980efc9cdd5ccb393e78abc39840",
+    "docs/runbooks/OCI_RUNTIME_SERVICES.md": "22cbc5f3faf0b3680a403edd3d14efa8230f09763f4e8a74ac2435eb323c3c04"
+  },
+  "noProtectedDataReadForHashing": true,
+  "finalFixtureFormattingOnly": "controlled-upstream response chain reformatted after Linux tests; no semantic change",
+  "previousDeliveriesUnchanged": true,
+  "noStagedChanges": true
+}

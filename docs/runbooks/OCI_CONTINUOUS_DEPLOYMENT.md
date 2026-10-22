@@ -52,18 +52,18 @@ Não usa controladores antigos, recoveryProof ou ledger legado.
     técnico sem segredos em `/deploy-status/RUN.json`; Actions arquiva o resultado e o conserva como asset da release no GitHub, junto
     ao pacote e request assinado. O código/agenda de backup da S2-10 não são alterados.
 
-## Migrations e rollback
+## Migrations e rollback — comportamento da primeira versão
 
-V1 recusa **antes do cutover** qualquer mudança de schema ou cadeia/checksum de
+O contrato V1 original recusa **antes do cutover** qualquer mudança de schema ou cadeia/checksum de
 migrations. Esta promoção da versão existente não executa SQL de escrita nem
 migrations. A cadeia de 68 também é confrontada por SELECT com o banco real.
 
 Essa recusa é deliberada: o backup atual possui contratos vinculados ao schema
 publicado. Uma futura alteração funcional com migrations exige plano explícito,
 compatibilidade expand/contract, backup compatível e migrador sob custódia aprovada
-antes de habilitar `prisma migrate deploy` na produção. A pipeline demonstra esse
-comando somente no MySQL isolado. **Não afirmar que migrations novas em produção
-já estão automatizadas.** Nunca desbloquear conta ou mudar contratos de backup
+antes de habilitar `prisma migrate deploy` na produção. A primeira entrega demonstrou esse
+comando somente no MySQL isolado. A evolução preparada abaixo ainda depende da promoção e
+da prova produtiva para ser declarada operacional. Nunca desbloquear conta ou mudar contratos de backup
 apenas para obter PASS; não publicar automaticamente funcionalidades da main.
 
 Falha de candidata: serviços/ingress anteriores permanecem. A transação marca
@@ -144,3 +144,73 @@ apagar/reescrever histórico para permitir uma nova extração.
 Dependências nativas: [atestação GitHub](https://cli.github.com/manual/gh_attestation_verify),
 [workflow_dispatch/default branch](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow),
 [aprovação de ambientes](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
+
+
+## Transições de schema — integração dos Ciclos 1 e 2
+
+Contrato: [ADR-026](../architecture/ADR-026-OCI-SCHEMA-TRANSITIONS.md). Uma promoção sem
+mudança continua sem credencial migradora. Para adicionar migrations, preparar primeiro o
+plano protegido e suas provas. Não preencher resultados antes de observá-los.
+
+1. Registrar os SHAs de origem/alvo, os dois schemas e as listas completas de migrations.
+   Conferir todos os registros de `_prisma_migrations`, inclusive falhas/rollbacks e
+   duplicidades. Só migrations novas, com arquivos imutáveis, podem ser adicionadas.
+2. Executar `backend/scripts/validate-integration-upgrade.js <SHA-publicado>` em um MySQL
+   descartável vazio. A variável `TEST_DATABASE_URL` deve identificar esse alvo; `DATABASE_URL`
+   deve apontar a outro destino. O ensaio aplica a cadeia anterior pelo Prisma, cria fatos
+   sintéticos e aplica o candidato. Guardar JSON, engine, limites, FKs e resultados de runtime.
+   Homologar também instalação vazia, a API anterior no schema alvo e os dois serviços do worker.
+3. Verificar backup consistente da instalação limpa, cifragem, publicação externa/readback e
+   restore isolado do **mesmo** backup. Não usar recibos do controlador abandonado. O restore
+   confere todo o conjunto; a normalização DDL anterior continua restrita à grafia redundante
+   `CHARACTER SET utf8mb4` já comprovada. Não descartar divergências para obter PASS.
+4. Apresentar o resumo único e obter GO para os hashes finais, atualização da autoridade CD,
+   custódia migradora e breve parada de API/worker. O migrador `tf_live_migrator@10.20.1.184`
+   tem somente privilégios necessários ao SQL revisado em `traceflow_live`, TLS obrigatório e
+   teto de duas conexões; o backup continua SELECT-only. Custódia: credential systemd cifrada,
+   carregada somente na unidade transitória migradora, sem senha em argumentos ou logs.
+5. Instalar os arquivos administrativos revisados com seus hashes, preservando suas versões
+   anteriores. Atualizar a trust policy explicitamente, sem alterar identidade de requests
+   antigos, histórico ou contadores. Não repetir o bootstrap exclusivo da CD.
+6. Instalar `/etc/traceflow-live/cd-transitions/<digest>/{plan,upgrade,restore,runtime}.json`, root/0600
+   e ancestrais root protegidos. `<digest>` é SHA-256 do JSON canônico do plano. Ele vincula
+   `appSha`, `from`, `to`, `added`, `upgradeEvidenceSha256`, `restoreEvidenceSha256`,
+   `runtimeEvidenceSha256`, `previousAppCompatibleWithTarget=true`, os três hashes/ID do backup e validade de até 24 h.
+   A autorização executável continua sendo o request OIDC novo de até 20 min, após a aprovação
+   humana do ambiente. O plano e o backup precisam cobrir toda essa janela.
+7. Disparar uma única execução manual com `app_sha`, `baseline_sha` (SHA atualmente instalado), `promote=true` e `transition_sha256`.
+   A CD usa seus locks e o advisory lock Prisma, para e drena worker/API, grava o início
+   exclusivo, executa `prisma migrate deploy` uma vez pelo CLI 6.12.0 imutável e reconfere a
+   cadeia inteira. Só então inicia a candidata e promove API, worker e frontend.
+8. Conferir o recibo de transição, cadeia final, versão efetiva, HTTPS/readiness, heartbeat,
+   os quatro jobs, logs e os timers. Conferir que o backup reconhece o novo contrato de schema.
+   Não importar o dataset da banca durante esta operação.
+
+Se DDL falhar ou for interrompido, os serviços permanecem parados para intervenção específica:
+registrar o histórico observado e não repetir, resolver migrations, restaurar ou apagar dados.
+Se a migração tiver concluído e uma etapa posterior falhar, o binário anterior só retorna com
+compatibilidade aprovada para o schema alvo; o schema **não** é revertido. Não confundir esse
+ensaio isolado com prova de recuperação integrada em produção.
+
+Orçamento de conexões desta transição: API 5 + recuperação 1; candidata API 5 + recuperação 1;
+worker 3 + recuperação 1; comando Prisma até 2; diagnóstico 1; reserva operacional 5: teto
+planejado 24, abaixo das 200 conexões observadas no HeatWave. A API não inicia agenda: apenas
+`github-worker.js` inicia scheduler e job runner. Configurar explicitamente `JOBS_ENABLED=false`
+na API e `true` no worker. Não substituir a URL do comando pela URL de pool 3 do worker.
+
+A CI de pull request faz checkout do head SHA explícito. A CD aceita CI de push ou PR somente
+quando `head_sha`, workflow e os quatro checks pertencem à mesma execução exata da revisão
+promovida. Não utiliza um check verde de outra revisão nem a árvore implícita de merge da PR.
+
+
+Na atualização administrativa, incluir os dois drop-ins `20-cd-schema-guard.conf` de backup e
+retenção e verificar a condição efetiva após `daemon-reload`. Incluir seus hashes na configuração
+protegida da CD. O arquivo `schema-transition-in-progress` é criado exclusivamente pelo receiver;
+não deve ser removido manualmente para forçar outra operação. Uma transição incompleta requer
+verificar primeiro o estado do migrador e do histórico. O monitor alerta quando o marcador
+persiste sem a CD ativa. O timer continua instalado; a condição impede rotinas sobre schema parcial.
+
+Instalar também o runner de retenção revisado e seu seletor `30-cd-release.conf`, apontando
+inicialmente ao backend ativo. Após migração concluída, o seletor acompanha o schema novo e
+não é revertido com o binário anterior. Ele não substitui ExecStart nem reinicia a retenção.
+Provas nativas sanitizadas: `docs/deliveries/evidence/s2-integration-release/NATIVE_*.json`.

@@ -1,0 +1,97 @@
+{
+  "identity": [
+    "[\"6e94bb7f-c601-11f1-9b91-02001704771f\", \"26.7.0-cloud\", \"traceflow_live\", \"tf_live_backup@10.20.1.184\", 200]"
+  ],
+  "tables": [
+    "61"
+  ],
+  "foreignKeys": [
+    "116"
+  ],
+  "history": [
+    "20260604224631_add_github_fields_to_project\t99ac9c979a01bdd6b8dad2b4e73c8c4b7f76e76d6036edc214da8b7f50408162\t1\t0",
+    "20260605120000_create_commit_model\ta882a29dc35cef36cc2b39704eaacf7355ac48effaffccdf6ca52da6e984c782\t1\t0",
+    "20260606120000_create_pull_request_model\t35a9237de17e5b4f78a0335c2b1bcbe8e06dc9c12efb1ce3b62d70e98b9c51e9\t1\t0",
+    "20260606130000_create_issue_model\t13fa89180544f634f5a073b68a6469cc3969a49443b085b7c37b4af7d699e025\t1\t0",
+    "20260606140000_add_github_sync_settings_to_project\t1f4903843e824f954024c34525edcdd0f516ccdfce25f333fe6f715f72d59e4c\t1\t0",
+    "20260606233000_add_responsible_team_to_project\t46014386df6d5a664325e13a668942eb63964e1f358b966d19628a538917be9a\t1\t0",
+    "20260607021903_add_task_module\tce9dfd4655991492c5c35acd83302acca21e3e75247bbe09c8c969bfcceba55e\t1\t0",
+    "20260607024213_use_integer_task_effort\td19e2ba3a2f3ae9b7e4cc2b4ba025ded056bd15cd789adb156d6fb7722143bfc\t1\t0",
+    "20260607030000_add_task_movements_for_kanban\tfff25f5baeaf0c83b9fb640985a4811215d44a9d6961eac8968389a628b2cc2d\t1\t0",
+    "20260607170000_adjust_kanban_project_members\t57c2dcf79e7d697a63626bc8007907576d1584cc0e28cf4337c857c0a3d0bb85\t1\t0",
+    "20260607190000_add_requirement_module\t4f4fbce8a47121c5ee25516e9e2fb177f78aded6f1f35b53afb5c0b78cfb8d90\t1\t0",
+    "20260608120000_add_task_pull_request_relation\tddb78660bedc538c981985b4c84137f4b6198293f8fb8b01050d26bdf2abdd46\t1\t0",
+    "20260610120000_add_task_commit_links\t858e9ddb28d2d2d948b0ced264f65b821ee182372a2eb010636f4e1a3ec12d57\t1\t0",
+    "20260610130000_add_task_issue_links\tdf22cae67078933a902333c3617d285145c5cf02b8c5c047b5c451e28022d407\t1\t0",
+    "20260611120000_add_github_sync_status_to_project\t024113d5f414adc1866fc397d3fa1841f3a1e100a2317c1aac515a1b70a2df18\t1\t0",
+    "20260724120000_add_identity_session_authorization\tdcff9dafb274bdb9ed5ee446bf392462fad5a22687f888dda15e61273980aa1c\t1\t0",
+    "20260724190000_add_privacy_audit_governance\t9c4611d71ab2b1c09a01774a4aa90409cea988f2baf5becfa23a0a5e5e698c56\t1\t0",
+    "20260725120000_e8_expand_task_pull_request\tadad555b5111559e79694e0f374b56014a5456442a78f6738c8db162fb6e1acf\t1\t0",
+    "20260725121000_e8_indexes_and_constraints\t8b984bb656dea9b76fb0bda8f653b4e9d5964ddab5c96834fa3b9a20add70a56\t1\t0",
+    "20260725122000_e8_remove_redundant_indexes\t5aab5d24278a4137fefbdd600f1a7dc101120a5a01ac78e0a97badaf64e6a87b\t1\t0",
+    "20260725130000_e8_contract_remove_task_pull_request\t51a4b95d99be6c31a365f995966699f51543382b4f3678d6a172f633af406138\t1\t0",
+    "20260725131000_e8_contract_remove_github_artifact\t822b7619dd4771c96e6547cb5c79f3f30691cc3c5652820f18fb9c33e8d1c068\t1\t0",
+    "20260725132000_e8_contract_remove_trace_link\te69e91596e2572c23c35149b90bdb3213e04cbee33a8baa060216fac16459f11\t1\t0",
+    "20260725140000_e10_add_task_commit_suggestions\tc6a2b5d446c44ff57513a2b71c1cc47d6405fb6d571d1283f13b8cfd0eff8c6e\t1\t0",
+    "20260726120000_e11_add_task_history\t84ad87ca9074b201869fbae08ac199ec2cf1004340117865d66da258c17ec280\t1\t0",
+    "20260801120000_l1_identity_email_github_app\tac31d214e453ee3219fccab72913de7e7ca06974a8a6f728079f3d8594d71efb\t1\t0",
+    "20260801160000_fix_github_repository_cardinality\t95f7344e566e5cdf1cd0ed4508227e99b2060b021b66e0802884f62f9fa98018\t1\t0",
+    "20260802120000_l2_account_security_privacy\t17d2355b98091622e77855524a718f248cc42e2f16524290d6e6f9c80798b5b7\t1\t0",
+    "20260802171805\tc461fb7d2f0e67cd5f3c9af3c6f3fe2a1a47a5b964a055cd4729f718311f048a\t1\t0",
+    "20260805120000_add_sprint_milestone_schedule\td91819f3e64b7c75793d24cacb8fbfd43cd88ac1dc3bea4d1eec94ccfe2a9685\t1\t0",
+    "20260808120000_l1_1_github_identity_login\t51d5f9ec1f240b4594ce122d9d4d88dd0a8975e49f7919b1178430111c544ee1\t1\t0",
+    "20260810120000_l1_2_github_multibranch\t385dec14fd9827be3cd988bfe943410ee2d75733cf78b2afb5c64f0243d6c85f\t1\t0",
+    "20260810190000_l1_2_1_github_sync_robustness\tc3f9a335f4c5fb231e42db144dc62f16746aa60d62b59c74d865cf0ac59ebaac\t1\t0",
+    "20260815120000_l2_1_invitations_members_roles\t2ccdc424e2420985390c20dbf533514ae4b9b5cdc7241b231cf46bee19939d4d\t1\t0",
+    "20260815230000_l5_1_project_access_invitations\t8c583812fcfccf09b650d95c954e70ae4a6280666c88143f346145e2ce0cdbee\t1\t0",
+    "20260816120000_s104_domain_fixes\te30254a3e8e25523ccd23b53344b4db2e12a9b1e079e83500e03b2d6a2fdaa13\t1\t0",
+    "20260820120000_lr2_contract_legacy_consolidation\t42dafc040d58a5d304a3e0027e330dea8c90810c4fe7727d539d4fb6b3c74730\t1\t0",
+    "20260820180000_lr3_github_hardening\td90473073f23ce5a362251eff0a0dad93247648303fc8e899645416cdde5c5b4\t1\t0",
+    "20260820220000_lr4_privacy_lifecycle_hardening\t160f4bad10ed75aa1b5a243ac1aa6d6c427d1c9e7091bcb43befd5071c789db0\t1\t0",
+    "20260821120000_lr5_gitbranch_case_sensitive\tbfddf5ef99678a398da86301d435db5ff495fd97988847828d474364c9b863a3\t1\t0",
+    "20260821180000_lr3_1_github_repository_authorization_migration\t361d2afdb54c1a5a4e580bfc417cbffb24fbd51e224c5c0def0f9cf19b7159e7\t1\t0",
+    "20260823120000_adr011_invert_milestone_sprint\tfbad65a31690cf73072c62e38b686820d91cb32238769fd00456dbf460f633b8\t1\t0",
+    "20260824120000_lr9_github_oauth_app_decoupling\t376be2565f1d1eb9e469d291e3fb211dc9c57dbc760f439fb033e0061e9f6c72\t1\t0",
+    "20260829120000_s1_05_add_task_comments\td91335382b37e0783a3fbf4d35ebfe8eef29b630f7725fa1789c5cba146e7a41\t1\t0",
+    "20260902120000_task_comment_cursor_index\t8e353aabd89b25c686e49931e6ecc0c695d1836df226ec49590664171f93661c\t1\t0",
+    "20260904180000_planning_historical_snapshots\tf2f903a5b04a48a4aa56bc9fc6378303df9846b2e2faafd6be140fc2d6f9a638\t1\t0",
+    "20260905010000_planning_frozen_cards_soft_delete\tf6801efece2a943a4a6a412529a02a996a9e97116fe90628c9a0911bba83349d\t1\t0",
+    "20260905030000_sprint_active_name_uniqueness\t7f24da09d7c1d4a4384a71ab63fe0ed50eb740d9f6cc8ea70d25edd6c71312d7\t1\t0",
+    "20260906120000_s1_06_task_time_entries\t5869fd8969b52222af2be0cb06e20d5ab139b1e30af7d38cc4dd55d2414fe02b\t1\t0",
+    "20260906150000_s1_06_half_hour_estimates\t0fe59be28aa9f5cfd1d84b6b8ad7c2ae555251fdf60c8b63217e96402a547238\t1\t0",
+    "20260907120000_s1_07_test_cases\t453f09563285075775dc4e6eae2c5d2ce4644f0ad91c2642d76e106ce8fd9ac1\t1\t0",
+    "20260908190000_s108_defect_foundation\t50d4559b45103f811387025364681553a3352819c15b970ad94b88d9afadfff1\t1\t0",
+    "20260910120000_s1_06_preserve_legacy_effort\tbdddb1ebab0fc17de995207b37cd47a07b5a495d6ea7dfbb615ad9127caf70f1\t1\t0",
+    "20260910120000_s109_requirement_traceability\tf423de1be966e25d3c45d2c25490ae72d6d6cb92716d77a11073cc2e955e2bae\t1\t0",
+    "20260912010000_s109_lifecycle_effort_history\t4e241e7f162701f0c675fd097af4c77877897c37ea95132a2d459001df0f4216\t1\t0",
+    "20260921010000_project_deletion_retention\tb416e17a4586b4cda4ebb703e7c4764b2be7ad9c35273875d8ea5f4de68e4932\t1\t0",
+    "20260922010000_project_purge_fencing\t114bccdedd3ad2f3f02285736bb2de3e6ad9870ba817447fb5476b16560ebfa6\t1\t0",
+    "20260924120000_s2_p1_indicator_data_foundation\tc5d952b0ad8f47efeba5ae4fb1981d04f7fc68c9fb2be4b2ba8043efc5a74125\t1\t0",
+    "20260924130000_s2_p1_lifecycle_coverage\t074b135655478c323a6e15e7427bf2b171f09bd5aa1059574fc20b39f4342cae\t1\t0",
+    "20260924234000_s2_p3_lifecycle_coverage_start\t6e2f7a2c97a7e4ad462a0f3da9fa126d93e859d51d452cea6f4151cf34fb22b4\t1\t0",
+    "20260925120000_s2_p5_1_sprint_burnup_history\t38da529e17a29d0f6fd652e9879781451d5ba1253f60a1db4b92a6b6f9ed0b6e\t1\t0",
+    "20260925123000_s2_p5_1_burnup_project_scope\tfc29e1254ddf9460694d9a3fa58e842da11f28cad4a23ab239e05fcce67fe25e\t1\t0",
+    "20261004090000_project_dashboard_preference\td9b8621d06e08c60fa02bfcdf4ccb74cb21ad60255321fef2e8a4a54f9b22e9a\t1\t0",
+    "20261009120000_task_responsibility_snapshot_state\t26861b3c7a73f18cdf18d2b3f5e60a42211790b1870bc929c5a591118b63725d\t1\t0",
+    "20261011000000_github_automatic_sync\t81259c940eafc54665b169d7b8c3bffc4d841d0382f802b348787c6f93854168\t1\t0",
+    "20261011010000_github_scheduler_liveness\t37a28c21219170c72180c2f0a94e19aa859279d4ae15bba0fd74acbe8d08a409\t1\t0",
+    "20261012000000_github_sync_run_actor_set_null\t13bb84e493d88df3208f9ac85fb26d5307bbfec5424042c5ca028ad8b13fa3ab\t1\t0",
+    "20261014090000_resumable_evidence_uploads\t5638dbb9f3e6e40f0eed60bb8c78ca9b1c712ec51f8863bdc79ca23816a74c6b\t1\t0"
+  ],
+  "tls": [
+    "Ssl_cipher\tTLS_AES_128_GCM_SHA256"
+  ],
+  "ownGrants": [
+    "GRANT USAGE ON *.* TO `tf_live_backup`@`10.20.1.184`",
+    "GRANT SELECT ON `traceflow_live`.* TO `tf_live_backup`@`10.20.1.184`"
+  ],
+  "apiGrants": {
+    "status": "NOT_PERMITTED_BY_SELECT_CUSTODY"
+  },
+  "workerGrants": {
+    "status": "NOT_PERMITTED_BY_SELECT_CUSTODY"
+  },
+  "runtimeAccounts": {
+    "status": "NOT_PERMITTED_BY_SELECT_CUSTODY"
+  }
+}

@@ -1,3 +1,4 @@
+import { validateStoredText } from './streamed-text.validation.js';
 import { constants } from 'node:fs';
 import { mkdir, lstat, realpath, open, rename, unlink, rmdir, access } from 'node:fs/promises';
 import { resolve, dirname, join, isAbsolute, relative, sep } from 'node:path';
@@ -9,7 +10,6 @@ import {
   evidenceField,
   evidenceLimits,
   safeFilename,
-  validateEvidenceBytes,
   validateBinaryEvidence,
   EVIDENCE_READ_BYTES
 } from './test-evidence.validation.js';
@@ -69,7 +69,11 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
     this.environment = environment;
     this.limits = limits;
   }
-  async root() {
+  async checkReadiness() {
+    await this.root({ create: false });
+    return true;
+  }
+  async root({ create = this.environment !== 'production' } = {}) {
     try {
       if (this.environment === 'production' && (!this.directory || !isAbsolute(this.directory)))
         throw unavailable();
@@ -80,6 +84,11 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
         join(backendRoot, 'dist')
       ])
         if (inside(publicRoot, root) || inside(root, publicRoot)) throw unavailable();
+      if (this.environment === 'production') {
+        for (const forbidden of [backendRoot, '/opt/traceflow', '/var/www']) {
+          if (inside(forbidden, root) || inside(root, forbidden)) throw unavailable();
+        }
+      }
       // Validate the existing ancestor before mkdir, then every component of the result.
       let ancestor = root;
       for (;;) {
@@ -92,9 +101,14 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
         }
       }
       await noSymlinks(ancestor);
-      await mkdir(root, { recursive: true, mode: 0o700 });
+      if (create) await mkdir(root, { recursive: true, mode: 0o700 });
       await noSymlinks(root);
-      await access(root, constants.W_OK | constants.R_OK);
+      await access(root, constants.W_OK | constants.R_OK | constants.X_OK);
+      if (this.environment === 'production') {
+        const stat = await lstat(root);
+        if ((stat.mode & 0o077) !== 0 || (process.getuid && stat.uid !== process.getuid()))
+          throw unavailable();
+      }
       if ((await realpath(root)) !== root) throw unavailable();
       return root;
     } catch {
@@ -148,7 +162,7 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
       await handle?.close();
     }
   }
-  async prepare(attempt, positions) {
+  async prepare(attempt, positions, { promote = true } = {}) {
     if (!attempt) return [];
     const counts = new Map();
     try {
@@ -200,12 +214,14 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
               position += bytesRead;
             }
           } else {
-            // Text/JSON retain full UTF-8/JSON validation, bounded by fileBytes (10 MiB).
-            if (!stat.size || stat.size > this.limits.fileBytes)
-              throw fail('Tamanho de evidência inválido.', 413, 'TEST_EVIDENCE_LIMIT_EXCEEDED');
-            const bytes = await handle.readFile();
-            format = await validateEvidenceBytes(bytes, item.originalName, item.scope, this.limits);
-            hash.update(bytes);
+            format = await validateStoredText(
+              handle,
+              stat.size,
+              item.originalName,
+              item.scope,
+              this.limits,
+              hash
+            );
           }
           prepared.push({ ...item, ...format, sizeBytes: stat.size, sha256: hash.digest('hex') });
         } finally {
@@ -213,7 +229,7 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
         }
       }
       await noSymlinks(attempt.root);
-      for (const item of prepared) {
+      for (const item of promote ? prepared : []) {
         await rename(join(attempt.staging, item.storageKey), join(attempt.root, item.storageKey));
         attempt.promoted.push(item.storageKey);
       }

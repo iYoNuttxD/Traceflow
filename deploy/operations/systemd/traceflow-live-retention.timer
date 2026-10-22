@@ -1,0 +1,10 @@
+[Unit]
+Description=TraceFlow daily approved clean-production retention
+[Timer]
+OnCalendar=*-*-* 05:30:00 UTC
+Persistent=true
+RandomizedDelaySec=0
+AccuracySec=1min
+Unit=traceflow-live-retention.service
+[Install]
+WantedBy=timers.target

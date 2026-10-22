@@ -43,7 +43,7 @@ describe('fronteira GitHub App da L1', () => {
     );
     expect(calls[0]).toMatchObject({
       baseUrl: 'https://api.github.com',
-      request: { timeout: 15000 }
+      request: expect.objectContaining({ timeout: 15000, fetch: expect.any(Function) })
     });
     const [header, payload, signature] = calls[0].auth.split('.');
     expect(JSON.parse(Buffer.from(header, 'base64url'))).toEqual({ alg: 'RS256', typ: 'JWT' });
@@ -62,7 +62,7 @@ describe('fronteira GitHub App da L1', () => {
     ).toBe(true);
     expect(
       OctokitClass.mock.instances[0].rest.apps.createInstallationAccessToken
-    ).toHaveBeenCalledWith({ installation_id: 99 });
+    ).toHaveBeenCalledWith({ installation_id: '99' });
   });
 
   it('lista uma instalação pelo endpoint do user access token sem depender de username', async () => {
@@ -100,7 +100,8 @@ describe('fronteira GitHub App da L1', () => {
         accountId: '700',
         accountLogin: 'traceflow',
         accountType: 'Organization',
-        installedAt: new Date('2030-01-01T00:00:00Z')
+        installedAt: new Date('2030-01-01T00:00:00Z'),
+        isSuspended: false
       }
     ]);
     expect(request).toHaveBeenCalledWith('GET /user/installations', { per_page: 100, page: 1 });
@@ -108,7 +109,7 @@ describe('fronteira GitHub App da L1', () => {
     expect(OctokitClass).toHaveBeenCalledWith(
       expect.objectContaining({
         auth: 'user-token-artificial',
-        request: { timeout: 15000 }
+        request: expect.objectContaining({ timeout: 15000, fetch: expect.any(Function) })
       })
     );
     expect(requestExecutor).toHaveBeenCalledWith(expect.any(Function), { maxRetries: 2 });
@@ -273,9 +274,10 @@ describe('fronteira GitHub App da L1', () => {
       accountId: '700',
       accountLogin: 'traceflow',
       accountType: 'Organization',
-      installedAt: new Date('2030-01-01T00:00:00Z')
+      installedAt: new Date('2030-01-01T00:00:00Z'),
+      isSuspended: false
     });
-    expect(getInstallation).toHaveBeenCalledWith({ installation_id: 77 });
+    expect(getInstallation).toHaveBeenCalledWith({ installation_id: '77' });
     expect(OctokitClass).toHaveBeenCalledWith(
       expect.objectContaining({
         auth: expect.stringMatching(/^[^.]+\.[^.]+\.[^.]+$/),
@@ -430,7 +432,10 @@ describe('fronteira GitHub App da L1', () => {
       expect.objectContaining({
         auth: 'installation-token-artificial',
         baseUrl: 'https://api.github.com',
-        request: { timeout: expect.any(Number) }
+        request: expect.objectContaining({
+          timeout: expect.any(Number),
+          fetch: expect.any(Function)
+        })
       })
     );
     expect(listRepos).toHaveBeenCalledWith({ per_page: 100, page: 1 });

@@ -1,0 +1,72 @@
+[
+  {
+    "command": "lr5-schema-audit.js --enforce --test",
+    "exitCode": 0,
+    "seconds": 0.144
+  },
+  {
+    "command": "validate-empty-migrations.js",
+    "exitCode": 0,
+    "seconds": 2.385
+  },
+  {
+    "command": "validate-lr5-migration.js",
+    "exitCode": 0,
+    "seconds": 5.996
+  },
+  {
+    "command": "validate-lr9-migration.js",
+    "exitCode": 0,
+    "seconds": 2.642
+  },
+  {
+    "command": "validate-lr2-legacy-migration.js",
+    "exitCode": 0,
+    "seconds": 4.983
+  },
+  {
+    "command": "validate-s2-p1-migration.js",
+    "exitCode": 0,
+    "seconds": 2.88
+  },
+  {
+    "command": "validate-s2-p3-migration.js",
+    "exitCode": 0,
+    "seconds": 2.824
+  },
+  {
+    "command": "validate-s2-p5-1-migration.js",
+    "exitCode": 0,
+    "seconds": 3.187
+  },
+  {
+    "command": "validate-dashboard-preference-migration.js",
+    "exitCode": 0,
+    "seconds": 2.892
+  },
+  {
+    "command": "validate-task-responsibility-migration.js",
+    "exitCode": 0,
+    "seconds": 2.876
+  },
+  {
+    "command": "validate-github-sync-migration.js",
+    "exitCode": 0,
+    "seconds": 3.112
+  },
+  {
+    "command": "validate-github-sync-migration.js --liveness",
+    "exitCode": 0,
+    "seconds": 3.201
+  },
+  {
+    "command": "validate-github-sync-migration.js --actor",
+    "exitCode": 0,
+    "seconds": 3.171
+  },
+  {
+    "command": "validate-schema-drift.js",
+    "exitCode": 0,
+    "seconds": 3.074
+  }
+]

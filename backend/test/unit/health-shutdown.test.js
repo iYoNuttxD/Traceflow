@@ -88,7 +88,7 @@ describe('shutdown controlado', () => {
       expect(await result).toBe(1);
       closeCallback();
       expect(clearTimer).toHaveBeenCalledExactlyOnceWith(timer);
-      expect(disconnect).toHaveBeenCalledOnce();
+      expect(disconnect).toHaveBeenCalledTimes(mode === 'timeout' ? 0 : 1);
       expect(exit).toHaveBeenCalledExactlyOnceWith(1);
       expect(server.closeAllConnections).toHaveBeenCalledTimes(mode === 'timeout' ? 1 : 0);
     }

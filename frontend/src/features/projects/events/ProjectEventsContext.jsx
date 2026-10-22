@@ -1,3 +1,4 @@
+import { configuredApiBase } from '../../../api/api-base.js';
 import {
   createContext,
   useCallback,
@@ -17,10 +18,7 @@ const defaultProjectEvents = Object.freeze({
 
 const ProjectEventsContext = createContext(defaultProjectEvents);
 
-export function buildProjectEventsUrl(
-  projectId,
-  apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
-) {
+export function buildProjectEventsUrl(projectId, apiBase = configuredApiBase()) {
   return `${String(apiBase).replace(/\/$/, '')}/projects/${encodeURIComponent(projectId)}/events`;
 }
 

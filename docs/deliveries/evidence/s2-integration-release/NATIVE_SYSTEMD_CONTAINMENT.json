@@ -1,0 +1,44 @@
+{
+  "unbound": {
+    "before": {
+      "parent": {
+        "ControlGroup": "/system.slice/traceflow-integration-lab-parent-65b637a60.service",
+        "LoadState": "loaded",
+        "ActiveState": "activating"
+      },
+      "child": {
+        "ControlGroup": "/system.slice/traceflow-integration-lab-child-65b637a60.service",
+        "LoadState": "loaded",
+        "ActiveState": "active"
+      }
+    },
+    "childAfterParentStop": {
+      "ControlGroup": "/system.slice/traceflow-integration-lab-child-65b637a60.service",
+      "LoadState": "loaded",
+      "ActiveState": "active"
+    }
+  },
+  "bound": {
+    "before": {
+      "parent": {
+        "ControlGroup": "/system.slice/traceflow-integration-lab-parent-65b637a61.service",
+        "LoadState": "loaded",
+        "ActiveState": "activating"
+      },
+      "child": {
+        "ControlGroup": "/system.slice/traceflow-integration-lab-child-65b637a61.service",
+        "LoadState": "loaded",
+        "ActiveState": "active"
+      }
+    },
+    "childAfterParentStop": {
+      "ControlGroup": "",
+      "LoadState": "not-found",
+      "ActiveState": "inactive"
+    }
+  },
+  "status": "NATIVE_SYSTEMD_CONTAINMENT_PROVEN",
+  "productionServicesChanged": false,
+  "databaseUsed": false,
+  "selinux": "Enforcing"
+}

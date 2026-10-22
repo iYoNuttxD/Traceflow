@@ -99,6 +99,14 @@ npm run db:test:status
 
 Não use `prisma migrate reset` em banco com dados. Antes de mudança destrutiva, siga o [runbook de banco](docs/runbooks/DATABASE_MIGRATIONS.md) e o [runbook de backup/restore](docs/runbooks/BACKUP_RESTORE.md).
 
+## Preparação de produção
+
+O [contrato OCI de ambiente/runtime](docs/runbooks/OCI_ENVIRONMENT.md) define configuração
+explícita, API loopback, SMTP TLS, storage privado existente, health e shutdown limitado.
+Os exemplos `.env.production.example` não contêm segredos nem autorizam deploy. Build da SPA
+usa `/api`; API e worker continuam processos separados. HeatWave/TLS gerenciado permanece
+pendente de homologação operacional.
+
 ## Execução local
 
 Em terminais separados:
@@ -169,6 +177,20 @@ node scripts/check-npm-audit.mjs frontend docs/security/npm-audit-exceptions.jso
 
 Os checks obrigatórios são `Quality`, `Backend Tests`, `Frontend Tests`, `Supply Chain` e, em pull requests, `Dependency Review`. Consulte [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Preparação operacional OCI
+
+As configurações de Nginx, os serviços independentes de API/worker e os scripts de storage e
+SELinux estão em `deploy/`. O [runbook operacional](docs/runbooks/OCI_RUNTIME_SERVICES.md)
+explica instalação futura, diagnóstico e rollback de configuração; os testes usam ambiente
+local descartável. Nenhuma configuração foi instalada na OCI. O cap Cloudflare de 100 MB
+continua incompatível com o envelope multipart atual; preservar os limites requer decisão
+operacional antes do deploy. Consulte o [relatório OCI-04](docs/deliveries/OCI_DEPLOY_04_NGINX_SYSTEMD_STORAGE_REPORT.md).
+
+O [processo de releases](docs/runbooks/OCI_RELEASE_DEPLOYMENT.md) e o
+[job de migrations](docs/runbooks/OCI_MIGRATIONS.md) separam artefatos ARM64, staging, ativação,
+rollback e dados persistentes. A [OCI-05](docs/deliveries/OCI_DEPLOY_05_RELEASE_MIGRATION_ROLLBACK_REPORT.md)
+valida esse fluxo em laboratório descartável; produção continua sujeita aos bloqueadores registrados.
+
 ## Integração GitHub
 
 GitHub OAuth é opcional e serve apenas para cadastro/login, vínculo de identidade e reautenticação sensível. Repositórios e artefatos usam exclusivamente GitHub App por instalação, inclusive para contas locais sem `GitHubIdentity`. O callback comprova o acesso do ator à Installation sem transformar essa prova em identidade TraceFlow; leitura e sync usam Installation Access Token gerado sob demanda e nunca persistido. A sincronização manual e a periódica reutilizam a mesma pipeline paginada/idempotente e preservam artefatos. O worker independente e a agenda persistida estão no [runbook automático](docs/runbooks/GITHUB_AUTOMATIC_SYNC.md). Projetos anteriores à L1 ficam `RECONNECT_REQUIRED` até um OWNER reconectar. Operação, permissões e incidentes estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
@@ -203,6 +225,7 @@ frontend/src/features/     domínios da SPA
 frontend/src/shared/       UI, hooks e serviços compartilhados
 docs/architecture/         arquitetura e ADRs
 docs/api/                  contratos HTTP
+deploy/                    ingress, supervisão e scripts operacionais (não instalados)
 docs/runbooks/             operação e incidentes
 docs/security/             evidências e políticas de segurança
 docs/privacy/              inventário e ciclo de vida de dados

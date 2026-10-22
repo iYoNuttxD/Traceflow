@@ -26,7 +26,8 @@ const mocks = vi.hoisted(() => ({
   credentialProvider: {
     exchangeInstallationUserCode: vi.fn(),
     listInstallationsAccessibleToUser: vi.fn(),
-    getInstallation: vi.fn()
+    getInstallation: vi.fn(),
+    getAuthenticatedUser: vi.fn()
   },
   authorization: { membership: vi.fn() },
   clientFactory: { forInstallation: vi.fn() }
@@ -36,6 +37,8 @@ vi.mock('../../src/config/env.js', () => ({
   env: {
     githubAppConfigured: true,
     githubAppSlug: 'traceflow-test',
+    githubAppClientId: 'synthetic-client-id',
+    githubLoginCallbackUrl: 'https://frontend.test/api/auth/github/callback',
     githubAppStateTtlMs: 600000,
     githubAppWebhookSecret: 'webhook-secret-artificial'
   }
@@ -127,6 +130,76 @@ describe('autorização e webhooks da GitHub App L1', () => {
     });
     expect(stored.tokenHash).not.toBe(state);
     expect(stored.tokenHash).toBe(createHash('sha256').update(state).digest('hex'));
+  });
+
+  it('separa OAuth de instalação existente do fluxo de primeira instalação', async () => {
+    const input = { user: { id: 7 }, session: { id: 8 }, intendedAction: 'CREATE_PROJECT' };
+    const existing = new URL((await githubAppService.startInstallation(input)).url);
+    expect(existing.pathname).toBe('/login/oauth/authorize');
+    expect(existing.searchParams.get('client_id')).toBe('synthetic-client-id');
+    expect(existing.searchParams.get('redirect_uri')).toBe(
+      'https://frontend.test/api/auth/github/callback'
+    );
+    expect(existing.searchParams.get('state')).toMatch(/^authorize\.[A-Za-z0-9_-]{43}\.$/);
+    const install = new URL(
+      (await githubAppService.startInstallation({ ...input, flow: 'install' })).url
+    );
+    expect(install.pathname).toBe('/apps/traceflow-test/installations/new');
+    expect(install.searchParams.get('state')).not.toContain('authorize.');
+  });
+
+  it('autoriza instalação existente com identidade, state e acesso verificados sem reinstalar', async () => {
+    const id = '9007199254740993123';
+    const metadata = {
+      githubInstallationId: id,
+      accountId: '9007199254740993222',
+      accountLogin: 'synthetic',
+      accountType: 'User',
+      installedAt: new Date()
+    };
+    mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
+    mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue('ephemeral-synthetic');
+    mocks.credentialProvider.getAuthenticatedUser.mockResolvedValue({ id: metadata.accountId });
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
+    mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
+    const verifyRepositoryAccess = vi.fn().mockResolvedValue(undefined);
+    mocks.clientFactory.forInstallation.mockResolvedValue({ verifyRepositoryAccess });
+    mocks.repository.authorizeInstallationFromState.mockResolvedValue({
+      installation: authorizedInstallation({ githubInstallationId: id })
+    });
+    const state = 'authorize.' + 'x'.repeat(43) + '.';
+    await expect(
+      githubAppService.completeCallback({ code: 'synthetic', state })
+    ).resolves.toMatchObject({ installation: { githubInstallationId: id } });
+    expect(mocks.credentialProvider.exchangeInstallationUserCode).toHaveBeenCalledWith(
+      'synthetic',
+      { existingInstallation: true }
+    );
+    expect(mocks.credentialProvider.getInstallation).toHaveBeenCalledWith(id);
+    expect(verifyRepositoryAccess).toHaveBeenCalledOnce();
+    mocks.repository.authorizeInstallationFromState.mockClear();
+    await expect(
+      githubAppService.completeCallback({ code: 'synthetic', state, installationId: id })
+    ).rejects.toMatchObject({ statusCode: 403 });
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([]);
+    await expect(
+      githubAppService.completeCallback({ code: 'synthetic', state })
+    ).rejects.toMatchObject({ statusCode: 403 });
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([
+      { ...metadata, accountId: '2' },
+      { ...metadata, githubInstallationId: '3', accountId: '4' }
+    ]);
+    await expect(
+      githubAppService.completeCallback({ code: 'synthetic', state })
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      githubAppService.completeCallback({ code: 'synthetic', state: state + '99' })
+    ).rejects.toMatchObject({ statusCode: 403 });
+    mocks.repository.authorizeInstallationFromState.mockResolvedValue(null);
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
+    await expect(
+      githubAppService.completeCallback({ code: 'synthetic', state })
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('rejeita sessão inicial revogada e instalação forjada sem persistir token temporário', async () => {

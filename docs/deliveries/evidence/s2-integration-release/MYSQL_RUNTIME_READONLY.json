@@ -1,0 +1,48 @@
+{
+  "api": {
+    "status": "RUNTIME_PRIVILEGE_PROBE_PASS",
+    "grants": [
+      "GRANT USAGE ON *.* TO `tf_live_api`@`10.20.1.184`",
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON `traceflow_live`.* TO `tf_live_api`@`10.20.1.184`"
+    ],
+    "settings": [
+      {
+        "account": "tf_live_api@10.20.1.184",
+        "serverLimit": "200",
+        "accountLimit": "0",
+        "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+        "lowerCaseTables": "0",
+        "innodbStrict": "1"
+      }
+    ],
+    "ownTemporaryQueryInterruption": {
+      "interrupted": true,
+      "sleepResult": 1
+    },
+    "productionDataRead": false,
+    "productionDataWritten": false
+  },
+  "worker": {
+    "status": "RUNTIME_PRIVILEGE_PROBE_PASS",
+    "grants": [
+      "GRANT USAGE ON *.* TO `tf_live_worker`@`10.20.1.184`",
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON `traceflow_live`.* TO `tf_live_worker`@`10.20.1.184`"
+    ],
+    "settings": [
+      {
+        "account": "tf_live_worker@10.20.1.184",
+        "serverLimit": "200",
+        "accountLimit": "0",
+        "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+        "lowerCaseTables": "0",
+        "innodbStrict": "1"
+      }
+    ],
+    "ownTemporaryQueryInterruption": {
+      "interrupted": true,
+      "sleepResult": 1
+    },
+    "productionDataRead": false,
+    "productionDataWritten": false
+  }
+}

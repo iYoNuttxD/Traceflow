@@ -1,0 +1,529 @@
+{
+  "formatVersion": 1,
+  "delivery": "OCI-DEPLOY-06.1",
+  "phase": "initial-bootstrap-preparation",
+  "preparedAt": "2026-10-15T13:28:09.914Z",
+  "baseline": {
+    "branch": "daniel-dev",
+    "head": "b5572bd16af35722fec21da6190b7b4f360bbb27",
+    "initialWorkingTree": "clean",
+    "trackedFiles": 1488
+  },
+  "status": {
+    "preparation": "PREPARED_NOT_EXECUTED",
+    "staticValidation": "PASS_STATIC_ONLY",
+    "managedPrisma": "PENDING",
+    "managedHeatWave": "PARTIAL",
+    "productionDR": "PENDING",
+    "ociDeploy07": "NOT_STARTED"
+  },
+  "remoteFacts": {
+    "source": "operator-confirmed; not remotely verified in this execution",
+    "dbSystem": "traceflow-mysql",
+    "consoleVersion": "26.7.0",
+    "host": "traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com",
+    "privateAddress": "10.20.2.25",
+    "port": 3306,
+    "applicationVmSourceAddress": "10.20.1.184",
+    "publicCaPath": "/etc/pki/traceflow/mysql-ca.pem",
+    "schemaExists": false,
+    "migrationsApplied": false,
+    "applicationDeployed": false,
+    "onlyAdministratorConfigured": true
+  },
+  "proposal": {
+    "schema": "traceflow",
+    "characterSet": "utf8mb4",
+    "collation": "utf8mb4_unicode_ci",
+    "accountHost": "10.20.1.184",
+    "authenticationPlugin": "caching_sha2_password",
+    "tlsRequirement": "REQUIRE SSL plus client VERIFY_IDENTITY / sslaccept=strict",
+    "initialAccountsLocked": true,
+    "accounts": [
+      "traceflow_api",
+      "traceflow_worker",
+      "traceflow_diag",
+      "traceflow_migrator"
+    ],
+    "backupAccount": "deferred",
+    "logicalApplicationBackupBeforeBootstrap": "not applicable: application schema and data absent per operator"
+  },
+  "prismaVersions": {
+    "client": "6.12.0",
+    "cli": "6.12.0"
+  },
+  "inputs": [
+    {
+      "path": "docs/deliveries/OCI_DEPLOY_06_HEATWAVE_BACKUP_RECOVERY_REPORT.md",
+      "baselineSha256": "7fd72e8cd28f45b035b6971bd768c1ce2da0d80d389c8a309bb4559f28b88829"
+    },
+    {
+      "path": "docs/deliveries/OCI_DEPLOY_06_1_HEATWAVE_MANAGED_HOMOLOGATION_REPORT.md",
+      "baselineSha256": "2d4e27e3c907b6529b6ed016c88abfab7abaa8375711419a0b003688c91dbd77"
+    },
+    {
+      "path": "docs/runbooks/OCI_HEATWAVE_HOMOLOGATION.md",
+      "baselineSha256": "db02f7ccecb348c8540ea71d53e5f9e223e740b1b0982176e7eff74458146ecc"
+    },
+    {
+      "path": "docs/runbooks/OCI_MIGRATIONS.md",
+      "baselineSha256": "e3ee5860cfc61d8ea5a0bbe77f086a62c50f24b1fc0ae59e7cfeb58f230a2016"
+    },
+    {
+      "path": "docs/runbooks/OCI_ENVIRONMENT.md",
+      "baselineSha256": "f211ece423ea55f14f4d85f25e5f03c2e33cfc2b6909f5af12250098901d9a2e"
+    },
+    {
+      "path": "docs/runbooks/OCI_BACKUP_RECOVERY.md",
+      "baselineSha256": "cabe89121d01ba4ba5ef6da75c5fc174967b367f0ca8db613f7f7df6c3d4ca69"
+    },
+    {
+      "path": "backend/prisma/schema.prisma",
+      "baselineSha256": "5ac65ff981ce2fde7f93955cf1a7cab63dce74fef7f9210f121335ac5937cd93"
+    },
+    {
+      "path": "backend/scripts/validate-oci-heatwave-connection.js",
+      "baselineSha256": "684197047d65ed0fc08d1c76f18213fa4f42b2ef6b5793b2ea6df5a0f870a2c6"
+    },
+    {
+      "path": "backend/scripts/lib/heatwave-connection.js",
+      "baselineSha256": "94ffebd4ee12abf3a0306660b205b145c778bf2724829d7bbcee80c9400283e4"
+    },
+    {
+      "path": "deploy/scripts/release-database.mjs",
+      "baselineSha256": "8ade8e0620eb893f71963510bfc28fd3e789ed47054694b50ecdcf245fcd625a"
+    },
+    {
+      "path": "deploy/scripts/release.py",
+      "baselineSha256": "cc779cf95a8a42b0d6bb8e635a1c98672468c5a76b11c275c2bb3632b26d1ed2"
+    },
+    {
+      "path": "deploy/scripts/validate-service-environment.mjs",
+      "baselineSha256": "4ab5d7aaf8cd50d2271a7ff4a8a1e3352d806667d2fb36b849cb76dd457a1eb0"
+    },
+    {
+      "path": "deploy/lib/backup_contract.py",
+      "baselineSha256": "7ba8c1ab24ccf0f27aff478287171e77b0f042dba73c711de2a8e859704ab424"
+    },
+    {
+      "path": "deploy/systemd/traceflow-api.service",
+      "baselineSha256": "e6c4d6635ed896db4eacb364b22843fe5608dd0fd5f6dce5ef6c5f8eeef0e90d"
+    },
+    {
+      "path": "deploy/systemd/traceflow-github-worker.service",
+      "baselineSha256": "790fb54f3702043e3edd232d51eee2c6eb90b67f6eae492bc70a9ed0ebbae4d0"
+    },
+    {
+      "path": "backend/package.json",
+      "baselineSha256": "625fd2fd7a40bbd60c11d4eaa8377552e4b26fd90d04492e799c4ac350ef2204"
+    },
+    {
+      "path": "backend/package-lock.json",
+      "baselineSha256": "c3fe89024938f4fd5dd270e84e3f6a0117f520ba11f8f832a6977487329f7e5b"
+    }
+  ],
+  "migrations": {
+    "count": 68,
+    "chainSha256": "748576f232ade05d959383727cf38ef3856985b8d432eb14fae849a0c6b38c0e",
+    "chainDigestFormat": "SHA-256 of UTF-8 concatenation of sorted repository-relative path + NUL + hex SHA-256 of file bytes + LF",
+    "files": [
+      {
+        "path": "backend/prisma/migrations/20260604224631_add_github_fields_to_project/migration.sql",
+        "sha256": "99ac9c979a01bdd6b8dad2b4e73c8c4b7f76e76d6036edc214da8b7f50408162"
+      },
+      {
+        "path": "backend/prisma/migrations/20260605120000_create_commit_model/migration.sql",
+        "sha256": "a882a29dc35cef36cc2b39704eaacf7355ac48effaffccdf6ca52da6e984c782"
+      },
+      {
+        "path": "backend/prisma/migrations/20260606120000_create_pull_request_model/migration.sql",
+        "sha256": "35a9237de17e5b4f78a0335c2b1bcbe8e06dc9c12efb1ce3b62d70e98b9c51e9"
+      },
+      {
+        "path": "backend/prisma/migrations/20260606130000_create_issue_model/migration.sql",
+        "sha256": "13fa89180544f634f5a073b68a6469cc3969a49443b085b7c37b4af7d699e025"
+      },
+      {
+        "path": "backend/prisma/migrations/20260606140000_add_github_sync_settings_to_project/migration.sql",
+        "sha256": "1f4903843e824f954024c34525edcdd0f516ccdfce25f333fe6f715f72d59e4c"
+      },
+      {
+        "path": "backend/prisma/migrations/20260606233000_add_responsible_team_to_project/migration.sql",
+        "sha256": "46014386df6d5a664325e13a668942eb63964e1f358b966d19628a538917be9a"
+      },
+      {
+        "path": "backend/prisma/migrations/20260607021903_add_task_module/migration.sql",
+        "sha256": "ce9dfd4655991492c5c35acd83302acca21e3e75247bbe09c8c969bfcceba55e"
+      },
+      {
+        "path": "backend/prisma/migrations/20260607024213_use_integer_task_effort/migration.sql",
+        "sha256": "d19e2ba3a2f3ae9b7e4cc2b4ba025ded056bd15cd789adb156d6fb7722143bfc"
+      },
+      {
+        "path": "backend/prisma/migrations/20260607030000_add_task_movements_for_kanban/migration.sql",
+        "sha256": "fff25f5baeaf0c83b9fb640985a4811215d44a9d6961eac8968389a628b2cc2d"
+      },
+      {
+        "path": "backend/prisma/migrations/20260607170000_adjust_kanban_project_members/migration.sql",
+        "sha256": "57c2dcf79e7d697a63626bc8007907576d1584cc0e28cf4337c857c0a3d0bb85"
+      },
+      {
+        "path": "backend/prisma/migrations/20260607190000_add_requirement_module/migration.sql",
+        "sha256": "4f4fbce8a47121c5ee25516e9e2fb177f78aded6f1f35b53afb5c0b78cfb8d90"
+      },
+      {
+        "path": "backend/prisma/migrations/20260608120000_add_task_pull_request_relation/migration.sql",
+        "sha256": "ddb78660bedc538c981985b4c84137f4b6198293f8fb8b01050d26bdf2abdd46"
+      },
+      {
+        "path": "backend/prisma/migrations/20260610120000_add_task_commit_links/migration.sql",
+        "sha256": "858e9ddb28d2d2d948b0ced264f65b821ee182372a2eb010636f4e1a3ec12d57"
+      },
+      {
+        "path": "backend/prisma/migrations/20260610130000_add_task_issue_links/migration.sql",
+        "sha256": "df22cae67078933a902333c3617d285145c5cf02b8c5c047b5c451e28022d407"
+      },
+      {
+        "path": "backend/prisma/migrations/20260611120000_add_github_sync_status_to_project/migration.sql",
+        "sha256": "024113d5f414adc1866fc397d3fa1841f3a1e100a2317c1aac515a1b70a2df18"
+      },
+      {
+        "path": "backend/prisma/migrations/20260724120000_add_identity_session_authorization/migration.sql",
+        "sha256": "dcff9dafb274bdb9ed5ee446bf392462fad5a22687f888dda15e61273980aa1c"
+      },
+      {
+        "path": "backend/prisma/migrations/20260724190000_add_privacy_audit_governance/migration.sql",
+        "sha256": "9c4611d71ab2b1c09a01774a4aa90409cea988f2baf5becfa23a0a5e5e698c56"
+      },
+      {
+        "path": "backend/prisma/migrations/20260725120000_e8_expand_task_pull_request/migration.sql",
+        "sha256": "adad555b5111559e79694e0f374b56014a5456442a78f6738c8db162fb6e1acf"
+      },
+      {
+        "path": "backend/prisma/migrations/20260725121000_e8_indexes_and_constraints/migration.sql",
+        "sha256": "8b984bb656dea9b76fb0bda8f653b4e9d5964ddab5c96834fa3b9a20add70a56"
+      },
+      {
+        "path": "backend/prisma/migrations/20260725122000_e8_remove_redundant_indexes/migration.sql",
+        "sha256": "5aab5d24278a4137fefbdd600f1a7dc101120a5a01ac78e0a97badaf64e6a87b"
+      },
+      {
+        "path": "backend/prisma/migrations/20260725130000_e8_contract_remove_task_pull_request/migration.sql",
+        "sha256": "51a4b95d99be6c31a365f995966699f51543382b4f3678d6a172f633af406138"
+      },
+      {
+        "path": "backend/prisma/migrations/20260725131000_e8_contract_remove_github_artifact/migration.sql",
+        "sha256": "822b7619dd4771c96e6547cb5c79f3f30691cc3c5652820f18fb9c33e8d1c068"
+      },
+      {
+        "path": "backend/prisma/migrations/20260725132000_e8_contract_remove_trace_link/migration.sql",
+        "sha256": "e69e91596e2572c23c35149b90bdb3213e04cbee33a8baa060216fac16459f11"
+      },
+      {
+        "path": "backend/prisma/migrations/20260725140000_e10_add_task_commit_suggestions/migration.sql",
+        "sha256": "c6a2b5d446c44ff57513a2b71c1cc47d6405fb6d571d1283f13b8cfd0eff8c6e"
+      },
+      {
+        "path": "backend/prisma/migrations/20260726120000_e11_add_task_history/migration.sql",
+        "sha256": "84ad87ca9074b201869fbae08ac199ec2cf1004340117865d66da258c17ec280"
+      },
+      {
+        "path": "backend/prisma/migrations/20260801120000_l1_identity_email_github_app/migration.sql",
+        "sha256": "ac31d214e453ee3219fccab72913de7e7ca06974a8a6f728079f3d8594d71efb"
+      },
+      {
+        "path": "backend/prisma/migrations/20260801160000_fix_github_repository_cardinality/migration.sql",
+        "sha256": "95f7344e566e5cdf1cd0ed4508227e99b2060b021b66e0802884f62f9fa98018"
+      },
+      {
+        "path": "backend/prisma/migrations/20260802120000_l2_account_security_privacy/migration.sql",
+        "sha256": "17d2355b98091622e77855524a718f248cc42e2f16524290d6e6f9c80798b5b7"
+      },
+      {
+        "path": "backend/prisma/migrations/20260802171805/migration.sql",
+        "sha256": "c461fb7d2f0e67cd5f3c9af3c6f3fe2a1a47a5b964a055cd4729f718311f048a"
+      },
+      {
+        "path": "backend/prisma/migrations/20260805120000_add_sprint_milestone_schedule/migration.sql",
+        "sha256": "d91819f3e64b7c75793d24cacb8fbfd43cd88ac1dc3bea4d1eec94ccfe2a9685"
+      },
+      {
+        "path": "backend/prisma/migrations/20260808120000_l1_1_github_identity_login/migration.sql",
+        "sha256": "51d5f9ec1f240b4594ce122d9d4d88dd0a8975e49f7919b1178430111c544ee1"
+      },
+      {
+        "path": "backend/prisma/migrations/20260810120000_l1_2_github_multibranch/migration.sql",
+        "sha256": "385dec14fd9827be3cd988bfe943410ee2d75733cf78b2afb5c64f0243d6c85f"
+      },
+      {
+        "path": "backend/prisma/migrations/20260810190000_l1_2_1_github_sync_robustness/migration.sql",
+        "sha256": "c3f9a335f4c5fb231e42db144dc62f16746aa60d62b59c74d865cf0ac59ebaac"
+      },
+      {
+        "path": "backend/prisma/migrations/20260815120000_l2_1_invitations_members_roles/migration.sql",
+        "sha256": "2ccdc424e2420985390c20dbf533514ae4b9b5cdc7241b231cf46bee19939d4d"
+      },
+      {
+        "path": "backend/prisma/migrations/20260815230000_l5_1_project_access_invitations/migration.sql",
+        "sha256": "8c583812fcfccf09b650d95c954e70ae4a6280666c88143f346145e2ce0cdbee"
+      },
+      {
+        "path": "backend/prisma/migrations/20260816120000_s104_domain_fixes/migration.sql",
+        "sha256": "e30254a3e8e25523ccd23b53344b4db2e12a9b1e079e83500e03b2d6a2fdaa13"
+      },
+      {
+        "path": "backend/prisma/migrations/20260820120000_lr2_contract_legacy_consolidation/migration.sql",
+        "sha256": "42dafc040d58a5d304a3e0027e330dea8c90810c4fe7727d539d4fb6b3c74730"
+      },
+      {
+        "path": "backend/prisma/migrations/20260820180000_lr3_github_hardening/migration.sql",
+        "sha256": "d90473073f23ce5a362251eff0a0dad93247648303fc8e899645416cdde5c5b4"
+      },
+      {
+        "path": "backend/prisma/migrations/20260820220000_lr4_privacy_lifecycle_hardening/migration.sql",
+        "sha256": "160f4bad10ed75aa1b5a243ac1aa6d6c427d1c9e7091bcb43befd5071c789db0"
+      },
+      {
+        "path": "backend/prisma/migrations/20260821120000_lr5_gitbranch_case_sensitive/migration.sql",
+        "sha256": "bfddf5ef99678a398da86301d435db5ff495fd97988847828d474364c9b863a3"
+      },
+      {
+        "path": "backend/prisma/migrations/20260821180000_lr3_1_github_repository_authorization_migration/migration.sql",
+        "sha256": "361d2afdb54c1a5a4e580bfc417cbffb24fbd51e224c5c0def0f9cf19b7159e7"
+      },
+      {
+        "path": "backend/prisma/migrations/20260823120000_adr011_invert_milestone_sprint/migration.sql",
+        "sha256": "fbad65a31690cf73072c62e38b686820d91cb32238769fd00456dbf460f633b8"
+      },
+      {
+        "path": "backend/prisma/migrations/20260824120000_lr9_github_oauth_app_decoupling/migration.sql",
+        "sha256": "376be2565f1d1eb9e469d291e3fb211dc9c57dbc760f439fb033e0061e9f6c72"
+      },
+      {
+        "path": "backend/prisma/migrations/20260829120000_s1_05_add_task_comments/migration.sql",
+        "sha256": "d91335382b37e0783a3fbf4d35ebfe8eef29b630f7725fa1789c5cba146e7a41"
+      },
+      {
+        "path": "backend/prisma/migrations/20260902120000_task_comment_cursor_index/migration.sql",
+        "sha256": "8e353aabd89b25c686e49931e6ecc0c695d1836df226ec49590664171f93661c"
+      },
+      {
+        "path": "backend/prisma/migrations/20260904180000_planning_historical_snapshots/migration.sql",
+        "sha256": "f2f903a5b04a48a4aa56bc9fc6378303df9846b2e2faafd6be140fc2d6f9a638"
+      },
+      {
+        "path": "backend/prisma/migrations/20260905010000_planning_frozen_cards_soft_delete/migration.sql",
+        "sha256": "f6801efece2a943a4a6a412529a02a996a9e97116fe90628c9a0911bba83349d"
+      },
+      {
+        "path": "backend/prisma/migrations/20260905030000_sprint_active_name_uniqueness/migration.sql",
+        "sha256": "7f24da09d7c1d4a4384a71ab63fe0ed50eb740d9f6cc8ea70d25edd6c71312d7"
+      },
+      {
+        "path": "backend/prisma/migrations/20260906120000_s1_06_task_time_entries/migration.sql",
+        "sha256": "5869fd8969b52222af2be0cb06e20d5ab139b1e30af7d38cc4dd55d2414fe02b"
+      },
+      {
+        "path": "backend/prisma/migrations/20260906150000_s1_06_half_hour_estimates/migration.sql",
+        "sha256": "0fe59be28aa9f5cfd1d84b6b8ad7c2ae555251fdf60c8b63217e96402a547238"
+      },
+      {
+        "path": "backend/prisma/migrations/20260907120000_s1_07_test_cases/migration.sql",
+        "sha256": "453f09563285075775dc4e6eae2c5d2ce4644f0ad91c2642d76e106ce8fd9ac1"
+      },
+      {
+        "path": "backend/prisma/migrations/20260908190000_s108_defect_foundation/migration.sql",
+        "sha256": "50d4559b45103f811387025364681553a3352819c15b970ad94b88d9afadfff1"
+      },
+      {
+        "path": "backend/prisma/migrations/20260910120000_s109_requirement_traceability/migration.sql",
+        "sha256": "f423de1be966e25d3c45d2c25490ae72d6d6cb92716d77a11073cc2e955e2bae"
+      },
+      {
+        "path": "backend/prisma/migrations/20260910120000_s1_06_preserve_legacy_effort/migration.sql",
+        "sha256": "bdddb1ebab0fc17de995207b37cd47a07b5a495d6ea7dfbb615ad9127caf70f1"
+      },
+      {
+        "path": "backend/prisma/migrations/20260912010000_s109_lifecycle_effort_history/migration.sql",
+        "sha256": "4e241e7f162701f0c675fd097af4c77877897c37ea95132a2d459001df0f4216"
+      },
+      {
+        "path": "backend/prisma/migrations/20260921010000_project_deletion_retention/migration.sql",
+        "sha256": "b416e17a4586b4cda4ebb703e7c4764b2be7ad9c35273875d8ea5f4de68e4932"
+      },
+      {
+        "path": "backend/prisma/migrations/20260922010000_project_purge_fencing/migration.sql",
+        "sha256": "114bccdedd3ad2f3f02285736bb2de3e6ad9870ba817447fb5476b16560ebfa6"
+      },
+      {
+        "path": "backend/prisma/migrations/20260924120000_s2_p1_indicator_data_foundation/migration.sql",
+        "sha256": "c5d952b0ad8f47efeba5ae4fb1981d04f7fc68c9fb2be4b2ba8043efc5a74125"
+      },
+      {
+        "path": "backend/prisma/migrations/20260924130000_s2_p1_lifecycle_coverage/migration.sql",
+        "sha256": "074b135655478c323a6e15e7427bf2b171f09bd5aa1059574fc20b39f4342cae"
+      },
+      {
+        "path": "backend/prisma/migrations/20260924234000_s2_p3_lifecycle_coverage_start/migration.sql",
+        "sha256": "6e2f7a2c97a7e4ad462a0f3da9fa126d93e859d51d452cea6f4151cf34fb22b4"
+      },
+      {
+        "path": "backend/prisma/migrations/20260925120000_s2_p5_1_sprint_burnup_history/migration.sql",
+        "sha256": "38da529e17a29d0f6fd652e9879781451d5ba1253f60a1db4b92a6b6f9ed0b6e"
+      },
+      {
+        "path": "backend/prisma/migrations/20260925123000_s2_p5_1_burnup_project_scope/migration.sql",
+        "sha256": "fc29e1254ddf9460694d9a3fa58e842da11f28cad4a23ab239e05fcce67fe25e"
+      },
+      {
+        "path": "backend/prisma/migrations/20261004090000_project_dashboard_preference/migration.sql",
+        "sha256": "d9b8621d06e08c60fa02bfcdf4ccb74cb21ad60255321fef2e8a4a54f9b22e9a"
+      },
+      {
+        "path": "backend/prisma/migrations/20261009120000_task_responsibility_snapshot_state/migration.sql",
+        "sha256": "26861b3c7a73f18cdf18d2b3f5e60a42211790b1870bc929c5a591118b63725d"
+      },
+      {
+        "path": "backend/prisma/migrations/20261011000000_github_automatic_sync/migration.sql",
+        "sha256": "81259c940eafc54665b169d7b8c3bffc4d841d0382f802b348787c6f93854168"
+      },
+      {
+        "path": "backend/prisma/migrations/20261011010000_github_scheduler_liveness/migration.sql",
+        "sha256": "37a28c21219170c72180c2f0a94e19aa859279d4ae15bba0fd74acbe8d08a409"
+      },
+      {
+        "path": "backend/prisma/migrations/20261012000000_github_sync_run_actor_set_null/migration.sql",
+        "sha256": "13bb84e493d88df3208f9ac85fb26d5307bbfec5424042c5ca028ad8b13fa3ab"
+      },
+      {
+        "path": "backend/prisma/migrations/20261014090000_resumable_evidence_uploads/migration.sql",
+        "sha256": "5638dbb9f3e6e40f0eed60bb8c78ca9b1c712ec51f8863bdc79ca23816a74c6b"
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "path": "docs/runbooks/OCI_HEATWAVE_INITIAL_BOOTSTRAP.md",
+      "sha256": "ad1855bd2c0e04e082a7d337bfdb2a86f20858fed3e5d79c529f5f59d3a1e9c2"
+    },
+    {
+      "path": "docs/deliveries/OCI_DEPLOY_06_1_INITIAL_BOOTSTRAP_PREPARATION_REPORT.md",
+      "sha256": "53f2c00f91610574c71e2877ecbf29391bff1980906b4118b52a08a60afc938e"
+    },
+    {
+      "path": "docs/runbooks/OCI_HEATWAVE_HOMOLOGATION.md",
+      "sha256": "1a8df8a7f0051fbb0d17f53e962053eb1fc4f04c28c30d219269f0f6d9854ca6"
+    },
+    {
+      "path": "docs/runbooks/OCI_MIGRATIONS.md",
+      "sha256": "c1619669268673a8d833bf507d295d5f6b201ddc6d02b86068e8badf48226d5a"
+    },
+    {
+      "path": "docs/runbooks/OCI_ENVIRONMENT.md",
+      "sha256": "4d1d88f57b93d422a32bd9256b7844863a10eff779e94d74215339a54e21f7f6"
+    },
+    {
+      "path": "docs/runbooks/OCI_BACKUP_RECOVERY.md",
+      "sha256": "db10babc265d4be2e2dfb247ad38df40c924a7224862e0b36323139b71380fe3"
+    }
+  ],
+  "staticChecks": {
+    "status": "PASS_STATIC_ONLY",
+    "checkedAt": "2026-10-15T13:33:25.497Z",
+    "bashSyntax": {
+      "status": "PASS",
+      "blocks": 5,
+      "executed": false
+    },
+    "sqlReview": {
+      "status": "PASS_STATIC_CONTRACT",
+      "sqlBlocks": 10,
+      "createdUsersIncludingDeferred": 5,
+      "serverExecution": false
+    },
+    "authorizationTemplate": "INCOMPLETE_AND_UNAPPROVED_BY_DESIGN",
+    "grantParser": {
+      "status": "PASS",
+      "positiveCases": [
+        {
+          "account": "traceflow_diag",
+          "role": "diagnostic",
+          "privileges": [
+            "SELECT"
+          ]
+        },
+        {
+          "account": "traceflow_api",
+          "role": "runtime",
+          "privileges": [
+            "DELETE",
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ]
+        },
+        {
+          "account": "traceflow_worker",
+          "role": "runtime",
+          "privileges": [
+            "DELETE",
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ]
+        },
+        {
+          "account": "traceflow_migrator",
+          "check": "exact nine privileges required by migration bridge"
+        },
+        {
+          "account": "traceflow_backup",
+          "role": "backup",
+          "privileges": [
+            "SELECT"
+          ]
+        }
+      ],
+      "negativeCases": 4,
+      "connected": false
+    },
+    "sourcePreservation": {
+      "migrations": 68,
+      "otherUnchangedInputs": 13,
+      "prisma": "6.12.0",
+      "head": "b5572bd16af35722fec21da6190b7b4f360bbb27"
+    },
+    "links": "PASS_NEW_ARTIFACTS",
+    "secretScan": {
+      "status": "PASS",
+      "files": 7
+    },
+    "gitDiffCheck": "PASS",
+    "onlyExpectedDocumentationChanges": true,
+    "stagedChanges": false,
+    "manualAdminIdentityLimit": "TLS and fixed host in helper; UUID review by operator, no automatic migration-job fencing"
+  },
+  "execution": {
+    "ociAccess": false,
+    "ssh": false,
+    "heatwaveConnection": false,
+    "credentialsAccess": false,
+    "sql": false,
+    "localDatabase": false,
+    "migrations": false,
+    "devDatabase": false,
+    "deploy": false,
+    "commit": false,
+    "push": false,
+    "merge": false,
+    "screenshots": false
+  },
+  "remainingDecisions": [
+    "human authorization per batch",
+    "administrative and Unix identities; SSH alias; reviewed tool/bundle/launcher paths",
+    "credential custody and controlled rotation policy",
+    "SQL VERSION/server UUID/parameters/effective administrator privileges from future B00",
+    "separate first-empty-database migration-job policy/change",
+    "managed backup/restore and production gates"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "observedAtUtc": "2026-10-18T18:58:21.276650+00:00",
+  "status": "READONLY_OBSERVATION_COMPLETE",
+  "timer": "traceflow-recovery-backup.timer",
+  "officialServiceStateResult": {
+    "LoadState": "loaded",
+    "ActiveState": "inactive",
+    "SubState": "dead"
+  },
+  "mainPidPropertyPresent": false,
+  "actualEnvironmentPredicate": false,
+  "extraReadOnlyProperties": "NextElapseUSecRealtime=\nLastTriggerUSec=\nTriggers=traceflow-recovery-backup.service\nActiveState=inactive\nSubState=dead\nUnitFileState=disabled\n",
+  "sqlExecuted": false,
+  "reconcileExecuted": false
+}

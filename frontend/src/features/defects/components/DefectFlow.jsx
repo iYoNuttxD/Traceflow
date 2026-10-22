@@ -215,7 +215,9 @@ export function DefectFlow({
     } catch (e) {
       if (!scope.valid(context)) return;
       const err = normalizeApiError(e);
-      const blocked = err.status === 409 || err.isNetworkError || err.isTimeout;
+      const blocked = e.resumableUpload
+        ? err.code === 'TEST_CASE_VERSION_CONFLICT'
+        : err.status === 409 || err.isNetworkError || err.isTimeout;
       setMutationError({
         ...err,
         blocked,
@@ -453,8 +455,10 @@ export function DefectFlow({
                 busy={busy}
                 blocked={mutationError?.blocked}
                 onCancel={back}
-                onRegister={(body) =>
-                  mutate('retest', () => testCasesApi.record(row.detection.testCase.id, body))
+                onRegister={(body, options) =>
+                  mutate('retest', () =>
+                    testCasesApi.record(row.detection.testCase.id, body, options)
+                  )
                 }
               />
             )}

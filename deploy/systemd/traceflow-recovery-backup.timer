@@ -1,0 +1,11 @@
+# Disabled until supervised validation and explicit recurring maintenance approval.
+[Unit]
+Description=TraceFlow approved daily bounded maintenance
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=false
+RandomizedDelaySec=0
+AccuracySec=1s
+Unit=traceflow-recovery-backup.service
+[Install]
+WantedBy=timers.target

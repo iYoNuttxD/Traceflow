@@ -91,7 +91,9 @@ não exige login nem sessão. A API mantém disparo manual imediato no processo 
 independente também recupera runs QUEUED persistidos por uma API interrompida.
 
 Mantenha o processo aberto em desenvolvimento. Habilitado: espere `github_scheduler_started`;
-desabilitado: `github_scheduler_disabled` explica a configuração e o processo termina.
+desabilitado em desenvolvimento: `github_scheduler_disabled` explica a configuração e o processo
+termina. No entry point com NODE_ENV=production, scheduler desabilitado é erro de configuração
+(exit não zero); o contrato completo compartilhado está em [OCI_ENVIRONMENT](OCI_ENVIRONMENT.md).
 Sem App configurada: `github_scheduler_unavailable`; erro no tick: `github_scheduler_operation_failed`.
 Exceções não capturadas terminam o processo pelo comportamento padrão do Node; recuperação
 posterior usa a lease, e operação supervisionada deve reiniciar o processo. Nenhum processo é
@@ -101,6 +103,11 @@ SIGTERM/SIGINT bloqueia novos claims locais, cancela o tick e aguarda os jobs j�
 de desconectar Prisma. Uma segunda chamada de shutdown não duplica trabalho. Se o supervisor
 precisar encerrar à força, a lease persistida e o fencing fazem a recuperação posterior.
 Não remova/edite activeProjectId ou os slots manualmente.
+
+OCI-DEPLOY-03 também acompanha as promises de sync manual na API, desde o agendamento até
+persistência/auditoria. O shutdown HTTP aguarda esse trabalho dentro de um deadline total,
+sem alterar o contrato 202, leases/fencing ou recuperação. Se o prazo expirar, termina com erro
+sem fabricar estado terminal ou liberar slots. O worker preserva seu stop/drain existente.
 
 Todas as instâncias devem compartilhar os valores de policy e um relógio UTC sincronizado.
 Para mudar concorrência/lease: drene os workers, atualize a configuração comum, reinicie. A

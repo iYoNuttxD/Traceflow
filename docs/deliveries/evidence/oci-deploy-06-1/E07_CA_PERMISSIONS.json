@@ -1,0 +1,45 @@
+{
+  "evidence": "E07",
+  "origin": "LOCAL_EXECUTION",
+  "environment": "synthetic filesystem fixtures on macOS ARM64 and new OL9.8 ARM64 Lima VM",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": {
+    "unit": "python3 -m unittest discover -s deploy/tests -p test_mysql_ca.py",
+    "linux": "sudo with private synthetic token: python3 /opt/traceflow-oci061/deploy/tests/run-mysql-ca-linux.py",
+    "scope": "only marked own VM; no real CA"
+  },
+  "status": "PASS_LOCAL",
+  "result": {
+    "pythonCaTests": 10,
+    "cases": [
+      "plan/apply/idempotence",
+      "wrong fingerprint no write",
+      "different existing content preserved",
+      "private key refused",
+      "source symlink refused",
+      "destination symlink preserved",
+      "writable parent refused",
+      "ancestor symlink refused",
+      "marker required",
+      "open permissions not silently repaired"
+    ],
+    "linux": {
+      "name": "public-ca-plan-install-idempotent",
+      "status": "PASS",
+      "mode": "0o644",
+      "uid": 0,
+      "context": "/etc/pki/traceflow/mysql-ca.pem verified.",
+      "fingerprint": "7eefe18014428ef85f0f755c77edc5ebb60d61f6b57f4114d3d2b4a25ea62ff1"
+    },
+    "definitiveMode": "root:root 0644; directory 0755",
+    "selinuxContext": "unconfined_u:object_r:cert_t:s0 /etc/pki/traceflow/mysql-ca.pem",
+    "nonReplacement": true,
+    "globalTrustChanged": false
+  },
+  "limitations": [
+    "Actual /home/opc/traceflow-ca.crt not read and /etc/pki/traceflow/mysql-ca.pem not installed on OCI.",
+    "Any real installation requires separate resolved-command authorization.",
+    "Rotation and rollback of preexisting trust require separate review."
+  ]
+}

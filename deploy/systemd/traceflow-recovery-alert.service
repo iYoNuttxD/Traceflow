@@ -1,0 +1,8 @@
+[Unit]
+Description=TraceFlow durable recovery alert notification in system journal
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/logger -p daemon.crit -t traceflow-recovery TraceFlow backup failed; inspect protected maintenance state before restarting services
+NoNewPrivileges=yes
+LimitCORE=0

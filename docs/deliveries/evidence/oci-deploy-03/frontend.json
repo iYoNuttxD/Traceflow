@@ -1,0 +1,65 @@
+{
+  "tests": {
+    "success": true,
+    "numTotalTests": 1493,
+    "numPassedTests": 1493,
+    "numFailedTests": 0,
+    "numPendingTests": 0
+  },
+  "files": 120,
+  "coverage": {
+    "lines": {
+      "total": 10375,
+      "covered": 9195,
+      "skipped": 0,
+      "pct": 88.62
+    },
+    "statements": {
+      "total": 11869,
+      "covered": 10225,
+      "skipped": 0,
+      "pct": 86.14
+    },
+    "functions": {
+      "total": 3457,
+      "covered": 2835,
+      "skipped": 0,
+      "pct": 82
+    },
+    "branches": {
+      "total": 11179,
+      "covered": 9056,
+      "skipped": 0,
+      "pct": 81
+    },
+    "branchesTrue": {
+      "total": 0,
+      "covered": 0,
+      "skipped": 0,
+      "pct": 100
+    }
+  },
+  "gates": [
+    {
+      "gate": "install",
+      "exitCode": 0
+    },
+    {
+      "gate": "coverage",
+      "exitCode": 0
+    },
+    {
+      "gate": "lint",
+      "exitCode": 0
+    },
+    {
+      "gate": "format",
+      "exitCode": 0
+    },
+    {
+      "gate": "build",
+      "exitCode": 0
+    }
+  ],
+  "buildOutput": "\n> traceflow-frontend@0.1.0 build\n> vite build\n\nvite v8.0.16 building client environment for production...\n\u001b[2K\ntransforming...\u001b[33m[MISSING_NAME_OPTION_FOR_IIFE_EXPORT] \u001b[0mIf you do not supply \"output.name\", you may not be able to access the exports of an IIFE bundle.\n\n✓ 646 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                                              1.90 kB │ gzip:   0.79 kB\ndist/assets/elk-worker.min-kKfObJxy.js                   1,426.50 kB\ndist/assets/SecuritySettingsPage-BTB4DG2V.css                0.99 kB │ gzip:   0.43 kB\ndist/assets/JoinProjectPage-CXfBJfcM.css                     1.12 kB │ gzip:   0.45 kB\ndist/assets/AcceptInvitationPage-2fzoXjC-.css                1.14 kB │ gzip:   0.41 kB\ndist/assets/LoginPage-Dny_1bJK.css                           1.44 kB │ gzip:   0.54 kB\ndist/assets/IntegrationsSettingsPage-Dhpnon5M.css            2.60 kB │ gzip:   0.72 kB\ndist/assets/TraceabilityWorkspace-DXOGniAl.css               3.08 kB │ gzip:   0.81 kB\ndist/assets/RequirementCatalog-DON8qZSj.css                  3.20 kB │ gzip:   0.88 kB\ndist/assets/AuthShell-CpM-AeDg.css                           4.21 kB │ gzip:   1.09 kB\ndist/assets/TraceabilityPage-CpnA-i3M.css                    5.51 kB │ gzip:   1.25 kB\ndist/assets/SettingsLayout-B2hxDlo0.css                      6.31 kB │ gzip:   1.44 kB\ndist/assets/shared-CvcD2ixd.css                             21.52 kB │ gzip:   3.66 kB\ndist/assets/TraceabilityFlow-CK4fpqOX.css                   23.69 kB │ gzip:   4.08 kB\ndist/assets/indicators-_adhMlO2.css                         34.11 kB │ gzip:   5.35 kB\ndist/assets/testCases-BLpBKgtn.css                          94.58 kB │ gzip:  12.74 kB\ndist/assets/index-KIn03Omu.css                             166.09 kB │ gzip:  22.04 kB\ndist/assets/IndicatorsPage-uBIQLkBe.js                       0.07 kB │ gzip:   0.08 kB\ndist/assets/elk-worker.min-CkId2wNk.js                       0.10 kB │ gzip:   0.11 kB\ndist/assets/SprintsPage-BPG4S5wj.js                          0.15 kB │ gzip:   0.14 kB\ndist/assets/ProjectsPage-CWgLlaRQ.js                         0.15 kB │ gzip:   0.14 kB\ndist/assets/SchedulePage-CA7KVM5Q.js                         0.15 kB │ gzip:   0.14 kB\ndist/assets/TestCasesPage-GrRuMO7w.js                        0.15 kB │ gzip:   0.14 kB\ndist/assets/TasksPage-C2-X8v_t.js                            0.15 kB │ gzip:   0.15 kB\ndist/assets/KanbanPage-SfR0-M9B.js                           0.15 kB │ gzip:   0.15 kB\ndist/assets/MilestonesPage-Bzko0ksO.js                       0.15 kB │ gzip:   0.14 kB\ndist/assets/DefectsPage-CCx6ok1I.js                          0.16 kB │ gzip:   0.15 kB\ndist/assets/ProjectEditPage-DIt7wsKK.js                      0.16 kB │ gzip:   0.14 kB\ndist/assets/single-flight-8zNYehrN.js                        0.16 kB │ gzip:   0.14 kB\ndist/assets/ProjectDetailsPage-hNgZwZck.js                   0.16 kB │ gzip:   0.15 kB\ndist/assets/ProjectMembersPage-Dd7-9Wlm.js                   0.16 kB │ gzip:   0.15 kB\ndist/assets/RepositoryInfoPage-cCssWVmz.js                   0.16 kB │ gzip:   0.15 kB\ndist/assets/RequirementsPage-CnzIKh9e.js                     0.16 kB │ gzip:   0.15 kB\ndist/assets/SettingsLayout-C4JYeT-3.js                       0.97 kB │ gzip:   0.48 kB\ndist/assets/ProjectAuditPage-BYWMr7Dt.js                     1.05 kB │ gzip:   0.58 kB\ndist/assets/chunk-aKtaBQYM.js                                1.08 kB │ gzip:   0.62 kB\ndist/assets/GithubSensitiveReauthentication-C2MVuxnW.js      1.25 kB │ gzip:   0.74 kB\ndist/assets/AuthShell-CgzZ4b1T.js                            1.37 kB │ gzip:   0.69 kB\ndist/assets/ForgotPasswordPage-BGInynsp.js                   1.37 kB │ gzip:   0.78 kB\ndist/assets/ConfirmationPage-Ch-MpB9C.js                     1.43 kB │ gzip:   0.78 kB\ndist/assets/VerifyEmailPage-BZM9q8Hq.js                      1.49 kB │ gzip:   0.82 kB\ndist/assets/RestrictedAccountPage-T99Xihvd.js                1.67 kB │ gzip:   0.88 kB\ndist/assets/ResetPasswordPage-BQ4HfwNK.js                    2.30 kB │ gzip:   1.14 kB\ndist/assets/settings.api-RMB1IC2E.js                         2.55 kB │ gzip:   0.73 kB\ndist/assets/TraceabilityWorkspace-xB_oY6mu.js                2.80 kB │ gzip:   1.15 kB\ndist/assets/JoinProjectPage-CRBMLbda.js                      3.10 kB │ gzip:   1.37 kB\ndist/assets/RegisterPage-B3KyAOEQ.js                         3.15 kB │ gzip:   1.44 kB\ndist/assets/LoginPage-CoaYnl5v.js                            3.25 kB │ gzip:   1.53 kB\ndist/assets/AcceptInvitationPage-D-3cCaGW.js                 3.27 kB │ gzip:   1.50 kB\ndist/assets/elk-api-D8He--lX.js                              4.44 kB │ gzip:   1.77 kB\ndist/assets/PrivacySettingsPage-XR8_ToTT.js                  5.08 kB │ gzip:   1.96 kB\ndist/assets/TraceabilityPage-CpUSZmGv.js                     7.23 kB │ gzip:   2.75 kB\ndist/assets/jsx-runtime-DqMcooe2.js                          7.88 kB │ gzip:   2.98 kB\ndist/assets/SecuritySettingsPage-DGmj0ZYi.js                 7.96 kB │ gzip:   2.60 kB\ndist/assets/IndicatorChart-BeSSMYMq.js                       8.37 kB │ gzip:   3.25 kB\ndist/assets/AccountSettingsPage-xk0KsT4Z.js                  8.41 kB │ gzip:   2.64 kB\ndist/assets/IntegrationsSettingsPage-DlbyImEd.js            11.56 kB │ gzip:   3.87 kB\ndist/assets/RequirementCatalog-Bmd8z1H2.js                  14.64 kB │ gzip:   4.95 kB\ndist/assets/shared-sNdEfGy0.js                              32.14 kB │ gzip:  10.76 kB\ndist/assets/lib-CYGxyW1x.js                                 40.80 kB │ gzip:  14.62 kB\ndist/assets/http-client-Bgv4GTy8.js                         55.12 kB │ gzip:  20.86 kB\ndist/assets/indicators-E-QXN75c.js                          74.11 kB │ gzip:  22.52 kB\ndist/assets/TraceabilityFlow-Blgolie0.js                   205.22 kB │ gzip:  66.43 kB\ndist/assets/testCases-r6BIaDN1.js                          269.24 kB │ gzip:  71.98 kB\ndist/assets/index-BZ-lCf6S.js                              417.82 kB │ gzip: 120.37 kB\ndist/assets/elk.bundled-CkQWVlL0.js                      1,433.73 kB │ gzip: 441.98 kB\n\n✓ built in 688ms\n[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\n"
+}

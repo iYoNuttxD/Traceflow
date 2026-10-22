@@ -1,3 +1,4 @@
+import { configuredApiBase } from './api-base.js';
 import axios from 'axios';
 import { normalizeApiError } from '../shared/services/http-error.js';
 
@@ -58,7 +59,7 @@ export function createHttpClient(options = {}) {
   const pendingGets = new Map();
   activeGetScopes.add(pendingGets);
   const client = axios.create({
-    baseURL: options.baseURL || import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+    baseURL: options.baseURL || configuredApiBase(),
     withCredentials: true,
     timeout: options.timeout || configuredTimeout()
   });

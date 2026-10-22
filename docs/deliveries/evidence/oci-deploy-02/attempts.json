@@ -1,0 +1,147 @@
+[
+  {
+    "file": "result-26.7.0-attempt1.json",
+    "startedAt": "2026-10-13T22:58:13.084Z",
+    "finishedAt": "2026-10-13T22:58:13.204Z",
+    "mysqlCompatibility": "NOT_PROVEN",
+    "error": {
+      "code": "PORT_UNAVAILABLE",
+      "message": "A porta isolada não está disponível; nenhum servidor existente será usado."
+    },
+    "cleanup": null,
+    "sha256": "97d570848fc06352e12488f827c0196b6454a447c9d5988505ad17368db2798a"
+  },
+  {
+    "file": "result-26.7.0-attempt2.json",
+    "startedAt": "2026-10-13T22:58:33.291Z",
+    "finishedAt": "2026-10-13T22:58:49.496Z",
+    "mysqlCompatibility": "NOT_PROVEN",
+    "error": {
+      "code": "PHYSICAL_CONTRACTS_FAILED",
+      "message": "A etapa PHYSICAL_CONTRACTS não concluiu com sucesso.",
+      "details": {
+        "status": 1,
+        "signal": null,
+        "output": "{\"code\":\"VALIDATION_FAILED\",\"message\":\"Do not know how to serialize a BigInt\"}\n"
+      }
+    },
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "b05d57f455a6a5dbebd96c37aa129e0a912d5dcafca8de30ec547ea20587179c"
+  },
+  {
+    "file": "result-26.7.0-attempt3.json",
+    "startedAt": "2026-10-13T22:59:28.418Z",
+    "finishedAt": "2026-10-13T23:02:21.713Z",
+    "mysqlCompatibility": "PASS",
+    "error": null,
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "b557a35f13c942650a320053e70e7fb1c3cb93bcac2342bb29306549e5640e24"
+  },
+  {
+    "file": "result-26.7.0-complete.json",
+    "startedAt": "2026-10-13T23:57:16.252Z",
+    "finishedAt": "2026-10-14T00:00:40.638Z",
+    "mysqlCompatibility": "PASS",
+    "error": null,
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "6fce43ab3916f599fe33fbd9356c122b59cc7ede9a0642d953ea812b75543896"
+  },
+  {
+    "file": "result-26.7.0-final.json",
+    "startedAt": "2026-10-13T23:13:44.530Z",
+    "finishedAt": "2026-10-13T23:16:53.992Z",
+    "mysqlCompatibility": "PASS",
+    "error": null,
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "caa5b0aef320c0b24d0cbfa3b030fdf9338e9989835d7a35bf3dbf7c5826c51a"
+  },
+  {
+    "file": "result-8.4.8-complete.json",
+    "startedAt": "2026-10-13T23:57:07.561Z",
+    "finishedAt": "2026-10-14T00:00:20.931Z",
+    "mysqlCompatibility": "PASS",
+    "error": null,
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "358e30cd5f432ffbcb4e81309cdc6543dd17ec7bd843a77955036c518319b7f7"
+  },
+  {
+    "file": "result-8.4.8-final-v2.json",
+    "startedAt": "2026-10-13T23:09:51.287Z",
+    "finishedAt": "2026-10-13T23:12:37.507Z",
+    "mysqlCompatibility": "PASS",
+    "error": null,
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "e2f8561c2631fc7e5b2f168bc30ffd47a64b5e1786f752b2eca87b421243599d"
+  },
+  {
+    "file": "result-8.4.8-final.json",
+    "startedAt": "2026-10-13T23:08:35.095Z",
+    "finishedAt": "2026-10-13T23:08:46.258Z",
+    "mysqlCompatibility": "NOT_PROVEN",
+    "error": {
+      "code": "PHYSICAL_CONTRACTS_FAILED",
+      "message": "A etapa PHYSICAL_CONTRACTS não concluiu com sucesso.",
+      "details": {
+        "status": 1,
+        "signal": null,
+        "output": "{\"code\":\"ERR_ASSERTION\",\"message\":\"Expected values to be strictly deep-equal:\\n+ actual - expected\\n... Skipped lines\\n\\n  [\\n    '20260604224631_add_github_fields_to_project',\\n    '20260605120000_create_commit_model',\\n    '20260606120000_create_pull_request_model',\\n    '20260606130000_create_issue_model',\\n...\\n    '20260908190000_s108_defect_foundation',\\n+   '20260910120000_s1_06_preserve_legacy_effort',\\n    '20260910120000_s109_requirement_traceability',\\n-   '20260910120000_s1_06_preserve_legacy_effort',\\n    '20260912010000_s109_lifecycle_effort_history',\\n    '20260921010000_project_deletion_retention',\\n    '20260922010000_project_purge_fencing',\\n    '20260924120000_s2_p1_indicator_data_foundation',\\n    '20260924130000_s2_p1_lifecycle_coverage',\\n\"}\n"
+      }
+    },
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "00764cd170ee6eb307f6a95a4fa11d0965dbd0db4f5c65bb4ce878a9e76dafc3"
+  },
+  {
+    "file": "result-linux-26.7.0-complete.json",
+    "startedAt": "2026-10-13T23:57:31.871Z",
+    "finishedAt": "2026-10-14T00:00:59.658Z",
+    "mysqlCompatibility": "PASS",
+    "error": null,
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "1d97f6862c5a180cdfa9d99b580a722a4dd5a971eb9c9a0f0026796841234894"
+  },
+  {
+    "file": "result-linux-26.7.0.json",
+    "startedAt": "2026-10-13T23:13:31.126Z",
+    "finishedAt": "2026-10-13T23:16:53.427Z",
+    "mysqlCompatibility": "PASS",
+    "error": null,
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "sha256": "752e5653d03fd1c831ab274b2f4945fd5c2ebdc2367ff66e3e55de0db82ebda6"
+  }
+]

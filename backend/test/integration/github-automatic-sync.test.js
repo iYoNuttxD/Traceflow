@@ -9,7 +9,16 @@ const boundary = vi.hoisted(() => ({ client: null }));
 vi.mock('../../src/modules/github/github.client.js', () => ({
   githubInstallationClientFactory: { forInstallation: () => boundary.client }
 }));
-let prisma, runs, requestSync, execute, scheduler, projects, withGuard, commits, automationStatus;
+let prisma,
+  runs,
+  requestSync,
+  execute,
+  scheduler,
+  projects,
+  withGuard,
+  commits,
+  automationStatus,
+  waitForManual;
 const gate = () => {
   let resolve;
   const promise = new Promise((r) => {
@@ -33,8 +42,11 @@ beforeAll(async () => {
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ githubSyncRunRepository: runs } =
     await import('../../src/modules/github/github-sync-run.repository.js'));
-  ({ requestProjectGithubSync: requestSync, executeGithubSyncRun: execute } =
-    await import('../../src/modules/github/services/github-sync-run.service.js'));
+  ({
+    requestProjectGithubSync: requestSync,
+    executeGithubSyncRun: execute,
+    waitForManualGithubSyncRuns: waitForManual
+  } = await import('../../src/modules/github/services/github-sync-run.service.js'));
   ({ createGithubSyncScheduler: scheduler } =
     await import('../../src/modules/github/services/github-sync-scheduler.service.js'));
   ({ projectRepository: projects } =
@@ -124,6 +136,46 @@ const integration = (id) =>
 const worker = (options = {}) => scheduler({ enabled: true, configured: () => true, ...options });
 
 describe('scheduler with real isolated persistence', () => {
+  it('tracks manual background execution through persisted completion and audit', async () => {
+    const {
+      user,
+      items: [project]
+    } = await fixture();
+    const entered = gate(),
+      release = gate();
+    boundary.client.listIssuePages = async function* () {
+      entered.resolve();
+      await release.promise;
+      yield [];
+    };
+    const run = await requestSync(project.id, user.id);
+    let drained = false;
+    const waiting = waitForManual().then(() => {
+      drained = true;
+    });
+    try {
+      await entered.promise;
+      expect(drained).toBe(false);
+      expect(await runs.findById(run.id)).toMatchObject({
+        status: 'RUNNING',
+        activeProjectId: project.id
+      });
+    } finally {
+      release.resolve();
+      await waiting;
+    }
+    expect(await runs.findById(run.id)).toMatchObject({
+      status: 'SUCCEEDED',
+      activeProjectId: null
+    });
+    expect(
+      await prisma.auditEvent.count({
+        where: { action: 'GITHUB_SYNC_SUCCEEDED', resourceId: String(run.id) }
+      })
+    ).toBe(1);
+    await waitForManual();
+  });
+
   it.each(['due', 'stale'])(
     'continues to a free project when the %s candidate is locked',
     async (kind) => {

@@ -1,0 +1,453 @@
+{
+  "origin": "executed-local",
+  "environment": "synthetic fixtures and disposable MySQL only",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "package harness + 60 focused Vitest tests + output and archive unit tests",
+  "result": {
+    "matrix": [
+      {
+        "id": "N01",
+        "status": "PASS",
+        "proof": "lab unknown-ca"
+      },
+      {
+        "id": "N02",
+        "status": "PASS",
+        "proof": "lab expired certificate"
+      },
+      {
+        "id": "N03",
+        "status": "PASS",
+        "proof": "lab wrong SAN"
+      },
+      {
+        "id": "N04",
+        "status": "PASS",
+        "proof": "lab TLS disabled"
+      },
+      {
+        "id": "N05",
+        "status": "PASS",
+        "proof": "lab permissive TLS and inherited bypass"
+      },
+      {
+        "id": "N06",
+        "status": "PASS",
+        "proof": "lab invalid synthetic password"
+      },
+      {
+        "id": "N07",
+        "status": "PASS",
+        "proof": "lab locked synthetic account"
+      },
+      {
+        "id": "N08",
+        "status": "PASS",
+        "proof": "lab wrong UUID"
+      },
+      {
+        "id": "N09",
+        "status": "PASS",
+        "proof": "lab wrong version"
+      },
+      {
+        "id": "N10",
+        "status": "PASS",
+        "proof": "schema contract refusal plus unit verifyServerIdentity"
+      },
+      {
+        "id": "N11",
+        "status": "PASS",
+        "proof": "admin user refusal plus effective-user unit identity mismatch"
+      },
+      {
+        "id": "N12",
+        "status": "PASS",
+        "proof": "unit injected DNS resolver: error, empty, mixed and unexpected addresses; no real managed DNS"
+      },
+      {
+        "id": "N13",
+        "status": "PASS",
+        "proof": "lab expired authorization"
+      },
+      {
+        "id": "N14",
+        "status": "PASS",
+        "proof": "lab absent authorization"
+      },
+      {
+        "id": "N15",
+        "status": "PASS",
+        "proof": "lab open permission authorization/credential"
+      },
+      {
+        "id": "N16",
+        "status": "PASS",
+        "proof": "lab authorization/credential symlink"
+      },
+      {
+        "id": "N17",
+        "status": "PASS",
+        "proof": "lab inherited DATABASE_URL"
+      },
+      {
+        "id": "N18",
+        "status": "PASS",
+        "proof": "lab inherited TEST_DATABASE_URL"
+      },
+      {
+        "id": "N19",
+        "status": "PASS",
+        "proof": "lab inherited MIGRATION_DATABASE_URL"
+      },
+      {
+        "id": "N20",
+        "status": "PASS",
+        "proof": "canonical diagnostic duplicate TLS option"
+      },
+      {
+        "id": "N21",
+        "status": "PASS",
+        "proof": "lab wrong ELF bytes refused by integrity; artifact unit checks architecture"
+      },
+      {
+        "id": "N22",
+        "status": "PASS",
+        "proof": "lab missing dotenv refused before credentials"
+      },
+      {
+        "id": "N23",
+        "status": "PASS",
+        "proof": "lab unavailable owned server"
+      },
+      {
+        "id": "N24",
+        "status": "PASS",
+        "proof": "loopback black hole exact TLS deadline; existing Prisma pool/socket probes"
+      },
+      {
+        "id": "N25",
+        "status": "PASS",
+        "proof": "3 node:test output tests including raw/encoded synthetic password and URL; all live diagnostic outputs checked"
+      },
+      {
+        "id": "N26",
+        "status": "PASS",
+        "proof": "local contract rejects DEV-like schema before connecting"
+      },
+      {
+        "id": "N27",
+        "status": "PASS",
+        "proof": "invalid managed approved=false refused before CA/DNS/network"
+      },
+      {
+        "id": "N28",
+        "status": "PASS",
+        "proof": "operation=migrate refused; no CLI/migrations in package"
+      }
+    ],
+    "checks": [
+      {
+        "name": "N17-inherited-database",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.018
+        }
+      },
+      {
+        "name": "N18-inherited-test",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.018
+        }
+      },
+      {
+        "name": "N19-inherited-migration",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.017
+        }
+      },
+      {
+        "name": "N05-tls-bypass-environment",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.018
+        }
+      },
+      {
+        "name": "N08-uuid",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "SERVER_IDENTITY_MISMATCH",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.168
+        }
+      },
+      {
+        "name": "N09-version",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "SERVER_IDENTITY_MISMATCH",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.165
+        }
+      },
+      {
+        "name": "N10-N26-dev-schema",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "PROTECTED_DATABASE_TARGET",
+          "writes": false,
+          "durationSeconds": 0.104
+        }
+      },
+      {
+        "name": "N11-admin-user",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "TARGET_MISMATCH",
+          "writes": false,
+          "durationSeconds": 0.102
+        }
+      },
+      {
+        "name": "N13-expired",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "AUTHORIZATION_EXPIRED",
+          "writes": false,
+          "durationSeconds": 0.104
+        }
+      },
+      {
+        "name": "N28-migration-operation",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "READ_ONLY_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.105
+        }
+      },
+      {
+        "name": "N27-managed-no-approval",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "REMOTE_APPROVAL_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.106
+        }
+      },
+      {
+        "name": "N14-authorization-absent",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "ENOENT",
+          "writes": false,
+          "durationSeconds": 0.103
+        }
+      },
+      {
+        "name": "N15-permissions-authorization",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "PRIVATE_FILE_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.104
+        }
+      },
+      {
+        "name": "N16-symlink-authorization",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "UNSAFE_FILE",
+          "writes": false,
+          "durationSeconds": 0.101
+        }
+      },
+      {
+        "name": "N15-permissions-credential",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "PRIVATE_FILE_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.106
+        }
+      },
+      {
+        "name": "N16-symlink-credential",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "UNSAFE_FILE",
+          "writes": false,
+          "durationSeconds": 0.104
+        }
+      },
+      {
+        "name": "N06-invalid-password",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "DIAGNOSTIC_FAILED",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.165
+        }
+      },
+      {
+        "name": "N07-locked-account",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "DIAGNOSTIC_FAILED",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.183
+        }
+      },
+      {
+        "name": "N05-permissive-tls",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "STRICT_TLS_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.02
+        }
+      },
+      {
+        "name": "N20-duplicate-option",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "UNREVIEWED_CONNECTION_OPTION",
+          "writes": false,
+          "durationSeconds": 0.021
+        }
+      },
+      {
+        "name": "N21-wrong-engine",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "PACKAGE_INTEGRITY_FAILED",
+          "writes": false,
+          "durationSeconds": 0.089
+        }
+      },
+      {
+        "name": "N22-missing-dependency",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "PACKAGE_INTEGRITY_FAILED",
+          "writes": false,
+          "durationSeconds": 0.095
+        }
+      },
+      {
+        "name": "N01-unknown-ca",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "SELF_SIGNED_CERT_IN_CHAIN",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.138
+        }
+      },
+      {
+        "name": "N03-wrong-san",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "ERR_TLS_CERT_ALTNAME_INVALID",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.137
+        }
+      },
+      {
+        "name": "N02-expired",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "CERT_HAS_EXPIRED",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.138
+        }
+      },
+      {
+        "name": "N04-no-tls",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "TLS_REQUIRED",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.137
+        }
+      },
+      {
+        "name": "N23-unavailable",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "ECONNREFUSED",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.135
+        }
+      },
+      {
+        "name": "N24-timeout",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "TLS_TIMEOUT",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 5.135
+        }
+      }
+    ],
+    "focusedTests": 60,
+    "focusedStatus": "PASS",
+    "outputTests": 3,
+    "artifactTests": 8,
+    "historicalHarnessFailure": {
+      "code": "EADDRINUSE",
+      "cause": "timeout fixture reused a just-stopped MySQL port in TIME_WAIT",
+      "correction": "allocate another owned high loopback port; fresh complete package-lab run passed"
+    }
+  },
+  "status": "PASS",
+  "limitations": "Somente laboratório; não comprova homologação gerenciada."
+}

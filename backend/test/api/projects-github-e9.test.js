@@ -106,28 +106,16 @@ async function createIntegratedProject(auth) {
 }
 
 async function waitForSyncRun(auth, projectId, expectedRunId) {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const status = await auth.agent.get(`/api/projects/${projectId}/github/sync/status`);
-    expect(
-      status.status,
-      JSON.stringify({
-        body: status.body,
-        headers: {
-          contentType: status.headers['content-type'],
-          requestId: status.headers['x-request-id']
-        }
-      })
-    ).toBe(200);
-    expect(status.body.run?.id, JSON.stringify(status.body)).toBe(expectedRunId);
-    if (['SUCCEEDED', 'FAILED'].includes(status.body.run?.status)) {
-      return { status, run: status.body.run };
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-
-  throw new Error(
-    `A execução GitHub ${expectedRunId} do projeto ${projectId} não chegou a um estado terminal.`
-  );
+  // Observe completion of the real scheduled work. A 5 ms polling loop consumed
+  // the read-burst budget before TLS-backed sync finished in the OCI06 lab.
+  const { waitForManualGithubSyncRuns } =
+    await import('../../src/modules/github/services/github-sync-run.service.js');
+  await waitForManualGithubSyncRuns();
+  const status = await auth.agent.get(`/api/projects/${projectId}/github/sync/status`);
+  expect(status.status, JSON.stringify(status.body)).toBe(200);
+  expect(status.body.run?.id, JSON.stringify(status.body)).toBe(expectedRunId);
+  expect(['SUCCEEDED', 'FAILED']).toContain(status.body.run?.status);
+  return { status, run: status.body.run };
 }
 
 async function startAndWaitForSync(auth, projectId) {
@@ -492,29 +480,44 @@ describe('Projetos e integração GitHub E9', () => {
     const repositoryGate = new Promise((resolve) => {
       releaseRepository = resolve;
     });
-    githubBoundary.client.getRepository.mockImplementation(async () => {
-      await repositoryGate;
-      return repository;
-    });
+    // Coalescing is observed before the real claim. Otherwise the worker can
+    // meet the second request's NOWAIT lock and correctly remain QUEUED for a
+    // scheduler tick; that recovery contract is covered by scheduler tests.
+    const { githubSyncRunRepository } =
+      await import('../../src/modules/github/github-sync-run.repository.js');
+    const claim = githubSyncRunRepository.claim.bind(githubSyncRunRepository);
+    const claimSpy = vi
+      .spyOn(githubSyncRunRepository, 'claim')
+      .mockImplementation(async (...args) => {
+        await repositoryGate;
+        return claim(...args);
+      });
+    try {
+      const requests = [
+        owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({}),
+        owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({})
+      ];
+      const responses = await Promise.all(requests);
+      releaseRepository();
 
-    const requests = [
-      owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({}),
-      owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({})
-    ];
-    const responses = await Promise.all(requests);
-    releaseRepository();
+      expect(responses.map(({ status }) => status)).toEqual([202, 202]);
+      const runs = responses.map(({ body }) => body.run);
+      const created = runs.find(({ alreadyRunning }) => alreadyRunning === false);
+      const controlled = runs.find(({ alreadyRunning }) => alreadyRunning === true);
+      expect(created).toMatchObject({ status: 'QUEUED', alreadyRunning: false });
+      expect(controlled).toMatchObject({ id: created.id, alreadyRunning: true });
 
-    expect(responses.map(({ status }) => status)).toEqual([202, 202]);
-    const runs = responses.map(({ body }) => body.run);
-    const created = runs.find(({ alreadyRunning }) => alreadyRunning === false);
-    const controlled = runs.find(({ alreadyRunning }) => alreadyRunning === true);
-    expect(created).toMatchObject({ status: 'QUEUED', alreadyRunning: false });
-    expect(controlled).toMatchObject({ id: created.id, alreadyRunning: true });
-
-    const observed = await waitForSyncRun(owner, project.id, created.id);
-    expect(observed.run.status).toBe('SUCCEEDED');
-    expect(githubBoundary.client.getRepository).toHaveBeenCalledOnce();
-    expect(await prisma.gitHubSyncRun.count({ where: { projectId: project.id } })).toBe(1);
+      const observed = await waitForSyncRun(owner, project.id, created.id);
+      expect(observed.run.status).toBe('SUCCEEDED');
+      expect(githubBoundary.client.getRepository).toHaveBeenCalledOnce();
+      expect(await prisma.gitHubSyncRun.count({ where: { projectId: project.id } })).toBe(1);
+    } finally {
+      releaseRepository();
+      const { waitForManualGithubSyncRuns } =
+        await import('../../src/modules/github/services/github-sync-run.service.js');
+      await waitForManualGithubSyncRuns();
+      claimSpy.mockRestore();
+    }
   });
 
   it('pagina, reprocessa sem duplicar e preserva vínculos e artifacts canônicos', async () => {

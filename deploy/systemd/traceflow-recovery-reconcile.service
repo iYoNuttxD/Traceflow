@@ -1,0 +1,29 @@
+# Enable only together with the reviewed maintenance installation (not the daily timer).
+[Unit]
+Description=TraceFlow interrupted backup recovery before application startup
+After=network-online.target
+Wants=network-online.target
+# No Before=API ordering: recovery starts services synchronously. The persisted
+# release guard blocks premature starts after reboot, avoiding an ordering deadlock.
+OnFailure=traceflow-recovery-alert.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+LoadCredentialEncrypted=oci-api-key:/etc/credstore.encrypted/traceflow-backup-oci-api-key
+ExecStart=/usr/bin/python3 -I -B @TRACEFLOW_RELEASE@/deploy/scripts/recovery-maintenance.py recover
+TimeoutStartSec=600
+TimeoutStopSec=60
+KillMode=control-group
+LimitCORE=0
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/traceflow/shared/release-state /opt/traceflow/shared/release-guard /var/lib/traceflow-recovery /run
+StandardOutput=journal
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

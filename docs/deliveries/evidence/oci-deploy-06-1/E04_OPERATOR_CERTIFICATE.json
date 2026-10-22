@@ -1,0 +1,53 @@
+{
+  "evidence": "E04",
+  "origin": "OPERATOR_SUPPLIED",
+  "environment": "OCI sa-saopaulo-1; traceflow-mysql; MySQL.Free; no agent access",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": "Information in user request OCI-DEPLOY-06.1; not independently retrieved",
+  "status": "REPORTED",
+  "result": {
+    "certificateName": "traceflow-mysql-tls-test-2026",
+    "type": "User defined / Imported X.509",
+    "issuer": "TraceFlow Internal Root CA",
+    "key": "RSA 4096",
+    "signature": "SHA-256",
+    "basicConstraints": "CA:FALSE",
+    "keyUsage": [
+      "Digital Signature",
+      "Key Encipherment"
+    ],
+    "extendedKeyUsage": [
+      "TLS Web Server Authentication"
+    ],
+    "san": {
+      "dns": [
+        "traceflow-db.sub10120424531.traceflowvcn.oraclevcn.com"
+      ],
+      "ip": [
+        "10.20.2.25"
+      ]
+    },
+    "leafValidity": null,
+    "ca": {
+      "source": "/home/opc/traceflow-ca.crt",
+      "subject": "C=BR, O=TraceFlow, CN=TraceFlow Internal Root CA",
+      "notBeforeDate": "2026-10-15",
+      "notAfterDate": "2031-10-14",
+      "sha256Der": "2eaee0e206741bf81b651f1ae33f44f0a92949ed6a99137a4aa8b0013486d295",
+      "definitivePath": "/etc/pki/traceflow/mysql-ca.pem"
+    },
+    "incident": {
+      "previousResource": "traceflow-mysql-tls-2026",
+      "previousKeyFormat": "encrypted PKCS#8; AES-256-CBC/PBKDF2/HMAC-SHA256",
+      "reportedFailure": "UPDATE_DBSYSTEM HTTP 500 InternalError; Audit begin 204 / GetCertificateBundleWithPrivateKey 200 / end 500",
+      "reportedSuccess": "same certificate, new resource, unencrypted PKCS#8",
+      "interpretation": "observed correlation; internal Oracle root cause not proven"
+    }
+  },
+  "limitations": [
+    "No certificate bundle, private key or real CA file accessed.",
+    "CA validity is not leaf validity.",
+    "Timestamp of manual operations not supplied; received 2026-10-15."
+  ]
+}

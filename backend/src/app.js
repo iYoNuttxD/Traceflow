@@ -1,3 +1,5 @@
+import { createReadinessCheck } from './shared/http/health.js';
+import { testEvidenceStorage } from './modules/testCases/index.js';
 import express from 'express';
 import { env } from './config/env.js';
 import { createCanonicalPathMiddleware } from './middlewares/canonical-path.middleware.js';
@@ -24,9 +26,24 @@ import {
   requireJsonContentType
 } from './shared/security/index.js';
 
-export function createApp({ logger = defaultLogger, readinessCheck, securityConfig = env } = {}) {
+export function createApp({
+  logger = defaultLogger,
+  readinessCheck,
+  lifecycle,
+  securityConfig = env
+} = {}) {
   const app = express();
-  const health = createHealthHandlers({ readinessCheck });
+  const health = createHealthHandlers({
+    readinessCheck: createReadinessCheck({
+      configuration: securityConfig,
+      lifecycle,
+      ...(readinessCheck
+        ? { databaseCheck: readinessCheck }
+        : {
+            storageCheck: () => testEvidenceStorage.checkReadiness()
+          })
+    })
+  });
   const rateLimiters = createRateLimiters({ ...securityConfig, logger });
   const authenticate = createAuthenticationMiddleware({
     cookieName: securityConfig.sessionCookieName
@@ -36,6 +53,14 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.disable('x-powered-by');
   app.set('trust proxy', securityConfig.trustProxy);
   app.use(createRequestContextMiddleware({ logger }));
+  const rejectDraining = (req, res, next) => {
+    if (!lifecycle?.isDraining() || ['/health', '/health/live', '/health/ready'].includes(req.path))
+      return next();
+    res.setHeader('Connection', 'close');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(503).json({ code: 'SERVICE_DRAINING', message: 'Serviço em encerramento.' });
+  };
+  app.use(rejectDraining);
   app.use(createSecurityHeadersMiddleware(securityConfig));
   app.use(createCorsMiddleware(securityConfig));
   app.use('/api', noStoreApiResponses);
@@ -51,7 +76,16 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     githubWebhookController.handle
   );
   app.use(requireJsonContentType);
-  app.use(express.json({ limit: securityConfig.bodyLimit, strict: true }));
+  const jsonBody = express.json({ limit: securityConfig.bodyLimit, strict: true });
+  app.use((req, res, next) => {
+    // The 6 MiB execution parser runs in its authenticated domain router, after CSRF.
+    if (
+      req.method === 'POST' &&
+      /^\/api\/test-cases\/[1-9]\d*\/execution-uploads\/[0-9a-f-]{36}\/complete\/?$/.test(req.path)
+    )
+      return next();
+    return jsonBody(req, res, next);
+  });
 
   app.get('/health', health.health);
   app.get('/health/live', health.live);
@@ -200,6 +234,9 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use('/api', csrf);
   app.use('/api', requireAccountState);
   app.use('/api', createProjectAuthorizationMiddleware());
+  // Authentication/authorization can await DB work across a drain signal. Check again
+  // before a late SSE subscription enters its synchronous controller.
+  app.use('/api', rejectDraining);
   app.use('/api', routes);
   app.use(notFoundMiddleware);
   app.use(createErrorHandler({ logger }));
