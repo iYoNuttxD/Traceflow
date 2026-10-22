@@ -1,0 +1,58 @@
+{
+  "status": "NATIVE_MIGRATOR_SANDBOX_PASS",
+  "proof": {
+    "credentialSha256": "ab20c4e848adf20a2fbdbf8df198957c9be2428425db1848f8e8bbc9bed1222c",
+    "credentialRootOnly": true,
+    "runtimeEnvironmentMasked": true
+  },
+  "before": {
+    "parent": {
+      "ControlGroup": "/system.slice/traceflow-integration-credential-parent-e45d145b.service",
+      "LoadState": "loaded",
+      "ActiveState": "activating"
+    },
+    "child": {
+      "ControlGroup": "/system.slice/traceflow-integration-credential-child-e45d145b.service",
+      "LoadState": "loaded",
+      "ActiveState": "active"
+    }
+  },
+  "securityProperties": [
+    "Type=exec",
+    "BindsTo=traceflow-integration-credential-parent-e45d145b.service",
+    "PartOf=traceflow-integration-credential-parent-e45d145b.service",
+    "User=root",
+    "UMask=0077",
+    "LoadCredentialEncrypted=mysql-migrator:/run/traceflow-integration-credential-lab-e45d145b/encrypted",
+    "RuntimeMaxSec=60",
+    "TimeoutStopSec=15",
+    "KillMode=control-group",
+    "Restart=no",
+    "LimitCORE=0",
+    "MemorySwapMax=0",
+    "MemoryMax=512M",
+    "ProtectSystem=strict",
+    "ProtectHome=yes",
+    "PrivateTmp=yes",
+    "PrivateDevices=yes",
+    "NoNewPrivileges=yes",
+    "ProtectKernelTunables=yes",
+    "ProtectKernelModules=yes",
+    "ProtectKernelLogs=yes",
+    "ProtectControlGroups=yes",
+    "RestrictSUIDSGID=yes",
+    "RestrictRealtime=yes",
+    "LockPersonality=yes",
+    "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
+    "InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence /etc/traceflow-live /etc/nginx /etc/credstore.encrypted -/var/lib/systemd/credential.secret -/var/lib/traceflow-live-cd/gh-config /run/traceflow-integration-credential-lab-e45d145b"
+  ],
+  "selinux": "Enforcing",
+  "productionServicesChanged": false,
+  "databaseUsed": false,
+  "childAfterParentStop": {
+    "ControlGroup": "",
+    "LoadState": "not-found",
+    "ActiveState": "inactive"
+  },
+  "syntheticWorkspaceRemoved": true
+}

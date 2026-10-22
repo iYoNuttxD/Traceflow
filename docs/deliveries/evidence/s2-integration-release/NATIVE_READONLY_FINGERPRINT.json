@@ -1,0 +1,9 @@
+{
+  "status": "ANONYMOUS_READONLY_FINGERPRINT_PASS",
+  "tables": 60,
+  "migrationRecords": 68,
+  "snapshotSha256": "3ce8c1da0c2e4371b3ad17e52adee638731969eebdb2e2cc4443038208a9c520",
+  "plaintextPersisted": false,
+  "sqlWrites": false,
+  "functionSha256": "4c36d422a34d1c3e5c373dedfa67482b12ee41f6fe727de1285e1fd41c0f9340"
+}

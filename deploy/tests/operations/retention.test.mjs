@@ -20,3 +20,14 @@ test('partial failure cannot be reported as successful', async () => {
  const ok=async()=>({count:0});
  await assert.rejects(executeRetention({auth:ok,privacy:ok,projects:async()=>({failed:1}),uploads:ok},true),/RETENTION_INCOMPLETE/);
 });
+test('retention follows the root-selected release and limits its own pool', async () => {
+ const { releaseRoot, commandDatabaseUrl } = await import('../../operations/live_retention.mjs');
+ const root='/opt/traceflow-live/releases/'+'a'.repeat(40)+'-'+'b'.repeat(12)+'/backend';
+ const inspect=()=>({isDirectory:()=>true,isSymbolicLink:()=>false,uid:0,mode:0o755});
+ assert.equal(releaseRoot(root,{inspect,realpath:p=>p}),root+'/');
+ assert.throws(()=>releaseRoot('/tmp/candidate',{inspect,realpath:p=>p}));
+ assert.throws(()=>releaseRoot(root,{inspect:()=>({...inspect(),uid:985}),realpath:p=>p}));
+ assert.throws(()=>releaseRoot(root,{inspect,realpath:()=>'/other'}));
+ const url=new URL(commandDatabaseUrl('mysql://synthetic@localhost/test?connection_limit=5&sslaccept=strict'));
+ assert.equal(url.searchParams.get('connection_limit'),'2');assert.equal(url.searchParams.get('sslaccept'),'strict');
+});

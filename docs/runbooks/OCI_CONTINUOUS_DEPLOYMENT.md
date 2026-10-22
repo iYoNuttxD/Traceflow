@@ -201,3 +201,16 @@ na API e `true` no worker. Não substituir a URL do comando pela URL de pool 3 d
 A CI de pull request faz checkout do head SHA explícito. A CD aceita CI de push ou PR somente
 quando `head_sha`, workflow e os quatro checks pertencem à mesma execução exata da revisão
 promovida. Não utiliza um check verde de outra revisão nem a árvore implícita de merge da PR.
+
+
+Na atualização administrativa, incluir os dois drop-ins `20-cd-schema-guard.conf` de backup e
+retenção e verificar a condição efetiva após `daemon-reload`. Incluir seus hashes na configuração
+protegida da CD. O arquivo `schema-transition-in-progress` é criado exclusivamente pelo receiver;
+não deve ser removido manualmente para forçar outra operação. Uma transição incompleta requer
+verificar primeiro o estado do migrador e do histórico. O monitor alerta quando o marcador
+persiste sem a CD ativa. O timer continua instalado; a condição impede rotinas sobre schema parcial.
+
+Instalar também o runner de retenção revisado e seu seletor `30-cd-release.conf`, apontando
+inicialmente ao backend ativo. Após migração concluída, o seletor acompanha o schema novo e
+não é revertido com o binário anterior. Ele não substitui ExecStart nem reinicia a retenção.
+Provas nativas sanitizadas: `docs/deliveries/evidence/s2-integration-release/NATIVE_*.json`.

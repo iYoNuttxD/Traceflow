@@ -64,3 +64,28 @@ conserva a identidade real do binário e a identidade separada do schema captura
 que o binário antigo finja ter recebido migrations novas. Novos binários com o mesmo schema
 exato continuam elegíveis. Uma falha após DDL não autoriza outro deploy automático: o operador
 precisa revisar o recibo da transição e a cadeia real antes de preparar uma nova operação.
+
+
+A unidade migradora é separada para limitar a credencial, mas usa `BindsTo` e `PartOf` da
+unidade CD. Não se usa `After` do pai oneshot: ele ainda está ativando enquanto aguarda o
+filho. Um ensaio nativo confirmou que parar somente o pai, sem esse vínculo, deixava o filho
+ativo; a configuração vinculada encerrou ambos. A falha também solicita stop exclusivo do
+migrador desta execução, nunca KILL geral no banco. O sandbox efetivo, credencial sintética e
+SELinux Enforcing foram exercitados na VM sem iniciar serviços da aplicação.
+
+Um marcador próprio da CD impede que backup e retenção iniciem durante uma transição de
+schema. Não é o guard legado. As duas unidades recebem somente `ConditionPathExists` para
+esse marcador. A retenção deve estar inativa antes da parada de API/worker. O marcador é
+exclusivo e somente a execução proprietária pode removê-lo após conclusão ou recuperação
+comprovada; falha parcial de DDL o preserva e gera alerta de intervenção.
+
+Antes e depois do DDL, com escritores parados, um dump SELECT-only em memória anônima
+(`memfd`, limite 512 MiB, swap/core desabilitados) verifica os hashes e contagens de todos os
+dados anteriores e os hashes dos registros históricos completos do Prisma. Não persiste SQL
+ou valores de negócio. O caminho real foi exercitado na OCI com a credencial SELECT existente.
+Uma divergência impede a promoção. Os resultados privados ficam vinculados por hash ao recibo.
+
+A retenção seleciona o WorkingDirectory da release sob custódia root, usa pool de comando 2
+e desconecta os clientes do aplicativo selecionado. Após schema completo, ela acompanha o
+contrato novo mesmo se o binário anterior voltar. API e worker podem voltar sem fazer a
+retenção ignorar as tabelas acrescentadas. Nenhum job de retenção é executado por este ensaio.

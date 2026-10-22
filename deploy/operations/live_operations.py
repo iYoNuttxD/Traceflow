@@ -414,6 +414,10 @@ def monitor(cfg):
     last=STATE/'last-backup.json'
     metrics['backupAgeHours']=(now-dt.datetime.fromisoformat(json.loads(last.read_bytes())['finishedAt']).timestamp())/3600 if last.exists() else None
     if metrics['backupAgeHours'] is None or metrics['backupAgeHours']>26:failures.append('BACKUP_STALE')
+    guard=CD_CURRENT.with_name('schema-transition-in-progress');metrics['schemaTransitionPending']=guard.exists()
+    if guard.exists():
+        state=run(['systemctl','show','traceflow-live-cd','--property=ActiveState','--value']).decode().strip()
+        if state not in ('activating','active'):failures.append('SCHEMA_TRANSITION_INCOMPLETE')
     previous=json.loads((STATE/'metrics.json').read_bytes()) if (STATE/'metrics.json').exists() else {}
     metrics['consecutiveFailures']={c:previous.get('consecutiveFailures',{}).get(c,0)+1 for c in failures}
     metrics['failures']=failures

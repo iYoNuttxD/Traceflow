@@ -40,7 +40,7 @@ def execute(root,check_only=False):
         privileges.update(p.strip() for p in match[1].split(','))
     need(privileges==required,'MIGRATOR_PRIVILEGES')
     url=urllib.parse.urlunsplit(('mysql',urllib.parse.quote(user,safe='')+':'+urllib.parse.quote(password,safe='')+'@'+HOST+':3306','/'+SCHEMA,urllib.parse.urlencode({'connection_limit':2,'pool_timeout':5,'sslaccept':'strict','sslcert':CA}),''))
-    env={k:v for k,v in os.environ.items() if k not in ('DIRECT_URL','SHADOW_DATABASE_URL','PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK')}
+    env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8'}
     env.update(DATABASE_URL=url,NODE_ENV='production',HOME='/nonexistent',CHECKPOINT_DISABLE='1')
     def drift(schema):
         result=subprocess.run(['/usr/bin/node',str(cli),'migrate','diff','--from-schema-datasource',str(schema),'--to-schema-datamodel',str(schema),'--exit-code'],cwd=root/'backend',env=env,capture_output=True,timeout=45)

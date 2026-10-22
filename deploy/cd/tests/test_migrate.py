@@ -18,7 +18,7 @@ class MigratorTests(unittest.TestCase):
   deployment=deployment or subprocess.CompletedProcess([],0,stdout=b'Applied successfully',stderr=b'')
   current=credential.parent/'current.json';current.write_text(json.dumps({'currentRelease':str(root)}))
   log=io.StringIO()
-  with patch.object(m,'CURRENT',current),patch.object(m,'RELEASES',root.parent),patch.object(m.os,'geteuid',return_value=0),patch.object(Path,'stat',custody),patch.dict(os.environ,{'CREDENTIALS_DIRECTORY':str(credential.parent),'PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK':'1'}),patch.object(m.subprocess,'run',side_effect=[connection,subprocess.CompletedProcess([],0,stdout=b'No difference',stderr=b'')] if check_only else [connection,deployment,subprocess.CompletedProcess([],0,stdout=b'No difference',stderr=b'')]) as run,contextlib.redirect_stdout(log):
+  with patch.object(m,'CURRENT',current),patch.object(m,'RELEASES',root.parent),patch.object(m.os,'geteuid',return_value=0),patch.object(Path,'stat',custody),patch.dict(os.environ,{'CREDENTIALS_DIRECTORY':str(credential.parent),'PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK':'1','PRISMA_SCHEMA_ENGINE_BINARY':'/tmp/untrusted-engine'}),patch.object(m.subprocess,'run',side_effect=[connection,subprocess.CompletedProcess([],0,stdout=b'No difference',stderr=b'')] if check_only else [connection,deployment,subprocess.CompletedProcess([],0,stdout=b'No difference',stderr=b'')]) as run,contextlib.redirect_stdout(log):
    m.execute(root,check_only=check_only)
   return run,log.getvalue()
  def test_tls_exact_identity_cli_and_no_credentials_in_arguments_or_log(self):
@@ -27,7 +27,7 @@ class MigratorTests(unittest.TestCase):
    self.assertEqual(run.call_count,3);mysql=run.call_args_list[0].args[0];cli=run.call_args_list[1]
    self.assertIn('--ssl-mode=VERIFY_IDENTITY',mysql);self.assertIn('migrate',cli.args[0]);self.assertIn('deploy',cli.args[0])
    self.assertNotIn('synthetic-not-production',' '.join(mysql+cli.args[0])+output)
-   environment=cli.kwargs['env'];self.assertNotIn('PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK',environment)
+   environment=cli.kwargs['env'];self.assertNotIn('PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK',environment);self.assertNotIn('PRISMA_SCHEMA_ENGINE_BINARY',environment)
    self.assertIn('connection_limit=2',environment['DATABASE_URL']);self.assertIn('sslaccept=strict',environment['DATABASE_URL'])
    self.assertEqual(json.loads(output)['status'],'PRISMA_DEPLOY_PASS')
  def test_mysql_identity_or_tls_failure_stops_before_prisma(self):

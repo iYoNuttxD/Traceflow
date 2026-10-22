@@ -13,9 +13,9 @@
     "backendIntegration": 179,
     "githubHealthUploads": 92,
     "frontendAffected": 70,
-    "cd": 56,
+    "cd": 65,
     "operations": 25,
-    "retention": 3,
+    "retention": 4,
     "ciPolicy": 59
   },
   "schemaDrift": "NONE; negative control exit 2",
@@ -26,7 +26,7 @@
   "nativeEngine": "MySQL 26.7.0 on macOS ARM64",
   "cloudEngine": "26.7.0-cloud; grants/settings/own-query interruption verified, new DDL NOT_EXECUTED",
   "productionMutation": "No schema change or promotion; only private diagnostic connections and their own temporary query interruption",
-  "ci": "NOT_EXECUTED_YET",
+  "ci": "Previous incomplete PR runs canceled after a proven containment defect; definitive head pending",
   "arm64OracleLinuxBuild": "NOT_EXECUTED_YET",
   "demoSchemaUpgrade": "83\u219284 PASS; no production import; Health source unchanged",
   "diffCheck": "No whitespace errors in new implementation changes; inherited EOF blank lines in original migrations/docs/systemd units preserved"

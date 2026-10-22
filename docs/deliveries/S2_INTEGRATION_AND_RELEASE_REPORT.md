@@ -58,14 +58,18 @@ não foram alterados nesta preparação. Não há dependência de ledgers/contro
 ## Validação
 
 [Evidências sanitizadas](evidence/s2-integration-release/LOCAL_VALIDATION.json): 66 testes de
-lifecycle/conexões, 179 de integração backend, 92 GitHub/Health/uploads, 70 frontend, 56 CD,
-25 operações, 3 retenção e 59 da política CI. Lint/formatação e scanner de segredos passaram;
+lifecycle/conexões, 179 de integração backend, 92 GitHub/Health/uploads, 70 frontend, 65 CD,
+25 operações, 4 retenção e 59 da política CI. Lint/formatação e scanner de segredos passaram;
 auditorias npm de produção: zero vulnerabilidades em ambos os pacotes. Os dois URLs falsos
 com senha de testes de retenção foram substituídos por URLs sem senha, sem alterar o scanner.
 
 A CI completa da revisão candidata, o build reproduzível Oracle Linux ARM64, a aprovação de
 produção, o backup atual/restauração e a publicação ainda não foram executados nesta revisão.
-Não foram simulados recibos produtivos.
+Não foram simulados recibos produtivos. A interrupção do migrador e o sandbox com credencial
+sintética foram provados na OCI. A captura de hashes por memória anônima também passou por
+leitura real: 60 tabelas de domínio e 68 registros históricos, sem plaintext persistente.
+A retenção foi ajustada para acompanhar o schema selecionado, com pool 2 e sem reiniciar jobs;
+backup/retenção recebem uma condição para impedir execução durante DDL parcial.
 
 ## Pendências e aceite
 
