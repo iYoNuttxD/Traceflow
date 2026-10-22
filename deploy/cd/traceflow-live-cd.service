@@ -1,0 +1,35 @@
+[Unit]
+Description=TraceFlow pull-only human-approved signed CD
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Environment=GH_CONFIG_DIR=/var/lib/traceflow-live-cd/gh-config
+Environment=XDG_CACHE_HOME=/var/lib/traceflow-live-cd/cache
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/traceflow-live-cd/receiver.py
+LoadCredentialEncrypted=mysql-backup:/etc/credstore.encrypted/traceflow-live-mysql-backup
+TimeoutStartSec=900
+TimeoutStopSec=240
+KillMode=control-group
+Restart=no
+LimitCORE=0
+MemorySwapMax=0
+MemoryMax=1G
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/traceflow-live-ops/backup.lock /var/lib/traceflow-live-cd /var/www/traceflow-live-releases /var/www/traceflow-live-deploy-status /opt/traceflow-live/releases /etc/systemd/system /etc/nginx/conf.d/traceflow.conf /etc/nginx/traceflow-live/proxy.conf /run/nginx.pid /var/log/nginx/error.log /var/log/nginx/traceflow-access.log
+InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardError=null

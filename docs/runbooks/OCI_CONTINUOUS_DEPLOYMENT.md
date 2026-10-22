@@ -66,9 +66,15 @@ comando somente no MySQL isolado. **Não afirmar que migrations novas em produç
 já estão automatizadas.** Nunca desbloquear conta ou mudar contratos de backup
 apenas para obter PASS; não publicar automaticamente funcionalidades da main.
 
-Falha de candidata: serviços/ingress anteriores permanecem. Falha após cutover:
-restaura drop-ins e ingress preservados, reinicia a versão anterior, verifica sua
-readiness e encerra candidata. Não reverte schema nem restaura banco. Qualquer
+Falha de candidata: serviços/ingress anteriores permanecem. A transação marca
+as tentativas antes de cada efeito: escrita do ingress, reload, drop-ins, restart
+de cada serviço e publicação do estado. Se nginx -t recusar antes do primeiro
+reload, restaura/valida somente os arquivos de ingress; não reinicia API/worker,
+não executa reload e não regrava o estado. Reload tentado é tratado como resultado
+incerto: restaura e recarrega o ingress anterior. Restaura os drop-ins alterados e
+reinicia somente os serviços cujo restart foi tentado; após troca real valida a
+readiness anterior. Recibo inclui recuperação complete/incomplete e códigos
+sanitizados, preservando a causa original quando a recuperação falha. Não reverte schema nem restaura banco. Qualquer
 falha no rollback exige intervenção e preservação da transação. SIGKILL/perda de
 VM pode interromper a transação: consultar os arquivos antes de ações manuais,
 sem iniciar novo deploy por tentativa. Não usar ferramentas antigas de ativação.
@@ -94,6 +100,34 @@ sem iniciar novo deploy por tentativa. Não usar ferramentas antigas de ativaç�
   a fila antiga ou fabricar marcadores. Nenhuma rotina de backup é substituída.
 - RPO alvo 24h/RTO planejado 4h continuam os da S2-10; RTO integral não medido.
   Não criar backup redundante para o deploy desta mesma versão.
+
+## Sandbox Nginx e atualização restrita
+
+A unidade versionada está em `deploy/cd/traceflow-live-cd.service`. Mantém
+`ProtectSystem=strict` e todos os controles anteriores, acrescentando somente
+`/run/nginx.pid`, `/var/log/nginx/error.log` (log padrão aberto pelo binário) e
+`/var/log/nginx/traceflow-access.log` (log configurado) a `ReadWritePaths`.
+Os arquivos devem existir com propriedade/modo/contexto da política instalada;
+a ausência deve recusar a unidade, sem liberação de diretórios inteiros.
+
+Para atualizar uma instalação existente, preservar os três arquivos anteriores
+(unidade, receiver e contract), conferir SHA/custódia, segurar os locks de CD e
+backup e recusar operação em curso. Substituir somente os arquivos revisados e
+executar daemon-reload; não executar novamente `install.py`, não reiniciar a
+aplicação e não reenviar requests consumidos. Conferir propriedades efetivas.
+
+Antes de nova promoção, testar nginx -t em unidades transitórias com as mesmas
+restrições efetivas, inclusive credencial, limite de memória e caminhos. Para
+validar a candidata sem alterar roteamento, usar BindReadOnlyPaths de cópias das
+duas configurações exclusivamente no namespace do teste, sem iniciar Nginx.
+Testar também a configuração restaurada e o reload da configuração ativa sem
+trocar release, comparando hashes do ingress/estado e PIDs da API/worker.
+SELinux deve permanecer Enforcing. Preservar provas e journal sanitizados.
+
+Extrações/frontend recusados só podem ser renomeados para nomes exclusivos após
+conferir inventário, hashes, recibo terminal e ausência de referências de serviços,
+processos e ingress. Preservar inode, arquivos, dono, modos e contexto; nunca
+apagar/reescrever histórico para permitir uma nova extração.
 
 ## Variáveis e segredos (sem valores)
 

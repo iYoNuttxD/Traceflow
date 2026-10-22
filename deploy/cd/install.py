@@ -24,6 +24,7 @@ def install(source,gh_archive,workflow):
   need(not Path(name).exists(),'EXCLUSIVE_INSTALLATION_NO_RETRY')
  authority=['.github/workflows/oci-cd.yml']+['deploy/cd/'+name for name in ['package.py','build.sh','ci_gate.py','staging.sh','Dockerfile']]
  for name in authority:need((source.parents[1]/name).is_file(),'AUTHORITY_SOURCE_MISSING')
+ unit=(source/'traceflow-live-cd.service').read_text()
  nginx=Path('/etc/nginx/conf.d/traceflow.conf');proxy=Path('/etc/nginx/traceflow-live/proxy.conf');original=nginx.read_text()
  need(original.count('root /var/www/traceflow-live;')==1 and '/deploy-status/' not in original,'NGINX_BASELINE')
  need(proxy.read_bytes().count(b'proxy_pass http://127.0.0.1:3001;')==1,'PROXY_BASELINE')
@@ -63,42 +64,6 @@ def install(source,gh_archive,workflow):
  fingerprints={str(p):{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'uid':p.stat().st_uid,'gid':p.stat().st_gid,'mode':p.stat().st_mode&0o7777} for p in protected}
  cfg={'installedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'protectedFiles':fingerprints,'authorityFiles':{name:hashlib.sha256((source.parents[1]/name).read_bytes()).hexdigest() for name in authority},'formatVersion':1,'currentRelease':str(BASELINE),'frontendRoot':'/var/www/traceflow-live','nginxSha256':hashlib.sha256(nginx.read_bytes()).hexdigest(),'proxySha256':hashlib.sha256(proxy.read_bytes()).hexdigest(),'trustedWorkflowShas':[workflow],'gh':str(tool/'gh')}
  cfgpath.write_text(json.dumps(cfg,sort_keys=True)+'\n');cfgpath.chmod(0o600)
- unit='''[Unit]
-Description=TraceFlow pull-only human-approved signed CD
-After=network-online.target
-Wants=network-online.target
-[Service]
-Type=oneshot
-User=root
-UMask=0077
-Environment=GH_CONFIG_DIR=/var/lib/traceflow-live-cd/gh-config
-Environment=XDG_CACHE_HOME=/var/lib/traceflow-live-cd/cache
-ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/traceflow-live-cd/receiver.py
-LoadCredentialEncrypted=mysql-backup:/etc/credstore.encrypted/traceflow-live-mysql-backup
-TimeoutStartSec=900
-TimeoutStopSec=240
-KillMode=control-group
-Restart=no
-LimitCORE=0
-MemorySwapMax=0
-MemoryMax=1G
-NoNewPrivileges=yes
-PrivateTmp=yes
-PrivateDevices=yes
-ProtectHome=yes
-ProtectSystem=strict
-ReadWritePaths=/var/lib/traceflow-live-ops/backup.lock /var/lib/traceflow-live-cd /var/www/traceflow-live-releases /var/www/traceflow-live-deploy-status /opt/traceflow-live/releases /etc/systemd/system /etc/nginx/conf.d/traceflow.conf /etc/nginx/traceflow-live/proxy.conf
-InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-ProtectControlGroups=yes
-RestrictSUIDSGID=yes
-RestrictRealtime=yes
-LockPersonality=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-StandardError=null
-'''
  timer='''[Unit]
 Description=TraceFlow outbound-only approved release check
 [Timer]

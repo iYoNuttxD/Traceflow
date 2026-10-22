@@ -60,6 +60,9 @@ class Host:
   self.old_proxy=self.proxy.read_bytes();self.old_nginx=self.nginx.read_bytes();self.frontend=FRONTENDS/root.name
   self.previous=Path(cfg['currentRelease']);self.previous_state={k:cfg[k] for k in CURRENT_KEYS}
   self.candidate=Path('/etc/systemd/system/traceflow-live-cd-candidate.service')
+  # Mark attempts before side effects: even a failed command may have taken effect.
+  self.routing_changed=False;self.reload_attempted=False;self.changed_units=set();self.restarted_units=set();self.state_attempted=False
+  self.recovery={'status':'not-needed'}
  def unit(self,role):
   return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\nExecStart=\nExecStart=/usr/bin/node '+str(self.root/'backend/src'/('server.js' if role=='api' else 'github-worker.js'))+'\n'
  def preflight(self):
@@ -114,12 +117,17 @@ class Host:
  def route_candidate(self):
   valid_window(self.request,self.cfg)
   need(self.old_proxy.count(b'proxy_pass http://127.0.0.1:3001;')==1,'PROXY_CONTRACT')
+  need(self.old_nginx.count(('root '+self.cfg['frontendRoot']+';').encode())==1,'FRONTEND_ROOT_CONTRACT')
+  self.routing_changed=True
   self.proxy.write_bytes(self.old_proxy.replace(b'proxy_pass http://127.0.0.1:3001;',b'proxy_pass http://127.0.0.1:3002;',1))
   self.nginx.write_bytes(self.old_nginx.replace(('root '+self.cfg['frontendRoot']+';').encode(),('root '+str(self.frontend)+';').encode()))
-  run(['nginx','-t']);run(['systemctl','reload','nginx'])
+  run(['nginx','-t']);self.reload_attempted=True;run(['systemctl','reload','nginx'])
  def promote_services(self):
-  for role,p in self.units.items():p.parent.mkdir(mode=0o755,exist_ok=True);p.write_text(self.unit(role));run(['restorecon',p])
-  run(['systemctl','daemon-reload']);run(['systemctl','restart','traceflow-live-api'],timeout=90);run(['systemctl','restart','traceflow-live-worker'],timeout=120)
+  for role,p in self.units.items():
+   self.changed_units.add(role);p.parent.mkdir(mode=0o755,exist_ok=True);p.write_text(self.unit(role));run(['restorecon',p])
+  run(['systemctl','daemon-reload'])
+  for role,timeout in (('api',90),('worker',120)):
+   self.restarted_units.add(role);run(['systemctl','restart','traceflow-live-'+role],timeout=timeout)
  def official_ready(self):
   self.ready(3001)
   for unit in ('traceflow-live-api','traceflow-live-worker'):run(['systemctl','is-active',unit])
@@ -135,15 +143,25 @@ class Host:
   run(['systemctl','is-active','traceflow-live-backup.timer','traceflow-live-monitor.timer','traceflow-live-retention.timer'])
  def commit(self):
   value={'currentRelease':str(self.root),'frontendRoot':str(self.frontend),'nginxSha256':sha(self.nginx),'proxySha256':sha(self.proxy)}
-  atomic(STATE/'current.json',value);self.cfg.update(value)
+  self.state_attempted=True;atomic(STATE/'current.json',value);self.cfg.update(value)
  def restore_previous(self):
-  atomic(STATE/'current.json',self.previous_state);self.cfg.update(self.previous_state)
-  self.proxy.write_bytes(self.old_proxy);self.nginx.write_bytes(self.old_nginx)
-  for path,data in self.old.items():
-   p=Path(path)
+  self.recovery={'status':'started','routingChanged':self.routing_changed,'reloadAttempted':self.reload_attempted,'restartedUnits':sorted(self.restarted_units),'changedDropins':sorted(self.changed_units),'stateAttempted':self.state_attempted}
+  if self.state_attempted:atomic(STATE/'current.json',self.previous_state);self.cfg.update(self.previous_state)
+  if self.routing_changed:self.proxy.write_bytes(self.old_proxy);self.nginx.write_bytes(self.old_nginx)
+  for role in sorted(self.changed_units):
+   p=self.units[role];data=self.old[str(p)]
    if data is None:p.unlink(missing_ok=True)
    else:p.write_bytes(data)
-  run(['systemctl','daemon-reload']);run(['systemctl','restart','traceflow-live-api'],timeout=90);run(['systemctl','restart','traceflow-live-worker'],timeout=120);run(['nginx','-t']);run(['systemctl','reload','nginx'])
+  if self.changed_units:run(['systemctl','daemon-reload'])
+  for role,timeout in (('api',90),('worker',120)):
+   if role in self.restarted_units:run(['systemctl','restart','traceflow-live-'+role],timeout=timeout)
+  if self.routing_changed:run(['nginx','-t'])
+  if self.reload_attempted:run(['systemctl','reload','nginx'])
+  return self.reload_attempted or bool(self.restarted_units)
+ def recovery_complete(self):self.recovery['status']='complete'
+ def recovery_failed(self,original,recovery):
+  def code(error):return str(error) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(error)) else 'UNCLASSIFIED_FAILURE'
+  self.recovery.update(status='incomplete',originalFailure=code(original),recoveryFailure=code(recovery))
  def previous_ready(self):self.ready(3001);run(['systemctl','is-active','traceflow-live-worker'])
  def stop_candidate(self):
   if not self.candidate.exists():return
@@ -170,6 +188,7 @@ def process(release,cfg):
  run([cfg['gh'],'attestation','verify',work/'request.json','--bundle',work/'request.sigstore.json','--repo',REPO,'--signer-workflow',REPO+'/'+WORKFLOW,'--source-ref','refs/heads/main','--source-digest',req['workflowSha'],'--deny-self-hosted-runners','--cert-oidc-issuer','https://token.actions.githubusercontent.com'],timeout=90)
  # Consumed exactly once, before any installation. Refusals/failures are terminal, never retried.
  atomic(marker,{'status':'STARTED','tag':tag,'appSha':req['appSha'],'at':dt.datetime.now(dt.timezone.utc).isoformat()})
+ host=None
  result={'runId':req['runId'],'appSha':req['appSha'],'packageSha256':req['packageSha256'],'status':'FAILED','rollback':'not-needed','workflowSha':req['workflowSha'],'manifestSha256':req['manifestSha256']}
  try:
   fetch(assets['release.tar.gz']['browser_download_url'],work/'release.tar.gz')
@@ -180,6 +199,7 @@ def process(release,cfg):
  except BaseException as error:
   result.update(code=str(error) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(error)) else 'DEPLOY_FAILED',rollback='inspect-preserved-transaction')
  finally:
+  if host is not None:result['recovery']=host.recovery
   result['finishedAt']=dt.datetime.now(dt.timezone.utc).isoformat();atomic(marker,result);atomic(STATUS/(str(req['runId'])+'.json'),result,0o644)
  print(json.dumps(result));need(result['status']=='SUCCESS','PROMOTION_FAILED_NO_RETRY')
 
