@@ -99,3 +99,13 @@ A revisão automática da PR identificou um fechamento incompleto de imports no 
 diagnóstico. Sua allowlist passou a incluir sete arquivos já existentes do Prisma Client e
 logger; o inventário histórico não foi alterado, nem qualquer controlador legado instalado.
 Os testes específicos de empacotamento/execução offline foram executados após essa correção.
+
+O primeiro CI completo da revisão integrada executou 3.366 testes backend com sucesso e revelou
+três incompatibilidades de integração. O readiness passou a usar SQL tagged/parametrizado,
+reduzindo os pontos Unsafe de três para dois; o mock HTTP passou a verificar Cache-Control.
+A regra de tokens distingue somente os três identificadores internos de fencing, com escopo
+modelo/campo e controles negativos para Session/User. A API não expõe o lease do upload e
+continua exigindo sessão, CSRF e titularidade. Os cinco arquivos afetados passaram em 88 testes.
+O Supply Chain atingiu seu limite após dois installs de sete minutos e uma consulta de audit
+pendente. Foram removidos apenas os audits implícitos redundantes do install; audits explícitos
+e política de recusa permanecem obrigatórios, com falha de transporte limitada a 45 segundos.

@@ -19,6 +19,21 @@ const productionFiles = [...sourceFiles('backend/src'), ...sourceFiles('frontend
 const read = (path) => readFileSync(path, 'utf8');
 const name = (path) => relative(root, path).replaceAll('\\', '/');
 
+// Fencing/claim identifiers are not bearer credentials and never grant user access.
+// Keep exceptions model-qualified: Session.claimToken and User.leaseToken remain forbidden.
+const internalReservations = new Set([
+  'ProjectPurgeStorageCleanup.claimToken',
+  'GitHubArtifactEvent.claimToken',
+  'EvidenceUpload.leaseToken'
+]);
+function unhashedCredentialFields(schema) {
+  return [...schema.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)].flatMap(([, model, body]) =>
+    [...body.matchAll(/^\s+(\w*token\w*)\s+(String)(\??)/gim)]
+      .map(([, field]) => `${model}.${field}`)
+      .filter((field) => !field.endsWith('Hash') && !internalReservations.has(field))
+  );
+}
+
 describe('anexo de arquitetura — verificações estáticas', () => {
   it('ARQ-02: nenhum mock, fake, stub, dummy ou lorem no código de produção', () => {
     const offenders = productionFiles
@@ -39,25 +54,31 @@ describe('anexo de arquitetura — verificações estáticas', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('ARQ-19: SQL Unsafe só nos três pontos com constantes ou inteiros validados', () => {
+  it('ARQ-19: SQL Unsafe restrito aos dois pontos de interrupção com inteiros validados', () => {
     const offenders = sourceFiles('backend/src')
       .filter((path) => /\$(queryRawUnsafe|executeRawUnsafe)\s*\(/.test(read(path)))
       .map(name)
       .sort();
     expect(offenders).toEqual([
       'backend/src/database/recovery-prisma.js',
-      'backend/src/database/transaction-guard.js',
-      'backend/src/shared/http/health.js'
+      'backend/src/database/transaction-guard.js'
     ]);
   });
 
-  it('ARQ-23: o schema não persiste token em claro, só hashes e o identificador interno de reserva', () => {
+  it('ARQ-23: credenciais persistidas somente por hash; reservas internas com escopo exato', () => {
     const schema = read(join(root, 'backend/prisma/schema.prisma'));
-    const tokenFields = [...schema.matchAll(/^\s+(\w*token\w*)\s+(\w+)(\??)/gim)]
-      .filter(([, , type]) => type === 'String')
-      .map(([, field]) => field);
-    expect(tokenFields.length).toBeGreaterThan(0);
-    for (const field of tokenFields) expect(field).toMatch(/Hash$|^claimToken$/);
+    expect([...schema.matchAll(/^\s+\w*token\w*\s+String/gim)].length).toBeGreaterThan(0);
+    expect(unhashedCredentialFields(schema)).toEqual([]);
+  });
+
+  it('ARQ-23: nomes de reserva não autorizam tokens em modelos de autenticação', () => {
+    const invalid =
+      'model Session {\n  token String\n  claimToken String?\n}\nmodel User {\n  leaseToken String?\n  tokenHash String\n}';
+    expect(unhashedCredentialFields(invalid)).toEqual([
+      'Session.token',
+      'Session.claimToken',
+      'User.leaseToken'
+    ]);
   });
 
   it('ARQ-06: Octokit só no módulo GitHub', () => {

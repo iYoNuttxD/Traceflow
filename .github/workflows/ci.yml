@@ -298,6 +298,10 @@ jobs:
     name: Supply Chain
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Dedicated audits below remain mandatory; fail closed on registry transport errors.
+      NPM_CONFIG_FETCH_RETRIES: "0"
+      NPM_CONFIG_FETCH_TIMEOUT: "45000"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -315,11 +319,11 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Test audit policy
         run: node --test scripts/check-npm-audit.test.mjs

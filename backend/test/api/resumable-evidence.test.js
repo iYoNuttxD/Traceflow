@@ -169,6 +169,8 @@ describe('OCI-04.1 authenticated resumable evidence HTTP', () => {
     );
     expect(await prisma.testEvidence.count()).toBe(0);
     expect((await status(f)).body.confirmedBytes).toBe(small.length);
+    expect(f.response.body).not.toHaveProperty('leaseToken');
+    expect((await status(f)).body).not.toHaveProperty('leaseToken');
   });
   it('rejects a final checksum mismatch and disguised content using canonical validation', async () => {
     const f = await begin(await fixture(), [{ ...descriptor(small), sha256: '1'.repeat(64) }]);

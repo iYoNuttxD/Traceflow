@@ -173,8 +173,8 @@ describe('read-only bounded readiness', () => {
       (name) => /^\d/.test(name)
     );
     let rows = [];
-    const query = vi.fn(async (sql) => (sql.includes('_prisma_migrations') ? rows : []));
-    const client = { $queryRawUnsafe: query };
+    const query = vi.fn(async (sql) => (sql.join('').includes('_prisma_migrations') ? rows : []));
+    const client = { $queryRaw: query };
     expect(await checkDatabaseReadiness(client)).toBe(false);
     rows = names.map((migration_name) => ({
       migration_name,
@@ -184,7 +184,11 @@ describe('read-only bounded readiness', () => {
     expect(await checkDatabaseReadiness(client)).toBe(true);
     rows.push({ migration_name: 'failed', finished_at: null, rolled_back_at: null });
     expect(await checkDatabaseReadiness(client)).toBe(false);
-    expect(query.mock.calls.every(([sql]) => /^SELECT /.test(sql))).toBe(true);
+    expect(
+      query.mock.calls.every(
+        ([sql, ...values]) => /^SELECT /.test(sql.join('')) && values.length === 0
+      )
+    ).toBe(true);
   });
   it('requires existing private storage and preserves symlink rejection without writes', async () => {
     const root = await mkdtemp(join(await realpath(tmpdir()), 'oci03-storage-'));

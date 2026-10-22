@@ -89,3 +89,8 @@ A retenção seleciona o WorkingDirectory da release sob custódia root, usa poo
 e desconecta os clientes do aplicativo selecionado. Após schema completo, ela acompanha o
 contrato novo mesmo se o binário anterior voltar. API e worker podem voltar sem fazer a
 retenção ignorar as tabelas acrescentadas. Nenhum job de retenção é executado por este ensaio.
+
+A autoridade revisada inclui também `.github/workflows/ci.yml`: a promoção não deve aceitar
+silenciosamente uma mudança nos comandos que geram os checks obrigatórios. No job Supply Chain,
+instalações não repetem o audit implícito; os dois audits explícitos continuam obrigatórios e
+falham se o registro não responder. O timeout de rede é limitado, sem transformar erro em PASS.
