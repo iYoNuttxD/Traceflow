@@ -688,8 +688,11 @@ mantêm as ressalvas. Em23/10: 93 testes CD PASS e prova nativa da correção de
 --pipe → saída exclusiva root/0600 aberta pelo systemd, mantendo o sandbox e SELinux.
 PR #33 integrada com dispensa explícita de revisão independente e checks verdes; proteção
 restabelecida. Receptor instalado/verificado, preflight HeatWave real PASS em5,3 s e
-backup diário de23/10 restaurado em7,3 s. Novo GO produtivo ainda pendente.
-Nenhuma nova instalação, migration ou promoção. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
+backup diário de23/10 restaurado em7,3 s. Após o novo GO, a execução40039599837 foi recusada
+no npm audit ARM64 (body-parser1.20.8 e zod4.4.3 high;2 moderate adicionais), antes do job
+production. Nenhuma custódia migradora, DDL, parada ou cutover; leitura final às23:29 UTC
+confirma b9c1beb9/68 saudável e operações preservadas. Sem retry ou gate relaxado; candidato
+integrado ainda não publicado. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 

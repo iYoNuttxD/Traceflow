@@ -1,8 +1,8 @@
 # Integração dos Ciclos 1 e 2 e publicação OCI
 
-**Estado em 23/10/2026: PRONTO PARA NOVO GO PRODUTIVO — transporte corrigido, instalado e preflight migrador real PASS. Produção ainda b9c1beb9/68; versão integrada não publicada.**
-Este relatório registra a integração, as homologações e as duas execuções produtivas autorizadas.
-A execução adicional foi recusada no preflight, sem DDL ou cutover. A versão integrada não foi publicada.
+**Estado final em23/10/2026 23:29 UTC: BLOCKED — gate de segurança do build recusou o candidato. Correção do preflight instalada e comprovada; produção b9c1beb9/68 saudável, sem DDL ou cutover nesta execução.**
+Este relatório preserva a integração, as homologações e o histórico das execuções autorizadas.
+A execução mais recente foi recusada no build, antes do job de produção; a versão integrada não foi publicada.
 
 ## Código e proveniência
 
@@ -346,3 +346,61 @@ preserva o schema84; a compatibilidade funcional bidirecional integral continua 
 S2-08 IaC permanece PARTIAL; S2-09 com migrations produtivas continua PARTIAL até a promoção.
 O OAuth antecipado foi bloqueado pela revisão automática antes da ação e foi adiado para
 os testes pós-GO, conforme o escopo; nenhuma sessão foi criada nesse teste antecipado.
+
+## Publicação autorizada em23/10 — execução em andamento
+
+O operador concedeu o novo GO: “GO — uma publicação, escritores excluídos até o encerramento”.
+Abrange o mesmo candidato81718c29/pacotea76e39a5, custódia temporária, parada coordenada e16
+migrations. Mantidos: uma execução, aprovação humana de production e intervenção em DDL parcial.
+
+Às23:24:42 UTC, leitura atual comprovou b9c1beb9/68/61tabelas/116FKs, HTTPS/readiness,24
+fingerprints e timers íntegros; nenhuma credencial migradora temporária. Backup de23/10
+com17,409h, vigente com readback e restore real já comprovados, sem nova captura.
+
+Plano protegido exclusivo `aa5b054d7cccd3e535d67bd2187a1132215300a095762df6bb869e4d508d0500`,
+emitido23:25:23 UTC, válido até24/10 03:25:23 UTC, com os mesmos hashes de homologação
+e o restore do backup diário. Os documentos anteriores permanecem intactos.
+[CD40039599837](https://github.com/iYoNuttxD/Traceflow/actions/runs/40039599837) disparada
+uma vez às23:25:33 UTC na main d0f577fc. Build/homologação em andamento; nenhuma migration
+ou promoção declarada nesta atualização. A proteção da main está ativa, uma revisão e sem bypass.
+
+## Resultado da execução40039599837 — BLOCKED, produção preservada
+
+A execução autorizada [40039599837](https://github.com/iYoNuttxD/Traceflow/actions/runs/40039599837)
+foi encerrada sem retry. O ensaio CD passou nos93 testes; o teste isolado real de schema84,
+API e worker também passou. Em23/10 às23:27:59 UTC, a primeira montagem ARM64 foi interrompida
+por `npm --prefix backend audit --omit=dev --audit-level=high` (exit1). Não se declara build
+reproduzível completo nem comparação de artefato desta execução: ela parou antes da emissão.
+
+Causa específica: **body-parser1.20.8 e zod4.4.3 com vulnerabilidades high**; adicionalmente
+ip-address10.7.3 e nodemailer10.0.9 com moderate. Total:2 high e2 moderate. Os alertas high:
+
+- [GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828): body-parser <1.20.9;
+  correção1.20.9, advisory publicado22/10 e atualizado23/10.
+- [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5): zod <4.6.6;
+  correção4.6.6, revisão/atualização23/10.
+
+Os PASSs anteriores de CI/audit permanecem evidência histórica, não substituem esse gate atual.
+Nenhum audit foi ignorado, flexibilizado ou convertido em PASS. Corrigir dependências exige
+novo SHA/pacote e validação correspondente; o pacotea76e39a5 não pode ser alterado mantendo a
+identidade aprovada. Conforme a regra de parada diante de falha nova, não se iniciou essa
+correção de aplicação nem outra execução automaticamente.
+
+**Produção ignorada pelo workflow:** job production=skipped; nenhuma aprovação do ambiente
+solicitada, request assinado ou release de promoção publicado. A custódia migradora preparada
+localmente NÃO foi executada: nenhuma senha foi gerada/provisionada nesta execução. O plano
+novo permanece original e não utilizado; não reutilizar esse GO/request para outra publicação.
+
+Leitura final real às23:29:12 UTC confirmou: **b9c1beb9,61 tabelas,68 migrations,116 FKs**,
+nomes/checksums exatos; HTTPS/frontend/readiness PASS; API,worker,Nginx e timers ativos,
+monitoramento sem falhas;24 fingerprints intactos e SELinux Enforcing. Não existem recibo,
+diretório de trabalho ou extração do candidato dessa execução na OCI, nem guard de DDL,
+listener3002 ou credencial migradora temporária. Current, ingress e horários de início dos
+serviços preservados. Nenhuma parada, migration, cutover ou recuperação de produção necessária.
+Backup diário/readback/restore preservados; zero capturas adicionais.
+
+Evidências sanitizadas: `docs/deliveries/evidence/s2-integration-release/CURRENT_VALIDATION.json`
+e `build/cd-migrator-preflight/PUBLICATION_FINAL_RESULT.json`; log bruto somente local protegido.
+S2-09 C1/C2 permanece PARTIAL até publicação/homologação pública; S2-08 IaC e rollback funcional
+integral após schema expandido continuam PARTIAL. A CD sem mudança de schema já comprovada
+e a S2-10 permanecem preservadas.
