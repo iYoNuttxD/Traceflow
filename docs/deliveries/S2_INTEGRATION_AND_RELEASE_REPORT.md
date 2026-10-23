@@ -1,6 +1,6 @@
 # Integração dos Ciclos 1 e 2 e publicação OCI
 
-**Estado em 22/10/2026: PARTIAL — produção anterior preservada; versão integrada não publicada.**
+**Estado em 23/10/2026: PARTIAL — transporte migrador corrigido e comprovado com credenciais sintéticas; preflight real/revisão e novo GO pendentes. Produção integrada não publicada.**
 Este relatório registra a integração, as homologações e as duas execuções produtivas autorizadas.
 A execução adicional foi recusada no preflight, sem DDL ou cutover. A versão integrada não foi publicada.
 
@@ -189,6 +189,105 @@ Verificação administrativa **somente leitura** às **01:29:55 de Brasília (04
 | Dataset da banca | PARTIAL | Compatibilidade 83→84/fórmula preservadas; procedimento preparado; nenhum import produtivo |
 | S2-08 IaC | PARTIAL | Ressalvas anteriores mantidas; nenhuma infraestrutura recriada |
 
+## Investigação do preflight — preparação local e pausa em 22/10/2026
+
+O acesso direto a `144.22.183.254:22` expirou nas consultas de leitura. HTTPS respondeu200,
+com TLS validado e resposta dinâmica, mas isso não substitui uma auditoria atual do MySQL,
+serviços ou backup. O operador confirmou que a rede atual não permite comunicação direta
+com a VM e solicitou **pausar essa parte**. Não houve novos acessos depois dessa instrução.
+Os dados de produção da seção anterior são a verificação de01:29:55, não uma nova observação.
+
+Preparação **somente local**, ainda não instalada ou apresentada como correção causal:
+
+- receiver distingue códigos de criação da unidade, setup, execução do filho, TLS/identidade,
+  validação e timeout/recurso, aceitando somente os códigos conhecidos do migrador.
+- BLOCKED do preflight fica preservado; evidência privada0600 contém metadados filtrados,
+  hashes dos streams e InvocationID quando observado. O recibo público recebe somente códigos
+  e estados seguros. Não grava streams brutos, SQL, credenciais ou dados empresariais.
+- --quiet foi removido do comando preparado para manter o resumo de término de --wait,
+  inclusive quando --collect descarrega a unidade. Os demais controles e BindsTo/PartOf
+  permanecem. Essa alteração melhora diagnóstico e **não comprova a causa da recusa**.
+- migrate.py mantém os limites e diferencia timeouts de conexão, introspecção e deploy,
+  sem expor argumentos/ambiente. Backend, frontend, SQLs e pacote aprovado não foram alterados.
+- Ensaio nativo preparado com pai oneshot em ativação, comando original fixado pelo hash do
+  receptor anterior, credenciais sintéticas e casos de sucesso, BLOCKED, exec, namespace,
+  credencial, timeout e memória. Não contém SQL nem chama migrate deploy. **Não foi executado.**
+- **85 testes direcionados da CD PASS**, incluindo execução real do filho sintético local,
+  captura de saída/código e recusa de modos não autorizados; diff check PASS. Esses resultados
+  não comprovam comportamento nativo de systemd/SELinux. Suítes gerais não foram repetidas.
+
+Não houve provisionamento de credencial produtiva, instalação, consulta HeatWave, DDL,
+quiescência, cutover, novo request ou workflow nesta continuação. O pacote mantém SHA-256
+`a76e39a50011bad5da0e40029935156e0acfcf377562a8af6297d7d554b5998d`.
+A causa específica de COMMAND_SYSTEMD_RUN permanece **NÃO COMPROVADA**; não foi atribuída a
+BindsTo, segredo, sandbox ou MySQL por hipótese. Não há GO técnico para nova promoção.
+
+O trabalho está salvo localmente em `fix/cd-migrator-preflight`, sem novo commit/PR ou
+atualização da autoridade CD antes da prova causal e das revisões aplicáveis. Na retomada do
+acesso, executar primeiro o ensaio sintético; qualquer preflight HeatWave real continua
+condicionado à autorização específica exigida nesta tarefa. Os planos antigos não serão
+reutilizados: sua validade e o vínculo ao backup efetivamente selecionado precisam ser
+conferidos antes do novo resumo/GO. Nenhum timestamp foi renovado.
+
 [Evidência consolidada sanitizada](evidence/s2-integration-release/CURRENT_VALIDATION.json).
 Procedimentos: [ADR-026](../architecture/ADR-026-OCI-SCHEMA-TRANSITIONS.md),
 [CD](../runbooks/OCI_CONTINUOUS_DEPLOYMENT.md), [banca](../runbooks/TCC_DEMO_AFTER_INTEGRATION.md).
+
+## Retomada em 23/10 — causa reproduzida e transporte corrigido
+
+O SSH voltou a funcionar. Oracle Linux 9.8 ARM64, systemd 252-67.0.2.el9_8.6,
+SELinux Enforcing. O ensaio clona as propriedades da unidade CD instalada, mantém o pai
+Type=oneshot em `activating` e usa somente credenciais cifradas sintéticas, sem SQL.
+Current, Nginx/proxy e PIDs de API/worker foram confrontados antes/depois, sem mudanças.
+
+**Causa operacional reproduzida:** `systemd-run --pipe` falha antes da criação do filho,
+com `Failed to start transient service unit: Connection reset by peer` (0,031 s no ensaio
+final). Retirar somente `--pipe` permite executar o filho. Retirar BindsTo, PartOf, ambas as
+dependências ou a credencial não resolve. O comando original do receptor instalado foi
+fixado pelo SHA-256 e exercitado no mesmo contexto. O recibo histórico não preservou o
+stderr original: a mensagem acima é do ensaio reproduzido, não um log recuperado da tentativa.
+A causa interna da recusa do transporte de FDs pelo gerenciador não foi inferida por hipótese.
+
+**Correção restrita:** substituir `--pipe` por `StandardOutput=append:` em arquivo exclusivo
+root/0600, aberto pelo systemd; stderr do filho permanece null. O resultado já sanitizado do
+migrador é lido com limite de 64 KiB e verificação de custódia; a ausência de resultado é recusa.
+Permanecem --wait/--collect, BindsTo/PartOf, Type=exec, LoadCredentialEncrypted, ProtectSystem=strict,
+NoNewPrivileges, InaccessiblePaths, limites e allowlists. A unidade CD não precisa ser alterada.
+Nenhum diretório adicional foi tornado gravável no sandbox do migrador.
+
+O receptor distingue criação, preparação, processo filho, conexão/identidade MySQL, validação,
+timeout e recurso. Preserva somente códigos BLOCKED conhecidos, status/exit code e invocação
+válida. A evidência privada contém metadados filtrados, hashes e resumo do journal da unidade
+exata; o recibo público recebe uma lista ainda menor de campos seguros. stdout/stderr brutos
+MySQL/Prisma, SQL, tokens e credenciais não são publicados nem persistidos pelo diagnóstico.
+O migrador diferencia os timeouts de MySQL, introspecção e deploy sem mudar os comandos oficiais.
+
+**93 testes direcionados CD PASS.** No ensaio nativo: sucesso 0,146 s; BLOCKED de conexão
+sintético preservado 0,152 s; executável ausente 0,026 s; namespace 226 em 0,095 s; credencial
+243 em 0,072 s; timeout em 1,326 s; OOM em 0,287 s. As falhas de preparação são recuperadas
+por leitura filtrada do journal mesmo depois da coleta da unidade. São testes sintéticos,
+não prova de TLS, privilégios ou drift reais. O cenário que usa credencial inválida não lê
+credenciais de produção. Evidência privada: `/var/lib/traceflow-live-cd/diagnostics/migrator-20261023T202320Z-ed0cc067/`.
+
+A consulta real de leitura foi recusada pela revisão automática antes da execução. O operador
+posteriormente autorizou UM preflight HeatWave --check com custódia temporária delimitada,
+sem DDL, quiescência, cutover ou promoção, após checks/revisão. A proposta está em
+`build/cd-migrator-preflight/READONLY_PREFLIGHT_PROPOSAL.json`; ainda não foi executada.
+A proteção da main foi consultada: ativa, sem dispensa nova de revisão independente.
+
+O pacote 81718c29 permanece imutável. O receptor corrigido ainda não foi instalado.
+O plano anterior está expirado e não pode ser reutilizado. O backup automático atual e o
+vínculo ao restore devem ser consultados por leitura; o backup de 22/10 não é declarado vigente
+por simples preservação do arquivo. Não houve nova captura, DDL, parada ou dispatch nesta retomada.
+Após revisão, preflight real, instalação verificada e comprovação atual das provas/backup,
+será apresentado o único resumo para um **novo GO produtivo**, ainda não solicitado.
+S2-08 IaC e rollback funcional integral após expansão do schema continuam PARTIAL.
+
+**Leitura real autorizada às20:23:33 UTC em23/10:** b9c1beb9, 61 tabelas/68 migrations/116 FKs,
+nomes/checksums exatos, TLS VERIFY_IDENTITY; HTTPS/frontend e readiness PASS; API/worker/Nginx e
+os quatro timers ativos. Fingerprints operacionais e current preservados, sem DDL/cutover,
+credencial migradora temporária ausente. O backup diário `20261023T060005Z-8e686a25d1584fd492f6e044c111bfea`
+concluiu SUCCESS/readback externo às06:00:11 UTC (14,39 h na consulta). Não houve captura nova.
+Para o novo plano, o contrato exige restore vinculado a esse id/cipher/manifest: o restore de22/10
+permanece histórico e não será apresentado como prova deste conjunto de23/10. O --check real
+com a conta migradora ainda não foi executado.

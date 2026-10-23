@@ -11,21 +11,115 @@ CONFIG=Path('/etc/traceflow-live/cd.json');STATE=Path('/var/lib/traceflow-live-c
 RELEASES=Path('/opt/traceflow-live/releases');FRONTENDS=Path('/var/www/traceflow-live-releases')
 STATUS=Path('/var/www/traceflow-live-deploy-status')
 CURRENT_KEYS={'currentRelease','frontendRoot','nginxSha256','proxySha256'}
+# Accept only codes emitted by the reviewed migrator; never copy arbitrary child fields.
+MIGRATOR_CODES=set(('ROOT_REQUIRED MIGRATION_RELEASE MIGRATOR_CUSTODY MIGRATOR_IDENTITY '
+ 'MIGRATOR_TLS_CONNECTION MIGRATOR_DATABASE_IDENTITY PRISMA_CLI_IDENTITY '
+ 'MIGRATOR_CONNECTION_BUDGET MIGRATOR_PRIVILEGE_SCOPE MIGRATOR_PRIVILEGES '
+ 'SCHEMA_DRIFT_OR_INTROSPECTION_FAILED PREVIOUS_RELEASE_CUSTODY '
+ 'PRISMA_DEPLOY_FAILED_NO_RETRY MIGRATION_ARGUMENTS MIGRATION_EXECUTION_FAILED '
+ 'MIGRATOR_MYSQL_TIMEOUT MIGRATOR_SCHEMA_TIMEOUT MIGRATOR_DEPLOY_TIMEOUT').split())
+SYSTEMD_RESULTS={'success','exit-code','signal','core-dump','timeout','watchdog','oom-kill','resources','start-limit-hit','protocol'}
+def migration_unit_evidence(command):
+ unit=next((v.split('=',1)[1]+'.service' for v in command if re.fullmatch('--unit=traceflow-live-cd-migrate-(check-)?[0-9]+',v)),None)
+ if unit is None:return {}
+ try:
+  p=subprocess.run(['/usr/bin/journalctl','--no-pager','--unit='+unit,'--lines=12','--output=json','--output-fields=MESSAGE,UNIT,_SYSTEMD_UNIT,_SYSTEMD_INVOCATION_ID'],capture_output=True,timeout=5,env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8'})
+  if p.returncode or len(p.stdout)>65536:return {}
+  return migration_journal_evidence(p.stdout,unit)
+ except (OSError,subprocess.TimeoutExpired):return {}
+
+def migration_journal_evidence(output,unit):
+ result={}
+ for line in output.splitlines():
+  try:entry=json.loads(line)
+  except (ValueError,UnicodeError):continue
+  if not isinstance(entry,dict) or unit not in (entry.get('UNIT'),entry.get('_SYSTEMD_UNIT')):continue
+  message=entry.get('MESSAGE','')
+  if not isinstance(message,str):continue
+  match=re.search(r'Main process exited, code=(exited|killed|dumped), status=([0-9]{1,3})/[A-Z_]+',message)
+  if match and int(match[2])<=255:result.update(execMainCode=match[1],execMainStatus=int(match[2]),journalExecutionObserved=True)
+  match=re.search(r"Failed with result '([a-z-]+)'",message)
+  if match and match[1] in SYSTEMD_RESULTS:result['unitResult']=match[1]
+ return result
+
+def migration_diagnostic(stdout,stderr,exit_code,timed_out=False,unit_evidence=None):
+ def data(value):return value if isinstance(value,bytes) else b''
+ stdout,stderr=data(stdout),data(stderr)
+ result={'formatVersion':1,'exitCode':exit_code,'category':'unknown','code':'MIGRATOR_EXECUTION_UNCLASSIFIED',
+  'childExecutionObserved':False,'unitExecutionObserved':False,'stdoutSha256':hashlib.sha256(stdout).hexdigest(),'stderrSha256':hashlib.sha256(stderr).hexdigest()}
+ if unit_evidence:result.update(unit_evidence)
+ # systemd-run --wait reports a fixed summary on stderr even after --collect.
+ match=re.search(rb'Main processes terminated with: code=(exited|killed|dumped)/status=([0-9]{1,3}|HUP|INT|QUIT|ILL|ABRT|FPE|KILL|SEGV|PIPE|ALRM|TERM|XCPU|XFSZ|SYS|BUS|USR1|USR2)(?:/|\s|$)',stderr)
+ if match:
+  result.update(childExecutionObserved=True,unitExecutionObserved=True,execMainCode=match[1].decode(),execMainStatus=int(match[2]) if match[2].isdigit() else match[2].decode())
+  result.update(category='child-execution',code='MIGRATOR_CHILD_PROCESS_FAILED')
+ match=re.search(rb'Finished with result: ([a-z-]+)',stderr)
+ if match and match[1].decode() in SYSTEMD_RESULTS:result['unitResult']=match[1].decode()
+ if 'execMainStatus' in result and not result['childExecutionObserved']:
+  result.update(childExecutionObserved=True,unitExecutionObserved=True,category='child-execution',code='MIGRATOR_CHILD_PROCESS_FAILED')
+ if result.get('execMainStatus') in (203,216,217,218,224,225,226,227,228,229,231,232,233,238,243):
+  result.update(childExecutionObserved=False,category='unit-setup',code='MIGRATOR_UNIT_SETUP_FAILED')
+ for reason,pattern in [('ACCESS_DENIED',b'Permission denied'),('ACCESS_DENIED',b'Access denied'),('INVALID_ARGUMENT',b'Invalid argument'),('UNKNOWN_ASSIGNMENT',b'Unknown assignment'),('UNKNOWN_PROPERTY',b'Unknown property'),('NOT_TRANSIENT_SETTABLE',b'cannot be set transiently'),('BUS_CONNECTION_FAILED',b'Failed to connect to bus'),('JOB_CONFLICT',b'Transaction is destructive'),('BUS_CONNECTION_RESET',b'Connection reset by peer')]:
+  if pattern in stderr:result['systemdReason']=reason;break
+ for prop in ('BindsTo','PartOf','LoadCredentialEncrypted','ProtectSystem','NoNewPrivileges','InaccessiblePaths','MemoryMax','MemorySwapMax','RuntimeMaxSec','TimeoutStopSec','KillMode','Type'):
+  if re.search(rb'(?:Unknown assignment|Unknown property|Cannot set property|Failed to set property)[^\n]{0,80}\b'+prop.encode()+rb'\b',stderr):result['unitProperty']=prop;break
+ if b'Failed to find executable ' in stderr:
+  result.update(category='unit-creation',code='MIGRATOR_EXECUTABLE_UNAVAILABLE')
+ elif b'Failed to set unit properties:' in stderr:
+  result.update(category='unit-creation',code='MIGRATOR_UNIT_PROPERTY_REFUSED')
+ elif b'Failed to start transient service unit:' in stderr:
+  result.update(category='unit-creation',code='MIGRATOR_TRANSIENT_START_FAILED')
+ for line in stdout.splitlines():
+  try:value=json.loads(line)
+  except (ValueError,UnicodeError):continue
+  if not isinstance(value,dict):continue
+  status=value.get('status');code=value.get('code')
+  if status=='BLOCKED' and isinstance(code,str) and code in MIGRATOR_CODES:
+   result.update(childExecutionObserved=True,unitExecutionObserved=True,childStatus=status,childCode=code,code=code,category='validation')
+   if code in ('MIGRATOR_TLS_CONNECTION','MIGRATOR_DATABASE_IDENTITY'):result['category']='mysql-connection'
+   elif code in ('MIGRATOR_CUSTODY','MIGRATOR_IDENTITY'):result['category']='unit-setup'
+   elif code.endswith('_TIMEOUT'):result['category']='timeout-or-resource'
+  elif status in ('MIGRATOR_PREFLIGHT_PASS','PRISMA_DEPLOY_PASS','PRISMA_DEPLOY_FAILED'):
+   result.update(childExecutionObserved=True,unitExecutionObserved=True,childStatus=status)
+  if result['childExecutionObserved'] and isinstance(value.get('invocationId'),str) and re.fullmatch('[a-f0-9]{32}',value['invocationId']):result['invocationId']=value['invocationId']
+ if timed_out or result.get('unitResult') in ('timeout','oom-kill','watchdog','resources'):
+  result.update(category='timeout-or-resource',code='MIGRATOR_TIMEOUT_OR_RESOURCE')
+ if exit_code==0 and not timed_out and result.get('unitResult','success')=='success' and result.get('childStatus') in ('MIGRATOR_PREFLIGHT_PASS','PRISMA_DEPLOY_PASS'):
+  result.update(category='success',code='MIGRATOR_COMMAND_PASS')
+ return result
+
+def diagnose_migration_command(command,stdout,stderr,exit_code,timed_out=False):
+ result=migration_diagnostic(stdout,stderr,exit_code,timed_out)
+ if 'execMainStatus' not in result and not result['childExecutionObserved']:
+  result=migration_diagnostic(stdout,stderr,exit_code,timed_out,migration_unit_evidence(command))
+ return result
+
+def public_migration_diagnostic(value):
+ return {k:value[k] for k in ('code','category','exitCode','childCode','execMainCode','execMainStatus','unitResult') if k in value}
+
+def migration_output(command):
+ paths=[str(v).split('StandardOutput=append:',1)[1] for v in command if str(v).startswith('StandardOutput=append:')]
+ need(len(paths)==1,'MIGRATOR_OUTPUT_CONTRACT')
+ path=Path(paths[0])
+ if not path.exists():return b''
+ st=path.lstat();need(path.is_file() and not path.is_symlink() and st.st_uid==os.geteuid() and st.st_mode&0o777==0o600,'MIGRATOR_OUTPUT_CUSTODY')
+ need(st.st_size<=65536,'MIGRATOR_OUTPUT_LIMIT');return path.read_bytes()
+
 def run(a,timeout=45):
- p=subprocess.run([str(x) for x in a],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout,env={**os.environ,'HOME':'/nonexistent','LANG':'C.UTF-8','GH_PROMPT_DISABLED':'1'})
+ command=[str(x) for x in a];is_migrator=command[0]=='systemd-run' and any(re.fullmatch('--unit=traceflow-live-cd-migrate-(check-)?[0-9]+',x) for x in command)
+ try:p=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout,env={**os.environ,'HOME':'/nonexistent','LANG':'C.UTF-8','GH_PROMPT_DISABLED':'1'})
+ except subprocess.TimeoutExpired as timeout_error:
+  if not is_migrator:raise
+  error=ValueError('MIGRATOR_TIMEOUT_OR_RESOURCE');error.migration_diagnostics=[diagnose_migration_command(command,migration_output(command),timeout_error.stderr,None,True)];raise error from None
+ output=migration_output(command) if is_migrator else p.stdout
  if p.returncode:
-  error=ValueError('COMMAND_'+Path(str(a[0])).name.upper().replace('-','_'))
-  if str(a[0])=='systemd-run':
-   diagnostics=[]
-   for line in p.stdout.splitlines():
-    try:
-     value=json.loads(line)
-     if value.get('status') in ('PRISMA_DEPLOY_FAILED','BLOCKED'):
-      diagnostics.append({k:v for k,v in value.items() if k in ('status','exitCode','prismaCode','seconds','outputSha256','code','automaticRetry')})
-    except (ValueError,AttributeError):pass
-   error.migration_diagnostics=diagnostics
+  error=ValueError('COMMAND_'+Path(command[0]).name.upper().replace('-','_'))
+  if is_migrator:
+   diagnostic=diagnose_migration_command(command,output,p.stderr,p.returncode)
+   error=ValueError(diagnostic['code']);error.migration_diagnostics=[diagnostic]
   raise error
- return p.stdout
+ if is_migrator:need(bool(output),'MIGRATOR_OUTPUT_MISSING')
+ return output
 
 def atomic(p,v,mode=0o600):
  t=p.with_name('.write-'+str(os.getpid()));t.write_bytes(canonical(v));t.chmod(mode);os.replace(t,p)
@@ -78,10 +172,13 @@ def applied_chain(ops):
  need(all(len(r)==4 and r[2:] == ['1','0'] for r in pairs),'LIVE_MIGRATION_HISTORY_INCOMPLETE')
  return [r[0]+'\t'+r[1] for r in pairs]
 
-def migration_unit(root,run_id,check=False):
+def migration_unit(root,run_id,check=False,output=None):
  need(str(run_id).isdigit(),'MIGRATION_RUN_ID')
+ output=Path(output) if output is not None else STATE/('migrator-'+('check-' if check else '')+str(run_id)+'.json')
+ need(output.is_absolute() and not any(c in str(output) for c in ('\n','\r','\x00')),'MIGRATOR_OUTPUT_PATH')
+ # The manager opens this root-only file; --pipe FD forwarding resets the bus in this sandbox.
  # No After=parent: the receiver is a oneshot still activating while awaiting this child.
- return ['systemd-run','--quiet','--wait','--pipe','--collect','--unit=traceflow-live-cd-migrate-'+('check-' if check else '')+str(run_id),'-p','Type=exec','-p','BindsTo=traceflow-live-cd.service','-p','PartOf=traceflow-live-cd.service','-p','User=root','-p','UMask=0077','-p','LoadCredentialEncrypted=mysql-migrator:/etc/credstore.encrypted/traceflow-live-mysql-migrator','-p','RuntimeMaxSec='+('60' if check else '300'),'-p','TimeoutStopSec=15','-p','KillMode=control-group','-p','Restart=no','-p','LimitCORE=0','-p','MemorySwapMax=0','-p','MemoryMax=512M','-p','ProtectSystem=strict','-p','ProtectHome=yes','-p','PrivateTmp=yes','-p','PrivateDevices=yes','-p','NoNewPrivileges=yes','-p','ProtectKernelTunables=yes','-p','ProtectKernelModules=yes','-p','ProtectKernelLogs=yes','-p','ProtectControlGroups=yes','-p','RestrictSUIDSGID=yes','-p','RestrictRealtime=yes','-p','LockPersonality=yes','-p','RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6','-p','InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence /etc/traceflow-live /etc/nginx /etc/credstore.encrypted -/var/lib/systemd/credential.secret -/var/lib/traceflow-live-cd/gh-config','/usr/bin/python3','-I','-B','/usr/local/libexec/traceflow-live-cd/migrate.py',root]+(['--check'] if check else [])
+ return ['systemd-run','--wait','--collect','--unit=traceflow-live-cd-migrate-'+('check-' if check else '')+str(run_id),'-p','Type=exec','-p','BindsTo=traceflow-live-cd.service','-p','PartOf=traceflow-live-cd.service','-p','User=root','-p','UMask=0077','-p','LoadCredentialEncrypted=mysql-migrator:/etc/credstore.encrypted/traceflow-live-mysql-migrator','-p','RuntimeMaxSec='+('60' if check else '300'),'-p','TimeoutStopSec=15','-p','KillMode=control-group','-p','Restart=no','-p','LimitCORE=0','-p','MemorySwapMax=0','-p','MemoryMax=512M','-p','ProtectSystem=strict','-p','ProtectHome=yes','-p','PrivateTmp=yes','-p','PrivateDevices=yes','-p','NoNewPrivileges=yes','-p','ProtectKernelTunables=yes','-p','ProtectKernelModules=yes','-p','ProtectKernelLogs=yes','-p','ProtectControlGroups=yes','-p','RestrictSUIDSGID=yes','-p','RestrictRealtime=yes','-p','LockPersonality=yes','-p','RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6','-p','InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence /etc/traceflow-live /etc/nginx /etc/credstore.encrypted -/var/lib/systemd/credential.secret -/var/lib/traceflow-live-cd/gh-config','-p','StandardOutput=append:'+str(output),'-p','StandardError=null','/usr/bin/python3','-I','-B','/usr/local/libexec/traceflow-live-cd/migrate.py',root]+(['--check'] if check else [])
 
 def data_fingerprint(ops):
  """SELECT-only dump in anonymous RAM; only row hashes/counts leave this function."""
@@ -110,7 +207,22 @@ class Host:
   self.routing_changed=False;self.reload_attempted=False;self.changed_units=set();self.restarted_units=set();self.state_attempted=False
   self.recovery={'status':'not-needed'}
   self.schema_guard_claimed=False;self.retention_target_ready=False
-  self.plan=None;self.migration_quiesced=False;self.schema_started=False;self.schema_complete=False;self.migration_result={'status':'not-required'}
+  self.migrator_preflight=None;self.plan=None;self.migration_quiesced=False;self.schema_started=False;self.schema_complete=False;self.migration_result={'status':'not-required'}
+ def invoke_migrator(self,check=False):
+  output=self.work/('migrator-check-output.json' if check else 'migrator-deploy-output.json')
+  # Exclusive, protected output prevents replay/overwrite and grants no writable directory to the child.
+  with output.open('xb') as out:os.fchmod(out.fileno(),0o600)
+  try:
+   output=run(migration_unit(self.root,self.request['runId'],check=check,output=output),timeout=75 if check else 330)
+  except BaseException as error:
+   diagnostics=getattr(error,'migration_diagnostics',[])
+   if diagnostics:
+    # Filtered metadata only. Never save raw stdout/stderr, SQL, URLs or credentials.
+    atomic(self.work/('migrator-check-diagnostic.json' if check else 'migrator-deploy-diagnostic.json'),{'diagnostics':diagnostics})
+    if check:self.migrator_preflight={'status':'FAILED','diagnostics':[public_migration_diagnostic(d) for d in diagnostics]}
+   raise
+  if check:self.migrator_preflight={'status':'PASS'}
+  return output
  def unit(self,role):
   if role=='retention':return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\n'
   return '[Service]\nWorkingDirectory='+str(self.root/'backend')+'\nExecStart=\nExecStart=/usr/bin/node '+str(self.root/'backend/src'/('server.js' if role=='api' else 'github-worker.js'))+'\n'
@@ -142,7 +254,7 @@ class Host:
    contracts=cfg_ops.get('schemaContracts',[])
    need(all(any(c.get('migrations')==m['migrations'] and c.get('schemaSha256')==m['schemaSha256'] for c in contracts) for m in (previous,target)),'OPERATIONAL_SCHEMA_COMPATIBILITY')
    self.transition_digest=digest
-   migrator=json.loads(run(migration_unit(self.root,self.request['runId'],check=True),timeout=75))
+   migrator=json.loads(self.invoke_migrator(check=True))
    need(migrator.get('status')=='MIGRATOR_PREFLIGHT_PASS','MIGRATOR_PREFLIGHT')
    atomic(self.work/'migrator-preflight.json',migrator)
   else:
@@ -198,7 +310,7 @@ class Host:
    validate_migration_chain(applied_chain(self.ops),self.plan['from']['migrations'])
    before=data_fingerprint(self.ops);atomic(self.work/'data-before.json',before)
    self.schema_started=True;atomic(marker,{'status':'DDL_STARTED','runId':self.request['runId'],'transitionSha256':self.transition_digest})
-   output=run(migration_unit(self.root,self.request['runId']),timeout=330)
+   output=self.invoke_migrator(check=False)
    self.migration_result=json.loads(output);need(self.migration_result.get('status')=='PRISMA_DEPLOY_PASS','PRISMA_DEPLOY_RESULT')
    validate_migration_chain(applied_chain(self.ops),self.plan['to']['migrations'])
    after=data_fingerprint(self.ops);atomic(self.work/'data-after.json',after)
@@ -214,7 +326,7 @@ class Host:
     try:
      run(['systemctl','stop','traceflow-live-cd-migrate-'+str(self.request['runId'])],timeout=30);containment='unit-stop-confirmed'
     except BaseException:pass
-   self.migration_result={'containment':containment,'databaseStability':'requires-administrative-verification' if self.schema_started else 'ddl-not-started','databaseSchemaComplete':self.schema_complete,'status':'SCHEMA_TRANSITION_INCOMPLETE','transitionSha256':self.transition_digest,'automaticRetry':False,'diagnostics':getattr(error,'migration_diagnostics',[])}
+   self.migration_result={'containment':containment,'databaseStability':'requires-administrative-verification' if self.schema_started else 'ddl-not-started','databaseSchemaComplete':self.schema_complete,'status':'SCHEMA_TRANSITION_INCOMPLETE','transitionSha256':self.transition_digest,'automaticRetry':False,'diagnostics':[public_migration_diagnostic(d) for d in getattr(error,'migration_diagnostics',[])]}
    try:self.migration_result['observedHistory']=self.ops.sql('SELECT CONCAT(migration_name,CHAR(9),checksum,CHAR(9),finished_at IS NOT NULL,CHAR(9),rolled_back_at IS NOT NULL) FROM _prisma_migrations ORDER BY migration_name')
    except BaseException:self.migration_result['historyObservationUnavailable']=True
    atomic(marker,self.migration_result);atomic(self.work/'migration.json',self.migration_result);raise
@@ -336,7 +448,9 @@ def process(release,cfg):
  except BaseException as error:
   result.update(code=str(error) if re.fullmatch('[A-Z][A-Z0-9_]{0,90}',str(error)) else 'DEPLOY_FAILED',rollback='inspect-preserved-transaction')
  finally:
-  if host is not None:result['recovery']=host.recovery;result['migration']=host.migration_result
+  if host is not None:
+   result['recovery']=host.recovery;result['migration']=host.migration_result
+   if host.migrator_preflight is not None:result['migratorPreflight']=host.migrator_preflight
   result['finishedAt']=dt.datetime.now(dt.timezone.utc).isoformat();atomic(marker,result);atomic(STATUS/(str(req['runId'])+'.json'),result,0o644)
  print(json.dumps(result));need(result['status']=='SUCCESS','PROMOTION_FAILED_NO_RETRY')
 

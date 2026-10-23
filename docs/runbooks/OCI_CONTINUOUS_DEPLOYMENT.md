@@ -214,3 +214,51 @@ Instalar também o runner de retenção revisado e seu seletor `30-cd-release.co
 inicialmente ao backend ativo. Após migração concluída, o seletor acompanha o schema novo e
 não é revertido com o binário anterior. Ele não substitui ExecStart nem reinicia a retenção.
 Provas nativas sanitizadas: `docs/deliveries/evidence/s2-integration-release/NATIVE_*.json`.
+
+
+## Diagnóstico do preflight migrador — atualização local em preparação
+
+Esta seção descreve a alteração preparada em `fix/cd-migrator-preflight`, ainda não instalada.
+Não tratar o ensaio ou uma classificação de erro como autorização de migrations.
+
+- O comando mantém --wait e --collect. Sem --quiet, o supervisor fornece seu resumo
+  de término; --collect pode remover inclusive unidades falhas. Portanto LoadState=not-found
+  após o comando não prova que o filho nunca iniciou. Referência: [manual oficial systemd-run](https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html).
+- O migrador conserva TLS VERIFY_IDENTITY, usuário/UUID/schema, sete privilégios, limite2,
+  locks, CLI Prisma imutável e timeout por etapa. Não reutilizar o usuário de backup.
+- `migrator-check-diagnostic.json` ou `migrator-deploy-diagnostic.json` fica no diretório
+  privado da tentativa, root/0600. Contém somente metadados filtrados: retorno, resultado
+  reconhecido da unidade, códigos permitidos do filho, evidência de execução e hashes dos
+  streams. Não contém stdout/stderr bruto, SQL, URL de conexão ou segredo.
+- O recibo público expõe somente códigos/estados seguros. Falta de evidência permanece
+  MIGRATOR_EXECUTION_UNCLASSIFIED; não atribuir causa por hipótese nem repetir a promoção.
+- `deploy/cd/tests/systemd_migrator_lab.py --run-synthetic` é um ensaio root explícito para
+  executar somente após revisão e verificação do código recebido. Usa credenciais sintéticas,
+  unidades/diretórios exclusivos e pai oneshot no sandbox da CD, com SELinux Enforcing.
+  Confronta o comando original fixado por SHA com o preparado; observa execução e coleta da
+  unidade e testa falhas delimitadas. Não consulta banco, inicia aplicação ou instala receptor.
+  Preserva a evidência privada e remove somente suas credenciais sintéticas.
+- A pausa de acesso em22/10 terminou na retomada de23/10; a correção de transporte passou no
+  ensaio nativo sintético abaixo. Qualquer --check contra HeatWave real requer autorização
+  específica prévia; nunca usar outra promoção como diagnóstico.
+
+### Transporte da saída do migrador no sandbox OCI
+
+O ensaio de 23/10/2026 reproduziu recusa de encaminhamento de FDs de `--pipe` a partir do
+pai CD oneshot em ativação. O comando migrador usa `StandardOutput=append:` em arquivo
+exclusivo root/0600 criado no workdir da operação, com `StandardError=null`. O próprio
+systemd abre o arquivo; não se acrescenta ReadWritePaths ao filho. Não restaurar --pipe
+nem remover os controles de isolamento. BindsTo/PartOf são preservados; não adicionar
+After= ao pai, que ainda está ativando enquanto espera pelo filho.
+
+O arquivo contém somente o JSON sanitizado emitido por migrate.py. O receptor verifica
+propriedade, tipo, ausência de symlink, modo 0600 e limite de 64 KiB antes de usá-lo.
+Resultado vazio não vale como sucesso. Arquivos de check e deploy são diferentes e exclusivos;
+não reutilizar runId/request ou arquivo de resultado. O journal só é consultado para a unidade
+exata e seu conteúdo é reduzido a campos conhecidos, inclusive erros de preparação 226/243.
+Um código desconhecido continua recusa; não o atribuir a MySQL por hipótese.
+
+O ensaio sintético não autoriza acesso real ao HeatWave. Para um --check real fora da promoção,
+exigir a autorização específica de custódia; manter a conta dedicada, grants e limite 2,
+TLS VERIFY_IDENTITY, SELECT/SHOW e migrate diff somente. Encerrar conta/credencial ao final.
+Um novo GO produtivo continua obrigatório antes de DDL ou publicação.

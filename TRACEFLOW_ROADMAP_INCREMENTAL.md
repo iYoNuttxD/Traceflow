@@ -684,7 +684,10 @@ cutover. Mensagem subjacente não preservada; nenhuma causa de senha/sandbox foi
 Produção segue b9c1beb9 / 68 migrations, saudável, current/ingress/configurações e dados preservados; migrador
 bloqueado e credencial temporária removida. Sem nova tentativa automática. Recursos públicos
 C2/PDF ainda não homologados nessa release; sem import do dataset. S2-08 IaC e rollback integrado
-mantêm as ressalvas. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
+mantêm as ressalvas. Em23/10: 93 testes CD PASS e prova nativa da correção de transporte
+--pipe → saída exclusiva root/0600 aberta pelo systemd, mantendo o sandbox e SELinux.
+Revisão, preflight HeatWave real e novo GO produtivo ainda pendentes.
+Nenhuma nova instalação, migration ou promoção. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
