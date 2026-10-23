@@ -51,3 +51,13 @@ class MigratorTests(unittest.TestCase):
     root,credential=self.fixture(folder)
     text=json.dumps([m.UUID,m.SCHEMA,'tf_live_migrator@10.20.1.184'])+'\nSsl_cipher\tTLS\n'+('3' if change=='pool' else '2')+'\nGRANT USAGE ON *.* TO `tf_live_migrator`@`10.20.1.184`\nGRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, REFERENCES'+(', DELETE' if change=='privilege' else '')+' ON `traceflow_live`.* TO `tf_live_migrator`@`10.20.1.184`\n'
     with self.assertRaisesRegex(ValueError,'MIGRATOR_'):self.invoke(root,credential,connection=subprocess.CompletedProcess([],0,stdout=text.encode(),stderr=b''))
+
+class MigratorTimeoutEvidenceTests(unittest.TestCase):
+ def test_each_bounded_phase_preserves_timeout_without_private_command_or_output(self):
+  for stage in ('MYSQL','SCHEMA','DEPLOY'):
+   with patch.object(m.subprocess,'run',side_effect=subprocess.TimeoutExpired('mysql://synthetic-private',1,output=b'private',stderr=b'private')):
+    with self.assertRaisesRegex(ValueError,'MIGRATOR_'+stage+'_TIMEOUT') as raised:m.command(['synthetic-private'],stage,timeout=1)
+   self.assertNotIn('private',str(raised.exception))
+ def test_execution_identity_comes_only_from_valid_systemd_invocation_id(self):
+  with patch.dict(os.environ,{'INVOCATION_ID':'c'*32}):self.assertEqual(m.execution_proof(),{'invocationId':'c'*32})
+  with patch.dict(os.environ,{'INVOCATION_ID':'synthetic-private'}):self.assertEqual(m.execution_proof(),{})

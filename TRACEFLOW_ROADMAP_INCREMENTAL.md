@@ -674,11 +674,20 @@ Arquitetura real em [ADR-018](https://github.com/iYoNuttxD/Traceflow/blob/061948
 
 **Resultado comprovado (21/10/2026): PARTIAL no conjunto; capacidade de CD operacional para releases sem mudança de schema.** [Relatório consolidado](docs/deliveries/OCI_CD_NGINX_SANDBOX_REPORT.md). PR #31 integrada; 38 testes CD, 28 testes nativos Host/transação/receptor e build ARM64 reproduzível PASS. Sandbox Nginx corrigido e comprovado em unidades transitórias restritas, com SELinux Enforcing; recuperação por etapa evita reinícios desnecessários. A única promoção explicitamente autorizada [39701470669](https://github.com/iYoNuttxD/Traceflow/actions/runs/39701470669) concluiu SUCCESS após aprovação humana de production. Versão b9c1beb9 publicada, fonte funcional igual à 9bc3dad/dependências corrigidas; runtime/frontend e recibos verificados independentemente, API/MySQL/worker/HTTPS saudáveis, históricos e operações preservados. Nenhuma funcionalidade nova da main incluída. Migrations novas em produção continuam recusadas e rollback integrado após falhas reais de serviços permanece sem comprovação própria; ensaios isolados e validação Nginx documentados. S2-08 segue PARTIAL por adoção/reconstrução IaC; S2-10 preservada. [Tentativa anterior](docs/deliveries/OCI_CD_MIGRATION_ORDER_REPORT.md) mantida como histórico.
 
-**Integração dos Ciclos 1 e 2 — em preparação:** união local de 84 migrations, com upgrade
-68→84, preservação de dados, 145 FKs e ausência de drift comprovados em MySQL descartável.
-Evolução da CD para plano de transição/OIDC, migrador dedicado e recuperação por etapa em
-homologação. A aplicação integrada ainda não foi promovida; não contabilizar esses resultados
-como prova produtiva. [Entrega consolidada](docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md).
+**Integração dos Ciclos 1 e 2 (22/10/2026): PARTIAL.** PR #32 integrada; candidato 81718c29,
+CI completo verde, duas montagens ARM64 byte-idênticas e upgrades isolados 68→84/83→84 PASS.
+Backup pré-DDL com readback e restore real PASS. Após a primeira falha 1819 do auxiliar de
+custódia, a correção restrita passou em sete casos MySQL nativos e na própria OCI. A execução
+adicional 39721691174, expressamente autorizada e aprovada em production, passou build/homologação,
+mas o receiver recusou COMMAND_SYSTEMD_RUN no preflight migrador, antes de DDL, quiescência ou
+cutover. Mensagem subjacente não preservada; nenhuma causa de senha/sandbox foi inventada.
+Produção segue b9c1beb9 / 68 migrations, saudável, current/ingress/configurações e dados preservados; migrador
+bloqueado e credencial temporária removida. Sem nova tentativa automática. Recursos públicos
+C2/PDF ainda não homologados nessa release; sem import do dataset. S2-08 IaC e rollback integrado
+mantêm as ressalvas. Em23/10: 93 testes CD PASS e prova nativa da correção de transporte
+--pipe → saída exclusiva root/0600 aberta pelo systemd, mantendo o sandbox e SELinux.
+Revisão, preflight HeatWave real e novo GO produtivo ainda pendentes.
+Nenhuma nova instalação, migration ou promoção. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
