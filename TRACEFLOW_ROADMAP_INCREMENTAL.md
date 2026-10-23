@@ -686,7 +686,9 @@ bloqueado e credencial temporária removida. Sem nova tentativa automática. Rec
 C2/PDF ainda não homologados nessa release; sem import do dataset. S2-08 IaC e rollback integrado
 mantêm as ressalvas. Em23/10: 93 testes CD PASS e prova nativa da correção de transporte
 --pipe → saída exclusiva root/0600 aberta pelo systemd, mantendo o sandbox e SELinux.
-Revisão, preflight HeatWave real e novo GO produtivo ainda pendentes.
+PR #33 integrada com dispensa explícita de revisão independente e checks verdes; proteção
+restabelecida. Receptor instalado/verificado, preflight HeatWave real PASS em5,3 s e
+backup diário de23/10 restaurado em7,3 s. Novo GO produtivo ainda pendente.
 Nenhuma nova instalação, migration ou promoção. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI

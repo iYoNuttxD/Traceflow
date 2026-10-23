@@ -1,6 +1,6 @@
 # Integração dos Ciclos 1 e 2 e publicação OCI
 
-**Estado em 23/10/2026: PARTIAL — transporte migrador corrigido e comprovado com credenciais sintéticas; preflight real/revisão e novo GO pendentes. Produção integrada não publicada.**
+**Estado em 23/10/2026: PRONTO PARA NOVO GO PRODUTIVO — transporte corrigido, instalado e preflight migrador real PASS. Produção ainda b9c1beb9/68; versão integrada não publicada.**
 Este relatório registra a integração, as homologações e as duas execuções produtivas autorizadas.
 A execução adicional foi recusada no preflight, sem DDL ou cutover. A versão integrada não foi publicada.
 
@@ -291,3 +291,58 @@ concluiu SUCCESS/readback externo às06:00:11 UTC (14,39 h na consulta). Não ho
 Para o novo plano, o contrato exige restore vinculado a esse id/cipher/manifest: o restore de22/10
 permanece histórico e não será apresentado como prova deste conjunto de23/10. O --check real
 com a conta migradora ainda não foi executado.
+
+## Fechamento da correção em23/10 — pronto para novo GO
+
+- [PR #33](https://github.com/iYoNuttxD/Traceflow/pull/33), head `51405eeb0082b7f94b45b6edb9929b9c6bda5a7b`,
+  merge `d0f577fc407d1780c88f100872d1c76967844489`. O proprietário integrou sem revisão, com a
+  regra desabilitada, e depois dispensou expressamente a revisão independente para os dois
+  hashes propostos. Não há aprovação independente registrada. A regra Protect main foi
+  restabelecida com uma revisão exigida e zero bypass. CI da PR e do merge passou; o job
+  [ARM64](https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202656) concluiu SUCCESS.
+- Instalação restrita às21:15:08 UTC: receiver `29ca8fff2c86180d45279580fc29aa054810f6ff5553d2ea8bde31d8d41d49df`
+  e migrate `23c11eb5f15aed46948ed5068a094635384ee6fda1fe3891b094421549c7d4fa`, mais seus dois
+  fingerprints no cd.json. Versões anteriores em
+  `/var/lib/traceflow-live-cd/admin-updates/migrator-preflight-51405eeb0082`.
+  PIDs, current, ingress, ACLs/contextos SELinux, unidade CD e autoridade do workflow preservados.
+  Não houve bootstrap, restart de aplicação, alteração de secrets operacionais ou migrations.
+- **REAL_MIGRATOR_PREFLIGHT_PASS às21:15:28 UTC, 5,3 s totais**, usando o código instalado,
+  pai oneshot ainda activating e a credencial dedicada real. MySQL/TLS VERIFY_IDENTITY,
+  identidade/schema/privilégios, limite2, CLI Prisma e migrate diff PASS; schemaDrift=NONE.
+  Invocation ID `6c6effbe53374e78baccfbbfb46534cc`.
+  Evidência root: `/var/lib/traceflow-live-cd/diagnostics/heatwave-check-20261023211523`.
+  O ensaio só usou SELECT/SHOW e introspecção; a custódia autorizada realizou a rotação/unlock/lock
+  da conta dedicada, sem mudar grants. Conta bloqueada, zero sessões e credencial cifrada
+  temporária removida ao final. Nenhum DDL, quiescência, cutover ou request produtivo.
+- Backup automático de23/10 às06:00 UTC, id `20261023T060005Z-8e686a25d1584fd492f6e044c111bfea`,
+  SUCCESS/readback. Restore real do MESMO conjunto PASS em **7,3 s**: 61 tabelas, 68 migrations,
+  116 FKs sem órfãos, todos os dados/estruturas, um arquivo e configurações iguais; volume
+  cifrado/limpeza PASS, sem conexão à OCI. Cipher `3e2c5cd88139dcb1322aef3b0e4ddd5ebb4b6e6fd9b4e22d5e07b181bb7a61fa`;
+  manifesto `409779a70baaf7647925dd8a564fb468387fb09ca2f108f60bdf7fb0548408b2`.
+  O MySQL global do Mac avançou para26.10; foi usada uma cópia isolada26.7 da distribuição
+  Homebrew, com SHA-256 do bottle oficial conferido e apenas relocação de prefixo local.
+  A verificação oficial de versão e todas as comparações de restore permaneceram intactas.
+  Não houve captura adicional nem alteração do MySQL global.
+- Extração inativa da39721691174 preservada em
+  `/opt/traceflow-live/releases/81718c29ade2550d33fa7986defa3d96dc3c7b34-a76e39a50011-preserved-failed-39721691174`.
+  Referências por processos/configurações e listener3002 ausentes; inventário/inodes/conteúdo/
+  ACLs/SELinux idênticos após rename. Um primeiro gate de lock recusou antes de qualquer
+  alteração; a consulta seguinte comprovou zero locks/destino/journal ausentes, e houve uma
+  única renomeação efetiva. Nenhuma evidência ou versão ativa foi excluída.
+- Auditoria final às21:18:42 UTC: b9c1beb9, 68 migrations com checksums exatos, 61 tabelas/116 FKs,
+  HTTPS/frontend/readiness PASS, MySQL/worker saudáveis, todos os timers ativos, 24 fingerprints
+  válidos, SELinux Enforcing, migrador encerrado. Backup com15,308 h de idade; contrato máximo26 h.
+
+O plano anterior expirado permanece preservado. Há somente um rascunho não consumível com
+as mesmas16 adições/provas e o backup novo, sem issuedAt/expiresAt nem declaração atual de
+exclusão de escritores. Depois do novo GO será emitido plano exclusivo (até4 h), request novo
+pela CD existente e aprovação humana obrigatória de production. O candidato segue81718c29 e
+pacote a76e39a5, sem reconstrução ou mudança funcional nesta correção.
+
+**A promoção/DDL ainda NÃO está autorizada.** Solicitar um único GO, incluindo confirmação
+atual da exclusão dos demais escritores. DDL parcial implica parada/intervenção, sem retry,
+resolve/reset ou restore destrutivo. Após schema completo, eventual rollback de binário
+preserva o schema84; a compatibilidade funcional bidirecional integral continua não comprovada.
+S2-08 IaC permanece PARTIAL; S2-09 com migrations produtivas continua PARTIAL até a promoção.
+O OAuth antecipado foi bloqueado pela revisão automática antes da ação e foi adiado para
+os testes pós-GO, conforme o escopo; nenhuma sessão foi criada nesse teste antecipado.

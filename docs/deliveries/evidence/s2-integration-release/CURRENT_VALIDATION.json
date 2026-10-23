@@ -1,5 +1,5 @@
 {
-  "status": "MIGRATOR_TRANSPORT_FIX_NATIVE_PASS_REVIEW_AND_REAL_PREFLIGHT_PENDING",
+  "status": "READY_FOR_NEW_EXPLICIT_PRODUCTION_GO",
   "candidate": {
     "status": "IMMUTABLE_ARM64_CANDIDATE_VERIFIED",
     "commit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
@@ -598,5 +598,330 @@
     "noMigrationStarted": true,
     "noCutover": true,
     "newPublicFunctionalQaExecuted": false
+  },
+  "migratorFixFinalValidation": {
+    "status": "READY_FOR_NEW_EXPLICIT_PRODUCTION_GO",
+    "at": "2026-10-23T21:20:12.445006+00:00",
+    "codeHead": "51405eeb0082b7f94b45b6edb9929b9c6bda5a7b",
+    "mergeCommit": "d0f577fc407d1780c88f100872d1c76967844489",
+    "pr": "https://github.com/iYoNuttxD/Traceflow/pull/33",
+    "checks": {
+      "at": "2026-10-23T21:15:06.781956+00:00",
+      "checks": {
+        "51405eeb0082b7f94b45b6edb9929b9c6bda5a7b": [
+          {
+            "name": "production",
+            "status": "completed",
+            "conclusion": "skipped",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202656/job/120648207561"
+          },
+          {
+            "name": "build-homologate",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202656/job/120639248663"
+          },
+          {
+            "name": "Dependency Review",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202617/job/120639173718"
+          },
+          {
+            "name": "Frontend Tests",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202617/job/120639173605"
+          },
+          {
+            "name": "Quality",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202617/job/120639173603"
+          },
+          {
+            "name": "Backend Tests",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202617/job/120639173562"
+          },
+          {
+            "name": "Supply Chain",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202617/job/120639173184"
+          }
+        ],
+        "d0f577fc407d1780c88f100872d1c76967844489": [
+          {
+            "name": "Dependency Review",
+            "status": "completed",
+            "conclusion": "skipped",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019421452/job/120639803635"
+          },
+          {
+            "name": "Frontend Tests",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019421452/job/120639802162"
+          },
+          {
+            "name": "Supply Chain",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019421452/job/120639801899"
+          },
+          {
+            "name": "Quality",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019421452/job/120639801868"
+          },
+          {
+            "name": "Backend Tests",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/40019421452/job/120639801539"
+          }
+        ]
+      }
+    },
+    "installation": {
+      "status": "COMMITTED_MIGRATOR_UPDATE_PASS",
+      "at": "2026-10-23T21:15:08.556263+00:00",
+      "sourceCommit": "51405eeb0082b7f94b45b6edb9929b9c6bda5a7b",
+      "archive": "/var/lib/traceflow-live-cd/admin-updates/migrator-preflight-51405eeb0082",
+      "files": {
+        "/usr/local/libexec/traceflow-live-cd/migrate.py": {
+          "before": {
+            "sha256": "6c75c2d81d7e2d9bdf124cf46240647b0a9da285673fae20d3c6b419b30374ca",
+            "uid": 0,
+            "gid": 0,
+            "mode": 493
+          },
+          "after": {
+            "sha256": "23c11eb5f15aed46948ed5068a094635384ee6fda1fe3891b094421549c7d4fa",
+            "uid": 0,
+            "gid": 0,
+            "mode": 493
+          }
+        },
+        "/usr/local/libexec/traceflow-live-cd/receiver.py": {
+          "before": {
+            "sha256": "e327a455bcee9c1c160b7057b461c8ad214c4ea50d2f6e8cc69e4117bbfc9f1e",
+            "uid": 0,
+            "gid": 0,
+            "mode": 493
+          },
+          "after": {
+            "sha256": "29ca8fff2c86180d45279580fc29aa054810f6ff5553d2ea8bde31d8d41d49df",
+            "uid": 0,
+            "gid": 0,
+            "mode": 493
+          }
+        },
+        "/etc/traceflow-live/cd.json": {
+          "before": {
+            "sha256": "dc8a1d52c65b509876bfc27106eafde4c880a91eec2b33561189ede597a0ae9e",
+            "uid": 0,
+            "gid": 0,
+            "mode": 384
+          },
+          "after": {
+            "sha256": "631a036772d414e1e805b21984d9a88cedbeb163895befe99ae9a594aeaf09da",
+            "uid": 0,
+            "gid": 0,
+            "mode": 384
+          }
+        }
+      },
+      "protectedFiles": 24,
+      "currentIngressAndApplicationPidsPreserved": true,
+      "unitAndWorkflowAuthorityUnchanged": true,
+      "selinuxAndAclAttributesPreserved": true,
+      "schemaChanges": false,
+      "temporaryCredentialsCreated": false
+    },
+    "realReadOnlyPreflight": {
+      "status": "REAL_MIGRATOR_PREFLIGHT_PASS",
+      "result": {
+        "invocationId": "6c6effbe53374e78baccfbbfb46534cc",
+        "status": "MIGRATOR_PREFLIGHT_PASS",
+        "tls": "VERIFY_IDENTITY",
+        "database": "traceflow_live",
+        "connectionLimit": 2,
+        "schemaDrift": "NONE",
+        "outputSha256": "198913094e3f41610eb893459ab65a3c79991b65d4ef5fcb8c325ebe52ebf1ed",
+        "sqlWrites": false
+      },
+      "parentWasActivating": true,
+      "sqlWrites": false,
+      "parentExitCode": 0,
+      "at": "2026-10-23T21:15:28.634295+00:00",
+      "seconds": 5.3,
+      "work": "/var/lib/traceflow-live-cd/diagnostics/heatwave-check-20261023211523",
+      "custodyClosed": true,
+      "productionPreserved": true,
+      "databaseDDL": false,
+      "workflowDispatched": false
+    },
+    "backupAndRestore": {
+      "status": "CURRENT_BACKUP_RESTORE_BINDING_PASS",
+      "backupId": "20261023T060005Z-8e686a25d1584fd492f6e044c111bfea",
+      "restore": {
+        "allStructuresEqual": true,
+        "allTableDataHashesEqual": true,
+        "cipherSha256": "3e2c5cd88139dcb1322aef3b0e4ddd5ebb4b6e6fd9b4e22d5e07b181bb7a61fa",
+        "cleanup": true,
+        "configurationHashesEqual": true,
+        "encryptedWorkspace": true,
+        "finishedAt": "2026-10-23T20:32:44.415393+00:00",
+        "foreignKeysChecked": 116,
+        "id": "20261023T060005Z-8e686a25d1584fd492f6e044c111bfea",
+        "isolatedMysql": "26.7.0",
+        "isolatedPort": 61987,
+        "isolatedServerUuid": "e3993880-cf20-11f1-82de-266fbd65c3a2",
+        "manifestSha256": "409779a70baaf7647925dd8a564fb468387fb09ca2f108f60bdf7fb0548408b2",
+        "migrations": 68,
+        "persistentFileHashesEqual": true,
+        "persistentFiles": 1,
+        "productionDestination": false,
+        "rawDdlHashesEqual": false,
+        "seconds": 7.3,
+        "sourceMysql": "26.7.0-cloud",
+        "status": "ISOLATED_RESTORE_PASS",
+        "structureComparison": "exact-ddl-except-proven-redundant-utf8mb4-charset",
+        "tables": 61
+      },
+      "restoreFileSha256": "ebe339f5eb54e96dd5da148b7184e3a29011475a39f3c8ac985a84bc2981af54",
+      "newCapture": false
+    },
+    "inactiveCandidatePreserved": {
+      "status": "INACTIVE_CANDIDATE_PRESERVED",
+      "at": "2026-10-23T21:17:47.354362+00:00",
+      "original": "/opt/traceflow-live/releases/81718c29ade2550d33fa7986defa3d96dc3c7b34-a76e39a50011",
+      "archive": "/opt/traceflow-live/releases/81718c29ade2550d33fa7986defa3d96dc3c7b34-a76e39a50011-preserved-failed-39721691174",
+      "inventorySha256": "ee2f26ae30939ceb0b0fef1c06167053a2f3ac19a336812efcffe83168f62432",
+      "inodeContentsAclSelinuxPreserved": true,
+      "activeReferences": 0,
+      "listener3002": false,
+      "productionPidsStateIngressPreserved": true,
+      "deletions": 0,
+      "previousReceiptsPreserved": true,
+      "schemaChanges": false
+    },
+    "currentProduction": {
+      "status": "CURRENT_PRODUCTION_READONLY_PASS",
+      "at": "2026-10-23T21:18:42.087242+00:00",
+      "currentCommit": "b9c1beb9f6ded49ce9257d346c086a8893f700c9",
+      "current": {
+        "currentRelease": "/opt/traceflow-live/releases/b9c1beb9f6ded49ce9257d346c086a8893f700c9-4a7dbc5f5223",
+        "frontendRoot": "/var/www/traceflow-live-releases/b9c1beb9f6ded49ce9257d346c086a8893f700c9-4a7dbc5f5223",
+        "nginxSha256": "133f319a5d48ecfe19ae2e682ff83c89118ed07380f147f289b7af6ec43fb64c",
+        "proxySha256": "9e00fb9c63460c16f587fb72520e03725ffb4f7d74886cef9ce5540af51e120f"
+      },
+      "currentStateSha256": "f158209c1e5abb755647972536164293247044f173dd8c1d6ccc445daf0ca350",
+      "receipt": {
+        "appSha": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+        "code": "COMMAND_SYSTEMD_RUN",
+        "finishedAt": "2026-10-22T04:28:07.964862+00:00",
+        "manifestSha256": "72f8e46a5a9d0e5b99fc4b882f1d3a34b2dd3dd9a3318f87dc7be1dca36683a9",
+        "migration": {
+          "status": "not-required"
+        },
+        "packageSha256": "a76e39a50011bad5da0e40029935156e0acfcf377562a8af6297d7d554b5998d",
+        "recovery": {
+          "status": "not-needed"
+        },
+        "rollback": "inspect-preserved-transaction",
+        "runId": "39721691174",
+        "status": "FAILED",
+        "workflowSha": "2fb62458e4c4b0bf6cbea5f6d31d9c9875fd4330"
+      },
+      "receiptSha256": "82ec2f26ebe3d037a15a3727d7207a602e75ef2b7b3db530630d2bd571553d17",
+      "database": {
+        "tables": 61,
+        "migrations": 68,
+        "foreignKeys": 116,
+        "chainNamesChecksumsExact": true,
+        "tls": "VERIFY_IDENTITY"
+      },
+      "services": {
+        "nginx": "active",
+        "traceflow-live-api": "active",
+        "traceflow-live-worker": "active",
+        "traceflow-live-backup.timer": "active",
+        "traceflow-live-monitor.timer": "active",
+        "traceflow-live-retention.timer": "active",
+        "traceflow-live-cd.timer": "active"
+      },
+      "serviceStartTimes": {
+        "traceflow-live-api": "Thu 2026-10-22 00:54:01 GMT",
+        "traceflow-live-worker": "Thu 2026-10-22 00:54:01 GMT"
+      },
+      "apiReady": true,
+      "httpsFrontendHashExact": true,
+      "metrics": {
+        "api": {
+          "seconds": 0.005375,
+          "status": 200
+        },
+        "apiUnitActive": true,
+        "at": "2026-10-23T21:18:17.262038+00:00",
+        "backupAgeHours": 15.301590419345432,
+        "consecutiveFailures": {},
+        "diskUsedPercent": 75.02,
+        "failedGitHubJobs15m": 0,
+        "failures": [],
+        "http5xx5m": 0,
+        "https": {
+          "seconds": 0.052193,
+          "status": 200
+        },
+        "memoryAvailablePercent": 88.62,
+        "mysql": true,
+        "p95Seconds5m": 0.0,
+        "requests5m": 5,
+        "scheduledJobs": {
+          "enabled": false
+        },
+        "schemaTransitionPending": false,
+        "workerCount": 1,
+        "workerHeartbeatAgeSeconds": 5,
+        "workerUnitActive": true
+      },
+      "backup": {
+        "id": "20261023T060005Z-8e686a25d1584fd492f6e044c111bfea",
+        "status": "SUCCESS",
+        "externalReadback": true,
+        "cipherSha256": "3e2c5cd88139dcb1322aef3b0e4ddd5ebb4b6e6fd9b4e22d5e07b181bb7a61fa",
+        "manifestSha256": "409779a70baaf7647925dd8a564fb468387fb09ca2f108f60bdf7fb0548408b2",
+        "finishedAt": "2026-10-23T06:00:11.536523+00:00",
+        "ageHours": 15.308
+      },
+      "schemaGuardPresent": false,
+      "temporaryMigratorCredentialPresent": false,
+      "migratorClosed": {
+        "accountLocked": true,
+        "activeSessions": 0,
+        "at": "2026-10-23T21:15:28.596964+00:00",
+        "secretsPrinted": false,
+        "sourceCommit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+        "status": "MIGRATOR_CUSTODY_CLOSED",
+        "temporaryEncryptedCredentialRemoved": true
+      },
+      "candidateUnitPresent": false,
+      "candidatePort3002": false,
+      "protectedFilesIntact": true,
+      "selinux": "Enforcing",
+      "noMigrationStarted": true,
+      "noCutover": true,
+      "newPublicFunctionalQaExecuted": false
+    },
+    "review": "Explicit operator waiver for PR33; branch protection restored with one review and no bypass",
+    "nextProductionGoReceived": false,
+    "newOperationalTransitionCreated": false,
+    "workflowDispatched": false,
+    "migrationsExecuted": 0
   }
 }
