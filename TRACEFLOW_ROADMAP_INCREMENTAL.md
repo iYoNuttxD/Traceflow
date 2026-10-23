@@ -694,6 +694,11 @@ production. Nenhuma custódia migradora, DDL, parada ou cutover; leitura final �
 confirma b9c1beb9/68 saudável e operações preservadas. Sem retry ou gate relaxado; candidato
 integrado ainda não publicado. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
 
+Hotfix posterior: cinco dependências corrigidas sem alteração de código funcional ou das84
+migrations; audits produtivos backend/frontend zerados e190 testes focados PASS. Node/Nginx
+conferidos por leitura e preservados. CI/ARM64 do novo candidato e novo GO produtivo pendentes;
+nenhuma publicação C1/C2 declarada. Evidências no relatório de integração acima.
+
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
 **Estado: DONE (20/10/2026).** Instalação limpa em produção, backup diário habilitado,

@@ -1,5 +1,5 @@
 {
-  "status": "BLOCKED_BUILD_SECURITY_GATE_PRODUCTION_PRESERVED",
+  "status": "HOTFIX_LOCAL_PASS_CI_ARM64_PENDING",
   "candidate": {
     "status": "IMMUTABLE_ARM64_CANDIDATE_VERIFIED",
     "commit": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
@@ -1100,5 +1100,195 @@
       "S2-08 full IaC adoption remains partial",
       "Integrated functional rollback on expanded schema remains unproven"
     ]
+  },
+  "dependencyHotfix": {
+    "at": "2026-10-23T23:50:45.079933+00:00",
+    "status": "LOCAL_DEPENDENCY_HOTFIX_PASS",
+    "baseline": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
+    "changes": {
+      "": {
+        "before": "0.1.0",
+        "after": "0.1.0"
+      },
+      "node_modules/body-parser": {
+        "before": "1.20.8",
+        "after": "1.20.9"
+      },
+      "node_modules/ip-address": {
+        "before": "10.7.3",
+        "after": "10.7.4"
+      },
+      "node_modules/zod": {
+        "before": "4.4.3",
+        "after": "4.6.6"
+      },
+      "node_modules/multer": {
+        "before": "2.4.0",
+        "after": "2.5.0"
+      },
+      "node_modules/nodemailer": {
+        "before": "10.0.9",
+        "after": "10.1.4"
+      }
+    },
+    "express": "4.22.3 unchanged",
+    "backendAudit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "frontendAudit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "functionalSourcesAndAll84MigrationsByteIdentical": true,
+    "collectionReview": {
+      "arrays": [
+        {
+          "path": "backend/src/modules/sprints/sprint.validation.js",
+          "collections": 1,
+          "allBoundedByExistingMax": true
+        },
+        {
+          "path": "backend/src/modules/indicators/indicators.validation.js",
+          "collections": 1,
+          "allBoundedByExistingMax": true
+        },
+        {
+          "path": "backend/src/modules/requirements/requirement.validation.js",
+          "collections": 1,
+          "allBoundedByExistingMax": true
+        },
+        {
+          "path": "backend/src/modules/defects/defect.schema.js",
+          "collections": 1,
+          "allBoundedByExistingMax": true
+        },
+        {
+          "path": "backend/src/modules/testCases/test-case.schema.js",
+          "collections": 3,
+          "allBoundedByExistingMax": true
+        },
+        {
+          "path": "backend/src/modules/testCases/uploads/upload-contract.js",
+          "collections": 1,
+          "allBoundedByExistingMax": true
+        }
+      ],
+      "setOrMapRequestSchemas": 0,
+      "missingBoundsFound": 0,
+      "bodyLimitDefault": "100kb",
+      "maximumConfiguredBodyLimit": "10mb",
+      "rawWebhookLimit": "1mb"
+    },
+    "tests": {
+      "targetedConfigured": {
+        "passedFiles": 14,
+        "passedTests": 166,
+        "log": "TARGETED_TESTS_CONFIGURED.log",
+        "excludedPendingSetup": "security.test.js required generated Prisma client"
+      },
+      "securityFinal": {
+        "passedFiles": 1,
+        "passedTests": 24,
+        "log": "SECURITY_HTTP_TESTS_FINAL.log"
+      },
+      "aggregatePassedTests": 190,
+      "generalCi": "not yet run for new candidate"
+    },
+    "npmCiBackend": true,
+    "npmCiFrontend": true,
+    "lint": "PASS",
+    "format": "PASS",
+    "secretScan": "PASS",
+    "runtimeInspection": {
+      "at": "2026-10-23T23:45:33.237216+00:00",
+      "architecture": "aarch64",
+      "os": "Oracle Linux Server release 9.8",
+      "selinux": "Enforcing",
+      "nodeOnPath": {
+        "exit": 0,
+        "output": "v22.23.2"
+      },
+      "nginxVersion": {
+        "exit": 0,
+        "output": "nginx version: nginx/1.20.1"
+      },
+      "rpm": {
+        "exit": 0,
+        "output": "nginx-1.20.1-28.0.1.el9_8.6.aarch64\nnginx-core-1.20.1-28.0.1.el9_8.6.aarch64\nnodejs-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64\nnodejs-libs-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64"
+      },
+      "nginxSecurityChangelog": [
+        "* Fri Sep 11 2026 EL Errata <el-errata_ww@oracle.com> - 1.20.1-28.0.1.el9_8.6",
+        "* Tue Sep 08 2026 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-28.6",
+        "  HTTP requests (CVE-2026-42533)",
+        "* Mon Aug 03 2026 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-28.5",
+        "  modification or denial of service (CVE-2026-56434)",
+        "  in ngx_http_slice_module (CVE-2026-60005)",
+        "* Fri Jul 03 2026 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-28.4",
+        "  headers (CVE-2026-42055)",
+        "* Mon Jun 08 2026 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-28.3",
+        "  service (CVE-2026-9256)",
+        "* Thu May 14 2026 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-28.2",
+        "  Vulnerability (CVE-2026-42945)",
+        "* Fri Mar 27 2026 Zdenek Dohnal <zdohnal@redhat.com> - 2:1.20.1-28.1",
+        "- RHEL-159560 CVE-2026-27654 nginx: NGINX: Denial of Service or file modification via buffer overflow in ngx_http_dav_module",
+        "- RHEL-159539 CVE-2026-27784 nginx: NGINX: Denial of Service due to memory corruption via crafted MP4 file",
+        "- RHEL-159447 CVE-2026-27651 nginx: NGINX: Denial of Service via undisclosed requests when ngx_mail_auth_http_module is enabled",
+        "- RHEL-157888 CVE-2026-32647 nginx: NGINX: Denial of Service or Code Execution via specially crafted MP4 files",
+        "* Tue Feb 17 2026 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-28",
+        "- Resolves: RHEL-146528 - CVE-2026-1642 nginx: NGINX: Data injection via",
+        "* Thu Jan 29 2026 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-27",
+        "* Thu Nov 20 2025 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-26",
+        "* Wed Nov 19 2025 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-25",
+        "* Wed May 14 2025 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-24",
+        "* Thu Apr 24 2025 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-23",
+        "* Thu Feb 13 2025 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-22",
+        "* Wed Feb 05 2025 Luboš Uhliarik <luhliari@redhat.com> - 2:1.20.1-21"
+      ],
+      "services": {
+        "traceflow-live-api": {
+          "active": "active",
+          "pid": "554456",
+          "executable": "/usr/bin/node-22",
+          "binaryVersion": {
+            "exit": 0,
+            "output": "v22.23.2"
+          }
+        },
+        "traceflow-live-worker": {
+          "active": "active",
+          "pid": "554466",
+          "executable": "/usr/bin/node-22",
+          "binaryVersion": {
+            "exit": 0,
+            "output": "v22.23.2"
+          }
+        },
+        "nginx": {
+          "active": "active",
+          "pid": "12397",
+          "executable": "/usr/sbin/nginx",
+          "binaryVersion": null
+        }
+      },
+      "current": {
+        "currentRelease": "/opt/traceflow-live/releases/b9c1beb9f6ded49ce9257d346c086a8893f700c9-4a7dbc5f5223",
+        "frontendRoot": "/var/www/traceflow-live-releases/b9c1beb9f6ded49ce9257d346c086a8893f700c9-4a7dbc5f5223",
+        "nginxSha256": "133f319a5d48ecfe19ae2e682ff83c89118ed07380f147f289b7af6ec43fb64c",
+        "proxySha256": "9e00fb9c63460c16f587fb72520e03725ffb4f7d74886cef9ce5540af51e120f"
+      },
+      "cdReceiverSha256": "29ca8fff2c86180d45279580fc29aa054810f6ff5553d2ea8bde31d8d41d49df",
+      "cdMigratorSha256": "23c11eb5f15aed46948ed5068a094635384ee6fda1fe3891b094421549c7d4fa"
+    },
+    "ddlExecuted": false,
+    "promotionExecuted": false
   }
 }

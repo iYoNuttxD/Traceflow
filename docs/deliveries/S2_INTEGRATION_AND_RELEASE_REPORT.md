@@ -1,6 +1,6 @@
 # Integração dos Ciclos 1 e 2 e publicação OCI
 
-**Estado final em23/10/2026 23:29 UTC: BLOCKED — gate de segurança do build recusou o candidato. Correção do preflight instalada e comprovada; produção b9c1beb9/68 saudável, sem DDL ou cutover nesta execução.**
+**Estado em23/10/2026: HOTFIX LOCAL PASS, CI/ARM64 pendentes. Produção b9c1beb9/68 preservada. Novo GO será solicitado antes de DDL/promoção.**
 Este relatório preserva a integração, as homologações e o histórico das execuções autorizadas.
 A execução mais recente foi recusada no build, antes do job de produção; a versão integrada não foi publicada.
 
@@ -404,3 +404,55 @@ e `build/cd-migrator-preflight/PUBLICATION_FINAL_RESULT.json`; log bruto somente
 S2-09 C1/C2 permanece PARTIAL até publicação/homologação pública; S2-08 IaC e rollback funcional
 integral após schema expandido continuam PARTIAL. A CD sem mudança de schema já comprovada
 e a S2-10 permanecem preservadas.
+
+## Hotfix de dependências após40039599837 — validação local
+
+Branch isolada `fix/c1c2-dependency-hotfix`, originada da main d0f577fc e preservando os dois
+commits documentais locais do diagnóstico anterior. Nenhuma mudança em backend/src, frontend,
+schema ou qualquer uma das84 migrations versus81718c29. Express permanece4.22.3.
+
+| Dependência | Anterior | Corrigida | Motivo |
+| --- | --- | --- | --- |
+| body-parser, transitiva do Express4 | 1.20.8 | 1.20.9 | GHSA-27r3-jxmh-p828 |
+| zod | 4.4.3 | 4.6.6 | GHSA-mrhx-c7xc-m3w5 |
+| ip-address, transitiva do rate limiter | 10.7.3 | 10.7.4 | GHSA-rxp7-6hxx-x8q5 |
+| nodemailer | 10.0.9 | 10.1.4 | GHSA-39m8-27wv-hr27 e correções posteriores de destinatários |
+| multer | 2.4.0 | 2.5.0 | GHSA-q7qp-rjg7-q26m, HIGH encontrado no audit atual |
+
+O primeiro update Nodemailer10.0.10 corrigiu o advisory pedido, mas o audit ainda encontrou
+GHSA-8c8m-p3m8-cjg8, GHSA-m943-m63m-w62w e GHSA-85x2-q946-cp5h;10.1.4 corrige os três.
+O update foi dirigido, sem force, waiver, novo override ou mudança major. O lockfile muda
+apenas as cinco bibliotecas e os metadados do manifesto raiz; frontend permanece idêntico.
+
+`npm ci` backend/frontend PASS. Audit produtivo com o gate original high: **zero vulnerabilidades
+em todas as severidades nos dois pacotes**. Lint, formatação e scan de segredos PASS.
+Testes focados:14 arquivos/166 testes PASS e security.test.js/24 testes PASS, total190.
+Os primeiros comandos locais não usaram cwd/URLs/Client gerado corretos; os logs preservam
+as recusas de preparação. Corrigida a preparação, sem alterar código produtivo ou relaxar
+assertivas. A fixture de evidência por passo passou a PNG, conforme o contrato existente.
+
+Inventário Zod:8 arrays externos, todos já com max explícito; nenhum ZodSet/ZodMap em src.
+Testes novos exercitam os limites e max+1 de requisitos, sprints, tarefas de casos de teste,
+passos de definição/execução, defeitos, widgets e manifesto de upload. Não foi necessário
+alterar validadores. Body HTTP padrão100kb, configuração máxima10mb e webhook raw1mb
+preservados; teste gzip por HTTP real loopback valida413 após descompressão e400 para
+trailer inválido, mantendo o servidor vivo. Nodemailer real JSON transport valida templates
+e preservação do destinatário em comentários aninhados/grupos e local part quoted.
+Nenhuma mensagem externa ou credencial de produção foi usada nesses testes.
+
+**Runtime por leitura real em23/10 às23:45:33 UTC:** API/worker usam `/usr/bin/node-22`
+22.23.2; RPM22.23.2-2 registra backportsCVE-2026-9496/CVE-2026-19534. Nginx1.20.1,
+RPM1.20.1-28.0.1.el9_8.6 registra patches da distribuição, inclusiveCVE-2026-42533.
+Ambos os pacotes informam instalação em13/10. Não foi observada22.23.4 em produção;
+a condição para alinhar o builder a22.23.4 não se comprovou. Não se declara atualização
+nova nem cobertura universal de advisories. Node/Nginx não foram modificados. Builder
+permanece22.23.2, com SHA oficial ARM64 `fff4078c5def658577f92c88db7db3bc0072924bfb93fe52c1e744a54e94abb8`
+reconsultado em nodejs.org; nenhum contrato de versão foi afrouxado. SELinux Enforcing e
+receiver29ca8fff/migrador23c11eb5 preservados.
+
+Próximos gates desta mesma entrega: CI do SHA exato, dupla montagem ARM64 e homologação
+isolada do mesmo candidato. Novo pacote/manifesto obrigatórios; o pacotea76e39a5 não será
+reutilizado sob nova identidade. Schema alvo inalterado; o novo plano deverá vincular o
+novo SHA e provas correspondentes, com timestamps reais somente após GO. Backup diário e
+restore serão conferidos antes do resumo produtivo. Nenhuma promoção, DDL, nova captura,
+modificação de configuração operacional ou custódia migradora ocorreu neste hotfix local.

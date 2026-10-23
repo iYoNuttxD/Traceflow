@@ -52,3 +52,40 @@ describe('Nodemailer actual JSON transport compatibility (no external delivery)'
     }
   );
 });
+
+// Real address parsing used by sendMail; no network, production mailbox or credentials.
+describe('Nodemailer recipient integrity after security fixes', () => {
+  it.each([
+    ['nested comments', 'Victim (x(y) <other@untrusted.invalid>) <allowed@receiver.invalid>'],
+    ['semicolon in a comment', 'G: (a; <other@untrusted.invalid>) <allowed@receiver.invalid>;']
+  ])('preserves the actual recipient with %s', async (_name, to) => {
+    const transport = nodemailer.createTransport({ jsonTransport: true });
+    try {
+      const result = await transport.sendMail({
+        from: 'test@example.invalid',
+        to,
+        subject: 'Synthetic security check',
+        text: 'No external delivery.'
+      });
+      expect(result.envelope.to).toEqual(['allowed@receiver.invalid']);
+    } finally {
+      transport.close();
+    }
+  });
+
+  it('keeps the destination domain when a quoted local part contains >', async () => {
+    const transport = nodemailer.createTransport({ jsonTransport: true });
+    try {
+      const result = await transport.sendMail({
+        from: 'test@example.invalid',
+        to: '<"a@untrusted.invalid>"@receiver.invalid>',
+        subject: 'Synthetic security check',
+        text: 'No external delivery.'
+      });
+      expect(result.envelope.to).toHaveLength(1);
+      expect(result.envelope.to[0]).toMatch(/@receiver\.invalid$/);
+    } finally {
+      transport.close();
+    }
+  });
+});
