@@ -456,3 +456,31 @@ reutilizado sob nova identidade. Schema alvo inalterado; o novo plano deverá vi
 novo SHA e provas correspondentes, com timestamps reais somente após GO. Backup diário e
 restore serão conferidos antes do resumo produtivo. Nenhuma promoção, DDL, nova captura,
 modificação de configuração operacional ou custódia migradora ocorreu neste hotfix local.
+
+### Complemento do gate completo de CI — mesma entrega
+
+A revisãofdf855f8 abriu a PR34 e o CI40042006958 encontrou Zod4.4.3 transitivo **de
+desenvolvimento** do eslint-plugin-react-hooks no frontend. O audit produtivo omit=dev
+continuava zero; o gate completo corretamente recusou HIGH. Avisos moderados no ferramental
+Vitest/coverage/mocker e Undici também foram corrigidos. Frontend/src permanece idêntico;
+manifests/lockfiles do ferramental foram atualizados, portanto a afirmação anterior sobre
+lockfile frontend idêntico descreve somente a revisão inicial, não o candidato final.
+
+Vitest/coverage4.1.12 nos dois projetos; Zod transitivo frontend4.6.7 e Undici7.30.1.
+Transitivos atualizados pertencem à resolução compatível do ferramental (incluindo Vite/
+Rolldown do teste backend); não entram no backend produtivo após prune. O gerador npm10.9.9
+falhou internamente em Arborist edgesOut; os manifests/lockfiles foram resolvidos pelo
+npm11.20.0 já instalado, sob Node22, com peers normais. npm ci10.9.9 validou ambos.
+Sem force, legacy-peer-deps, alteração de política ou exceção. Audits completos backend e
+frontend: **zero em todas as severidades**. Os comandos exatos de Supply Chain passaram.
+
+**15 arquivos/190 testes focados PASS com Vitest4.1.12**. Lint/formatação preservados.
+Não houve repetição idêntica do CI: a revisão seguinte é necessária porque o lockfile do
+frontend foi corrigido após a recusa; o CI completo será exigido nesse SHA definitivo.
+
+Ensaio MySQL26.7 nativo inicial: upgrade68→84 PASS em2,772s,60 tabelas/10 registros sintéticos
+preservados,145FKs/backfills. A API recusou readiness porque o caminho temporário local
+atravessava o symlink /var; o storage fez a recusa prevista. Os processos foram encerrados
+e o workspace removido. O auxiliar local agora usa o caminho real resolvido; nenhum gate
+de storage foi relaxado e nenhuma mudança no código funcional foi necessária. Os logs
+originais estão preservados em build/c1c2-dependency-hotfix/native-attempt1/.

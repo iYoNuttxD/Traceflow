@@ -1102,7 +1102,7 @@
     ]
   },
   "dependencyHotfix": {
-    "at": "2026-10-23T23:50:45.079933+00:00",
+    "at": "2026-10-23T23:57:06.943724+00:00",
     "status": "LOCAL_DEPENDENCY_HOTFIX_PASS",
     "baseline": "81718c29ade2550d33fa7986defa3d96dc3c7b34",
     "changes": {
@@ -1289,6 +1289,52 @@
       "cdMigratorSha256": "23c11eb5f15aed46948ed5068a094635384ee6fda1fe3891b094421549c7d4fa"
     },
     "ddlExecuted": false,
-    "promotionExecuted": false
+    "promotionExecuted": false,
+    "testToolingPatch": {
+      "vitest": "4.1.12",
+      "coverage": "4.1.12",
+      "frontendZod": "4.6.7",
+      "frontendUndici": "7.30.1",
+      "manifests": "minimum compatible patch range",
+      "npmLockGenerator": "11.20.0 under Node22.23.3; npm10.9.9 Arborist edgesOut bug avoided without peer bypass",
+      "npmCiValidator": "10.9.9"
+    },
+    "backendFullAudit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "frontendFullAudit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "targetedFinal": {
+      "files": 15,
+      "tests": 190,
+      "vitest": "4.1.12",
+      "status": "PASS",
+      "log": "TARGETED_FINAL_VITEST_PATCH.log"
+    },
+    "sourceCiFirstRevision": {
+      "runId": 40042006958,
+      "head": "fdf855f89eb3c96b4f206080a08477b79ba08881",
+      "failure": "frontend full dependency gate includes dev Zod; production-only audits were zero",
+      "automaticDeployment": false
+    },
+    "nativeFirstAttempt": {
+      "upgrade68to84": "PASS",
+      "seconds": 2.772,
+      "apiReadiness": "fixture path contains symlink, rejected by unchanged storage contract",
+      "productionUsed": false,
+      "workspaceCleaned": true,
+      "fixtureCorrection": "use actual resolved temporary path without relaxing no-symlink guard"
+    }
   }
 }
