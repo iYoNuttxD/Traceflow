@@ -32,8 +32,9 @@ As 84 migrations produtivas permanecem byte a byte iguais ao manifesto da base e
 A conta sintética possui exatamente SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX e
 REFERENCES nos schemas próprios, além de USAGE global sem permissões extras. O teste
 confere SHOW GRANTS e CURRENT_USER; todos os deploys incrementais usam essa conta.
-Administração é usada na preparação da base histórica e das fixtures e na limpeza
-exclusiva dos recursos criados. A cadeia histórica contém DROP/DELETE anteriores ao
+Administração é usada somente na preparação da base histórica/conta e na limpeza
+exclusiva dos recursos criados. Fixtures, snapshots, comparação canônica e todas as
+verificações de preservação usam também a conta restrita. A cadeia histórica contém DROP/DELETE anteriores ao
 contrato OCI; o teste não afirma que o bootstrap dessas 84 migrations pode rodar com
 os sete privilégios. No controle vazio, apenas o schema da base existe, sem dados.
 

@@ -152,10 +152,9 @@ async function run(mode) {
   // The historical 84 include DROP/DELETE contracts and predate the OCI account.
   // They prepare the exact already-deployed baseline; every pending migration uses limited.
   command(url, ['migrate', 'deploy', '--schema', schema]);
-  const client = new PrismaClient({ datasourceUrl: url });
-  const restricted = new PrismaClient({ datasourceUrl: limited });
+  const client = new PrismaClient({ datasourceUrl: limited });
   try {
-    await verifyGrants(restricted, database);
+    await verifyGrants(client, database);
     assert.equal(
       await client.$queryRaw`SELECT COUNT(*) AS n FROM _prisma_migrations WHERE finished_at IS NOT NULL`.then(
         (rows) => Number(rows[0].n)
@@ -318,7 +317,6 @@ async function run(mode) {
           : undefined
     });
   } finally {
-    await restricted.$disconnect();
     await client.$disconnect();
   }
 }

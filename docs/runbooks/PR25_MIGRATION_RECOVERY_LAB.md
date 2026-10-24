@@ -34,7 +34,7 @@ As 84 migrations da base `6de5ece5e7af3a7edcd1c24f15f78f16d0b6ec0c` são conferi
 por SHA-256 antes da preparação. Essa preparação usa administração: a cadeia histórica
 contém DROP/DELETE anteriores ao contrato OCI. Nenhuma das 84 foi editada.
 O upgrade de todas as migrations posteriores ao manifesto é executado exclusivamente
-pela conta restrita, incluindo futures migrations adicionadas à cadeia. O controle vazio
+pela conta restrita, incluindo futuras migrations adicionadas à cadeia. O controle vazio
 é uma base 84 sem dados de domínio, seguida pelo mesmo upgrade restrito; não é uma
 alegação de que o bootstrap histórico com DROP possa rodar com os sete privilégios.
 
