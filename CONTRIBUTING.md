@@ -52,6 +52,25 @@ thresholds versionados. A CI executa essa suíte completa uma única vez. Para f
 focado, use `npm run test:unit`, `npm run test:integration` ou `npm test -- <arquivo>`; esses
 comandos não substituem o gate completo de cobertura.
 
+A execução completa divide a descoberta em dois projetos Vitest com cobertura agregada:
+`unit` usa dois processos isolados; `database` reúne API, integração, conformidade e demais
+arquivos e continua estritamente sequencial, depois dos unitários. Não aumente o paralelismo
+do projeto `database`: suas suítes compartilham `TEST_DATABASE_URL`. Cada projeto tem seu
+próprio setup/teardown e diretório de evidências; só o projeto sequencial reutiliza o marcador
+de migrations durante uma invocação. Para rodar todas as verificações com banco, incluindo
+conformidade, use `npm test -- --project=database`.
+
+Testes unitários devem injetar todas as fronteiras de persistência, inclusive leases de jobs.
+Eles precisam passar com uma URL de teste válida, mas sem servidor disponível. Mantenha a
+verificação real de locks, deadlines, rollback e recuperação nas suítes com MySQL; relógios
+falsos não substituem essas garantias. Os casos repetidos podem usar timeouts públicos menores
+quando preservarem ao menos a prova do timeout padrão e as janelas de sucesso correspondentes.
+
+Para comparar o custo do runner sem alterar casos nem assertions, execute o mesmo código
+primeiro com `npm run test:unit -- --no-file-parallelism` e depois com `npm run test:unit`.
+Não rode outros testes ou builds simultaneamente. Compare a duração total, a contagem de casos
+e a cobertura; some as durações por arquivo apenas para diagnóstico, nunca como tempo de parede.
+
 Não use `prisma migrate reset` no banco de desenvolvimento. Migrations devem ser aditivas/versionadas e devem aplicar do zero no banco isolado.
 
 ## Frontend

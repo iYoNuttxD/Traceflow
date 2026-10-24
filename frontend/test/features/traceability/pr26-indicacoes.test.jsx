@@ -654,7 +654,7 @@ describe('PR #26 indicações no Repositório (TF-REV-008, RF39, RF40)', () => {
       within(rows[1]).getByRole('button', { name: 'Ver inconsistência da PR #42' })
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Filtrar artefatos/ }));
+    await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Inconsistência' }), 'OPEN');
     await waitFor(() =>
       expect(mocks.getProjectArtifacts).toHaveBeenLastCalledWith(

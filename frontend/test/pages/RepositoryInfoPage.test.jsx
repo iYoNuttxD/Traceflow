@@ -48,11 +48,11 @@ function artifactsResponse(overrides = {}) {
 }
 
 async function expandFilters(user) {
-  const toggle = await screen.findByRole('button', { name: /Filtrar artefatos/ });
+  const toggle = await screen.findByRole('button', { name: /Buscar e filtrar/ });
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await user.click(toggle);
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  return screen.getByRole('region', { name: 'Filtrar artefatos' });
+  return screen.getByRole('region', { name: 'Buscar e filtrar' });
 }
 
 describe('RepositoryInfoPage RF06', () => {
@@ -104,7 +104,7 @@ describe('RepositoryInfoPage RF06', () => {
     );
     expect(screen.getByRole('region', { name: 'Visão geral do repositório' })).toBeInTheDocument();
     expect(screen.getByText('Branch padrão: main')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Filtrar artefatos/ })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /Buscar e filtrar/ })).toHaveAttribute(
       'aria-expanded',
       'false'
     );
@@ -125,7 +125,7 @@ describe('RepositoryInfoPage RF06', () => {
     expect(
       screen.queryByRole('heading', { name: 'Nenhum artefato importado.' })
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Filtrar artefatos/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: /Buscar e filtrar/ })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Visão geral do repositório' })).toBeVisible();
     expect(screen.getAllByText('Não disponível')).toHaveLength(5);
     expect(screen.queryByText('0')).not.toBeInTheDocument();

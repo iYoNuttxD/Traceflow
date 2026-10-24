@@ -111,7 +111,7 @@ tratamento de terminal generalizado.
 | Bordas discretas e duas sombras                      | border e shadow foundations compactas                |
 | Controles e icon buttons de 44–48 px                 | size e touch-target foundations                      |
 | Collapse, hover e tooltip de 120–180 ms              | motion curto e discreto                              |
-| Shell 272/88 px e conteúdo até 1320 px               | layout foundations reutilizáveis                     |
+| Shell 272/88 px e workspace até 1920 px               | layout foundations reutilizáveis                     |
 
 As cores-base mantêm os valores exatos do C2. Tipografia e spacing removem pequenas variações
 históricas para formar escalas reutilizáveis.
@@ -454,11 +454,17 @@ Composição: ícone opcional, título, descrição, ação opcional e spacing c
 
 - shell: sidebar + content area em grid;
 - sidebar: 272 px expandida e 88 px recolhida;
-- conteúdo usa largura disponível até `1320px`;
+- shell não impõe um segundo limite: cada página aplica seus próprios gutters e largura;
+- workspaces de dados usam a largura disponível até `1920px` (`--layout-page-max`), incluindo
+  Projects, Overview, Indicadores, Tasks/Kanban, Requirements e planejamento;
+- páginas genéricas/de leitura continuam em `1180px` (`--layout-reading-max`); Settings mantém
+  shell de `1320px` (`--layout-settings-max`) e formulários de até `880px`; edição de projeto
+  mantém `928px`. Descrições não se estendem arbitrariamente com tabelas/gráficos;
 - gutter desktop: 32 px por lado;
 - grid gap racionalizado: 20 px;
 - section gap: 24 px;
-- Projects: três, duas ou uma coluna conforme a largura realmente disponível no container;
+- Projects: quatro colunas a partir de `85rem` úteis; Requirements, Sprints e Milestones:
+  quatro a partir de `88rem`; as faixas existentes de três, duas e uma coluna são preservadas;
 - Overview: uma surface integrada; divisões internas se reorganizam sem virar cards independentes.
 
 Pages dentro do shell respondem primeiro ao espaço útil do próprio container. Grid intrínseco e
@@ -1131,6 +1137,40 @@ Esta composição substitui as duas linhas desktop descritas no P9.
   disponíveis para toque quando o navegador não oferece drag nativo confiável.
   Foco acompanha o item após reorder; Save/Cancel, trap e retorno de foco preservados.
 - Não houve troca de overlay, picker, catálogo ou primitives de indicadores.
+
+### PR25 V01/V02 — controles e remoção (2026-10-24)
+
+Retificação de escopo: a toolbar de P9.1 permanece na página de Indicadores, inclusive
+Meu painel. Buscar e filtrar mantém largura total e fica acima das abas e ações.
+Somente a Visão Geral reserva o canto direito da barra ampla de filtros para
+Personalizar painel e Atualizar. Título, resumo e contador continuam visíveis; os
+campos expandidos usam toda a largura abaixo. No mobile, as ações passam para a linha
+seguinte, mantendo rótulos e alvos de toque de 44px. O CSS dessa distribuição é
+escoped por `.dashboard-panel--overview`, sem modificar os filtros das outras telas.
+
+Remover da Visão Geral existe exclusivamente no editor. O PATCH e os rascunhos são
+preservados; após remover, o controle que abriu o modal continua nesta visita para
+retorno de foco e nova fixação. Sem catálogo, esse mesmo editor permite apenas remover.
+Inspeção técnica em Chrome 1440×900 e 390×844, claro/escuro, registrada no
+[relatório PR25](../deliveries/PR25_REVIEW_CORRECTIONS_20261024.md). A aprovação visual
+humana continua pertencendo ao revisor.
+
+### Workspace largo e painel fixado na Overview (2026-10-17)
+
+- O teto de 1920px é do conteúdo, após reservar a sidebar e um par de gutters de 32px.
+  O shell não o aplica antecipadamente. Em 1440px com sidebar expandida, a área útil continua
+  1104px; em 1920px passa a 1584px; em 2560px atinge 1920px. São valores derivados do CSS,
+  não medições renderizadas. Sidebar recolhida, tablet e drawer mantêm seu contrato.
+- Espaço adicional permite mais colunas nos catálogos e maior área de análise em gráficos,
+  tabelas e quadros. Explicações do dashboard e metadata da Overview têm limite de 72ch.
+- “Fixar na Visão Geral” no editor salva seleção/ordem e a preferência pessoal de fixação na
+  mesma operação. A Overview reutiliza o dashboard CUSTOM, filtros locais de Período/Sprint,
+  ajuda e indicadores; “Remover da Visão Geral” altera apenas a flag por PATCH, preservando
+  configuração/ordem do painel pessoal mesmo sem catálogo.
+- Overview oculta o painel não fixado. Loading/erro/retry e catálogo incompatível mantêm os
+  contratos de recuperação existentes. Ações da barra e footer do editor podem quebrar linha.
+- Evidência automática é técnica. A nova matriz renderizada Light/Dark de 320/375/768/1280/
+  1440/1920/2560px está pendente; não se herda a homologação visual anterior para o layout largo.
 
 ## Painel de notificações — PR #26, TF-REV-008 (2026-10-16)
 

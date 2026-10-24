@@ -3,6 +3,7 @@
   min-width: 0;
   gap: var(--space-1);
   overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: var(--border-width-default) solid var(--color-border-default);
   scrollbar-width: thin;
 }
@@ -38,7 +39,7 @@
 .internal-tab--active::after {
   position: absolute;
   right: var(--space-3);
-  bottom: -1px;
+  bottom: 0;
   left: var(--space-3);
   height: 3px;
   border-radius: var(--radius-pill) var(--radius-pill) 0 0;

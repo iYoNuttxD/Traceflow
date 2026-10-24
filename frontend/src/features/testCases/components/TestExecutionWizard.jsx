@@ -6,6 +6,8 @@ import { testCasesApi } from '../api/test-cases.api.js';
 import {
   referenceOption,
   referenceOptionLabel,
+  referenceLabel,
+  testedReferenceError,
   environments,
   LIMITS,
   resultOf,
@@ -24,6 +26,7 @@ export function TestExecutionWizard(props) {
 }
 function ExecutionWizard({ testCase, onRegister, onCancel, busy, blocked, retest }) {
   const version = testCase;
+  const manualReferenceAllowed = testCase.capabilities?.canUseManualReference === true;
   const upload = useExecutionUpload(testCase.id);
   const submitting = useRef(false);
   const [draft, setDraft] = useState({
@@ -36,7 +39,7 @@ function ExecutionWizard({ testCase, onRegister, onCancel, busy, blocked, retest
       : undefined,
     testCaseId: testCase.id,
     testCaseVersion: testCase.currentVersion,
-    testedReference: null,
+    testedReference: manualReferenceAllowed ? { type: 'MANUAL', version: '' } : null,
     environment: '',
     stepResults: version.steps.map((step) => ({
       position: step.position,
@@ -61,10 +64,9 @@ function ExecutionWizard({ testCase, onRegister, onCancel, busy, blocked, retest
       ),
     [testCase.id, retest?.id]
   );
+  const referenceError = testedReferenceError(draft.testedReference);
   const canRegister = Boolean(
-    draft.testedReference &&
-    draft.environment &&
-    draft.stepResults.every((item) => !stepError(item))
+    !referenceError && draft.environment && draft.stepResults.every((item) => !stepError(item))
   );
   const step = version.steps[position];
   const result = draft.stepResults[position];
@@ -82,7 +84,7 @@ function ExecutionWizard({ testCase, onRegister, onCancel, busy, blocked, retest
   }
   function validateContext() {
     return {
-      ...(!draft.testedReference ? { reference: 'Selecione a versão testada.' } : {}),
+      ...(referenceError ? { reference: referenceError } : {}),
       ...(!draft.environment ? { environment: 'Selecione o ambiente.' } : {})
     };
   }
@@ -133,31 +135,59 @@ function ExecutionWizard({ testCase, onRegister, onCancel, busy, blocked, retest
             </span>
           </div>
           <div className="tc-columns">
-            <SearchCombobox
-              id="exec-reference"
-              label="Versão testada"
-              required
-              placeholder="Pesquisar PR ou commit..."
-              onSearch={searchReferences}
-              minQueryLength={0}
-              openOnFocus={false}
-              getOptionLabel={referenceOptionLabel}
-              disabled={busy}
-              selectedOption={draft.testedReference}
-              onSelect={(reference) => setDraft({ ...draft, testedReference: reference })}
-              onClear={() => setDraft({ ...draft, testedReference: null })}
-              error={review && !draft.testedReference ? 'Selecione a versão testada.' : undefined}
-              renderOption={(reference) => (
-                <span className="tc-candidate">
-                  <strong>{reference.label}</strong>
-                  <small>
-                    {reference.relatedTaskIds.length
-                      ? `Das tarefas relacionadas · ${reference.relatedTaskIds.join(', ')}`
-                      : 'Outros artefatos do projeto'}
-                  </small>
+            {manualReferenceAllowed ? (
+              <Field
+                id="exec-reference"
+                label="Versão testada *"
+                error={review ? referenceError : undefined}
+              >
+                <input
+                  id="exec-reference"
+                  required
+                  maxLength={LIMITS.manualVersion}
+                  placeholder="Ex.: versão 1.2 ou build de homologação"
+                  value={draft.testedReference?.version || ''}
+                  aria-invalid={review && Boolean(referenceError)}
+                  aria-describedby={`exec-reference-help${review && referenceError ? ' exec-reference-error' : ''}`}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      testedReference: { type: 'MANUAL', version: event.target.value }
+                    })
+                  }
+                />
+                <span id="exec-reference-help" className="field-help">
+                  Este projeto não possui GitHub vinculado. Identifique a versão ou build testado;
+                  essa referência será preservada no histórico.
                 </span>
-              )}
-            />
+              </Field>
+            ) : (
+              <SearchCombobox
+                id="exec-reference"
+                label="Versão testada"
+                required
+                placeholder="Pesquisar PR ou commit..."
+                onSearch={searchReferences}
+                minQueryLength={0}
+                openOnFocus={false}
+                getOptionLabel={referenceOptionLabel}
+                disabled={busy}
+                selectedOption={draft.testedReference}
+                onSelect={(reference) => setDraft({ ...draft, testedReference: reference })}
+                onClear={() => setDraft({ ...draft, testedReference: null })}
+                error={review && !draft.testedReference ? 'Selecione a versão testada.' : undefined}
+                renderOption={(reference) => (
+                  <span className="tc-candidate">
+                    <strong>{reference.label}</strong>
+                    <small>
+                      {reference.relatedTaskIds.length
+                        ? `Das tarefas relacionadas · ${reference.relatedTaskIds.join(', ')}`
+                        : 'Outros artefatos do projeto'}
+                    </small>
+                  </span>
+                )}
+              />
+            )}
             <Field
               id="exec-environment"
               label="Ambiente *"
@@ -206,11 +236,14 @@ function ExecutionWizard({ testCase, onRegister, onCancel, busy, blocked, retest
             </p>
             {!canRegister && (
               <p role="status" className="tc-notice">
-                Contexto incompleto. Selecione a versão testada e o ambiente para registrar a
-                execução.
+                Contexto incompleto. {manualReferenceAllowed ? 'Informe' : 'Selecione'} a versão
+                testada e selecione o ambiente para registrar a execução.
               </p>
             )}
-            <p>Versão testada: {draft.testedReference?.label || 'Não selecionada'}</p>
+            <p>
+              Versão testada:{' '}
+              {referenceError ? 'Não informada' : referenceLabel(draft.testedReference)}
+            </p>
             <p>Ambiente: {environments[draft.environment] || 'Não selecionado'}</p>
             <EvidencePicker
               evidences={draft.evidences}

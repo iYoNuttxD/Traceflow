@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createEnvironment } from '../../src/config/env.js';
 import {
   latestOverdueDueDate,
@@ -253,18 +253,29 @@ describe('S2-02 bateria de unidade — argumentos do script (NT-J-02)', () => {
     ['valor lançado que não é Error', 'texto cru com segredo']
   ])('%s vira a mensagem genérica, sem o texto original, e código 1', async (_, failure) => {
     const errors = [];
+    const signal = new AbortController().signal;
+    const notifyOverdueTasks = vi.fn().mockRejectedValue(failure);
+    // This unit scenario reaches the service failure after a successful lease.
+    // The database-backed lease behavior is covered by the job integration tests.
+    const lease = vi.fn(async (_name, work) => ({
+      acquired: true,
+      result: await work(signal)
+    }));
     const code = await runOverdueNotifications({
       args: ['--apply'],
-      service: {
-        notifyOverdueTasks: async () => {
-          throw failure;
-        }
-      },
+      service: { notifyOverdueTasks },
+      lease,
       databaseUrl: 'mysql://u:p@localhost:3306/traceflow_test',
       write: () => {},
       writeError: (text) => errors.push(text)
     });
 
+    expect(lease).toHaveBeenCalledExactlyOnceWith('notifications-due', expect.any(Function));
+    expect(notifyOverdueTasks).toHaveBeenCalledExactlyOnceWith({
+      projectId: null,
+      dryRun: false,
+      signal
+    });
     expect(code).toBe(1);
     expect(errors).toEqual(['Varredura de vencimentos falhou.\n']);
   });

@@ -40,13 +40,19 @@ export function DashboardEditor({
   policy,
   onSave,
   onReset,
+  onUnpin,
   onSaved,
   onClose,
-  returnFocusRef
+  returnFocusRef,
+  catalogUnavailable = false
 }) {
-  const initialPreference = compatibleDashboardPreference(preference, catalog, policy);
+  const initialPreference = catalogUnavailable
+    ? preference
+    : compatibleDashboardPreference(preference, catalog, policy);
   const [selection, setWidgets] = useState(initialPreference.widgets);
-  const widgets = filterDashboardWidgets(selection, catalog, policy.maxWidgets);
+  const widgets = catalogUnavailable
+    ? selection
+    : filterDashboardWidgets(selection, catalog, policy.maxWidgets);
   const [reset, setReset] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -74,7 +80,10 @@ export function DashboardEditor({
   const dirty =
     widgets.join(',') !== initialPreference.widgets.join(',') ||
     (reset && (!preference.isDefault || initialPreference.configurationAdjusted));
-  const valid = widgets.length >= policy.minWidgets && widgets.length <= policy.maxWidgets;
+  const valid =
+    !catalogUnavailable &&
+    widgets.length >= policy.minWidgets &&
+    widgets.length <= policy.maxWidgets;
   const filtered = eligible.filter(
     (item) =>
       (!category || categoriesOf(item).includes(category)) &&
@@ -165,20 +174,32 @@ export function DashboardEditor({
     setReset(true);
     setAnnouncement('Seleção padrão restaurada. Salve para aplicar.');
   }
-  async function save(event) {
+  async function save(event, pinnedToOverview = initialPreference.pinnedToOverview) {
     event.preventDefault();
-    if (inFlight.current || retryRemaining > 0 || !dirty || !valid) return;
+    const pinChanged = pinnedToOverview !== initialPreference.pinnedToOverview;
+    const removingPin = pinChanged && !pinnedToOverview;
+    if (
+      inFlight.current ||
+      retryRemaining > 0 ||
+      (!dirty && !pinChanged) ||
+      (!valid && !removingPin)
+    )
+      return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
-      const saved = reset
-        ? await onReset()
-        : await onSave({
-            configurationVersion: policy.defaultPreference.configurationVersion,
-            widgets
-          });
-      if (alive.current && saved) onSaved({ restored: reset });
+      const saved = removingPin
+        ? await onUnpin()
+        : reset && !pinnedToOverview && !pinChanged
+          ? await onReset()
+          : await onSave({
+              configurationVersion: policy.defaultPreference.configurationVersion,
+              widgets,
+              pinnedToOverview
+            });
+      if (alive.current && saved)
+        onSaved({ restored: reset, pinChanged, pinnedToOverview, keepEditor: removingPin });
     } catch (failure) {
       if (alive.current) {
         const normalized = normalizeApiError(failure, 'Não foi possível salvar o painel.');
@@ -197,7 +218,7 @@ export function DashboardEditor({
     <SprintDialog
       open
       title="Personalizar painel"
-      description="Escolha os indicadores e organize a ordem de leitura."
+      description="Escolha os indicadores e organize a ordem de leitura. Fixar salva a seleção e a exibe na Visão Geral só para você."
       size="large"
       className="dashboard-editor"
       initialFocusSelector="#dashboard-widget-search"
@@ -205,8 +226,12 @@ export function DashboardEditor({
       onClose={close}
       busy={busy}
     >
-      <form onSubmit={save}>
-        <fieldset disabled={busy} className="dashboard-editor__fields">
+      <form onSubmit={(event) => save(event)}>
+        <fieldset
+          hidden={catalogUnavailable}
+          disabled={busy || catalogUnavailable}
+          className="dashboard-editor__fields"
+        >
           <section aria-labelledby="dashboard-selected-title">
             <div className="dashboard-editor__section-heading">
               <h3 id="dashboard-selected-title">Indicadores selecionados</h3>
@@ -366,6 +391,9 @@ export function DashboardEditor({
         <span className="sr-only" role="status" aria-live="polite">
           {announcement}
         </span>
+        {catalogUnavailable && (
+          <FeedbackRegion error="O catálogo está indisponível. Você ainda pode remover o painel da Visão Geral; sua seleção será preservada." />
+        )}
         {initialPreference.configurationAdjusted && (
           <FeedbackRegion info={CATALOG_ADJUSTMENT_MESSAGE} />
         )}
@@ -375,16 +403,33 @@ export function DashboardEditor({
           retryAfterSeconds={error?.retryAfterSeconds}
           remainingRetryAfterSeconds={retryRemaining}
         />
+        {initialPreference.pinnedToOverview && (
+          <p className="dashboard-editor__hint">
+            Remover da Visão Geral mantém o painel salvo e não salva as alterações em edição.
+          </p>
+        )}
         <footer className="dashboard-editor__footer">
           <button
             type="button"
             className="button button-secondary"
-            disabled={busy}
+            disabled={busy || catalogUnavailable}
             onClick={restore}
           >
             Restaurar padrão
           </button>
           <div className="dialog-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={
+                busy || retryRemaining > 0 || (!valid && !initialPreference.pinnedToOverview)
+              }
+              onClick={(event) => save(event, !initialPreference.pinnedToOverview)}
+            >
+              {initialPreference.pinnedToOverview
+                ? 'Remover da Visão Geral'
+                : 'Fixar na Visão Geral'}
+            </button>
             <button
               type="button"
               className="button button-secondary"

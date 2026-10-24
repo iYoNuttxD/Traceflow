@@ -7,6 +7,7 @@ const requirementFields = {
   description: true,
   type: true,
   status: true,
+  lifecycleBasis: true,
   createdAt: true
 };
 
@@ -92,7 +93,10 @@ const taskGraphSelect = {
 
 export const traceabilityRepository = {
   findProjectById(projectId) {
-    return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+    return prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, githubIntegration: { select: { id: true } } }
+    });
   },
 
   findRequirementsSummaryByProject(projectId) {

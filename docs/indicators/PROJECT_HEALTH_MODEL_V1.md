@@ -73,7 +73,7 @@ Status pontuado: `HEALTHY` para ≥80; `ATTENTION` para ≥60 e <80; `CRITICAL` 
 
 Em cada dimensão aplicável, `coverage = soma dos pesos dos sinais pontuados / soma dos pesos aplicáveis ×100`. A nota dimensional só existe com cobertura ≥50%, sendo média dos sinais pontuados ponderada pelos respectivos pesos. O peso dos sinais ausentes não é redistribuído no registro de cobertura. Sem Sprint ativa selecionada, Sprint é `NOT_APPLICABLE` no índice do projeto; uma Sprint terminal escolhida continua visível nos widgets, mas não transforma seu burndown histórico em saúde corrente. Sem integração GitHub configurada, Integração técnica é `NOT_APPLICABLE`. Dimensões não aplicáveis saem do denominador de cobertura do projeto.
 
-Sem `githubIntegration`, os sinais I04/I15/I73/I62/I63/I65/I66 têm `UNASSESSED`, `score:null` e `GITHUB_NOT_CONFIGURED`, e saem do denominador de **sinais aplicáveis**. I63 mede casos de teste localmente, mas seu assessment compara com I66, dependente de GitHub. Qualidade mantém os sinais locais (peso aplicável 85); Rastreabilidade mantém I61 (peso aplicável 20). Pesos do registry, thresholds e mínimo de quatro dimensões permanecem iguais. Não aplicável não reduz cobertura como uma falha de coleta de uma fonte configurada, nem assegura uma nota sem base local suficiente.
+Sem `githubIntegration`, os sinais I04/I15/I73/I62/I63/I65/I66 têm `UNASSESSED`, `score:null` e `GITHUB_NOT_CONFIGURED`, e saem do denominador de **sinais aplicáveis**. I63 e I65 são mensuráveis localmente, mas seus assessments comparam com I66, dependente de GitHub. Qualidade mantém os sinais locais (peso aplicável 85); Rastreabilidade mantém I61 (peso aplicável 20). Pesos do registry, thresholds e mínimo de quatro dimensões permanecem iguais. Não aplicável não reduz cobertura como uma falha de coleta de uma fonte configurada, nem assegura uma nota sem base local suficiente.
 
 `projectCoverage = Σ(dimensionWeight × dimensionCoverage) / Σ(dimensionWeight aplicável)`.
 Nota geral existe somente com cobertura ≥60% **e** pelo menos quatro dimensões com nota. A média geral usa `dimensionWeight × dimensionCoverage` como peso efetivo das dimensões pontuadas. A resposta publica cobertura, número de sinais e dimensões aplicáveis/pontuados, motivos estruturados, `calculatedAt` e janelas com fuso. Sem base suficiente, `score:null,status:UNASSESSED`.
@@ -103,3 +103,18 @@ Com 15 Tasks, três atrasadas, nenhuma sem responsável e três sem estimativa, 
 ## 12. Riscos de interpretação
 
 O score pode mudar por melhoria da **cobertura dos dados**, sem alteração instantânea das condições reais; por isso cobertura e dimensões acompanham a nota. Comparações temporais não equivalem a metas organizacionais. Amostras pequenas e legado histórico podem deixar sinais sem avaliação. Um índice alto não anula um Defect crítico ou risco externo específico, que precisa continuar visível no domínio. A nota não deve ser usada para ranking de pessoas, decisões de emprego ou afirmação de qualidade garantida.
+
+## Coortes de lifecycle LOCAL/GITHUB (ADR-018, 13/10/2026)
+
+Vincular GitHub não muda a base dos requisitos anteriores. Quando há requisitos LOCAL, os sinais
+de rastreabilidade técnica I62/I63/I65/I66 usam uma comparação Health separada, identificada por
+`scope:GITHUB_REQUIREMENTS`. Numerador e denominador de cada comparação usam somente requisitos
+GITHUB; o progresso esperado usa Tasks desses requisitos, e a validação esperada usa implementação
+técnica da mesma coorte. Os valores públicos dos widgets permanecem globais e suas fórmulas técnicas
+não são redefinidas. Coorte vazia é não aplicável e excluída dos pesos, com motivo
+`GITHUB_LIFECYCLE_NOT_APPLICABLE`; não cria score zero nem cem. Dependências STALE/UNAVAILABLE
+continuam sem pontuação. Projetos apenas GITHUB preservam a fórmula anterior.
+
+Qualidade local (PASS/FAIL/BLOCKED, defeitos e retestes) permanece no Health e no catálogo.
+Conectar repositório pode introduzir sinais técnicos reais, mas não converte requisitos LOCAL
+sem artefatos em uma falha de rastreabilidade. Pesos e thresholds não mudam.

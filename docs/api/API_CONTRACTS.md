@@ -449,7 +449,7 @@ Ordem de travas: as operações de esforço travam `Project` antes de `Task`, a 
 
 `entries` é o estado atual das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
 
-O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
+O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy,serverNow}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
 
 Consolidação por sprint: `GET /sprints/:id/progress` passa a incluir `effort` (`tasks`, `tasksWithEstimate`, `tasksWithActual`, `estimatedHours`, `actualHours`, `differenceHours`, `differencePercent`, `usagePercent`, `status`, `perTask[]`) somando as tarefas da sprint; sprint encerrada lê `pointsAtClose` e o snapshot de fechamento em vez da tarefa viva. Tarefa sem estimativa não entra no limite, mas o realizado dela entra no total. O responsável (`responsibleUserId`, RF51) não se confunde com quem iniciou/parou a sessão: são campos distintos e ambos ficam registrados.
 
@@ -1162,7 +1162,8 @@ não conta falhas antigas superadas por resultado posterior.
 Card: id/displayId (`TC-<id>`), projectId, title, status, responsible `{id,name}`,
 currentVersion, requirement `{id,title}` ou null, taskCount, latestExecution ou null.
 Detalhe acrescenta descrição/pré-condições/resultado geral, responsibleUserId,
-requirementId, steps, tasks, timestamps e capabilities canEdit/canDelete/canExecute.
+requirementId, steps, tasks, timestamps e capabilities canEdit/canDelete/canExecute/
+canUseManualReference. A última é true somente para escritor, caso ativo e projeto sem integração.
 
 Histórico/execuções: limit default 30, máximo 100; cursor opaco vinculado ao tipo
 histórico e ao ID do caso. Ordem `(occurredAt,id)` ou `(executedAt,id)` descendente.
@@ -1173,7 +1174,8 @@ somente referências relacionadas às Tasks atuais. Com busca, prioriza relacion
 e completa com resultados do mesmo projeto: PR número/título; Commit hash/mensagem.
 Ordenação determinística por grupos: PR relacionado, Commit relacionado, PR restante,
 Commit restante, cada grupo por id DESC. Deduplica e inclui relatedTaskIds. Sem
-chamada GitHub, sem Issue, sem varrer todos os commits de uma Task.
+chamada GitHub, sem Issue, sem varrer todos os commits de uma Task. O envelope acrescenta
+`manualReferenceAllowed`, indicando ausência de integração; os items continuam somente importados.
 
 ### Execução multipart
 
@@ -1196,7 +1198,12 @@ Exatamente um campo textual `payload`, contendo JSON:
 ```
 
 Ambientes: LOCAL/DESENVOLVIMENTO/HOMOLOGACAO. Referência obrigatória COMMIT ou
-PULL_REQUEST, exatamente um ID importado do projeto. Todas as posições da versão
+PULL_REQUEST com exatamente um ID importado do projeto; alternativamente, apenas em projeto sem
+integração, `{ "type": "MANUAL", "version": "v1 testada" }`, com version textual obrigatória,
+trim e 1–200 caracteres, sem ID ou campos extras. A autorização MANUAL é revalidada sob lock do
+Project; integração existente retorna `409 TEST_EXECUTION_MANUAL_REFERENCE_UNAVAILABLE`.
+O snapshot MANUAL contém somente type/version e ambas as FKs são null. Vinculação posterior
+preserva a referência histórica e não permite novas execuções manuais. Todas as posições da versão
 aparecem exatamente uma vez. Observação até 20.000 caracteres, obrigatória para
 FAIL/BLOCKED. Autor/timestamp/resultado geral/textos dos passos são autoridade do
 backend; payload que tente fornecê-los é recusado.
@@ -1688,14 +1695,17 @@ fotografias atuais (`period:null`). Denominador é o total de Requirements do pr
 em `NO_DATA`, e zero numerador com denominador positivo resulta em 0% `AVAILABLE` quando a fonte
 está fresca. I61 mede Requirements com Tasks; I62, evidência técnica via PR/commit; I63, TestCase
 ativo relevante direto ou via Task; I64, Defect ativo direto ou via Task ORIGIN; I65, situação
-canônica `CONCLUIDO`; I66, estágio técnico `implementation.implemented` independentemente de
+canônica `CONCLUIDO`; I66, estágio técnico `implementation.technicalImplemented` independentemente de
 falha/Defect atual; I67, média do progresso por Requirement da matriz S1-09, incluindo zero para
-Requirement sem Task. I62/I65/I66 propagam `STALE`, `sourceUpdatedAt`, `sourceSyncStatus` e
-`limitations` de frescor GitHub. I61/I63/I64/I67 permanecem locais.
+Requirement sem Task. I62/I66 propagam `STALE`, `sourceUpdatedAt`, `sourceSyncStatus` e
+`limitations` de frescor GitHub. I65 usa a base imutável de cada requisito e expõe
+`sourceScope: LOCAL | GITHUB | MIXED`; freshness GitHub aplica-se apenas se houver requisitos GITHUB.
+I61/I63/I64/I67 permanecem locais.
 
-Sem integração GitHub, I62/I65/I66 são `UNAVAILABLE`, `value:null`, `numerator:null`,
-`GITHUB_NOT_CONFIGURED`, relógio externo nulo e denominador local conhecido. I61/I63/I64/I67
-continuam calculáveis: I63 depende dos Casos de teste locais, não do provider. Seu assessment
+Sem integração GitHub, I62/I66 são `UNAVAILABLE`, `value:null`, `numerator:null`,
+`GITHUB_NOT_CONFIGURED`, relógio externo nulo e denominador local conhecido. I65 é calculável para
+requisitos LOCAL (universo vazio: NO_DATA), sem inventar relógio externo. Requisitos GITHUB sem
+integração preservam a indisponibilidade técnica de I65. I61/I63/I64/I67 continuam calculáveis: I63 depende dos Casos de teste locais, não do provider. Seu assessment
 de Health, porém, exige a referência técnica I66 e não se aplica nesse cenário.
 
 Ambos exigem sessão e membership ativa VIEWER+; sem sessão retorna 401; projeto alheio,
@@ -1905,6 +1915,7 @@ Não permite alterar fórmulas, referências, Health ou filtros por widget.
 | --- | --- | --- |
 | `GET /api/projects/:projectId/indicator-preference` | Lê a preferência da sessão; ausência não cria registro | 200 com configuração persistida ou default |
 | `PUT /api/projects/:projectId/indicator-preference` | Valida e faz upsert do par projeto/usuário | 200 com configuração confirmada |
+| `PATCH /api/projects/:projectId/indicator-preference` | Altera somente a fixação do painel do ator; preserva seleção e ordem | 200 com configuração confirmada |
 | `DELETE /api/projects/:projectId/indicator-preference` | Remove somente a preferência do ator; idempotente | 200 com default |
 
 Body PUT estrito:
@@ -1912,7 +1923,8 @@ Body PUT estrito:
 ```json
 {
   "configurationVersion": 1,
-  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"]
+  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"],
+  "pinnedToOverview": true
 }
 ```
 
@@ -1923,9 +1935,25 @@ Resposta sem configuração persistida (GET ou DELETE):
   "configurationVersion": 1,
   "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"],
   "isDefault": true,
+  "pinnedToOverview": false,
   "updatedAt": null
 }
 ```
+
+`pinnedToOverview` é booleano opcional no PUT e sempre booleano na resposta.
+Ausência no JSON legado é apresentada como `false`; ausência no PUT preserva a
+fixação existente, sob os mesmos locks da escrita. Isso mantém clientes anteriores
+compatíveis. A fixação usa o JSON da row existente, sem nova migration.
+
+PATCH aceita exclusivamente `{ "pinnedToOverview": false }` ou o mesmo campo
+com valor `true`. Não aceita
+`widgets`, `configurationVersion`, `userId` nem outros campos. Preserva exatamente
+os widgets, a ordem, a versão e demais campos JSON já persistidos, mesmo se o
+catálogo mudou ou houve edição em outra aba. `false` sem row é idempotente e não
+cria preferência; `true` sem row fixa a seleção padrão canônica. GET continua sem
+escrita. DELETE é o reset completo explícito e remove também a fixação; a UI de
+Restaurar padrão em um painel fixado usa PUT com os widgets padrão e a fixação
+preservada. Remover da Visão Geral usa PATCH, nunca DELETE.
 
 Uma row persistida utilizável retorna `isDefault: false` e `updatedAt` ISO-8601. A posição no
 array determina a ordem; não existem propriedades de dimensão/posição livre.
@@ -1936,16 +1964,16 @@ usa o default canônico com `isDefault: true`. Nesses casos a resposta acrescent
 a última escrita persistida. GET não escreve nem migra a configuração original.
 `configurationVersion` identifica o formato aceito no PUT, não um mecanismo de migração automática.
 Uma seleção legada utilizável conserva a versão armazenada na apresentação; o fallback utiliza
-a versão do default. Apenas save/reset explícito altera a persistência.
+a versão do default. Apenas save/reset ou alteração explícita de fixação muda a persistência.
 Mínimo 1, máximo 12, IDs únicos, conhecidos e elegíveis. Versão diferente de 1,
 ID proibido, campos extras (inclusive `userId`), shape inválido ou query inesperada
 são rejeitados no PUT com 400 pelo envelope de validação existente. DELETE aceita body
-vazio; GET/PUT/DELETE não possuem query de usuário.
+vazio; GET/PUT/PATCH/DELETE não possuem query de usuário.
 
 Autorização usa sessão e membership ativa: VIEWER, MEMBER, MANAGER e OWNER podem
 ler/escrever somente a própria preferência. `userId` é derivado de `req.auth`.
 401 sem autenticação; 404 opaco para projeto alheio, excluído ou membership inativa.
-PUT/DELETE exigem o CSRF canônico. A transação revalida projeto, membership e conta
+PUT/PATCH/DELETE exigem o CSRF canônico. A transação revalida projeto, membership e conta
 ativa sob locks de projeto/membership, protegendo a concorrência com exclusão.
 
 Soft delete torna a preferência inacessível; restore a preserva; hard purge e
@@ -2001,6 +2029,33 @@ Matriz completa e decisões: [Painel pessoal v1](../indicators/PERSONALIZED_DASH
 - Velocity exige fechamento conhecido (cutoff, status e estimativas); ausência de baseline
   planejada, isoladamente, não invalida esse fechamento. Estimativas desconhecidas continuam excluídas.
 
+### Coberturas de artefatos sem integração
+
+Os endpoints `traceability/pull-request-coverage`, `commit-coverage` e `issue-coverage`
+retornam `coveragePercentage:null`, `coverage.percentage:null`, `coverage.numerator:null`,
+`coverage.hasData:false`, `coverage.state:UNAVAILABLE` e
+`coverage.limitations:[GITHUB_NOT_CONFIGURED]` quando o projeto não tem integração.
+As contagens observadas continuam disponíveis, sem serem convertidas em uma cobertura zero.
+Com integração, o contrato numérico existente é preservado. A cobertura Requirement–Task
+continua local e não recebe esse bloqueio.
+
+### Base de lifecycle e Health em projetos locais/mistos (ADR-018)
+
+Requirement expõe `lifecycleBasis:LOCAL|GITHUB`, somente leitura. A base é atribuída na criação
+sob o lock do projeto e não muda após vinculação GitHub. Projeções detalhadas/resumidas expõem
+`requirement.lifecycleBasis`, `implementation.basis`, `implementation.implemented` segundo a base
+e `implementation.technicalImplemented` segundo Tasks concluídas + Commit/PR real.
+`evidence.implementation` continua sendo prova técnica; `evidence.correctionBasis` identifica
+a regra usada para a evidência de correção. Validação, falhas e retestes não perdem suas exigências.
+
+Quando há requisitos LOCAL, I62/I63/I65/I66 expõem `components.healthComparison` com
+`scope:GITHUB_REQUIREMENTS`, `applicable`, `numerator`, `denominator`, `value`, `expectedValue`,
+`expectedNumerator` e `expectedDenominator`. Isso não altera os valores globais dos indicadores.
+Health compara apenas a coorte cuja base exige GitHub: progresso das Tasks dessa coorte para
+I62/I66; implementação técnica dessa mesma coorte para I63/I65. Coorte vazia é não aplicável,
+com `GITHUB_LIFECYCLE_NOT_APPLICABLE`, sem score e fora dos pesos; não é falha nem sucesso fictício.
+As dependências precisam estar AVAILABLE, inclusive I66 usado por I63/I65. Projetos apenas GITHUB
+preservam as comparações anteriores. Qualidade local continua considerando resultados/defeitos.
 
 ## OCI-DEPLOY-04.1 — Evidências retomáveis (protocolo v1)
 
@@ -2325,6 +2380,21 @@ S2-02 vale. A divergência com o §12 do contexto de arquitetura continua declar
 S2-02). Na sincronização, a execução ganhou `GITHUB_SYNC_PROJECT_BUSY` e
 `GITHUB_SYNC_STORAGE_FAILED` (seção da integração GitHub, "Erro da execução").
 
+
+
+### Referência de relógio das sessões (20/10/2026)
+
+Sessões abertas em `running`, `entry`, `effort.running` e `runningTimer` incluem
+`serverNow` (ISO 8601 UTC), observado pelo servidor ao apresentar o snapshot.
+O frontend calcula a idade inicial usando `serverNow - startedAt` e a faz avançar
+com tempo monotônico desde o recebimento, sem subtrair relógios de máquinas diferentes.
+Respostas HTTP e eventos ancoram o snapshot antes de armazená-lo/reaplicá-lo;
+reabrir ou reconectar usa uma nova observação e preserva a idade real da sessão.
+O campo é transitório: não altera datas persistidas, durações encerradas,
+permissões nem o esforço legado. Não é uma garantia de sincronização subsegundo:
+a latência entre a observação e a recepção não é somada. Clientes mantêm fallback
+para snapshots antigos sem o campo, que ainda dependem do relógio local.
+
 ## S2-06 e S2-07 — Relatórios do projeto e exportação em PDF (RF37/RF57)
 
 Relatório é um **retrato congelado**: a geração lê, com o mesmo recorte, os services que
@@ -2371,6 +2441,10 @@ Ciclo: `QUEUED → RUNNING → SUCCEEDED | FAILED`. Heartbeat a cada 30 s; RUNNI
 5 min é encerrado como `FAILED`/`REPORT_GENERATION_STALE` na próxima leitura; a montagem tem
 prazo de 4 min (`REPORT_TIMEOUT`). Snapshot, pessoas congeladas e liberação da reserva são
 gravados na mesma transação, depois de conferir que a reserva ainda é desta execução.
+
+Após timeout, nenhuma nova etapa da composição começa. A carência de cancelamento apenas
+registra um aviso: reserva, heartbeat e slot de concorrência permanecem até a consulta
+subjacente terminar de fato. Só então a execução é encerrada e a capacidade é liberada.
 
 ```json
 {

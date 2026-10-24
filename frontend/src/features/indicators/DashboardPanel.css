@@ -1204,3 +1204,84 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Keep explanatory text readable while charts and tables use the workspace. */
+.dashboard-panel :is(
+  .indicator-card__empty,
+  .indicator-card__notice,
+  .dashboard-panel__section-notice p,
+  .project-health__coverage,
+  .project-health__empty
+) {
+  max-width: 72ch;
+}
+
+.dashboard-panel--overview {
+  margin-top: var(--space-6);
+}
+
+.dashboard-panel__overview-heading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dashboard-panel__overview-heading h2,
+.dashboard-panel__overview-heading p {
+  margin: 0;
+}
+
+.dashboard-panel__overview-heading h2 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-5);
+}
+
+.dashboard-panel__overview-heading p {
+  max-width: 72ch;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-body);
+}
+
+.dashboard-panel--overview .dashboard-panel__toolbar-actions {
+  flex-wrap: wrap;
+  border-left: 0;
+  padding-left: 0;
+}
+
+/* Only the pinned Overview places actions beside the full-size filter header. */
+.dashboard-panel--overview > .indicator-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.dashboard-panel--overview > .indicator-filters > .planning-filter-panel__body {
+  grid-column: 1 / -1;
+}
+
+.dashboard-panel--overview > .indicator-filters > .dashboard-panel__toolbar-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-4) var(--space-2) 0;
+  padding-left: var(--space-4);
+  border-top: 0;
+  justify-content: flex-end;
+}
+
+.dashboard-panel--overview > .indicator-filters > [hidden],
+.dashboard-panel--overview .dashboard-panel__toolbar-actions > [hidden] {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .dashboard-panel--overview > .indicator-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-panel--overview > .indicator-filters > .dashboard-panel__toolbar-actions {
+    margin: 0;
+    padding: 0 var(--space-4) var(--space-3);
+    border-left: 0;
+  }
+}

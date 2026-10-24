@@ -12,6 +12,7 @@ import { graphFields, GraphStatus } from './GraphNode.jsx';
 import { identity, nodeLabels, relationLabels } from '../model/graph.js';
 import { phaseLabel } from '../model/phase.js';
 import { TraceabilityHelp } from './TraceabilityHelp.jsx';
+import { implementationEvidence } from '../model/requirement-view.js';
 export function TraceabilityInspector({ node, contract, onClose, onSelect, onDetails }) {
   const d = node.data;
   const related = contract.edges.filter((e) => e.source === node.id || e.target === node.id);
@@ -168,6 +169,12 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
       )}
       {p && (
         <DetailSurface title="Evidências da cadeia">
+          {implementationEvidence(p).local && (
+            <p>
+              Ciclo local: conclusão por tarefas e validação. Artefatos GitHub são evidências
+              técnicas separadas e não são exigidos para concluir este requisito.
+            </p>
+          )}
           <dl className="trace-inspector-fields">
             <div>
               <dt>Artefatos</dt>

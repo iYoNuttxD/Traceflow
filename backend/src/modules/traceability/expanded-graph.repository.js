@@ -7,7 +7,7 @@ const identity = { select: { id: true, title: true } };
 export async function loadExpandedGraph(tx, projectId, requirementId) {
   const requirement = await tx.requirement.findFirst({
     where: { id: requirementId, projectId },
-    select: { id: true, projectId: true, title: true, status: true }
+    select: { id: true, projectId: true, title: true, status: true, lifecycleBasis: true }
   });
   if (!requirement) return null;
   const cases = await tx.testCase.findMany({

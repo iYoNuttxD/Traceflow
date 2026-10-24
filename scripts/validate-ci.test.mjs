@@ -442,3 +442,17 @@ test("migration não pode mudar de job ou diretório", () => {
     /Gate obrigatório ausente em Backend Tests.*db:test:migrate/,
   );
 });
+
+test("bloqueia ausência do upgrade com migrador restrito", () => {
+  assert.throws(
+    () =>
+      validateCi({
+        ...baseline,
+        workflow: baseline.workflow.replace(
+          "run: npm run db:test:validate-restricted",
+          "run: npm run test",
+        ),
+      }),
+    /Gate obrigatório ausente.*db:test:validate-restricted/,
+  );
+});

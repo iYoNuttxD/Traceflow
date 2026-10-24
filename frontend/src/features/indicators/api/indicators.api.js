@@ -9,6 +9,9 @@ export const indicatorsApi = {
   savePreference(projectId, configuration) {
     return httpClient.put(`/projects/${projectId}/indicator-preference`, configuration);
   },
+  setOverviewPin(projectId, pinnedToOverview) {
+    return httpClient.patch(`/projects/${projectId}/indicator-preference`, { pinnedToOverview });
+  },
   resetPreference(projectId) {
     return httpClient.delete(`/projects/${projectId}/indicator-preference`);
   },

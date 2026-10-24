@@ -15,6 +15,45 @@ function card(overrides = {}) {
   );
 }
 describe('indicator presentation contract', () => {
+  it('explains an inapplicable technical health cohort without inventing a score', () => {
+    card({
+      metricId: 'I62',
+      state: 'AVAILABLE',
+      value: 0,
+      unit: 'PERCENT',
+      assessment: {
+        status: 'NOT_APPLICABLE',
+        score: null,
+        reasonCode: 'GITHUB_LIFECYCLE_NOT_APPLICABLE'
+      }
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Informações sobre Requisitos com evidência técnica' })
+    );
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'Não há requisitos de ciclo GitHub nesta base'
+    );
+    expect(screen.queryByText('Saudável')).not.toBeInTheDocument();
+  });
+  it.each(['I62', 'I66'])(
+    'does not turn unavailable standalone %s evidence into zero or healthy',
+    (metricId) => {
+      card({
+        metricId,
+        state: 'UNAVAILABLE',
+        unit: 'PERCENT',
+        value: null,
+        limitations: ['GITHUB_NOT_CONFIGURED'],
+        assessment: { status: 'UNASSESSED', reasonCode: 'GITHUB_NOT_CONFIGURED' }
+      });
+      expect(screen.getByText('—')).toBeVisible();
+      expect(
+        screen.getByText('Este projeto não possui integração GitHub configurada.')
+      ).toBeVisible();
+      expect(screen.queryByText('0%')).not.toBeInTheDocument();
+      expect(screen.queryByText('Saudável')).not.toBeInTheDocument();
+    }
+  );
   it.each(['HEALTHY', 'ATTENTION', 'CRITICAL'])(
     'keeps %s before data state beside the title with independent help',
     (status) => {

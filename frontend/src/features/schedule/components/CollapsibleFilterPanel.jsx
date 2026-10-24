@@ -17,6 +17,8 @@ export function CollapsibleFilterPanel({
   canClear = activeCount > 0,
   clearDisabled = false,
   className = '',
+  actions,
+  controlsOnly = false,
   children
 }) {
   const generatedId = useId();
@@ -35,9 +37,10 @@ export function CollapsibleFilterPanel({
   return (
     <section
       className={['planning-filter-panel', className].filter(Boolean).join(' ')}
-      aria-labelledby={titleId}
+      aria-labelledby={controlsOnly ? undefined : titleId}
     >
       <button
+        hidden={controlsOnly}
         ref={toggleRef}
         type="button"
         className="planning-filter-panel__toggle"
@@ -55,8 +58,9 @@ export function CollapsibleFilterPanel({
         </span>
       </button>
 
-      <div className="planning-filter-panel__body" id={panelId} hidden={!expanded}>
-        {expanded && (
+      {actions}
+      <div className="planning-filter-panel__body" id={panelId} hidden={!expanded || controlsOnly}>
+        {expanded && !controlsOnly && (
           <>
             {children}
             <FilterActions onClear={onClear} canClear={canClear} disabled={clearDisabled} />

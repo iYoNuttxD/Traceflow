@@ -22,6 +22,8 @@ export function describeHealthReason(assessment, metricId) {
   const { reasonCode, basis } = assessment ?? {};
   if (reasonCode === 'GITHUB_NOT_CONFIGURED')
     return 'A avaliação depende de uma integração GitHub configurada.';
+  if (reasonCode === 'GITHUB_LIFECYCLE_NOT_APPLICABLE')
+    return 'Não há requisitos de ciclo GitHub nesta base. A ausência de evidências técnicas não reduz a avaliação dos requisitos de ciclo local.';
   if (reasonCode === 'TASK_SHARE')
     return `${number(basis.count)} de ${number(basis.totalTasks)} Tasks ${
       metricId === 'I28'
@@ -45,7 +47,7 @@ export function describeHealthReason(assessment, metricId) {
   if (reasonCode === 'CURRENT_TEST_PASS')
     return `${number(basis.pass)} de ${number(basis.total)} casos ativos estão aprovados na versão atual.`;
   if (reasonCode === 'STAGE_GAP')
-    return `Cobertura observada de ${number(basis.current)}% frente a ${number(basis.expected)}% no estágio anterior; lacuna de ${number(basis.gapPoints)} pontos percentuais.`;
+    return `${basis.scope === 'GITHUB_REQUIREMENTS' ? `Comparação restrita a ${number(basis.denominator)} requisitos de ciclo GitHub. ` : ''}Cobertura observada de ${number(basis.current)}% frente a ${number(basis.expected)}% no estágio anterior; lacuna de ${number(basis.gapPoints)} pontos percentuais.`;
   if (reasonCode === 'NO_OPEN_PRS') return 'Não há PRs abertas na fila atual.';
   if (reasonCode === 'OPEN_PR_AGE')
     return `${number(basis.averageOpenAgeDays)} dias de idade média das PRs abertas; mediana de merge de ${number(basis.medianMergeHours)} h.`;

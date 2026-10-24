@@ -7,7 +7,8 @@ import {
   percentageLabel,
   requirementStatuses,
   situations,
-  situationLabel
+  situationLabel,
+  implementationEvidence
 } from '../model/requirement-view.js';
 
 export function SituationBadge({ value }) {
@@ -137,6 +138,7 @@ function Count({ label, value, icon, tone }) {
 }
 export function RequirementCard({ item, selected, onSelect, onHistory }) {
   const { requirement, progress, artifacts, validation, defects, evidence } = item;
+  const implementation = implementationEvidence(item);
   return (
     <article
       className={`sprint-card requirement-card${selected ? ' requirement-card--selected' : ''}`}
@@ -210,9 +212,9 @@ export function RequirementCard({ item, selected, onSelect, onHistory }) {
         <div className="requirement-evidence" aria-label="Evidências">
           <span className="trace-help-label">
             Evidências
-            <TraceabilityHelp topic="evidence" />
+            <TraceabilityHelp topic={implementation.helpTopic} />
           </span>
-          <Evidence label="Implementação" value={evidence.implementation} />
+          <Evidence label={implementation.label} value={implementation.present} />
           <Evidence label="Validação" value={evidence.validation} />
           <Evidence label="Correção" value={evidence.correction} />
         </div>

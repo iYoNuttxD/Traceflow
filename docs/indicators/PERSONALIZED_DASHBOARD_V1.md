@@ -31,12 +31,12 @@ Sem período, eventos preservam UNAVAILABLE/PERIOD_REQUIRED; não há janela inv
 ## Persistência e autorização
 
 ProjectDashboardPreference: par único projectId/userId, configurationVersion,
-configuration JSON com widgets[], createdAt e updatedAt. A posição no array é a
+configuration JSON com widgets[] e pinnedToOverview, createdAt e updatedAt. A posição no array é a
 única autoridade de ordem. FK cascade para Project/User; GET não cria row.
 
 Sessão e membership ativa em projeto não excluído são exigidas. VIEWER, MEMBER,
 MANAGER e OWNER alteram somente a própria preferência; userId no body é rejeitado.
-401 sem sessão; 404 opaco para projeto alheio/excluído. PUT/DELETE exigem CSRF.
+401 sem sessão; 404 opaco para projeto alheio/excluído. PUT/PATCH/DELETE exigem CSRF.
 Writes revalidam membership/conta na transação após locks Project → membership.
 Soft delete conserva a row inacessível durante retenção; restore a recupera;
 hard purge a remove por cascade. Anonimização desativa membership antes de remover
@@ -76,9 +76,53 @@ escrita anterior ainda pendente, sem reutilizar uma leitura feita antes da confi
 Cancelar/Escape descartam draft e devolvem foco.
 
 Restaurar padrão usa confirmação leve, muda somente draft e continua cancelável.
-Salvar após restore executa DELETE e consome o default retornado. Não há autosave,
+Salvar após restore executa DELETE e consome o default retornado quando não fixado.
+Quando fixado, usa PUT com os widgets padrão e pinnedToOverview=true para manter
+a fixação. Não há autosave,
 PUT por reorder ou refetch ao recuperar foco da janela. Preferência é carregada uma
 vez por projeto no workspace; catálogo usa o estado em memória já existente.
+
+## Fixar na Visão Geral
+
+No editor, **Fixar na Visão Geral** salva a seleção válida atual e a fixação em um
+único PUT. A preferência pertence exclusivamente ao par projeto/usuário, inclusive
+para VIEWER. Ao entrar na Visão Geral, uma leitura nova da preferência determina
+se o mesmo painel CUSTOM deve ser exibido. Preferência ausente, removida ou legada
+sem flag não exibe o painel nem dispara consultas do catálogo/agregado CUSTOM.
+Falha da leitura oferece erro e retry; não é interpretada como painel desfixado.
+
+**Remover da Visão Geral** existe somente dentro de **Personalizar painel**, acessível
+também no painel fixado da Visão Geral. A ação usa PATCH com apenas pinnedToOverview=false. Não apaga
+nem reordena widgets, não troca a versão e não sobrescreve edições de outra aba.
+Também funciona quando os dados/catálogo estão indisponíveis. No editor, remover a
+fixação preserva a seleção já salva; mudanças ainda em draft não são salvas por essa
+ação. Falha mantém a fixação visível e oferece retry. O PATCH sem row não cria uma.
+Ao remover na Overview, os widgets desaparecem imediatamente e o editor mantém o
+rascunho aberto. O mesmo botão Personalizar permanece acessível durante essa visita,
+para retorno de foco ao fechar/cancelar e nova fixação; visitas novas sem fixação não
+exibem esse painel. Falha do catálogo permite remover pelo mesmo editor, com edição
+indisponível até recuperar o catálogo.
+
+Somente na Visão Geral, a barra Buscar e filtrar mantém título, resumo e contador
+e ocupa o espaço disponível; Personalizar painel e atualização ficam no canto direito.
+Os campos expandidos ocupam toda a largura abaixo. No mobile, as ações passam para
+a linha seguinte, com alvos de ao menos 44px. Na página de Indicadores, inclusive
+Meu painel, o layout anterior é preservado: filtros em largura total acima da barra
+de abas, personalização e atualização. Expandir filtros não invade as abas.
+
+O DELETE continua sendo o reset completo da API, distinto de remover a fixação.
+
+O painel embutido reutiliza os presenters, a ordem e a compatibilidade do catálogo.
+Widgets retirados são filtrados em leitura e, se nenhum restar, aplica o default
+com aviso, sem reescrever a preferência. Permissões e limpeza por saída/exclusão
+continuam canônicas. As alterações salvas em Indicadores aparecem na próxima
+visita à Visão Geral; refresh após sync também atualiza os dados do painel fixado.
+
+A Visão Geral não duplica o Summary/Health nem as tabs de Indicadores. Seus filtros
+Período/fuso/Sprint são locais à visita/projeto, começam sem período inventado e
+não alteram a URL de Indicadores nem a preferência persistida. PERIOD_REQUIRED,
+NO_DATA e outros estados continuam honestos. O aggregate CUSTOM mantém seu contrato
+canônico de Health, mas a superfície embutida não o renderiza uma segunda vez.
 
 ## Layout
 

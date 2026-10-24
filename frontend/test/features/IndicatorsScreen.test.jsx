@@ -46,8 +46,8 @@ function Harness() {
   navigate = useNavigate();
   return <IndicatorsPage />;
 }
-function page() {
-  return render(
+function pageUi() {
+  return (
     <MemoryRouter initialEntries={['/projects/1/indicators']}>
       <Routes>
         <Route path="/projects/:projectId/indicators" element={<Harness />} />
@@ -55,12 +55,15 @@ function page() {
     </MemoryRouter>
   );
 }
+function page() {
+  return render(pageUi());
+}
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.projects.mockReturnValue({
     projects: [
-      { id: 1, name: 'Um' },
-      { id: 2, name: 'Dois' }
+      { id: 1, name: 'Um', githubIntegration: { status: 'ACTIVE' } },
+      { id: 2, name: 'Dois', githubIntegration: { status: 'ACTIVE' } }
     ],
     loading: false
   });
@@ -75,6 +78,52 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('P8.5 Indicators workspace', () => {
+  it('skips GitHub status for standalone projects and starts after a later link', async () => {
+    vi.useFakeTimers();
+    mocks.projects.mockReturnValue({
+      projects: [{ id: 1, name: 'Um', githubIntegration: null }],
+      loading: false
+    });
+    const view = page();
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(mocks.dashboard).toHaveBeenCalledOnce();
+    expect(mocks.sync).not.toHaveBeenCalled();
+    mocks.projects.mockReturnValue({
+      projects: [{ id: 1, name: 'Um', githubIntegration: { status: 'ACTIVE' } }],
+      loading: false
+    });
+    mocks.sync
+      .mockResolvedValueOnce({ run: { id: 4, status: 'RUNNING' } })
+      .mockResolvedValue({ run: { id: 4, status: 'SUCCEEDED' } });
+    view.rerender(pageUi());
+    await act(async () => {});
+    expect(mocks.sync).toHaveBeenCalledOnce();
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(mocks.dashboard).toHaveBeenCalledTimes(2);
+  });
+  it('cancels an in-flight GitHub probe when integration becomes absent', async () => {
+    vi.useFakeTimers();
+    let rejectOld;
+    mocks.sync.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectOld = reject;
+      })
+    );
+    const view = page();
+    await act(async () => {});
+    const signal = mocks.sync.mock.calls[0][1].signal;
+    mocks.projects.mockReturnValue({
+      projects: [{ id: 1, name: 'Um', githubIntegration: null }],
+      loading: false
+    });
+    view.rerender(pageUi());
+    await act(async () => rejectOld(new Error('late failure')));
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(signal.aborted).toBe(true);
+    expect(mocks.sync).toHaveBeenCalledOnce();
+    expect(mocks.dashboard).toHaveBeenCalledOnce();
+  });
   it('renders the project route, canonical summary, active navigation and a single collapsed filter for VIEWER', async () => {
     page();
     expect(

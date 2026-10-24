@@ -142,7 +142,9 @@ describe('activity capability reads', () => {
   const period = { startInclusive: new Date('2026-09-01'), endExclusive: new Date('2026-10-01') };
   const transaction = () => {
     const tx = {
-      project: { findFirst: vi.fn().mockResolvedValue({ id: 1 }) },
+      project: {
+        findFirst: vi.fn().mockResolvedValue({ id: 1, githubIntegration: { status: 'ACTIVE' } })
+      },
       gitBranch: { findFirst: vi.fn().mockResolvedValue(null) },
       $queryRaw: vi.fn().mockResolvedValue([])
     };
@@ -155,6 +157,21 @@ describe('activity capability reads', () => {
     expect(tx.gitBranch.findFirst).toHaveBeenCalledOnce();
     expect(tx.$queryRaw).not.toHaveBeenCalled();
     expect(facts.taskRows).toEqual([]);
+  });
+  it('does not read residual branches or commits without an integration', async () => {
+    const tx = transaction();
+    tx.project.findFirst.mockResolvedValue({ id: 1, githubIntegration: null });
+    tx.gitBranch.findFirst.mockResolvedValue({
+      id: 9,
+      name: 'main',
+      lastSyncedHeadSha: 'old',
+      lastSyncedGeneration: 1
+    });
+    const facts = await indicatorsRepository.readActivity(1, period, ['I02']);
+    expect(tx.gitBranch.findFirst).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(facts.branch).toBeNull();
+    expect(facts.commitRows).toBeNull();
   });
   it('does not read GitHub branch membership for task-only activity', async () => {
     const tx = transaction();

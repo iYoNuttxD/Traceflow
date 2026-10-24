@@ -40,16 +40,33 @@ async function ensureProjectExists(projectId) {
   return project;
 }
 
-async function coverage(projectId, countTotal, countLinked, legacyTotalKey, legacyLinkedKey) {
+async function coverage(
+  projectId,
+  countTotal,
+  countLinked,
+  legacyTotalKey,
+  legacyLinkedKey,
+  githubDependent = false
+) {
   const id = parsePositiveInteger(projectId, 'do projeto');
-  await ensureProjectExists(id);
+  const project = await ensureProjectExists(id);
   const [total, linked] = await Promise.all([countTotal(id), countLinked(id)]);
-  const metric = buildCoverageMetric(linked, total);
+  const unavailable = githubDependent && !project.githubIntegration;
+  const metric = unavailable
+    ? {
+        numerator: null,
+        denominator: total,
+        percentage: null,
+        hasData: false,
+        state: 'UNAVAILABLE',
+        limitations: ['GITHUB_NOT_CONFIGURED']
+      }
+    : buildCoverageMetric(linked, total);
   return {
     projectId: id,
     [legacyTotalKey]: total,
     [legacyLinkedKey]: linked,
-    coveragePercentage: metric.percentage ?? 0,
+    coveragePercentage: unavailable ? null : (metric.percentage ?? 0),
     coverage: metric
   };
 }
@@ -132,7 +149,8 @@ export const traceabilityService = {
       (id) => traceabilityRepository.countTasksByProject(id),
       (id) => traceabilityRepository.countTasksWithPullRequest(id),
       'totalTasks',
-      'linkedTasks'
+      'linkedTasks',
+      true
     );
   },
   getCommitCoverage(projectId) {
@@ -141,7 +159,8 @@ export const traceabilityService = {
       (id) => traceabilityRepository.countTasksByProject(id),
       (id) => traceabilityRepository.countTasksWithCommit(id),
       'totalTasks',
-      'linkedTasks'
+      'linkedTasks',
+      true
     );
   },
   getIssueCoverage(projectId) {
@@ -150,7 +169,8 @@ export const traceabilityService = {
       (id) => traceabilityRepository.countTasksByProject(id),
       (id) => traceabilityRepository.countTasksWithIssue(id),
       'totalTasks',
-      'linkedTasks'
+      'linkedTasks',
+      true
     );
   }
 };

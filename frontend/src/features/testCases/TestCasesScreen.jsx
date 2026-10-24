@@ -134,13 +134,16 @@ function ProjectTestCases({ project }) {
       if (!state.scope.valid(context)) return;
       const error = normalizeApiError(e, 'Não foi possível concluir a operação.');
       const conflict = error.code === 'TEST_CASE_VERSION_CONFLICT';
+      const referenceContextChanged = error.code === 'TEST_EXECUTION_MANUAL_REFERENCE_UNAVAILABLE';
       const uncertain =
         !e.resumableUpload && (error.isNetworkError || error.isTimeout || !error.status);
       const message = conflict
         ? 'O caso foi atualizado por outra pessoa. Seu rascunho foi preservado. Revise-o e feche este diálogo para recarregar a versão atual antes de salvar novamente.'
-        : uncertain
-          ? 'Não foi possível confirmar a resposta. A operação pode ter sido registrada. Consulte o histórico antes de tentar novamente; seu rascunho foi preservado.'
-          : error.message;
+        : referenceContextChanged
+          ? 'A integração GitHub deste projeto mudou. Seu rascunho foi preservado. Feche este diálogo e abra a execução novamente para selecionar uma referência disponível.'
+          : uncertain
+            ? 'Não foi possível confirmar a resposta. A operação pode ter sido registrada. Consulte o histórico antes de tentar novamente; seu rascunho foi preservado.'
+            : error.message;
       setMutationError({
         ...error,
         message:
@@ -152,7 +155,7 @@ function ProjectTestCases({ project }) {
             ? { traceability: 'Vincule este caso a pelo menos um requisito ou uma tarefa.' }
             : error.fieldErrors,
         uncertain,
-        blocked: conflict || uncertain
+        blocked: conflict || referenceContextChanged || uncertain
       });
     } finally {
       mutationLock.current = false;

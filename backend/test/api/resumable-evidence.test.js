@@ -116,6 +116,29 @@ afterEach(async () => {
     await rm(`${root}/${name}`, { recursive: true, force: true });
 });
 describe('OCI-04.1 authenticated resumable evidence HTTP', () => {
+  it('preserves a standalone manual reference through resumable confirmation and replay', async () => {
+    const f = await begin(await fixture());
+    expect(f.response.status, f.response.text).toBe(201);
+    expect(f.row.capabilities.canUseManualReference).toBe(true);
+    expect((await part(f)).status).toBe(200);
+    expect((await part(f)).status).toBe(200);
+    const payload = {
+      ...f.payload,
+      testedReference: { type: 'MANUAL', version: '  build local retomável  ' }
+    };
+    const first = await finish(f, payload);
+    expect(first.status, first.text).toBe(200);
+    expect(first.body.execution).toMatchObject({
+      testedReferenceType: 'MANUAL',
+      testedPullRequestId: null,
+      testedCommitId: null,
+      testedReferenceSnapshot: { type: 'MANUAL', version: 'build local retomável' }
+    });
+    expect((await finish(f, payload)).body.execution).toEqual(first.body.execution);
+    expect(await prisma.testExecution.count()).toBe(1);
+    expect(await prisma.testEvidence.count()).toBe(1);
+    expect(await prisma.auditEvent.count({ where: { action: 'TEST_EXECUTION_RECORDED' } })).toBe(1);
+  });
   it('U01 U08 U14: small upload, init/part/confirmation replay, canonical download and one audit', async () => {
     const f = await begin(await fixture());
     expect(f.response.status, f.response.text).toBe(201);

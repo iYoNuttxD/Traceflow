@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-19",
+  "baseline_commit": "c426a70f6c716cf5f6132e4e09a1d711242fa573",
+  "baseline_tree": "e7b09019c8ec77038c4fae923f79f17fefae3512",
+  "environment": {
+    "node": "22.23.3",
+    "platform": "linux-x64",
+    "available_parallelism": 9,
+    "measurement_policy": "Sequential invocations without competing test/build processes; same checkout and installed dependencies."
+  },
+  "frontend": {
+    "baseline": {
+      "command": "npm run test:coverage",
+      "files": 142,
+      "passed": 1784,
+      "failed": 0,
+      "duration_seconds": 91.88,
+      "pagination_300_cards_seconds": 17.54
+    },
+    "optimized": {
+      "command": "npm run test:coverage",
+      "files": 142,
+      "passed": 1784,
+      "failed": 0,
+      "duration_seconds": 92.22,
+      "pagination_300_cards_seconds": 13.177
+    },
+    "identical_case_inventory": true,
+    "identical_per_file_coverage": true,
+    "coverage": {
+      "lines": {
+        "total": 11258,
+        "covered": 10044,
+        "skipped": 0,
+        "pct": 89.21
+      },
+      "statements": {
+        "total": 12871,
+        "covered": 11189,
+        "skipped": 0,
+        "pct": 86.93
+      },
+      "functions": {
+        "total": 3729,
+        "covered": 3093,
+        "skipped": 0,
+        "pct": 82.94
+      },
+      "branches": {
+        "total": 12041,
+        "covered": 9847,
+        "skipped": 0,
+        "pct": 81.77
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "interpretation": "No total wall-time improvement demonstrated in this paired sample. The 300-card pagination case is faster while preserving all 14 accessible page checks."
+  },
+  "backend_units": {
+    "same_final_code_in_both_runs": true,
+    "database_available": false,
+    "serial": {
+      "command": "npm run test:unit -- --maxWorkers=1 --no-file-parallelism",
+      "files": 133,
+      "passed": 1635,
+      "failed": 0,
+      "duration_seconds": 53.4
+    },
+    "parallel": {
+      "command": "npm run test:unit",
+      "workers": 2,
+      "files": 133,
+      "passed": 1635,
+      "failed": 0,
+      "duration_seconds": 27.99
+    },
+    "identical_case_inventory": true,
+    "duration_reduction_percent": 47.58,
+    "new_regressions": 5,
+    "pre_optimization_findings": {
+      "passed": 1628,
+      "failed": 2,
+      "reason": "Two unit cases unexpectedly used a real scheduled-job lease; explicit injection now keeps these cases independent of MySQL."
+    }
+  },
+  "pending_remote_validation": [
+    "Complete backend coverage with MySQL 8.4.8",
+    "Real transaction deadline, rollback and recovery checks",
+    "Historical migration and schema-drift gates"
+  ],
+  "unchanged": [
+    "Application source",
+    "Dependencies and lockfiles",
+    "Coverage thresholds and source boundaries",
+    "Existing skipped cases",
+    "Database file serialization",
+    "6000-event workload",
+    "Calendar timezone checks on fork workers"
+  ],
+  "baseline_ci": {
+    "url": "https://github.com/iYoNuttxD/Traceflow/actions/runs/39327595634",
+    "status_at_checkpoint": "in_progress"
+  },
+  "local_checks": {
+    "backend_lint": "passed",
+    "frontend_lint": "passed",
+    "backend_format": "passed",
+    "frontend_format": "passed",
+    "prisma_validate": "passed",
+    "prisma_generate": "passed",
+    "architecture": "passed",
+    "secret_scan": "passed",
+    "ci_audit_inventory_policy_tests": {
+      "passed": 90,
+      "failed": 0
+    },
+    "database_cleanup_guards": {
+      "passed": 12,
+      "failed": 0
+    },
+    "frontend_production_build": "passed_with_existing_bundle_warnings",
+    "backend_dependency_policy": "passed_no_high_or_critical",
+    "frontend_dependency_policy": "passed_no_high_or_critical"
+  }
+}

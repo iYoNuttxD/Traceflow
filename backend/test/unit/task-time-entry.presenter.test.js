@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildEffortSummary,
   canOperateTaskTimer,
   formatTaskTimeEntry
 } from '../../src/modules/tasks/services/task-time-entry.presenter.js';
 
+vi.mock('../../src/modules/tasks/task.repository.js', () => ({ taskRepository: {} }));
+
 const HOUR = 3600;
+afterEach(() => vi.useRealTimers());
 
 describe('buildEffortSummary — fórmulas do S1-06', () => {
   it('sem estimativa: não há limite e as diferenças ficam nulas', () => {
@@ -117,7 +120,8 @@ describe('buildEffortSummary — fórmulas do S1-06', () => {
     expect(buildEffortSummary({ estimatedHours: 1, running }).running).toEqual({
       id: 9,
       startedAt: running.startedAt,
-      startedBy: { id: 10, name: 'Ana' }
+      startedBy: { id: 10, name: 'Ana' },
+      serverNow: expect.any(String)
     });
   });
 });
@@ -183,5 +187,21 @@ describe('formatTaskTimeEntry — capacidades por sessão', () => {
     expect(canOperateTaskTimer('')).toBe(false);
     expect(canOperateTaskTimer('VIEWER')).toBe(false);
     expect(canOperateTaskTimer(undefined)).toBe(false);
+  });
+});
+
+describe('running timer server clock reference', () => {
+  it('stamps running entries, summaries and task cards with the server clock', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-20T12:00:00.123Z'));
+    const { formatTask } = await import('../../src/modules/tasks/task.service-support.js');
+    const entry = { id: 9, startedAt: new Date(), endedAt: null };
+    const expected = '2026-10-20T12:00:00.123Z';
+    expect(formatTaskTimeEntry(entry).serverNow).toBe(expected);
+    expect(buildEffortSummary({ running: entry }).running.serverNow).toBe(expected);
+    expect(formatTask({ timeEntries: [entry] }).runningTimer.serverNow).toBe(expected);
+    expect(formatTaskTimeEntry({ ...entry, endedAt: new Date() })).not.toHaveProperty('serverNow');
+    expect(formatTask({ timeEntries: [] }).runningTimer).toBeNull();
+    expect(entry).not.toHaveProperty('serverNow');
   });
 });

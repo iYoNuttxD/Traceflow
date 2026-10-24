@@ -67,7 +67,9 @@ export function formatTask(task) {
     correctionDefectCount: correctionDefects.length,
     correctionDefects,
     responsible: taskData.responsibleUser?.name || taskData.responsible || null,
-    runningTimer: timeEntries[0] ?? null,
+    runningTimer: timeEntries[0]
+      ? { ...timeEntries[0], serverNow: new Date().toISOString() }
+      : null,
     pullRequest: taskData.pullRequest || null,
     commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
     issues: issueLinks.map((link) => formatIssue(link.issue)).filter(Boolean)

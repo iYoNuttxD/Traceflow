@@ -81,7 +81,9 @@ export function deriveRequirementLifecycleStatus(situation) {
 
 export function projectRequirement(requirement, testCases = [], defectRows = []) {
   const metrics = buildRequirementMetrics(requirement);
-  const legacyStage = getImplementationStage(metrics.tasks, metrics.hasTechnicalEvidence);
+  const basis = requirement.lifecycleBasis === 'LOCAL' ? 'LOCAL' : 'GITHUB';
+  const technicalStage = getImplementationStage(metrics.tasks, metrics.hasTechnicalEvidence);
+  const legacyStage = getImplementationStage(metrics.tasks, metrics.hasTechnicalEvidence, basis);
   const cases = uniqueById(testCases).filter(
     (row) =>
       row.projectId === requirement.projectId &&
@@ -144,7 +146,9 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
                 (link) =>
                   link.relationType === 'CORRECTION' &&
                   link.correctionCycle === defect.currentCorrectionCycle &&
-                  (link.task.pullRequestId || link.task._count.commitLinks > 0)
+                  (basis === 'LOCAL'
+                    ? link.task.status === 'CONCLUIDO'
+                    : link.task.pullRequestId || link.task._count.commitLinks > 0)
               ) &&
               defect.retests.some(
                 (retest) => retest.correctionCycle === defect.currentCorrectionCycle
@@ -158,7 +162,8 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
       id: requirement.id,
       displayId: `REQ-${requirement.id}`,
       title: requirement.title,
-      status: deriveRequirementLifecycleStatus(situation)
+      status: deriveRequirementLifecycleStatus(situation),
+      lifecycleBasis: basis
     },
     progress: {
       ...metrics.progress,
@@ -166,6 +171,8 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
       tasksDone: metrics.completedTasksCount
     },
     implementation: {
+      basis,
+      technicalImplemented: technicalStage === 'IMPLEMENTADO',
       legacyStage,
       legacyImplementationStatus: metrics.implementationStatus,
       implemented: legacyStage === 'IMPLEMENTADO',
@@ -181,7 +188,8 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
     evidence: {
       implementation: metrics.hasTechnicalEvidence,
       validation: validation.neverExecuted < cases.length,
-      correction
+      correction,
+      correctionBasis: basis
     },
     hasUntreatedFailure,
     situation
@@ -194,7 +202,15 @@ export function projectRequirementSummary(requirement, counts) {
   const tasksTotal = n('tasksTotal');
   const tasksDone = n('tasksDone');
   const technicalEvidence = n('technicalEvidence') > 0;
+  const basis = requirement.lifecycleBasis === 'LOCAL' ? 'LOCAL' : 'GITHUB';
+  const technicalStage = getImplementationStageFromCounts({
+    tasksTotal,
+    tasksDone,
+    tasksInProgress: n('tasksInProgress'),
+    hasTechnicalEvidence: technicalEvidence
+  });
   const legacyStage = getImplementationStageFromCounts({
+    lifecycleBasis: basis,
     tasksTotal,
     tasksDone,
     tasksInProgress: n('tasksInProgress'),
@@ -225,13 +241,17 @@ export function projectRequirementSummary(requirement, counts) {
       id: requirement.id,
       title: requirement.title,
       displayId: `REQ-${requirement.id}`,
-      status: deriveRequirementLifecycleStatus(situation)
+      status: deriveRequirementLifecycleStatus(situation),
+      lifecycleBasis: basis
     },
     validation,
     defects,
     tasksTotal,
+    tasksDone,
     progress: buildMetric(tasksDone, tasksTotal),
     implementation: {
+      basis,
+      technicalImplemented: technicalStage === 'IMPLEMENTADO',
       legacyStage,
       implemented: legacyStage === 'IMPLEMENTADO',
       technicalEvidence
@@ -256,12 +276,31 @@ export function projectIndicatorCoverage(rows) {
     rows.map((row) => ({
       tasksCount: row.tasksTotal,
       hasTechnicalEvidence: row.evidence.implementation,
-      implementationStatus: row.implementation.legacyStage,
+      implementationStatus:
+        row.implementation.technicalImplemented === true
+          ? 'IMPLEMENTADO'
+          : row.implementation.technicalImplemented === false
+            ? 'EM_DESENVOLVIMENTO'
+            : row.implementation.legacyStage,
       progressPercentage: row.progress.percentage ?? 0
     }))
   );
+  const local = rows.filter((row) => row.implementation.basis === 'LOCAL');
+  const github = rows.filter((row) => row.implementation.basis !== 'LOCAL');
+  const technical = (row) =>
+    row.implementation.technicalImplemented ?? row.implementation.implemented;
   return {
     ...matrix,
+    lifecycleBasis: { local: local.length, github: github.length },
+    githubCohort: {
+      totalRequirements: github.length,
+      tasksTotal: github.reduce((sum, row) => sum + row.tasksTotal, 0),
+      tasksDone: github.reduce((sum, row) => sum + (row.tasksDone ?? row.progress.numerator), 0),
+      requirementsWithTechnicalEvidence: github.filter((row) => row.evidence.implementation).length,
+      implementedRequirements: github.filter(technical).length,
+      requirementsWithTestCase: github.filter((row) => row.validation.testCasesTotal > 0).length,
+      validatedRequirements: github.filter((row) => row.situation === 'CONCLUIDO').length
+    },
     requirementsWithTestCase: rows.filter((row) => row.validation.testCasesTotal > 0).length,
     requirementsWithActiveDefect: rows.filter(
       (row) => row.defects.open + row.defects.inCorrection + row.defects.waitingRetest > 0

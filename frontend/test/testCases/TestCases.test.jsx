@@ -425,6 +425,102 @@ describe('S1-07 integrated case flows', () => {
     expect(dialog().getByText('Pendentes')).toBeInTheDocument();
     expect(mocks.api.record).not.toHaveBeenCalled();
   });
+  it('preserves a manual execution draft when integration changes before submission', async () => {
+    mocks.api.detail.mockResolvedValue({
+      ...testCase,
+      capabilities: { ...testCase.capabilities, canUseManualReference: true }
+    });
+    mocks.api.record.mockRejectedValue(failure(409, 'TEST_EXECUTION_MANUAL_REFERENCE_UNAVAILABLE'));
+    const user = await setup();
+    await start(user);
+    await user.type(dialog().getByLabelText('Versão testada *'), 'build preservado');
+    await user.selectOptions(dialog().getByLabelText('Ambiente *'), 'LOCAL');
+    for (let i = 0; i < 5; i++) await finish(user);
+    await user.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+    await waitFor(() => expect(mocks.api.record).toHaveBeenCalledOnce());
+    await dialog().findByText(/A integração GitHub deste projeto mudou/);
+    expect(dialog().getByLabelText('Versão testada *')).toHaveValue('build preservado');
+    expect(dialog().getByText('Resumo da execução')).toBeInTheDocument();
+    expect(dialog().getByRole('button', { name: 'Registrar execução' })).toBeDisabled();
+    expect(mocks.api.references).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['Aprovado', 'PASS'],
+    ['Falhou', 'FAIL'],
+    ['Bloqueado', 'BLOCKED']
+  ])(
+    'records standalone %s with an explicit manual version and no GitHub requests',
+    async (label, result) => {
+      mocks.api.detail.mockResolvedValue({
+        ...testCase,
+        capabilities: { ...testCase.capabilities, canUseManualReference: true }
+      });
+      mocks.api.record.mockResolvedValue({
+        ...execution,
+        result,
+        testedReferenceSnapshot: { type: 'MANUAL', version: 'build local 1' }
+      });
+      const user = await setup();
+      await start(user);
+      expect(dialog().queryByRole('combobox', { name: /Versão testada/ })).not.toBeInTheDocument();
+      const version = dialog().getByLabelText('Versão testada *');
+      expect(version).toHaveAttribute('maxlength', '200');
+      await user.type(version, '   ');
+      await user.selectOptions(dialog().getByLabelText('Ambiente *'), 'LOCAL');
+      for (let i = 0; i < 5; i++) await finish(user, label);
+      expect(dialog().getByRole('button', { name: 'Registrar execução' })).toBeDisabled();
+      expect(dialog().getByText('Informe a versão testada.')).toBeInTheDocument();
+      await user.clear(version);
+      await user.type(version, ' build local 1 ');
+      await user.click(dialog().getByRole('button', { name: 'Voltar aos passos' }));
+      expect(dialog().getByLabelText('Versão testada *')).toHaveValue(' build local 1 ');
+      await user.click(dialog().getByRole('button', { name: 'Revisar execução' }));
+      await user.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+      await waitFor(() => expect(mocks.api.record).toHaveBeenCalledOnce());
+      expect(JSON.parse(mocks.api.record.mock.calls[0][1].get('payload'))).toMatchObject({
+        testedReference: { type: 'MANUAL', version: 'build local 1' },
+        environment: 'LOCAL',
+        steps: expect.arrayContaining([
+          { position: 1, result, observedResult: result === 'PASS' ? null : 'Falha observada' }
+        ])
+      });
+      expect(mocks.api.references).not.toHaveBeenCalled();
+    }
+  );
+  it('retains a manual reference and files when retrying a resumable upload', async () => {
+    mocks.api.detail.mockResolvedValue({
+      ...testCase,
+      capabilities: { ...testCase.capabilities, canUseManualReference: true }
+    });
+    mocks.api.record.mockImplementationOnce(async (_id, _body, options) => {
+      options.onProgress({ phase: 'ERROR', message: 'Envio interrompido.' });
+      throw Object.assign(new Error('Envio interrompido.'), { resumableUpload: true });
+    });
+    const user = await setup();
+    await start(user);
+    await user.type(dialog().getByLabelText('Versão testada *'), 'build local retomável');
+    await user.selectOptions(dialog().getByLabelText('Ambiente *'), 'LOCAL');
+    for (let i = 0; i < 5; i++) await finish(user);
+    const file = new File(['{}'], 'evidencia-local.json', { type: 'application/json' });
+    await user.upload(dialog().getByLabelText('Adicionar evidência'), file);
+    await user.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+    await within(dialog().getByRole('region', { name: 'Envio de evidências' })).findByRole('alert');
+    expect(dialog().getByLabelText('Versão testada *')).toHaveValue('build local retomável');
+    expect(dialog().getByText('evidencia-local.json')).toBeInTheDocument();
+    const retry = dialog().getByRole('button', { name: 'Retomar envio e confirmar execução' });
+    expect(retry).toBeEnabled();
+    await user.click(retry);
+    await waitFor(() => expect(mocks.api.record).toHaveBeenCalledTimes(2));
+    for (const [, body, options] of mocks.api.record.mock.calls) {
+      expect(JSON.parse(body.get('payload')).testedReference).toEqual({
+        type: 'MANUAL',
+        version: 'build local retomável'
+      });
+      expect(body.get('evidence')).toBe(file);
+      expect(options.onProgress).toEqual(expect.any(Function));
+    }
+    expect(mocks.api.references).not.toHaveBeenCalled();
+  });
   it('keeps observations and files across navigation and records all destinations once', async () => {
     mocks.api.record.mockResolvedValue({ ...execution, result: 'FAIL' });
     const user = await setup();

@@ -38,6 +38,52 @@ beforeEach(() => {
   api.defect.mockResolvedValue({ ...defect, status: 'AGUARDANDO_RETESTE' });
 });
 const wrap = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
+it('validates a standalone defect with a manual-version PASS retest', async () => {
+  api.detail.mockResolvedValue({
+    ...testCase,
+    currentVersion: 4,
+    steps: testCase.steps.slice(0, 1),
+    capabilities: { ...testCase.capabilities, canUseManualReference: true }
+  });
+  api.defect.mockResolvedValue({
+    ...defect,
+    status: 'AGUARDANDO_RETESTE',
+    detection: {
+      ...defect.detection,
+      execution: {
+        ...defect.detection.execution,
+        testedReference: { type: 'MANUAL', version: 'build com falha' }
+      }
+    }
+  });
+  api.record.mockResolvedValue({
+    id: 39,
+    displayId: 'EXEC-0039',
+    result: 'PASS',
+    testedReferenceSnapshot: { type: 'MANUAL', version: 'build corrigido' }
+  });
+  const user = userEvent.setup();
+  wrap(<DefectFlow projectId={1} initialId={1} options={options} canWrite onClose={vi.fn()} />);
+  expect(
+    await screen.findByText('Versão testada: Versão manual · build com falha')
+  ).toBeInTheDocument();
+  await user.click((await screen.findAllByRole('button', { name: 'Retestar' }))[0]);
+  await user.type(await screen.findByLabelText('Versão testada *'), 'build corrigido');
+  await user.selectOptions(screen.getByLabelText('Ambiente *'), 'LOCAL');
+  await user.click(screen.getByRole('button', { name: 'Aprovado', exact: true }));
+  await user.click(screen.getByRole('button', { name: 'Revisar execução' }));
+  api.defect.mockResolvedValue({ ...defect, revision: 2, status: 'VALIDADO' });
+  await user.click(screen.getByRole('button', { name: 'Registrar execução' }));
+  await waitFor(() => expect(api.record).toHaveBeenCalledOnce());
+  expect(JSON.parse(api.record.mock.calls[0][1].get('payload'))).toMatchObject({
+    testCaseVersion: 4,
+    testedReference: { type: 'MANUAL', version: 'build corrigido' },
+    retest: { defectId: 1, correctionCycle: 1, expectedRevision: 1 },
+    steps: [{ position: 1, result: 'PASS', observedResult: null }]
+  });
+  expect(await screen.findByText(/Reteste aprovado. Defeito validado/)).toBeInTheDocument();
+  expect(api.references).not.toHaveBeenCalled();
+});
 async function review(user, result = 'Aprovado') {
   await user.click((await screen.findAllByRole('button', { name: 'Retestar' }))[0]);
   await user.click(await screen.findByRole('combobox', { name: /Versão testada/ }));

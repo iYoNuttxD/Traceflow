@@ -446,6 +446,13 @@
   min-height: var(--size-touch-target);
 }
 
+/* Add useful columns once the workspace exceeds laptop-sized layouts. */
+@container requirements-page (min-width: 88rem) {
+  .requirements-grid {
+    grid-template-columns: repeat(4, minmax(min(100%, 18rem), 1fr));
+  }
+}
+
 @container requirements-page (max-width: 68rem) {
   .requirements-overview dl {
     grid-template-columns: repeat(3, minmax(0, 1fr));

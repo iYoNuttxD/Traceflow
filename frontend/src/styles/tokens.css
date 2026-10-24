@@ -147,7 +147,9 @@
   --size-avatar-lg: 2.75rem;
   --layout-sidebar-expanded: 17rem;
   --layout-sidebar-collapsed: 5.5rem;
-  --layout-page-max: 82.5rem;
+  --layout-page-max: 120rem;
+  --layout-reading-max: 73.75rem;
+  --layout-settings-max: 82.5rem;
   --layout-page-gutter: var(--space-8);
   --layout-grid-gap: var(--space-5);
   --layout-section-gap: var(--space-6);

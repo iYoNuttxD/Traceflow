@@ -10,6 +10,7 @@ import {
 import { createProject, createTask } from '../fixtures/factories.js';
 import {
   backdateGithubLinks,
+  coverGithubEvents,
   lifecycleEventsFor,
   openLinkPeriod,
   recordGithubEvent
@@ -1129,6 +1130,8 @@ describe('S2-03 bateria — bloco S: sincronização e gancho (UC04)', () => {
 
   async function syncedPullRequests(numbers, responsible) {
     const context = await integratedProject();
+    // Keep fixed historical events inside coverage even as the real clock advances.
+    await coverGithubEvents(prisma, context.project.id);
     const owner = responsible || (await person(context.project.id));
     boundary.client = githubDouble(context.repositoryId, {
       pullRequests: numbers.map((number) => prItem(number, 'open'))

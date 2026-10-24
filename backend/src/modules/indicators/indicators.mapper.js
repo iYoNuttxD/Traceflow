@@ -17,6 +17,7 @@ export function indicatorResult(metricId, projectId, data, asOf) {
     state: data.state,
     asOf,
     sourceUpdatedAt: data.sourceUpdatedAt ?? null,
+    ...(data.sourceScope ? { sourceScope: data.sourceScope } : {}),
     sourceSyncStatus: data.sourceSyncStatus ?? null,
     formula: definition.formula,
     sources: definition.sources,

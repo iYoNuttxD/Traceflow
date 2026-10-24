@@ -9,8 +9,16 @@ const valid = (value) => typeof value === 'number' && Number.isFinite(value);
 // I63 is locally measurable, but its Health comparison requires GitHub-based I66.
 const GITHUB_HEALTH_SIGNALS = new Set(['I04', 'I15', 'I73', 'I62', 'I63', 'I65', 'I66']);
 
-export function signalApplicable(metricId, options = {}) {
-  return !(options.githubApplicable === false && GITHUB_HEALTH_SIGNALS.has(metricId));
+const TECHNICAL_TRACEABILITY_SIGNALS = new Set(['I62', 'I63', 'I65', 'I66']);
+
+export function signalApplicable(metricId, options = {}, current = new Map()) {
+  return (
+    !(options.githubApplicable === false && GITHUB_HEALTH_SIGNALS.has(metricId)) &&
+    !(
+      TECHNICAL_TRACEABILITY_SIGNALS.has(metricId) &&
+      current.get(metricId)?.components?.healthComparison?.applicable === false
+    )
+  );
 }
 
 export function healthStatus(score) {
@@ -92,13 +100,26 @@ function comparison(map, previous, id) {
 function gap(map, id, expectedId) {
   const current = available(map, id);
   const expected = available(map, expectedId);
-  if (!valid(current?.value) || !valid(expected?.value)) return null;
-  const gapPoints = Math.max(0, expected.value - current.value);
+  if (!current || !expected) return null;
+  const cohort = current.components?.healthComparison;
+  const currentValue = cohort ? cohort.value : current?.value;
+  const expectedValue = cohort ? cohort.expectedValue : expected?.value;
+  if (!valid(currentValue) || !valid(expectedValue)) return null;
+  const gapPoints = Math.max(0, expectedValue - currentValue);
   return scored(100 - gapPoints, 'STAGE_GAP', {
-    current: current.value,
-    expected: expected.value,
+    current: currentValue,
+    expected: expectedValue,
     gapPoints,
-    expectedMetricId: expectedId
+    expectedMetricId: expectedId,
+    ...(cohort
+      ? {
+          scope: cohort.scope,
+          numerator: cohort.numerator,
+          denominator: cohort.denominator,
+          expectedNumerator: cohort.expectedNumerator,
+          expectedDenominator: cohort.expectedDenominator
+        }
+      : {})
   });
 }
 
@@ -118,7 +139,7 @@ export function assessSignal(metricId, current, previous = new Map(), options = 
       delta: null
     };
 
-  if (!signalApplicable(metricId, options))
+  if (!signalApplicable(metricId, options, current))
     return {
       healthModelVersion: HEALTH_MODEL_VERSION,
       healthRole: entry.healthRole,
@@ -126,7 +147,10 @@ export function assessSignal(metricId, current, previous = new Map(), options = 
       weight: entry.weight,
       status: 'UNASSESSED',
       score: null,
-      reasonCode: 'GITHUB_NOT_CONFIGURED',
+      reasonCode:
+        options.githubApplicable === false
+          ? 'GITHUB_NOT_CONFIGURED'
+          : 'GITHUB_LIFECYCLE_NOT_APPLICABLE',
       basis: null,
       reference: null,
       delta: null
@@ -260,7 +284,7 @@ export function buildProjectHealth(current, previous = new Map(), options = {}) 
       (id === 'TECHNICAL_INTEGRATION' && options.githubApplicable === false)
     );
     const signals = Object.keys(definition.signals).filter((metricId) =>
-      signalApplicable(metricId, options)
+      signalApplicable(metricId, options, current)
     );
     const applicableSignalWeight = signals.reduce(
       (sum, metricId) => sum + definition.signals[metricId],
@@ -325,7 +349,7 @@ export function buildProjectHealth(current, previous = new Map(), options = {}) 
       sum +
       (dimension.applicable
         ? Object.keys(HEALTH_DIMENSIONS[dimension.id].signals).filter((metricId) =>
-            signalApplicable(metricId, options)
+            signalApplicable(metricId, options, current)
           ).length
         : 0),
     0

@@ -347,16 +347,27 @@ describe('S2-02 reteste — central depois das correções (N-U)', () => {
     cursorServer(many(300));
     renderCenter();
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20));
+    const panel = screen.getByRole('tabpanel');
     const started = performance.now();
 
     for (let click = 1; click <= 14; click += 1) {
-      await user.click(
-        screen.getByRole('button', { name: `Carregar mais (${300 - 20 * click} restantes)` })
+      const name = `Carregar mais (${300 - 20 * click} restantes)`;
+      // Locate by text, then check this button's semantics without recomputing every
+      // notification toggle's accessible name on each growing page.
+      const button = within(panel).getByText(name, { selector: 'button' });
+      expect(button).toHaveRole('button');
+      expect(button).toHaveAccessibleName(name);
+      expect(button).toBeVisible();
+      expect(button).toBeEnabled();
+      await user.click(button);
+      await waitFor(() =>
+        expect(within(panel).getAllByRole('article')).toHaveLength(20 * (click + 1))
       );
-      await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20 * (click + 1)));
     }
 
-    const labels = screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'));
+    const cards = screen.getAllByRole('article');
+    expect(cards).toHaveLength(300);
+    const labels = cards.map((card) => card.getAttribute('aria-label'));
     process.stdout.write(
       `RT-N-U-09 ${JSON.stringify({ cards: labels.length, ms: Math.round(performance.now() - started) })}\n`
     );

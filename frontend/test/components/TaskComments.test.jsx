@@ -427,7 +427,11 @@ describe('TaskComments', () => {
     renderComments();
     const { menu } = await openOwnMenu(user);
     await user.click(within(menu).getByRole('menuitem', { name: 'Editar' }));
+    await waitFor(() => expect(screen.getByLabelText('Editar comentário')).toHaveFocus());
     await user.type(screen.getByLabelText('Editar comentário'), ' rascunho');
+    const cancelEditingButton = screen.getByRole('button', { name: 'Cancelar edição' });
+    cancelEditingButton.focus();
+    expect(cancelEditingButton).toHaveFocus();
 
     emit(
       'task.comment.deleted',
@@ -438,6 +442,7 @@ describe('TaskComments', () => {
       await screen.findByText('O comentário não está mais disponível para edição.')
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Novo comentário')).toHaveValue('');
+    await waitFor(() => expect(screen.getByLabelText('Novo comentário')).toHaveFocus());
     expect(apiMocks.updateTaskComment).not.toHaveBeenCalled();
   });
 
