@@ -12,6 +12,18 @@
 > GitHub/webhook reais, viewports em navegador, OCI e operação continuam homologações externas,
 > não bugs inferidos.
 
+> **Publicação operacional — 24/10/2026:** a revisão
+> \`04f0653d699532a779f6db562fdf7e317a0921a5\` foi publicada na OCI pelo
+> [workflow 40074306672](https://github.com/iYoNuttxD/Traceflow/actions/runs/40074306672),
+> com aprovação humana do ambiente production e transição 84 → 86 concluída.
+> O [recibo oficial](https://traceflow.dev/deploy-status/40074306672.json) confirma
+> preservação dos dados, histórico e configuração operacional. API, worker único,
+> quatro jobs, backup, monitoramento e retenção foram verificados; a credencial
+> migradora temporária foi encerrada. CI da revisão e duas construções ARM64
+> byte-idênticas passaram. Este registro não inicia a Sprint 3 nem substitui sua
+> validação com participantes. Detalhes e limites em
+> [registro da publicação](docs/runbooks/OCI_PUBLICATION_2026-10-24.md).
+
 ## 1. Objetivo e regra de organização
 
 O desenvolvimento será organizado em **três sprints**. As Sprints 1 e 2 dividem aproximadamente 50% do escopo de implementação em cada uma; a Sprint 3 ocorre depois delas e é dedicada à validação e ao aperfeiçoamento da ferramenta:
