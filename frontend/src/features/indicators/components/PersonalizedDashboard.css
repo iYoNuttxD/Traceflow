@@ -67,3 +67,7 @@
   .dashboard-panel__toolbar.dashboard-panel__toolbar--custom { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .dashboard-panel__toolbar--custom .dashboard-panel__toolbar-actions { border-top: 0; }
 }
+
+.dashboard-editor__fields[hidden] {
+  display: none;
+}

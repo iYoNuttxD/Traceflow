@@ -91,11 +91,22 @@ se o mesmo painel CUSTOM deve ser exibido. Preferência ausente, removida ou leg
 sem flag não exibe o painel nem dispara consultas do catálogo/agregado CUSTOM.
 Falha da leitura oferece erro e retry; não é interpretada como painel desfixado.
 
-**Remover da Visão Geral** usa PATCH com apenas pinnedToOverview=false. Não apaga
+**Remover da Visão Geral** existe somente dentro de **Personalizar painel**, acessível
+também no painel fixado da Visão Geral. A ação usa PATCH com apenas pinnedToOverview=false. Não apaga
 nem reordena widgets, não troca a versão e não sobrescreve edições de outra aba.
 Também funciona quando os dados/catálogo estão indisponíveis. No editor, remover a
 fixação preserva a seleção já salva; mudanças ainda em draft não são salvas por essa
 ação. Falha mantém a fixação visível e oferece retry. O PATCH sem row não cria uma.
+Ao remover na Overview, os widgets desaparecem imediatamente e o editor mantém o
+rascunho aberto. O mesmo botão Personalizar permanece acessível durante essa visita,
+para retorno de foco ao fechar/cancelar e nova fixação; visitas novas sem fixação não
+exibem esse painel. Falha do catálogo permite remover pelo mesmo editor, com edição
+indisponível até recuperar o catálogo.
+
+Buscar e filtrar, Personalizar painel e atualização ficam juntos em controles compactos,
+com alvos de ao menos 44px. No mobile, quebram linha. As abas são preservadas acima;
+os campos expandidos ocupam toda a região abaixo, com resumo, contador e limpeza.
+
 O DELETE continua sendo o reset completo da API, distinto de remover a fixação.
 
 O painel embutido reutiliza os presenters, a ordem e a compatibilidade do catálogo.

@@ -598,6 +598,32 @@ describe('P9.1 controls', () => {
     expect(api.savePreference).not.toHaveBeenCalled();
   });
 
+  it('groups compact controls in keyboard order and keeps filter fields below them', async () => {
+    const user = userEvent.setup();
+    mount();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    const filter = screen.getByRole('button', { name: /Buscar e filtrar/ });
+    const region = filter.closest('.planning-filter-panel');
+    expect(region).toHaveClass('planning-filter-panel--compact');
+    expect(
+      within(region)
+        .getAllByRole('button')
+        .map((button) => button.textContent.trim())
+    ).toEqual(['Buscar e filtrar2 filtros ativos', 'Personalizar painel', '↻']);
+    filter.focus();
+    await user.keyboard('{Enter}');
+    expect(filter).toHaveAttribute('aria-expanded', 'true');
+    const body = document.getElementById(filter.getAttribute('aria-controls'));
+    expect(within(body).getByLabelText('De')).toBeVisible();
+    expect(within(body).getByLabelText('Sprint')).toBeVisible();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Personalizar painel' })).toHaveFocus();
+    await user.click(filter);
+    expect(filter).toHaveAttribute('aria-expanded', 'false');
+    expect(filter).toHaveFocus();
+    expect(body).not.toBeVisible();
+  });
+
   it('drags only the handle, shows destination, changes draft without requests and cancels', async () => {
     mount();
     const dialog = await editor();
@@ -886,13 +912,24 @@ describe('personal dashboard pinned to the project overview', () => {
     stored = { ...stored, widgets: ['I23', 'I01'], pinnedToOverview: true, isDefault: false };
     const app = mountOverview();
     await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
-    await userEvent.click(screen.getByRole('button', { name: 'Remover da Visão Geral' }));
+    expect(
+      screen.queryByRole('button', { name: 'Remover da Visão Geral' })
+    ).not.toBeInTheDocument();
+    const dialog = await editor();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remover da Visão Geral' }));
     await screen.findByText(
       'Painel removido da Visão Geral. Sua seleção continua salva em Indicadores.'
     );
     expect(api.resetPreference).not.toHaveBeenCalled();
     expect(stored).toMatchObject({ widgets: ['I23', 'I01'], pinnedToOverview: false });
     expect(widgetOrder()).toEqual([]);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Personalizar painel' })).toHaveFocus()
+    );
+    expect(
+      screen.queryByRole('region', { name: 'Painel fixado na Visão Geral' })
+    ).not.toBeInTheDocument();
     app.unmount();
     const overview = mountOverview();
     await waitFor(() =>
@@ -904,16 +941,42 @@ describe('personal dashboard pinned to the project overview', () => {
     await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
   });
 
+  it('returns to the same opener after unpin/cancel and can pin the saved selection again', async () => {
+    stored = { ...stored, pinnedToOverview: true };
+    mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    const opener = screen.getByRole('button', { name: 'Personalizar painel' });
+    let dialog = await editor();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remover da Visão Geral' }));
+    await within(dialog).findByRole('button', { name: 'Fixar na Visão Geral' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(widgetOrder()).toEqual([]);
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(screen.getByRole('button', { name: 'Personalizar painel' })).toBe(opener);
+    dialog = await editor();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Fixar na Visão Geral' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    expect(api.setOverviewPin).toHaveBeenCalledExactlyOnceWith(1, false);
+    expect(stored).toMatchObject({ widgets: ['I01', 'I23'], pinnedToOverview: true });
+  });
+
   it('keeps the pin and panel after failed removal and allows retry', async () => {
     stored = { ...stored, pinnedToOverview: true };
     api.setOverviewPin.mockRejectedValueOnce(new Error('Offline'));
     mountOverview();
     await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
-    await userEvent.click(screen.getByRole('button', { name: 'Remover da Visão Geral' }));
-    await screen.findByRole('button', { name: 'Tentar novamente' });
+    expect(
+      screen.queryByRole('button', { name: 'Remover da Visão Geral' })
+    ).not.toBeInTheDocument();
+    const dialog = await editor();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remover da Visão Geral' }));
+    await within(dialog).findByText(/Sua seleção foi mantida/);
     expect(widgetOrder()).toEqual(['I01', 'I23']);
     expect(stored.pinnedToOverview).toBe(true);
-    await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remover da Visão Geral' }));
     await waitFor(() => expect(widgetOrder()).toEqual([]));
     expect(stored.pinnedToOverview).toBe(false);
   });
@@ -1013,7 +1076,8 @@ describe('personal dashboard pinned to the project overview', () => {
     stored = { ...stored, widgets: ['I99', 'I23'], pinnedToOverview: true };
     api.catalog.mockRejectedValue(new Error('Offline'));
     mountOverview();
-    const unpin = await screen.findByRole('button', { name: 'Remover da Visão Geral' });
+    const dialog = await editor();
+    const unpin = within(dialog).getByRole('button', { name: 'Remover da Visão Geral' });
     await userEvent.click(unpin);
     await waitFor(() => expect(stored.pinnedToOverview).toBe(false));
     expect(stored.widgets).toEqual(['I99', 'I23']);

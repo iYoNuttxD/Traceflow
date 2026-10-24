@@ -43,11 +43,16 @@ export function DashboardEditor({
   onUnpin,
   onSaved,
   onClose,
-  returnFocusRef
+  returnFocusRef,
+  catalogUnavailable = false
 }) {
-  const initialPreference = compatibleDashboardPreference(preference, catalog, policy);
+  const initialPreference = catalogUnavailable
+    ? preference
+    : compatibleDashboardPreference(preference, catalog, policy);
   const [selection, setWidgets] = useState(initialPreference.widgets);
-  const widgets = filterDashboardWidgets(selection, catalog, policy.maxWidgets);
+  const widgets = catalogUnavailable
+    ? selection
+    : filterDashboardWidgets(selection, catalog, policy.maxWidgets);
   const [reset, setReset] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -75,7 +80,10 @@ export function DashboardEditor({
   const dirty =
     widgets.join(',') !== initialPreference.widgets.join(',') ||
     (reset && (!preference.isDefault || initialPreference.configurationAdjusted));
-  const valid = widgets.length >= policy.minWidgets && widgets.length <= policy.maxWidgets;
+  const valid =
+    !catalogUnavailable &&
+    widgets.length >= policy.minWidgets &&
+    widgets.length <= policy.maxWidgets;
   const filtered = eligible.filter(
     (item) =>
       (!category || categoriesOf(item).includes(category)) &&
@@ -219,7 +227,11 @@ export function DashboardEditor({
       busy={busy}
     >
       <form onSubmit={(event) => save(event)}>
-        <fieldset disabled={busy} className="dashboard-editor__fields">
+        <fieldset
+          hidden={catalogUnavailable}
+          disabled={busy || catalogUnavailable}
+          className="dashboard-editor__fields"
+        >
           <section aria-labelledby="dashboard-selected-title">
             <div className="dashboard-editor__section-heading">
               <h3 id="dashboard-selected-title">Indicadores selecionados</h3>
@@ -379,6 +391,9 @@ export function DashboardEditor({
         <span className="sr-only" role="status" aria-live="polite">
           {announcement}
         </span>
+        {catalogUnavailable && (
+          <FeedbackRegion error="O catálogo está indisponível. Você ainda pode remover o painel da Visão Geral; sua seleção será preservada." />
+        )}
         {initialPreference.configurationAdjusted && (
           <FeedbackRegion info={CATALOG_ADJUSTMENT_MESSAGE} />
         )}
@@ -397,7 +412,7 @@ export function DashboardEditor({
           <button
             type="button"
             className="button button-secondary"
-            disabled={busy}
+            disabled={busy || catalogUnavailable}
             onClick={restore}
           >
             Restaurar padrão

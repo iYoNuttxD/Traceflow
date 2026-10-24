@@ -176,3 +176,12 @@ A fixture também distingue snapshots imutáveis da navegação `detectedDefects
 atual; a igualdade completa antes/depois de conectar GitHub é verificada entre leituras feitas
 após o ciclo do defeito. Revisão independente confirmou que nenhum critério de conclusão ou
 prioridade de defeitos foi flexibilizado. Os testes API corrigidos ainda aguardam nova CI.
+
+## Correção PR25-01 / V01 / V02 — 24/10/2026
+
+O upgrade com administração registrado acima não cobria o contrato restrito OCI.
+A revisão atual remove a tabela temporária, adiciona o gate permanente com sete
+privilégios e valida a recuperação parcial. A remoção do painel fica exclusivamente
+no editor e os controles de filtro/personalização/atualização ficam compactos.
+Ver [relatório da correção](PR25_REVIEW_CORRECTIONS_20261024.md) e
+[procedimento de laboratório](../runbooks/PR25_MIGRATION_RECOVERY_LAB.md).

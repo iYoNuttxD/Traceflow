@@ -193,11 +193,13 @@
 
 .dashboard-panel__toolbar {
   display: flex;
+  flex-direction: column;
   min-width: 0;
   align-items: center;
   gap: var(--space-3);
 }
 .dashboard-panel__tabs {
+  width: 100%;
   min-width: 0;
   flex: 1;
 }
@@ -217,10 +219,10 @@
 
 .dashboard-panel__toolbar-actions {
   display: flex;
-  flex: 0 0 auto;
-  gap: var(--space-1);
-  padding-left: var(--space-2);
-  border-left: var(--border-width-default) solid var(--color-border-default);
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .dashboard-panel__toolbar-actions button {
@@ -903,10 +905,7 @@
     flex-direction: column;
   }
   .dashboard-panel__toolbar-actions {
-    justify-content: flex-end;
-    border-left: 0;
-    border-top: var(--border-width-default) solid var(--color-border-default);
-    padding: var(--space-1) 0 0;
+    justify-content: flex-start;
   }
   .dashboard-panel__metric-grid > .indicator-card {
     --metric-span: var(--metric-span-small);

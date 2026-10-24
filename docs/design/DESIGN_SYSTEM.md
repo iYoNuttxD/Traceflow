@@ -1138,6 +1138,20 @@ Esta composição substitui as duas linhas desktop descritas no P9.
   Foco acompanha o item após reorder; Save/Cancel, trap e retorno de foco preservados.
 - Não houve troca de overlay, picker, catálogo ou primitives de indicadores.
 
+### PR25 V01/V02 — controles e remoção (2026-10-24)
+
+Substitui a distribuição da toolbar de P9.1: abas preservadas na primeira linha;
+Buscar e filtrar, Personalizar painel (Meu painel/Overview) e Atualizar na mesma
+região compacta abaixo. Filtros expandidos usam a largura da região abaixo dos botões.
+Mobile permite quebra de linha, mantendo rótulos e alvos de toque de 44px.
+
+Remover da Visão Geral existe exclusivamente no editor. O PATCH e os rascunhos são
+preservados; após remover, o controle que abriu o modal continua nesta visita para
+retorno de foco e nova fixação. Sem catálogo, esse mesmo editor permite apenas remover.
+Inspeção técnica em Chrome 1440×900 e 390×844, claro/escuro, registrada no
+[relatório PR25](../deliveries/PR25_REVIEW_CORRECTIONS_20261024.md). A aprovação visual
+humana continua pertencendo ao revisor.
+
 ### Workspace largo e painel fixado na Overview (2026-10-17)
 
 - O teto de 1920px é do conteúdo, após reservar a sidebar e um par de gutters de 32px.

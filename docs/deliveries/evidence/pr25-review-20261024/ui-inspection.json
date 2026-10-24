@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-24",
+  "application": "isolated worktree with real API and synthetic MySQL data",
+  "browser": "Chrome",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900,
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "documentScrollWidth": 1440,
+      "controlsHeight": 44,
+      "controlsSameRow": true,
+      "dateInputWidths": [
+        344,
+        344
+      ],
+      "sprintWidth": 334
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "documentScrollWidth": 390,
+      "controlsHeight": 44,
+      "controlsWrap": true,
+      "dateInputWidths": [
+        156,
+        156
+      ],
+      "sprintWidth": 324,
+      "dialogClientWidth": 390,
+      "dialogScrollWidth": 390,
+      "dialogActionHeights": [
+        45,
+        64,
+        64,
+        44
+      ]
+    }
+  ],
+  "verified": [
+    "pinned and unpinned overview",
+    "only editor offers unpin",
+    "unsaved reordering remains in editor after unpin",
+    "cancel discards draft and focuses same opener",
+    "repin and navigation preserve original saved widgets",
+    "period apply and clear",
+    "sprint apply and clear",
+    "filter expand/collapse and aria-expanded",
+    "indicator tabs ArrowRight/Home/End",
+    "custom indicators remain available after unpin",
+    "no unintended horizontal document overflow"
+  ],
+  "capture": "Screenshots inspected in browser tool output; no image files exported by the read-only browser filesystem.",
+  "approval": "technical inspection only; human visual approval belongs to reviewer"
+}
