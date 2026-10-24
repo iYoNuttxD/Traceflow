@@ -297,7 +297,8 @@ describe('S2-06 — resumo da página', () => {
       expect(summary).toHaveTextContent(text);
   });
 
-  it('sem relatórios, o resumo orienta a gerar o primeiro', async () => {
+  it('sem relatórios, mantém resumo e criação sem mensagem vazia adicional', async () => {
+    const user = userEvent.setup();
     mocks.list.mockResolvedValue({
       ...listed([]),
       summary: { total: 0, succeeded: 0, active: 0, failed: 0, latestSucceeded: null }
@@ -306,6 +307,10 @@ describe('S2-06 — resumo da página', () => {
     const summary = await screen.findByRole('region', { name: 'Resumo dos relatórios' });
     await waitFor(() => expect(summary).toHaveTextContent('Nenhuma geração ativa'));
     expect(summary).toHaveTextContent('NenhumGere um relatório para começar');
+    expect(screen.queryByText('Nenhum relatório gerado neste projeto.')).not.toBeInTheDocument();
+    expect(document.querySelector('.report-empty-panel')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Gerar relatório/ }));
+    expect(await screen.findByRole('dialog', { name: 'Gerar relatório' })).toBeVisible();
   });
 });
 
