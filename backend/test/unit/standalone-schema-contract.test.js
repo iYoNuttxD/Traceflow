@@ -31,14 +31,19 @@ describe('standalone provenance persistence contract (structural)', () => {
     );
     expect(basisMigration.trim().endsWith('COMMIT;')).toBe(true);
   });
-  it('declares both projection text columns with the persisted schema collation', () => {
-    for (const column of ['situation', 'lifecycleStatus'])
-      expect(basisMigration).toContain(
-        `\`${column}\` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL`
-      );
-    expect(basisMigration).not.toMatch(/CREATE TEMPORARY TABLE `[^`]+` AS/);
-    expect(basisMigration).toContain(
-      'INSERT INTO `_StandaloneRequirementProjection` (`id`, `projectId`, `situation`, `lifecycleStatus`)'
+  it('requires no staging-table privileges and keeps both projections identical with unicode collation', () => {
+    const sql = basisMigration.replace(/--[^\n]*/g, '');
+    expect(sql).not.toMatch(
+      /CREATE\s+(TEMPORARY\s+)?TABLE|DROP\s+TABLE|CREATE\s+VIEW|DELETE\s+FROM/i
+    );
+    const projections = [
+      ...sql.matchAll(/WITH selected_requirements AS \([\s\S]*?FROM stages\n\)/g)
+    ].map(([cte]) => cte);
+    expect(projections).toHaveLength(2);
+    expect(projections[0]).toBe(projections[1]);
+    expect(projections[0]).toContain('END COLLATE utf8mb4_unicode_ci AS situation');
+    expect(sql.indexOf('INSERT INTO RequirementTraceabilityHistoryEntry')).toBeLessThan(
+      sql.indexOf('INSERT INTO RequirementTraceabilityState')
     );
   });
   it('extends the execution discriminator without manufacturing an imported reference', () => {
