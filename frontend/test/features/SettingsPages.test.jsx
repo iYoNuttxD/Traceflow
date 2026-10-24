@@ -359,9 +359,9 @@ describe('configurações e estados restritos L2', () => {
         <IntegrationsSettingsPage />
       </MemoryRouter>
     );
-    expect(await screen.findByText('GitHub App não instalada')).toBeInTheDocument();
+    expect(await screen.findByText('GitHub App não autorizada nesta conta')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
+      screen.getByRole('button', { name: 'Autorizar instalação existente' })
     ).toBeInTheDocument();
   });
 
@@ -375,7 +375,7 @@ describe('configurações e estados restritos L2', () => {
     expect(
       await screen.findByText('A confirmação com GitHub não é mais válida. Inicie novamente.')
     ).toBeInTheDocument();
-    expect(screen.getByText('GitHub App não instalada')).toBeInTheDocument();
+    expect(screen.getByText('GitHub App não autorizada nesta conta')).toBeInTheDocument();
   });
 
   it('exibe falha OAuth segura em Segurança sem prender o carregamento', async () => {
@@ -495,7 +495,7 @@ describe('configurações e estados restritos L2', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
     expect(
       await screen.findByRole('button', {
-        name: method === 'deletion' ? 'Exportar meus dados' : 'Instalar ou autorizar GitHub App'
+        name: method === 'deletion' ? 'Exportar meus dados' : 'Autorizar instalação existente'
       })
     ).toBeInTheDocument();
     expect(mocks.api[method]).toHaveBeenCalledTimes(2);
@@ -540,9 +540,7 @@ describe('configurações e estados restritos L2', () => {
     await waitFor(() =>
       expect(mocks.api.removeGithubAuthorization).toHaveBeenCalledWith(12, 'senha local segura')
     );
-    expect(
-      screen.getByRole('button', { name: 'Adicionar ou atualizar acesso' })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Autorizar outra instalação' })).toBeInTheDocument();
   });
 
   it('apresenta os repositórios concedidos pela Installation sem renovação OAuth pessoal', async () => {

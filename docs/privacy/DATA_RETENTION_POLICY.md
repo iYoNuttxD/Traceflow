@@ -187,6 +187,25 @@ PR23-FIX-07 / D-D: retenção interna não implica exposição geral. O presente
 pessoal e seus filtros não foram ampliados. `TaskMovement.responsibilitySnapshotState` registra
 somente ASSIGNED/UNASSIGNED, sem identidade adicional; estado nulo continua legado desconhecido.
 
+
+## Instalação limpa OCI — S2-10 (20/10/2026)
+
+O responsável aprovou operacionalmente os prazos técnicos existentes e seu
+agendamento diário apenas no banco `traceflow_live` e storage novo. A service
+`traceflow-live-retention` executa às 05:30 UTC (02:30 America/Sao_Paulo), com
+alerta em falha; o dry-run real inicial encontrou zero candidatos. Não houve
+apply manual imediato nesta entrega. Registros ativos e todo o legado são
+preservados; a decisão pendente sobre SyncRuns permanece inalterada.
+
+Logs locais: 30 dias sujeitos aos limites de tamanho documentados. Backups
+cifrados novos: 14 dias, preservando as duas gerações mais recentes quando
+existirem, com acesso restrito e prefixo independente. Há uma geração comprovada
+na entrega; as próximas dependem de capturas diárias bem-sucedidas. O histórico
+anterior de logs foi preservado cifrado antes de limitar a retenção.
+
+Essa aprovação operacional não constitui parecer jurídico LGPD. Procedimentos,
+limites e incidentes: [operação OCI](../runbooks/OCI_LIVE_OPERATIONS.md).
+
 ## S2-06/S2-07 — Relatórios e PDF
 
 - Relatório `SUCCEEDED` é um retrato do projeto e acompanha o ciclo do projeto: não tem expurgo

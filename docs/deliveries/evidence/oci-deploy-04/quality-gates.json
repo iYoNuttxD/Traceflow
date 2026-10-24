@@ -1,0 +1,250 @@
+{
+  "baseline": {
+    "branch": "daniel-dev",
+    "head": "19922ae17dd4175846f416423b2068509aa4ac9f",
+    "workingTreeInitially": "clean"
+  },
+  "backend": {
+    "runtime": {
+      "node": "v22.23.3",
+      "platform": "darwin",
+      "architecture": "arm64"
+    },
+    "startedAt": "2026-10-14T20:22:43.465Z",
+    "finishedAt": "2026-10-14T20:26:21.157Z",
+    "tests": {
+      "total": 1942,
+      "passed": 1937,
+      "failed": 0,
+      "pending": 5,
+      "success": true
+    },
+    "files": 160,
+    "coverage": {
+      "lines": {
+        "total": 9169,
+        "covered": 8694,
+        "skipped": 0,
+        "pct": 94.81
+      },
+      "statements": {
+        "total": 10292,
+        "covered": 9522,
+        "skipped": 0,
+        "pct": 92.51
+      },
+      "functions": {
+        "total": 2582,
+        "covered": 2462,
+        "skipped": 0,
+        "pct": 95.35
+      },
+      "branches": {
+        "total": 8042,
+        "covered": 7018,
+        "skipped": 0,
+        "pct": 87.26
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "server": {
+      "port": 52540,
+      "datadir": "/private/tmp/traceflow-oci-RxbU8X/data/",
+      "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+      "version": "8.4.8",
+      "database": "tf_oci_53d4ba9342a1_test",
+      "timeZone": "+00:00",
+      "compileOs": "macos15",
+      "serverUuid": "030a0782-c80d-11f1-94c9-52188244cb32",
+      "compileMachine": "arm64",
+      "systemTimeZone": "UTC",
+      "versionComment": "MySQL Community Server - GPL",
+      "collationServer": "utf8mb4_0900_ai_ci",
+      "characterSetServer": "utf8mb4",
+      "lowerCaseTableNames": 2,
+      "defaultStorageEngine": "InnoDB",
+      "transactionIsolation": "REPEATABLE-READ",
+      "ownershipVerified": true,
+      "credentialScope": "owned-prefix-only",
+      "administrativeRead": "DENIED",
+      "invalidPassword": "REJECTED"
+    },
+    "cleanup": {
+      "serverStopped": true,
+      "ownedDirectoryRemoved": true,
+      "existingServersAccessed": false
+    },
+    "phases": [
+      {
+        "name": "inventory",
+        "status": "PASS"
+      },
+      {
+        "name": "initialize-owned-server",
+        "status": "PASS"
+      },
+      {
+        "name": "prepare-isolated-workspace",
+        "status": "PASS"
+      },
+      {
+        "name": "prisma-validate-generate",
+        "status": "PASS"
+      },
+      {
+        "name": "official-migration-chain",
+        "status": "PASS"
+      },
+      {
+        "name": "historical-migration-validators",
+        "status": "PASS"
+      },
+      {
+        "name": "controlled-production-runtime",
+        "status": "PASS"
+      },
+      {
+        "name": "functional-and-concurrency-suites",
+        "status": "PASS"
+      }
+    ],
+    "migrationValidators": 14,
+    "migrations": 67,
+    "runtimeSmoke": {
+      "status": "PASS",
+      "checks": [
+        "actual-loopback-bind",
+        "live-ready-schema-storage",
+        "storage-degradation-readiness-only",
+        "cors-unknown-origin-rejected",
+        "login-secure-host-only-cookie",
+        "csrf-enforced-authorized-mutation",
+        "logout-revokes-session-cookie",
+        "sigterm-sse-closed-idempotent-shutdown",
+        "idle-sigterm",
+        "owned-database-auth-failure-readiness-only",
+        "unsafe-startup-and-disabled-production-worker-rejected",
+        "no-secret-in-runtime-logs"
+      ],
+      "databaseOwnershipVerified": true,
+      "externalEmails": 0,
+      "githubCalls": 0,
+      "ociAccess": false
+    }
+  },
+  "frontend": {
+    "tests": {
+      "numTotalTests": 1493,
+      "numPassedTests": 1493,
+      "numFailedTests": 0,
+      "numPendingTests": 0,
+      "success": true
+    },
+    "files": 120,
+    "coverage": {
+      "lines": {
+        "total": 10375,
+        "covered": 9195,
+        "skipped": 0,
+        "pct": 88.62
+      },
+      "statements": {
+        "total": 11869,
+        "covered": 10225,
+        "skipped": 0,
+        "pct": 86.14
+      },
+      "functions": {
+        "total": 3457,
+        "covered": 2835,
+        "skipped": 0,
+        "pct": 82
+      },
+      "branches": {
+        "total": 11179,
+        "covered": 9056,
+        "skipped": 0,
+        "pct": 81
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "gates": [
+      {
+        "gate": "install",
+        "code": 0
+      },
+      {
+        "gate": "coverage",
+        "code": 0
+      },
+      {
+        "gate": "lint",
+        "code": 0
+      },
+      {
+        "gate": "format",
+        "code": 0
+      },
+      {
+        "gate": "build",
+        "code": 0
+      }
+    ]
+  },
+  "gates": {
+    "backendLint": "PASS",
+    "backendFormat": "PASS",
+    "frontendLint": "PASS",
+    "frontendFormat": "PASS",
+    "frontendBuild": "PASS",
+    "prismaValidate": "PASS",
+    "prismaGenerate": "PASS",
+    "architecture": "PASS",
+    "ciPolicyTests": {
+      "passed": 90,
+      "failed": 0
+    },
+    "ciFormat": "PASS",
+    "npmAuditBackend": {
+      "high": 0,
+      "critical": 0,
+      "exceptions": 0
+    },
+    "npmAuditFrontend": {
+      "high": 0,
+      "critical": 0,
+      "exceptions": 0
+    },
+    "canonicalSecretScan": {
+      "status": "PASS",
+      "files": 654
+    },
+    "operationalFilesExplicitSecretScan": "PASS",
+    "gitDiffCheck": "PASS",
+    "newJavascriptFormat": "PASS",
+    "nodeSyntax": "PASS",
+    "shellSyntax": "PASS",
+    "pythonSyntax": "PASS"
+  },
+  "operationalHostTests": {
+    "passed": 21,
+    "failed": 0
+  },
+  "frontend413Checks": {
+    "passed": 2,
+    "failed": 0
+  },
+  "remoteCI": "NOT_RUN",
+  "productionAccess": false,
+  "note": "Full backend test target owned by runner, no reused node_modules or .env. No OCI-02 native/version matrix repeated."
+}

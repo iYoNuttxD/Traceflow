@@ -1,0 +1,61 @@
+{
+  "evidence": "E12",
+  "origin": "LOCAL_EXECUTION_AND_PENDING_MANAGED",
+  "environment": "Community 26.7.0 macOS ARM64; OCI console version only reported",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": "SELECT allowlisted server variables and own TLS session; connection budget probes",
+  "status": "PASS_LOCAL_MANAGED_PENDING",
+  "result": {
+    "local": {
+      "versionComment": "MySQL Community Server - GPL",
+      "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+      "transactionIsolation": "REPEATABLE-READ",
+      "timeZone": "+00:00",
+      "systemTimeZone": "UTC",
+      "characterSet": "utf8mb4",
+      "collation": "utf8mb4_0900_ai_ci",
+      "lowerCaseTableNames": "2",
+      "maxConnections": "32",
+      "waitTimeout": "28800",
+      "connectTimeout": "10",
+      "requireSecureTransport": "1",
+      "engine": "InnoDB"
+    },
+    "localTlsSession": {
+      "Ssl_cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+      "Ssl_version": "TLSv1.2"
+    },
+    "managed": {
+      "presentedVersion": "26.7.0",
+      "sqlVersion": null,
+      "serverUuid": null,
+      "schema": null,
+      "engine": null,
+      "sqlMode": null,
+      "isolation": null,
+      "timezone": null,
+      "charset": null,
+      "collation": null,
+      "lowerCaseTableNames": null,
+      "maxConnections": null,
+      "waitTimeout": null,
+      "connectTimeout": null,
+      "requireSecureTransport": null
+    },
+    "proposedBudgets": {
+      "apiMax": 5,
+      "workerMax": 3,
+      "exclusiveJobMax": 2,
+      "diagnostic": 1,
+      "runtimeAndJobsTotal": 11,
+      "operationalReserve": 5
+    },
+    "localPoolUsedForFullConcurrencySuite": 10
+  },
+  "limitations": [
+    "macOS lower_case_table_names=2 is not a Linux/HeatWave assumption.",
+    "Proposed budget depends on actual available connections and all consumers; no server parameter change.",
+    "Query timeout test uses smaller explicit probe budget, not modified functional defaults."
+  ]
+}

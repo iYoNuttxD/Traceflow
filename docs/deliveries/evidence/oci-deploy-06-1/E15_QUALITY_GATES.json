@@ -1,0 +1,999 @@
+{
+  "evidence": "E15",
+  "origin": "LOCAL_EXECUTION",
+  "environment": "macOS ARM64 Node22; Community26.7; OL9.8 ARM64 systemd",
+  "date": "2026-10-15T12:14:19.629922+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": "Exact command vectors and gate outputs below",
+  "status": "PASS_LOCAL_WITH_MEASURED_COVERAGE_DELTAS",
+  "result": {
+    "backend": {
+      "tests": {
+        "total": 2070,
+        "passed": 2065,
+        "failed": 0,
+        "skipped": 5,
+        "success": true,
+        "startedAt": "2026-10-15T11:36:51.107000+00:00",
+        "sourceResultSha256": "d74af22017723d037ba71c85fe2f0647dd8dbc64dcd7fd0401bc172490a506b9"
+      },
+      "coverage": {
+        "lines": {
+          "total": 9659,
+          "covered": 9162,
+          "skipped": 0,
+          "pct": 94.85
+        },
+        "statements": {
+          "total": 10844,
+          "covered": 10039,
+          "skipped": 0,
+          "pct": 92.57
+        },
+        "functions": {
+          "total": 2696,
+          "covered": 2574,
+          "skipped": 0,
+          "pct": 95.47
+        },
+        "branches": {
+          "total": 8420,
+          "covered": 7362,
+          "skipped": 0,
+          "pct": 87.43
+        },
+        "branchesTrue": {
+          "total": 0,
+          "covered": 0,
+          "skipped": 0,
+          "pct": 100
+        }
+      },
+      "gates": {
+        "environment": "macOS ARM64; MySQL Community 26.7.0; Node 22.23.3",
+        "productionCertified": false,
+        "steps": [
+          {
+            "name": "migrate",
+            "command": [
+              "npm",
+              "run",
+              "db:test:migrate"
+            ],
+            "exitCode": 0,
+            "seconds": 2.466
+          },
+          {
+            "name": "status",
+            "command": [
+              "npm",
+              "run",
+              "db:test:status"
+            ],
+            "exitCode": 0,
+            "seconds": 0.507
+          },
+          {
+            "name": "full",
+            "command": [
+              "npm",
+              "run",
+              "test:coverage",
+              "--",
+              "--reporter=json",
+              "--outputFile=/private/tmp/tf061-1mrsfkof/private/backend-full.json"
+            ],
+            "exitCode": 0,
+            "seconds": 167.36
+          },
+          {
+            "name": "lint",
+            "command": [
+              "npm",
+              "run",
+              "lint"
+            ],
+            "exitCode": 0,
+            "seconds": 1.751
+          },
+          {
+            "name": "format",
+            "command": [
+              "npm",
+              "run",
+              "format:check"
+            ],
+            "exitCode": 0,
+            "seconds": 1.951
+          },
+          {
+            "name": "architecture",
+            "command": [
+              "npm",
+              "run",
+              "architecture:check"
+            ],
+            "exitCode": 0,
+            "seconds": 0.213
+          },
+          {
+            "name": "operations",
+            "command": [
+              "python3",
+              "-m",
+              "unittest",
+              "discover",
+              "-s",
+              "deploy/tests",
+              "-p",
+              "test_*.py"
+            ],
+            "exitCode": 0,
+            "seconds": 3.01
+          }
+        ],
+        "identity": {
+          "serverUuid": "b3acf39a-c88c-11f1-a47d-c5e52a2438aa",
+          "port": 65353,
+          "schema": "tf_oci_48722ff278f0_test",
+          "datadir": "/private/tmp/tf061-1mrsfkof/mysql-viu28za8/data",
+          "version": "26.7.0",
+          "host": "127.0.0.1"
+        },
+        "status": "PASS",
+        "ownedMysqlStopped": true,
+        "ownedDatadirRemoved": true
+      }
+    },
+    "frontend": {
+      "tests": {
+        "total": 1520,
+        "passed": 1520,
+        "failed": 0,
+        "skipped": 0,
+        "success": true,
+        "startedAt": "2026-10-15T11:26:19.478000+00:00",
+        "sourceResultSha256": "938a6d26f133653565cf6216b2ad71c32b82352b8694c6e08498e20d67e668df"
+      },
+      "coverage": {
+        "lines": {
+          "total": 10555,
+          "covered": 9349,
+          "skipped": 0,
+          "pct": 88.57
+        },
+        "statements": {
+          "total": 12071,
+          "covered": 10394,
+          "skipped": 0,
+          "pct": 86.1
+        },
+        "functions": {
+          "total": 3513,
+          "covered": 2877,
+          "skipped": 0,
+          "pct": 81.89
+        },
+        "branches": {
+          "total": 11316,
+          "covered": 9164,
+          "skipped": 0,
+          "pct": 80.98
+        },
+        "branchesTrue": {
+          "total": 0,
+          "covered": 0,
+          "skipped": 0,
+          "pct": 100
+        }
+      },
+      "gates": [
+        {
+          "command": [
+            "npm",
+            "run",
+            "test:coverage",
+            "--",
+            "--reporter=json",
+            "--outputFile=/private/tmp/tf061-1mrsfkof/private/frontend-full.json"
+          ],
+          "exitCode": 0,
+          "seconds": 37.109
+        },
+        {
+          "command": [
+            "npm",
+            "run",
+            "lint"
+          ],
+          "exitCode": 0,
+          "seconds": 2.259
+        },
+        {
+          "command": [
+            "npm",
+            "run",
+            "format:check"
+          ],
+          "exitCode": 0,
+          "seconds": 1.648
+        },
+        {
+          "command": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "exitCode": 0,
+          "seconds": 0.96
+        }
+      ]
+    },
+    "focused": {
+      "total": 58,
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "startedAt": "2026-10-15T11:35:17.610000+00:00",
+      "sourceResultSha256": "d39080f3c80a74a72a50d13be30159ddbf23b1a222a81d86a274262ee48a4234"
+    },
+    "operations": {
+      "tests": 85,
+      "failed": 0,
+      "skipped": 0,
+      "newCaTests": 10,
+      "newEnvironmentTests": 1,
+      "command": "python3 -m unittest discover -s deploy/tests -p test_*.py",
+      "testFixtureUmask": "022; private runtime fixtures use their explicit modes"
+    },
+    "ciPolicy": {
+      "tests": 90,
+      "failed": 0,
+      "gates": [
+        {
+          "name": "ci-tests",
+          "command": [
+            "node",
+            "--test",
+            "scripts/validate-ci.test.mjs",
+            "scripts/check-npm-audit.test.mjs",
+            "scripts/check-ui-inventory.test.mjs"
+          ],
+          "exitCode": 0,
+          "seconds": 4.911
+        },
+        {
+          "name": "ci-policy",
+          "command": [
+            "node",
+            "scripts/validate-ci.mjs"
+          ],
+          "exitCode": 0,
+          "seconds": 0.063
+        },
+        {
+          "name": "ui-inventory",
+          "command": [
+            "node",
+            "scripts/check-ui-inventory.mjs"
+          ],
+          "exitCode": 0,
+          "seconds": 0.057
+        },
+        {
+          "name": "audit-backend",
+          "command": [
+            "node",
+            "scripts/check-npm-audit.mjs",
+            "backend",
+            "docs/security/npm-audit-exceptions.json"
+          ],
+          "exitCode": 0,
+          "seconds": 0.735
+        },
+        {
+          "name": "audit-frontend",
+          "command": [
+            "node",
+            "scripts/check-npm-audit.mjs",
+            "frontend",
+            "docs/security/npm-audit-exceptions.json"
+          ],
+          "exitCode": 0,
+          "seconds": 0.584
+        }
+      ],
+      "remoteCIExecuted": false
+    },
+    "audit": {
+      "backend": {
+        "high": 0,
+        "critical": 0,
+        "exceptions": 0
+      },
+      "frontend": {
+        "high": 0,
+        "critical": 0,
+        "exceptions": 0
+      }
+    },
+    "prisma": {
+      "validate": "PASS",
+      "generate": "PASS",
+      "version": "6.12.0",
+      "logsSha256": {
+        "prisma-validate.log": "87ec5a1ec220f83c7901f1e5363e347ac10881a41f69cdac2b2e74f2b3ed30a6",
+        "prisma-generate.log": "e73b18444a05dd2802e472afb689bcaac32200dbe4303b2733e3a91bf7fec31b"
+      }
+    },
+    "thresholdsPreserved": {
+      "backend": {
+        "statements": 85,
+        "branches": 70,
+        "functions": 85,
+        "lines": 87
+      },
+      "frontend": {
+        "statements": 50,
+        "branches": 45,
+        "functions": 40,
+        "lines": 53
+      }
+    },
+    "warnings": [
+      "Existing large ELK build chunk; no source/frontend change",
+      "Five existing backend skips E6/E11 pre-LR2; no new skip"
+    ],
+    "localTlsPhases": 9,
+    "linuxAggregateControls": 3,
+    "attemptsBeforeFinal": [
+      {
+        "issue": "initial focused fixtures/assertions",
+        "result": "50 pass / 7 fail of 57; then first full 2059 pass / 5 fail / 5 historical skips",
+        "resolution": "explicit CA:TRUE on LibreSSL; assert Error.code, not blank message; final 58 focused and full backend passed"
+      },
+      {
+        "issue": "operational fixture environment",
+        "result": "new CA fixture errors and later 32 DIRECTORY_MODE errors under inherited umask 077",
+        "resolution": "explicit CA extensions and existing test fixture umask 022; no production permission guard relaxed"
+      },
+      {
+        "issue": "Linux probe CHDIR",
+        "result": "synthetic public fixture was 0700",
+        "resolution": "fixture modes 0755/0644; unchanged service hardening passed"
+      },
+      {
+        "issue": "no-TLS probe server setup",
+        "result": "removed --ssl=OFF option let server exit; P1001/ECONNREFUSED not accepted as TLS proof",
+        "resolution": "--tls-version= on own active server; require Node TLS_REQUIRED plus exact Prisma driver refusal, not arbitrary failure"
+      },
+      {
+        "issue": "additional baseline comparison used pool 1",
+        "result": "1999 pass / 49 fail / 5 skips; no coverage; concurrent transactions could not arrive together",
+        "resolution": "comparison runner corrected to pool 10 used by current full suite; no functional test/timeout/threshold changed"
+      }
+    ],
+    "baselineComparison": {
+      "backend": {
+        "baselineTests": {
+          "numTotalTests": 2053,
+          "numPassedTests": 2048,
+          "numFailedTests": 0,
+          "numPendingTests": 5,
+          "success": true
+        },
+        "baselineCoverage": {
+          "lines": {
+            "total": 9659,
+            "covered": 9162,
+            "skipped": 0,
+            "pct": 94.85
+          },
+          "statements": {
+            "total": 10844,
+            "covered": 10039,
+            "skipped": 0,
+            "pct": 92.57
+          },
+          "functions": {
+            "total": 2696,
+            "covered": 2574,
+            "skipped": 0,
+            "pct": 95.47
+          },
+          "branches": {
+            "total": 8420,
+            "covered": 7363,
+            "skipped": 0,
+            "pct": 87.44
+          },
+          "branchesTrue": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "currentCoverage": {
+          "lines": {
+            "total": 9659,
+            "covered": 9162,
+            "skipped": 0,
+            "pct": 94.85
+          },
+          "statements": {
+            "total": 10844,
+            "covered": 10039,
+            "skipped": 0,
+            "pct": 92.57
+          },
+          "functions": {
+            "total": 2696,
+            "covered": 2574,
+            "skipped": 0,
+            "pct": 95.47
+          },
+          "branches": {
+            "total": 8420,
+            "covered": 7362,
+            "skipped": 0,
+            "pct": 87.43
+          },
+          "branchesTrue": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "fileDifferences": [
+          {
+            "file": "backend/src/modules/defects/defect.presenter.js",
+            "current": {
+              "lines": {
+                "total": 30,
+                "covered": 27,
+                "skipped": 0,
+                "pct": 90
+              },
+              "functions": {
+                "total": 26,
+                "covered": 23,
+                "skipped": 0,
+                "pct": 88.46
+              },
+              "statements": {
+                "total": 35,
+                "covered": 32,
+                "skipped": 0,
+                "pct": 91.42
+              },
+              "branches": {
+                "total": 16,
+                "covered": 13,
+                "skipped": 0,
+                "pct": 81.25
+              }
+            },
+            "baseline": {
+              "lines": {
+                "total": 30,
+                "covered": 27,
+                "skipped": 0,
+                "pct": 90
+              },
+              "functions": {
+                "total": 26,
+                "covered": 23,
+                "skipped": 0,
+                "pct": 88.46
+              },
+              "statements": {
+                "total": 35,
+                "covered": 32,
+                "skipped": 0,
+                "pct": 91.42
+              },
+              "branches": {
+                "total": 16,
+                "covered": 14,
+                "skipped": 0,
+                "pct": 87.5
+              }
+            },
+            "sourceSha256": "fcbf7301a6d17cbca56c8cd3c21544a89e6b67aa9b8dbbf283b0c5c69e274a8b",
+            "sourceIdentical": true
+          }
+        ]
+      },
+      "frontend": {
+        "baselineTests": {
+          "numTotalTests": 1520,
+          "numPassedTests": 1520,
+          "numFailedTests": 0,
+          "numPendingTests": 0,
+          "success": true
+        },
+        "baselineCoverage": {
+          "lines": {
+            "total": 10554,
+            "covered": 9349,
+            "skipped": 0,
+            "pct": 88.58
+          },
+          "statements": {
+            "total": 12070,
+            "covered": 10394,
+            "skipped": 0,
+            "pct": 86.11
+          },
+          "functions": {
+            "total": 3512,
+            "covered": 2877,
+            "skipped": 0,
+            "pct": 81.91
+          },
+          "branches": {
+            "total": 11316,
+            "covered": 9164,
+            "skipped": 0,
+            "pct": 80.98
+          },
+          "branchesTrue": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "currentCoverage": {
+          "lines": {
+            "total": 10555,
+            "covered": 9349,
+            "skipped": 0,
+            "pct": 88.57
+          },
+          "statements": {
+            "total": 12071,
+            "covered": 10394,
+            "skipped": 0,
+            "pct": 86.1
+          },
+          "functions": {
+            "total": 3513,
+            "covered": 2877,
+            "skipped": 0,
+            "pct": 81.89
+          },
+          "branches": {
+            "total": 11316,
+            "covered": 9164,
+            "skipped": 0,
+            "pct": 80.98
+          },
+          "branchesTrue": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "fileDifferences": [
+          {
+            "file": "frontend/src/features/traceability/graph/layout/elk-layout.js",
+            "current": {
+              "lines": {
+                "total": 66,
+                "covered": 64,
+                "skipped": 0,
+                "pct": 96.96
+              },
+              "functions": {
+                "total": 28,
+                "covered": 25,
+                "skipped": 0,
+                "pct": 89.28
+              },
+              "statements": {
+                "total": 77,
+                "covered": 74,
+                "skipped": 0,
+                "pct": 96.1
+              },
+              "branches": {
+                "total": 57,
+                "covered": 52,
+                "skipped": 0,
+                "pct": 91.22
+              }
+            },
+            "baseline": {
+              "lines": {
+                "total": 65,
+                "covered": 64,
+                "skipped": 0,
+                "pct": 98.46
+              },
+              "functions": {
+                "total": 27,
+                "covered": 25,
+                "skipped": 0,
+                "pct": 92.59
+              },
+              "statements": {
+                "total": 76,
+                "covered": 74,
+                "skipped": 0,
+                "pct": 97.36
+              },
+              "branches": {
+                "total": 57,
+                "covered": 52,
+                "skipped": 0,
+                "pct": 91.22
+              }
+            },
+            "sourceSha256": "8a2a362ae0e2f6afc77d4959bab18d9cd959857b3ae2d9e3c5aff3218dfdbe51",
+            "sourceIdentical": true
+          }
+        ]
+      },
+      "interpretation": {
+        "backend": "Exactly one branch covered less in defect.presenter.js latestRetest ternary (14/16 -> 13/16); src/test/config preserved. Exact execution-variation cause not established; no claim of equal measured branch coverage.",
+        "frontend": "Only elk-layout.js denominator differs by one line/statement/function. All per-file covered counts equal; identical source and tests. V8 report totals differ; no removed coverage threshold or functional test.",
+        "scope": "Current and baseline suites passed. Percentages are retained as measured, not normalized or rounded up. Changes affect scripts excluded from src coverage.",
+        "strictPercentageNonDecrease": "Not demonstrated for every metric; review residual deltas rather than concealing them.",
+        "backendPoolForValidComparison": 10
+      }
+    },
+    "baselineComparisonCleanup": {
+      "baselineHead": "dee40d83f9904d22b3dc65cb61f56dc5b4732d7a",
+      "poolLimit": 10,
+      "checks": [
+        {
+          "component": "backend",
+          "exitCode": 0,
+          "coverage": {
+            "lines": {
+              "total": 9659,
+              "covered": 9162,
+              "skipped": 0,
+              "pct": 94.85
+            },
+            "statements": {
+              "total": 10844,
+              "covered": 10039,
+              "skipped": 0,
+              "pct": 92.57
+            },
+            "functions": {
+              "total": 2696,
+              "covered": 2574,
+              "skipped": 0,
+              "pct": 95.47
+            },
+            "branches": {
+              "total": 8420,
+              "covered": 7363,
+              "skipped": 0,
+              "pct": 87.44
+            },
+            "branchesTrue": {
+              "total": 0,
+              "covered": 0,
+              "skipped": 0,
+              "pct": 100
+            }
+          }
+        }
+      ],
+      "ownedMysqlStopped": true,
+      "ownedDatadirRemoved": true
+    },
+    "finalChecks": {
+      "status": "PASS_WITH_REVIEWED_EXISTING_TEMPLATE",
+      "date": "2026-10-15T12:13:15.785115+00:00",
+      "steps": [
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "backend/scripts/check-secrets.js"
+          ],
+          "exitCode": 0,
+          "output": "Secret scan aprovado (676 arquivos verificados).",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "backend/scripts/check-secrets.js",
+            "backend/scripts/lib/heatwave-connection.js",
+            "backend/scripts/validate-oci-heatwave-connection.js",
+            "backend/test/unit/heatwave-connection.test.js",
+            "backend/test/unit/heatwave-tls.test.js",
+            "deploy/scripts/validate-service-environment.mjs",
+            "deploy/tests/connection-probes.mjs",
+            "deploy/tests/persistence_lab.py",
+            "deploy/tests/run-connection-lab.py",
+            "deploy/tests/test_operations.py",
+            "docs/runbooks/OCI_BACKUP_RECOVERY.md",
+            "docs/runbooks/OCI_ENVIRONMENT.md",
+            "docs/runbooks/OCI_HEATWAVE_HOMOLOGATION.md",
+            "docs/runbooks/OCI_HEATWAVE_MAINTENANCE.md",
+            "docs/runbooks/OCI_MYSQL_COMPATIBILITY.md",
+            "deploy/scripts/prepare-mysql-ca.py",
+            "deploy/tests/run-mysql-ca-linux.py",
+            "deploy/tests/test_mysql_ca.py",
+            "docs/deliveries/OCI_DEPLOY_06_1_HEATWAVE_MANAGED_HOMOLOGATION_REPORT.md",
+            "docs/deliveries/evidence/oci-deploy-06-1/E01_BASELINE.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E02_PRISMA_CONTRACT.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E03_TLS_LOCAL.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E04_OPERATOR_CERTIFICATE.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E05_OPERATOR_DNS.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E06_OPERATOR_HOSTNAME_TLS.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E07_CA_PERMISSIONS.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E08_SYSTEMD.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E09_LOCAL_DIAGNOSTIC.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E10_MANAGED_DIAGNOSTIC.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E11_GRANTS.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E12_MYSQL_PARAMETERS.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E13_MIGRATIONS.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E14_SECURITY.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E15_QUALITY_GATES.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/E16_REMAINING_BLOCKERS.json",
+            "docs/deliveries/evidence/oci-deploy-06-1/INDEX.md"
+          ],
+          "exitCode": 1,
+          "output": "",
+          "errors": "docs/runbooks/OCI_MYSQL_COMPATIBILITY.md:158 [Database URL with password] possível segredo detectado"
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "--input-type=module",
+            "-e",
+            "import {scanText} from './backend/scripts/check-secrets.js';import fs from 'node:fs';import cp from 'node:child_process';const diff=cp.execFileSync('git',['diff','--unified=0'],{encoding:'utf8'});let file='',count=0,findings=[];for(const line of diff.split('\\n')){if(line.startsWith('+++ b/')){file=line.slice(6);continue;}if(line.startsWith('+')&&!line.startsWith('+++')){findings.push(...scanText(line.slice(1),file));count++;}}const names=cp.execFileSync('git',['ls-files','--others','--exclude-standard'],{encoding:'utf8'}).trim().split('\\n').filter(Boolean);for(const f of names)findings.push(...scanText(fs.readFileSync(f,'utf8'),f));console.log(JSON.stringify({newFiles:names.length,addedLines:count,findings}));if(findings.length)process.exit(1);"
+          ],
+          "exitCode": 0,
+          "output": "{\"newFiles\":21,\"addedLines\":715,\"findings\":[]}",
+          "errors": ""
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "/private/tmp/tf061-1mrsfkof/workspace/backend/node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "deploy/tests/connection-probes.mjs",
+            "deploy/scripts/validate-service-environment.mjs"
+          ],
+          "exitCode": 0,
+          "output": "Checking formatting...\nAll matched files use Prettier code style!",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "--check",
+            "backend/scripts/lib/heatwave-connection.js"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "--check",
+            "backend/scripts/validate-oci-heatwave-connection.js"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "--check",
+            "backend/test/unit/heatwave-connection.test.js"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "--check",
+            "backend/test/unit/heatwave-tls.test.js"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "--check",
+            "deploy/scripts/validate-service-environment.mjs"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/opt/homebrew/opt/node@22/bin/node",
+            "--check",
+            "deploy/tests/connection-probes.mjs"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/bin/bash",
+            "-n",
+            "deploy/scripts/backup.sh"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/bin/bash",
+            "-n",
+            "deploy/scripts/check-runtime.sh"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/bin/bash",
+            "-n",
+            "deploy/scripts/configure-selinux.sh"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/bin/bash",
+            "-n",
+            "deploy/scripts/validate-nginx.sh"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        },
+        {
+          "command": [
+            "/bin/bash",
+            "-n",
+            "deploy/scripts/validate-systemd.sh"
+          ],
+          "exitCode": 0,
+          "output": "",
+          "errors": ""
+        }
+      ],
+      "historicalTemplateClassification": {
+        "file": "docs/runbooks/OCI_MYSQL_COMPATIBILITY.md",
+        "line": 158,
+        "lineSha256": "ea5a425a385b52ddfca1412d0d00b133dceca9c28a6e7ec6d67666e47fdf654a",
+        "identicalToHead": true,
+        "passwordFieldIsVariableInterpolation": true,
+        "usernameFieldContainsInterpolation": true,
+        "loopbackOnly": true,
+        "result": "REVIEWED_EXISTING_TEMPLATE_NOT_A_LITERAL_SECRET",
+        "scannerChanged": false
+      },
+      "newContentScan": {
+        "newFiles": 21,
+        "addedLines": 715,
+        "findings": []
+      },
+      "syntaxPython": 6,
+      "syntaxJs": 6,
+      "shellsChecked": 5,
+      "filesExplicitlySecretScanned": [
+        "backend/scripts/lib/heatwave-connection.js",
+        "backend/scripts/validate-oci-heatwave-connection.js",
+        "backend/test/unit/heatwave-connection.test.js",
+        "backend/test/unit/heatwave-tls.test.js",
+        "deploy/scripts/validate-service-environment.mjs",
+        "deploy/tests/connection-probes.mjs",
+        "deploy/tests/persistence_lab.py",
+        "deploy/tests/run-connection-lab.py",
+        "deploy/tests/test_operations.py",
+        "docs/runbooks/OCI_BACKUP_RECOVERY.md",
+        "docs/runbooks/OCI_ENVIRONMENT.md",
+        "docs/runbooks/OCI_HEATWAVE_HOMOLOGATION.md",
+        "docs/runbooks/OCI_HEATWAVE_MAINTENANCE.md",
+        "docs/runbooks/OCI_MYSQL_COMPATIBILITY.md",
+        "deploy/scripts/prepare-mysql-ca.py",
+        "deploy/tests/run-mysql-ca-linux.py",
+        "deploy/tests/test_mysql_ca.py",
+        "docs/deliveries/OCI_DEPLOY_06_1_HEATWAVE_MANAGED_HOMOLOGATION_REPORT.md",
+        "docs/deliveries/evidence/oci-deploy-06-1/E01_BASELINE.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E02_PRISMA_CONTRACT.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E03_TLS_LOCAL.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E04_OPERATOR_CERTIFICATE.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E05_OPERATOR_DNS.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E06_OPERATOR_HOSTNAME_TLS.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E07_CA_PERMISSIONS.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E08_SYSTEMD.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E09_LOCAL_DIAGNOSTIC.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E10_MANAGED_DIAGNOSTIC.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E11_GRANTS.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E12_MYSQL_PARAMETERS.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E13_MIGRATIONS.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E14_SECURITY.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E15_QUALITY_GATES.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/E16_REMAINING_BLOCKERS.json",
+        "docs/deliveries/evidence/oci-deploy-06-1/INDEX.md"
+      ]
+    },
+    "cleanup": {
+      "date": "2026-10-15T12:14:19.629922+00:00",
+      "scope": "only LIMA_HOME=/private/tmp/tf061-1mrsfkof/lima-home; no OCI",
+      "steps": [
+        {
+          "command": [
+            "limactl",
+            "stop",
+            "tf061"
+          ],
+          "exitCode": 0
+        },
+        {
+          "command": [
+            "limactl",
+            "delete",
+            "--force",
+            "tf061"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "ownedVmDeleted": true,
+      "otherLimaHomesTouched": false,
+      "privateWorkspaceCleanup": "COMPLETE",
+      "removedOwnEntries": [
+        "baseline",
+        "lima-home",
+        "npm-cache",
+        "npm-global.conf",
+        "npm-home",
+        "npm-user.conf",
+        "private",
+        "workspace"
+      ],
+      "remainingOwnEntries": [
+        "public"
+      ],
+      "realInfrastructureTouched": false
+    }
+  },
+  "limitations": [
+    "Local gates only, not remote CI/HeatWave/runtime readiness.",
+    "Percentages differ as documented in baselineComparison; strict non-decrease of every metric is not asserted.",
+    "Existing whole-file secret-scan finding is a verified historical variable template; new content has no findings.",
+    "Own VM/private workspaces, synthetic credentials and keys removed; only sanitized public outputs retained."
+  ]
+}

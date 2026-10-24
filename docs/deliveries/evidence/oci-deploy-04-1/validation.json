@@ -1,0 +1,339 @@
+{
+  "baseline": {
+    "branch": "daniel-dev",
+    "head": "8d5096a041e671a9fa610d5a61c4b2d672587d4d",
+    "initialTree": "clean",
+    "oldMigrationHashesUnchanged": 67,
+    "academicDocumentationUnchanged": true,
+    "workflowAndSystemdFilesUnchanged": true
+  },
+  "backend": {
+    "passed": 2007,
+    "failed": 0,
+    "skipped": 5,
+    "files": 162
+  },
+  "frontend": {
+    "passed": 1520,
+    "failed": 0,
+    "skipped": 0,
+    "files": 122
+  },
+  "coverage": {
+    "backend": {
+      "lines": {
+        "total": 9659,
+        "covered": 9162,
+        "skipped": 0,
+        "pct": 94.85
+      },
+      "statements": {
+        "total": 10844,
+        "covered": 10039,
+        "skipped": 0,
+        "pct": 92.57
+      },
+      "functions": {
+        "total": 2696,
+        "covered": 2574,
+        "skipped": 0,
+        "pct": 95.47
+      },
+      "branches": {
+        "total": 8420,
+        "covered": 7363,
+        "skipped": 0,
+        "pct": 87.44
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "frontend": {
+      "lines": {
+        "total": 10554,
+        "covered": 9349,
+        "skipped": 0,
+        "pct": 88.58
+      },
+      "statements": {
+        "total": 12070,
+        "covered": 10394,
+        "skipped": 0,
+        "pct": 86.11
+      },
+      "functions": {
+        "total": 3512,
+        "covered": 2877,
+        "skipped": 0,
+        "pct": 81.91
+      },
+      "branches": {
+        "total": 11316,
+        "covered": 9164,
+        "skipped": 0,
+        "pct": 80.98
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    }
+  },
+  "mysql26MacArm64": {
+    "passed": 176,
+    "failed": 0,
+    "skipped": 0,
+    "files": 6
+  },
+  "nativeArm64Focused": {
+    "passed": 165,
+    "failed": 0,
+    "skipped": 0,
+    "files": 5
+  },
+  "nativeArm64Legacy": {
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0,
+    "files": 1
+  },
+  "browser": {
+    "status": "PASS",
+    "scenarios": [
+      "small_browser_upload_download",
+      "100MiB_two_files_general_and_step",
+      "lost_complete_response_exactly_once",
+      "pause_reload_reselect_resume",
+      "api_restart_and_release_switch_persistent_session",
+      "no_resend_confirmed_part",
+      "finite_network_retry_and_cancellation_cleanup",
+      "filesystem_failure_before_commit_preserves_parts_and_retries",
+      "mobile_dom_no_horizontal_overflow",
+      "nginx_auth_csrf",
+      "nginx_part_limit_413",
+      "private_storage_not_public"
+    ],
+    "maxRequestBodyBytes": 8388608,
+    "largeElapsedMs": 11433
+  },
+  "crash": {
+    "scenario": "SIGKILL during an unacknowledged part and durable lease recovery",
+    "status": "PASS",
+    "waitedMs": 80309,
+    "confirmedBytes": 8388608
+  },
+  "resources": {
+    "samples": 885,
+    "durationSeconds": 198.897,
+    "rssStartBytes": 182759424,
+    "rssMaxBytes": 228720640,
+    "temporaryStartBytes": 121639160,
+    "temporaryMaxBytes": 331358594,
+    "apiCpuSecondsObserved": 3.08,
+    "samplingSeconds": 0.2,
+    "vmCpu": 2,
+    "vmRamGiB": 4
+  },
+  "staticGates": [
+    {
+      "gate": "backend-lint",
+      "exitCode": 0
+    },
+    {
+      "gate": "backend-format-check",
+      "exitCode": 0
+    },
+    {
+      "gate": "frontend-lint",
+      "exitCode": 0
+    },
+    {
+      "gate": "frontend-format-check",
+      "exitCode": 0
+    },
+    {
+      "gate": "architecture-check",
+      "exitCode": 0
+    },
+    {
+      "gate": "security-secrets",
+      "exitCode": 0,
+      "rerun": "security-secrets-final.log; URL constructor for synthetic credentials, no waiver"
+    },
+    {
+      "gate": "check-ui-inventory-test",
+      "exitCode": 0
+    },
+    {
+      "gate": "validate-ci-test",
+      "exitCode": 0
+    },
+    {
+      "gate": "check-npm-audit-test",
+      "exitCode": 0
+    },
+    {
+      "gate": "ci-policy",
+      "exitCode": 0
+    },
+    {
+      "gate": "ui-inventory",
+      "exitCode": 0
+    },
+    {
+      "gate": "deploy-tests",
+      "exitCode": 0
+    },
+    {
+      "gate": "backend-audit",
+      "exitCode": 0
+    },
+    {
+      "gate": "frontend-audit",
+      "exitCode": 0
+    }
+  ],
+  "prismaAndHistoricalValidators": [
+    {
+      "command": ["prisma", "validate"],
+      "exitCode": 0
+    },
+    {
+      "command": ["prisma", "generate"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/lr5-schema-audit.js", "--enforce", "--test"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-empty-migrations.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-lr5-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-lr9-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-lr2-legacy-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-s2-p1-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-s2-p3-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-s2-p5-1-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-dashboard-preference-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-task-responsibility-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-github-sync-migration.js"],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "node",
+        "scripts/validate-github-sync-migration.js",
+        "--liveness"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "node",
+        "scripts/validate-github-sync-migration.js",
+        "--actor"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": ["node", "scripts/validate-schema-drift.js"],
+      "exitCode": 0
+    }
+  ],
+  "databaseIdentity": [
+    {
+      "version": "8.4.8",
+      "isolatedDatadir": true,
+      "explicitTestDatabase": true,
+      "portMatches": true
+    },
+    {
+      "version": "26.7.0",
+      "isolatedDatadir": true,
+      "explicitTestDatabase": true,
+      "portMatches": true
+    }
+  ],
+  "audit": {
+    "backend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "frontend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "runtime": [
+    "Enforcing",
+    "httpd_can_network_connect --> off",
+    "httpd_can_network_relay --> off",
+    "system_u:system_r:httpd_t:s0 nginx",
+    "system_u:system_r:httpd_t:s0 nginx",
+    "active",
+    "active"
+  ],
+  "productionValidation": "NOT_EXECUTED",
+  "cleanup": {
+    "hostDatabases": [
+      {
+        "target": "tf041-hj50b9c0",
+        "stopped": true,
+        "ownDataRemoved": true
+      },
+      {
+        "target": "mysql267",
+        "stopped": true,
+        "ownDataRemoved": true
+      }
+    ],
+    "nativeVm": {
+      "name": "tf041",
+      "stoppedAndDeleted": true,
+      "ownLimaHomeRemoved": true
+    },
+    "syntheticPrivateFilesRemoved": true,
+    "orphanLabBrowsersClosed": 0
+  }
+}

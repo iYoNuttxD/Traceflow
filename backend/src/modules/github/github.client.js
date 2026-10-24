@@ -11,6 +11,7 @@ import {
 } from './github.mapper.js';
 import { paginateGithub } from './github-pagination.js';
 import { executeGithubRequest } from './github-request.js';
+import { githubFetch } from './github-json.js';
 
 const PAGE_SIZE = 100;
 const extractArrayItems = (data) => data;
@@ -34,7 +35,7 @@ export function createGithubClient({
   const octokit = new OctokitClass({
     auth,
     baseUrl: 'https://api.github.com',
-    request: { timeout: env.githubRequestTimeoutMs }
+    request: { timeout: env.githubRequestTimeoutMs, fetch: githubFetch() }
   });
   async function requestPage(
     endpoint,

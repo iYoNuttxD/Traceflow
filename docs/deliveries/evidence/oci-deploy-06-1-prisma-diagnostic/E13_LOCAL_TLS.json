@@ -1,0 +1,297 @@
+{
+  "origin": "executed-local",
+  "environment": "synthetic CA and empty MySQL in disposable VM",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "canonical MySQL STARTTLS probe + actual Prisma session; invalid CA/SAN/dates and no-TLS fixtures",
+  "result": {
+    "positive": {
+      "formatVersion": 1,
+      "status": "PASS",
+      "mode": "local-isolated",
+      "checkedAt": "2026-10-15T16:52:18.104Z",
+      "version": "26.7.0",
+      "prisma": "6.12.0",
+      "ca": {
+        "sha256": "845c59530a453f87cbc91e26b19e016d6678aeb42914908a6f97080f5251dd38",
+        "validFrom": "2026-10-15T16:52:15.000Z",
+        "validTo": "2026-10-17T16:52:15.000Z"
+      },
+      "serverIdentityVerified": true,
+      "effectiveUserVerified": true,
+      "tls": {
+        "verified": true,
+        "protocol": "TLSv1.3",
+        "cipher": "TLS_AES_128_GCM_SHA256",
+        "certificateSha256": "23dbda55e302e3d445284c0a6768ed883ecd6a1cd2ed3d62fa4bb3e86fd3327d",
+        "validFrom": "2026-10-15T16:52:15.000Z",
+        "validTo": "2026-10-17T16:52:15.000Z",
+        "identityVerified": true
+      },
+      "tlsSession": {
+        "Ssl_cipher": "TLS_AES_128_GCM_SHA256",
+        "Ssl_version": "TLSv1.3"
+      },
+      "grants": [
+        "SELECT"
+      ],
+      "roleVerification": {
+        "mandatoryPublic": false,
+        "activePublic": false,
+        "expanded": false
+      },
+      "parameters": {
+        "versionComment": "MySQL Community Server - GPL",
+        "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+        "transactionIsolation": "REPEATABLE-READ",
+        "timeZone": "+00:00",
+        "systemTimeZone": "UTC",
+        "characterSet": "utf8mb4",
+        "collation": "utf8mb4_0900_ai_ci",
+        "lowerCaseTableNames": "0",
+        "maxConnections": "32",
+        "waitTimeout": "28800",
+        "connectTimeout": "10",
+        "requireSecureTransport": "1",
+        "engine": "InnoDB",
+        "mandatoryRoles": "",
+        "activeRoles": "NONE"
+      },
+      "pool": {
+        "connectionLimit": 1,
+        "connectTimeout": 5,
+        "poolTimeout": 5,
+        "socketTimeout": 10
+      },
+      "writes": false,
+      "disconnected": true,
+      "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+      "durationSeconds": 0.172
+    },
+    "negative": [
+      {
+        "name": "N05-tls-bypass-environment",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.018
+        }
+      },
+      {
+        "name": "N05-permissive-tls",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "STRICT_TLS_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.02
+        }
+      },
+      {
+        "name": "N01-unknown-ca",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "SELF_SIGNED_CERT_IN_CHAIN",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.138
+        }
+      },
+      {
+        "name": "N03-wrong-san",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "ERR_TLS_CERT_ALTNAME_INVALID",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.137
+        }
+      },
+      {
+        "name": "N02-expired",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "CERT_HAS_EXPIRED",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.138
+        }
+      },
+      {
+        "name": "N04-no-tls",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "TLS_REQUIRED",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.137
+        }
+      }
+    ],
+    "timeouts": {
+      "name": "N24-timeout",
+      "status": "PASS",
+      "result": {
+        "status": "FAIL",
+        "code": "TLS_TIMEOUT",
+        "writes": false,
+        "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+        "durationSeconds": 5.135
+      }
+    },
+    "mandatoryRole": [
+      {
+        "name": "mandatory-public-empty-effective-rights",
+        "status": "PASS",
+        "result": {
+          "formatVersion": 1,
+          "status": "PASS",
+          "mode": "local-isolated",
+          "checkedAt": "2026-10-15T16:52:29.480Z",
+          "version": "26.7.0",
+          "prisma": "6.12.0",
+          "ca": {
+            "sha256": "845c59530a453f87cbc91e26b19e016d6678aeb42914908a6f97080f5251dd38",
+            "validFrom": "2026-10-15T16:52:15.000Z",
+            "validTo": "2026-10-17T16:52:15.000Z"
+          },
+          "serverIdentityVerified": true,
+          "effectiveUserVerified": true,
+          "tls": {
+            "verified": true,
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_128_GCM_SHA256",
+            "certificateSha256": "23dbda55e302e3d445284c0a6768ed883ecd6a1cd2ed3d62fa4bb3e86fd3327d",
+            "validFrom": "2026-10-15T16:52:15.000Z",
+            "validTo": "2026-10-17T16:52:15.000Z",
+            "identityVerified": true
+          },
+          "tlsSession": {
+            "Ssl_cipher": "TLS_AES_128_GCM_SHA256",
+            "Ssl_version": "TLSv1.3"
+          },
+          "grants": [
+            "SELECT"
+          ],
+          "roleVerification": {
+            "mandatoryPublic": true,
+            "activePublic": true,
+            "expanded": true
+          },
+          "parameters": {
+            "versionComment": "MySQL Community Server - GPL",
+            "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+            "transactionIsolation": "REPEATABLE-READ",
+            "timeZone": "+00:00",
+            "systemTimeZone": "UTC",
+            "characterSet": "utf8mb4",
+            "collation": "utf8mb4_0900_ai_ci",
+            "lowerCaseTableNames": "0",
+            "maxConnections": "32",
+            "waitTimeout": "28800",
+            "connectTimeout": "10",
+            "requireSecureTransport": "1",
+            "engine": "InnoDB",
+            "mandatoryRoles": "public",
+            "activeRoles": "`public`@`%`"
+          },
+          "pool": {
+            "connectionLimit": 1,
+            "connectTimeout": 5,
+            "poolTimeout": 5,
+            "socketTimeout": 10
+          },
+          "writes": false,
+          "disconnected": true,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.189
+        }
+      },
+      {
+        "name": "mandatory-public-dml-refused",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "EXCESSIVE_OR_UNRESOLVED_GRANTS",
+          "writes": false,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.182
+        }
+      },
+      {
+        "name": "mandatory-public-recovery",
+        "status": "PASS",
+        "result": {
+          "formatVersion": 1,
+          "status": "PASS",
+          "mode": "local-isolated",
+          "checkedAt": "2026-10-15T16:52:33.182Z",
+          "version": "26.7.0",
+          "prisma": "6.12.0",
+          "ca": {
+            "sha256": "845c59530a453f87cbc91e26b19e016d6678aeb42914908a6f97080f5251dd38",
+            "validFrom": "2026-10-15T16:52:15.000Z",
+            "validTo": "2026-10-17T16:52:15.000Z"
+          },
+          "serverIdentityVerified": true,
+          "effectiveUserVerified": true,
+          "tls": {
+            "verified": true,
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_128_GCM_SHA256",
+            "certificateSha256": "23dbda55e302e3d445284c0a6768ed883ecd6a1cd2ed3d62fa4bb3e86fd3327d",
+            "validFrom": "2026-10-15T16:52:15.000Z",
+            "validTo": "2026-10-17T16:52:15.000Z",
+            "identityVerified": true
+          },
+          "tlsSession": {
+            "Ssl_cipher": "TLS_AES_128_GCM_SHA256",
+            "Ssl_version": "TLSv1.3"
+          },
+          "grants": [
+            "SELECT"
+          ],
+          "roleVerification": {
+            "mandatoryPublic": true,
+            "activePublic": true,
+            "expanded": true
+          },
+          "parameters": {
+            "versionComment": "MySQL Community Server - GPL",
+            "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+            "transactionIsolation": "REPEATABLE-READ",
+            "timeZone": "+00:00",
+            "systemTimeZone": "UTC",
+            "characterSet": "utf8mb4",
+            "collation": "utf8mb4_0900_ai_ci",
+            "lowerCaseTableNames": "0",
+            "maxConnections": "32",
+            "waitTimeout": "28800",
+            "connectTimeout": "10",
+            "requireSecureTransport": "1",
+            "engine": "InnoDB",
+            "mandatoryRoles": "public",
+            "activeRoles": "`public`@`%`"
+          },
+          "pool": {
+            "connectionLimit": 1,
+            "connectTimeout": 5,
+            "poolTimeout": 5,
+            "socketTimeout": 10
+          },
+          "writes": false,
+          "disconnected": true,
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.195
+        }
+      }
+    ]
+  },
+  "status": "PASS",
+  "limitations": "Synthetic fingerprints are laboratory evidence and must never be installed or used in managed authorization."
+}

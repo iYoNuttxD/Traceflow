@@ -1,0 +1,147 @@
+{
+  "evidence": "E09",
+  "origin": "LOCAL_EXECUTION",
+  "environment": "owned Community 26.7.0 lab; connection limit 1; synthetic restricted account",
+  "date": "2026-10-15T12:07:02.767572+00:00",
+  "dateMeaning": "record consolidation UTC; individual execution times where available below",
+  "commandOrProcedure": {
+    "invocation": "node backend/scripts/validate-oci-heatwave-connection.js --authorization <owned synthetic 0600 JSON>",
+    "source": "deploy/tests/run-connection-lab.py, in own isolated public workspace",
+    "sql": [
+      "SELECT DATABASE() AS db, @@server_uuid AS uuid, @@port AS port, @@datadir AS datadir, VERSION() AS version, CURRENT_USER() AS currentUser",
+      "SHOW SESSION STATUS WHERE Variable_name IN ('Ssl_cipher','Ssl_version')",
+      "SHOW GRANTS FOR CURRENT_USER",
+      "SELECT @@version_comment AS versionComment, @@sql_mode AS sqlMode, @@transaction_isolation AS transactionIsolation, @@time_zone AS timeZone, @@system_time_zone AS systemTimeZone, @@character_set_server AS characterSet, @@collation_server AS collation, @@lower_case_table_names AS lowerCaseTableNames, @@max_connections AS maxConnections, @@wait_timeout AS waitTimeout, @@connect_timeout AS connectTimeout, @@require_secure_transport AS requireSecureTransport, @@default_storage_engine AS engine",
+      "SELECT 1"
+    ]
+  },
+  "status": "PASS_LOCAL",
+  "result": {
+    "runs": [
+      {
+        "formatVersion": 1,
+        "status": "PASS",
+        "mode": "local-isolated",
+        "checkedAt": "2026-10-15T11:42:17.770Z",
+        "version": "26.7.0",
+        "prisma": "6.12.0",
+        "ca": {
+          "sha256": "608e459a6edeb5e19693e44fb0a73c8eb39331a5c9e1796d7efd6da0516039d0",
+          "validFrom": "2026-10-15T11:42:15.000Z",
+          "validTo": "2026-10-17T11:42:15.000Z"
+        },
+        "serverIdentityVerified": true,
+        "effectiveUserVerified": true,
+        "tls": {
+          "verified": true,
+          "protocol": "TLSv1.3",
+          "cipher": "TLS_AES_128_GCM_SHA256",
+          "certificateSha256": "ad4448b6a6b99ca5aed749a9715f04a67dc0b8a8a8a7b7864d66ff731cafe3d0",
+          "validFrom": "2026-10-15T11:42:15.000Z",
+          "validTo": "2026-10-17T11:42:15.000Z",
+          "identityVerified": true
+        },
+        "tlsSession": {
+          "Ssl_cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+          "Ssl_version": "TLSv1.2"
+        },
+        "grants": [
+          "SELECT"
+        ],
+        "parameters": {
+          "versionComment": "MySQL Community Server - GPL",
+          "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+          "transactionIsolation": "REPEATABLE-READ",
+          "timeZone": "+00:00",
+          "systemTimeZone": "UTC",
+          "characterSet": "utf8mb4",
+          "collation": "utf8mb4_0900_ai_ci",
+          "lowerCaseTableNames": "2",
+          "maxConnections": "32",
+          "waitTimeout": "28800",
+          "connectTimeout": "10",
+          "requireSecureTransport": "1",
+          "engine": "InnoDB"
+        },
+        "pool": {
+          "connectionLimit": 1,
+          "connectTimeout": 5,
+          "poolTimeout": 5,
+          "socketTimeout": 10
+        },
+        "writes": false,
+        "disconnected": true
+      },
+      {
+        "formatVersion": 1,
+        "status": "PASS",
+        "mode": "local-isolated",
+        "checkedAt": "2026-10-15T11:42:25.609Z",
+        "version": "26.7.0",
+        "prisma": "6.12.0",
+        "ca": {
+          "sha256": "608e459a6edeb5e19693e44fb0a73c8eb39331a5c9e1796d7efd6da0516039d0",
+          "validFrom": "2026-10-15T11:42:15.000Z",
+          "validTo": "2026-10-17T11:42:15.000Z"
+        },
+        "serverIdentityVerified": true,
+        "effectiveUserVerified": true,
+        "tls": {
+          "verified": true,
+          "protocol": "TLSv1.3",
+          "cipher": "TLS_AES_128_GCM_SHA256",
+          "certificateSha256": "ad4448b6a6b99ca5aed749a9715f04a67dc0b8a8a8a7b7864d66ff731cafe3d0",
+          "validFrom": "2026-10-15T11:42:15.000Z",
+          "validTo": "2026-10-17T11:42:15.000Z",
+          "identityVerified": true
+        },
+        "tlsSession": {
+          "Ssl_cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+          "Ssl_version": "TLSv1.2"
+        },
+        "grants": [
+          "SELECT"
+        ],
+        "parameters": {
+          "versionComment": "MySQL Community Server - GPL",
+          "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+          "transactionIsolation": "REPEATABLE-READ",
+          "timeZone": "+00:00",
+          "systemTimeZone": "UTC",
+          "characterSet": "utf8mb4",
+          "collation": "utf8mb4_0900_ai_ci",
+          "lowerCaseTableNames": "2",
+          "maxConnections": "32",
+          "waitTimeout": "28800",
+          "connectTimeout": "10",
+          "requireSecureTransport": "1",
+          "engine": "InnoDB"
+        },
+        "pool": {
+          "connectionLimit": 1,
+          "connectTimeout": 5,
+          "poolTimeout": 5,
+          "socketTimeout": 10
+        },
+        "writes": false,
+        "disconnected": true
+      }
+    ],
+    "readOnlyDiagnostic": true,
+    "totalDeadlineSeconds": 30,
+    "handshakeDeadlineSeconds": 5,
+    "focusedTests": {
+      "total": 58,
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "startedAt": "2026-10-15T11:35:17.610000+00:00",
+      "sourceResultSha256": "d39080f3c80a74a72a50d13be30159ddbf23b1a222a81d86a274262ee48a4234"
+    }
+  },
+  "limitations": [
+    "Lab bootstrap/fixtures are separate local writes; diagnostic itself has no DDL/DML/business-record query.",
+    "No managed schema or user inferred from the fixture."
+  ]
+}

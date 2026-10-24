@@ -1,5 +1,5 @@
 name: OCI Controlled CD
-run-name: OCI CD ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
+run-name: OCI CD ${{ inputs.app_sha || github.event.pull_request.head.sha }}
 on:
   pull_request:
     paths:
@@ -7,9 +7,19 @@ on:
       - deploy/cd/**
   workflow_dispatch:
     inputs:
+      transition_sha256:
+        description: SHA-256 of the protected reviewed migration plan; blank for unchanged schema
+        required: false
+        default: ""
+        type: string
       app_sha:
         description: Full 40-character approved application commit (not the workflow revision)
         required: true
+        type: string
+      baseline_sha:
+        description: Full SHA currently installed; exact starting revision of the isolated upgrade
+        required: true
+        default: b9c1beb9f6ded49ce9257d346c086a8893f700c9
         type: string
       promote:
         description: Request production approval after build and isolated homologation
@@ -22,7 +32,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build-homologate:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'pull_request' || github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.promote &&
+       github.ref == 'refs/heads/integration/cycles-1-2-oci')
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     services:
@@ -33,6 +46,7 @@ jobs:
           MYSQL_USER: ci
           MYSQL_PASSWORD: synthetic
           MYSQL_ROOT_PASSWORD: synthetic-root-ci
+          MYSQL_ROOT_HOST: "%"
         ports:
           - 3306:3306
         options: >-
@@ -45,18 +59,20 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
+          ref: ${{ inputs.app_sha || github.event.pull_request.head.sha }}
           path: source1
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
+          ref: ${{ inputs.app_sha || github.event.pull_request.head.sha }}
           path: source2
+          fetch-depth: 0
           persist-credentials: false
       - name: Exact commit and existing CI policy
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
+          APP_SHA: ${{ inputs.app_sha || github.event.pull_request.head.sha }}
         working-directory: source1
         run: python3 ../ops/deploy/cd/ci_gate.py "$APP_SHA"
       - name: Isolated CD integrity and rollback failure lab
@@ -70,12 +86,13 @@ jobs:
           docker build --build-arg BASE_IMAGE="$base" -t traceflow-builder -f ops/deploy/cd/Dockerfile ops/deploy/cd
       - name: Two independent ARM64 builds with identical package bytes
         env:
-          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
+          APP_SHA: ${{ inputs.app_sha || github.event.pull_request.head.sha }}
+          BASELINE_SHA: ${{ inputs.baseline_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
         run: |
           epoch=$(git -C source1 show -s --format=%ct "$APP_SHA")
           for pass in 1 2; do
             mkdir -p "$PWD/out/root-$pass"
-            docker run --rm --network host -e APP_SHA -e SOURCE_DATE_EPOCH="$epoch" -e PASS="$pass" -e OPS_ROOT=/ops -e SOURCE_ROOT=/src -v "$PWD/ops:/ops:ro" -v "$PWD/source$pass:/src" -v "$PWD/out:/out" -v "$PWD/out/root-$pass:/package" traceflow-builder bash /ops/deploy/cd/build.sh
+            docker run --rm --network host -e APP_SHA -e BASELINE_SHA -e SOURCE_DATE_EPOCH="$epoch" -e PASS="$pass" -e OPS_ROOT=/ops -e SOURCE_ROOT=/src -v "$PWD/ops:/ops:ro" -v "$PWD/source$pass:/src" -v "$PWD/out:/out" -v "$PWD/out/root-$pass:/package" traceflow-builder bash /ops/deploy/cd/build.sh
           done
           if ! cmp out/release-1.tar.gz out/release-2.tar.gz; then
             python3 - <<'PYDIFF'
@@ -94,6 +111,16 @@ jobs:
           cp out/root-1/cd-manifest.json out/cd-manifest.json
           sha256sum out/release.tar.gz | tee out/SHA256SUMS
           cat out/identity.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Packaged Prisma CLI works with read-only filesystem
+        run: |
+          export DATABASE_URL="$(python3 -c 'from urllib.parse import urlunsplit; print(urlunsplit(("mysql", "ci:synthetic@127.0.0.1:3306", "/traceflow_cd_test", "", "")))')"
+          docker run --rm --read-only --tmpfs /tmp --network host \
+            -e HOME=/nonexistent -e CHECKPOINT_DISABLE=1 \
+            -e DATABASE_URL \
+            -v "$PWD/out/root-1:/package:ro" --workdir /package/backend \
+            traceflow-builder node node_modules/prisma/build/index.js migrate diff \
+            --from-schema-datasource prisma/schema.prisma \
+            --to-schema-datamodel prisma/schema.prisma --exit-code
       - name: Upload immutable candidate and validation metadata
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -104,6 +131,7 @@ jobs:
             out/cd-manifest.json
             out/builder-image.txt
             out/SHA256SUMS
+            out/upgrade-proof.json
           if-no-files-found: error
           retention-days: 14
   production:
@@ -125,8 +153,9 @@ jobs:
           path: candidate
       - name: Bind approved artifact to this production authorization
         env:
-          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
+          APP_SHA: ${{ inputs.app_sha || github.event.pull_request.head.sha }}
           WORKFLOW_SHA: ${{ github.sha }}
+          TRANSITION_SHA256: ${{ inputs.transition_sha256 }}
         run: |
           python3 - <<'PY'
           import datetime as d,hashlib,json,os
@@ -137,6 +166,11 @@ jobs:
           assert digest==identity['packageSha256']
           now=d.datetime.now(d.timezone.utc)
           request={'formatVersion':1,'operation':'promote-clean','repository':os.environ['GITHUB_REPOSITORY'],'appSha':identity['commit'],'workflowSha':os.environ['WORKFLOW_SHA'],'packageSha256':digest,'manifestSha256':identity['manifestSha256'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'issuedAt':now.isoformat(),'expiresAt':(now+d.timedelta(minutes=20)).isoformat()}
+          transition=os.environ.get('TRANSITION_SHA256','')
+          if transition:
+            import re
+            assert re.fullmatch('[a-f0-9]{64}',transition)
+            request['transitionSha256']=transition
           (root/'request.json').write_text(json.dumps(request,sort_keys=True)+'\n')
           PY
       - name: Federated GitHub OIDC attestation after human production approval
@@ -147,7 +181,7 @@ jobs:
       - name: Publish the approved, signed deployment request
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_SHA: ${{ inputs.app_sha || 'b9c1beb9f6ded49ce9257d346c086a8893f700c9' }}
+          APP_SHA: ${{ inputs.app_sha || github.event.pull_request.head.sha }}
           ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           cp "$ATTESTATION_BUNDLE" candidate/request.sigstore.json

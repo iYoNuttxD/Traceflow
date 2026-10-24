@@ -1,0 +1,462 @@
+{
+  "cases": [
+    {
+      "case": "platform-oracle98-arm64-nginx1201-systemd252-enforcing",
+      "status": "PASS"
+    },
+    {
+      "case": "S1-S4-S10-units-verify-fixed-contracts",
+      "status": "PASS"
+    },
+    {
+      "case": "S5-real-api-loopback-live",
+      "status": "PASS"
+    },
+    {
+      "case": "real-api-database-unavailable-readiness503",
+      "status": "PASS"
+    },
+    {
+      "case": "S6-real-worker-no-listener",
+      "status": "PASS"
+    },
+    {
+      "case": "S3-runtime-nonroot",
+      "status": "PASS"
+    },
+    {
+      "case": "S5-no-public-node-bind",
+      "status": "PASS"
+    },
+    {
+      "case": "S9-real-api-worker-sigterm",
+      "status": "PASS"
+    },
+    {
+      "case": "S8-invalid-config-bounded-restarts",
+      "status": "PASS"
+    },
+    {
+      "case": "S8-restart-budget",
+      "status": "PASS"
+    },
+    {
+      "case": "S7-recovery-after-corrected-config",
+      "status": "PASS"
+    },
+    {
+      "case": "S7-restart-after-crash",
+      "status": "PASS"
+    },
+    {
+      "case": "S12-install-target-enablement",
+      "status": "PASS"
+    },
+    {
+      "case": "fixture-upstream-started",
+      "status": "PASS"
+    },
+    {
+      "case": "S11-effective-sandbox-code-config-tls-private",
+      "status": "PASS"
+    },
+    {
+      "case": "nginx-syntax-and-httpd-selinux-domain",
+      "status": "PASS"
+    },
+    {
+      "case": "N1-http-fixed-domain-redirect",
+      "status": "PASS"
+    },
+    {
+      "case": "N8-HTTP-invalid-or-missing-host-18",
+      "status": "PASS"
+    },
+    {
+      "case": "N8-HTTP-invalid-or-missing-host-35",
+      "status": "PASS"
+    },
+    {
+      "case": "N8-HTTP-invalid-or-missing-host-42",
+      "status": "PASS"
+    },
+    {
+      "case": "N8-no-SNI-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "N2-TLS-TLSv1_2",
+      "status": "PASS"
+    },
+    {
+      "case": "N2-TLS-TLSv1_3",
+      "status": "PASS"
+    },
+    {
+      "case": "N2-untrusted-certificate-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "N8-unknown-SNI-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "N8-unknown-host-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "N16-direct-origin-forged-CF-denied",
+      "status": "PASS"
+    },
+    {
+      "case": "I1-N5-real-vite-home",
+      "status": "PASS"
+    },
+    {
+      "case": "N5-SPA-/projects/123",
+      "status": "PASS"
+    },
+    {
+      "case": "N5-SPA-/projects/123/repository",
+      "status": "PASS"
+    },
+    {
+      "case": "N5-SPA-/projects/123/requirements",
+      "status": "PASS"
+    },
+    {
+      "case": "N5-SPA-/projects/123/indicators",
+      "status": "PASS"
+    },
+    {
+      "case": "N5-SPA-/settings",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/assets/missing.js",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/missing.js",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/.env",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/backend/package.json",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/package-lock.json",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/test-evidence/synthetic.txt",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/var/lib/traceflow/test-evidence/synthetic.txt",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/forbidden.txt",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/health",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/health/live",
+      "status": "PASS"
+    },
+    {
+      "case": "N6-N7-N13-private-or-missing-/health/ready",
+      "status": "PASS"
+    },
+    {
+      "case": "N14-index-revalidates",
+      "status": "PASS"
+    },
+    {
+      "case": "N14-hashed-assets-immutable",
+      "status": "PASS"
+    },
+    {
+      "case": "N14-unhashed-assets-not-immutable",
+      "status": "PASS"
+    },
+    {
+      "case": "N15-static-headers-and-progressive-CSP",
+      "status": "PASS"
+    },
+    {
+      "case": "N3-N4-N16-canonical-proxy-headers",
+      "status": "PASS"
+    },
+    {
+      "case": "N14-api-no-store",
+      "status": "PASS"
+    },
+    {
+      "case": "N17-method-GET",
+      "status": "PASS"
+    },
+    {
+      "case": "N17-method-POST",
+      "status": "PASS"
+    },
+    {
+      "case": "N17-method-PUT",
+      "status": "PASS"
+    },
+    {
+      "case": "N17-method-PATCH",
+      "status": "PASS"
+    },
+    {
+      "case": "N17-method-DELETE",
+      "status": "PASS"
+    },
+    {
+      "case": "N17-method-OPTIONS-preflight-preserved",
+      "status": "PASS"
+    },
+    {
+      "case": "N4-bare-api",
+      "status": "PASS"
+    },
+    {
+      "case": "N18-upstream404-is-json",
+      "status": "PASS"
+    },
+    {
+      "case": "N18-upstream500-preserved",
+      "status": "PASS"
+    },
+    {
+      "case": "N11-I4-cookie-and-prefix-preserved",
+      "status": "PASS"
+    },
+    {
+      "case": "I5-CSRF-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "I5-CSRF-accepted",
+      "status": "PASS"
+    },
+    {
+      "case": "CORS-unknown-origin-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "CORS-same-origin-accepted",
+      "status": "PASS"
+    },
+    {
+      "case": "N10-I7-real-verifier-HMAC-preserved",
+      "status": "PASS"
+    },
+    {
+      "case": "N10-duplicate-delivery",
+      "status": "PASS"
+    },
+    {
+      "case": "N10-altered-body-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "N10-invalid-signature-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "N10-missing-signature-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "N10-missing-delivery-rejected",
+      "status": "PASS"
+    },
+    {
+      "case": "I9-private-download-unauthenticated",
+      "status": "PASS"
+    },
+    {
+      "case": "I9-private-download-authorized",
+      "status": "PASS"
+    },
+    {
+      "case": "I8-multipart-byte-integrity",
+      "status": "PASS"
+    },
+    {
+      "case": "N12-106MiB-transport-accepted",
+      "status": "PASS"
+    },
+    {
+      "case": "N12-over108MiB-413",
+      "status": "PASS"
+    },
+    {
+      "case": "N9-SSE-no-transform",
+      "status": "PASS"
+    },
+    {
+      "case": "N9-first-SSE-frame-unbuffered",
+      "status": "PASS"
+    },
+    {
+      "case": "N9-25s-heartbeat-delivered",
+      "status": "PASS"
+    },
+    {
+      "case": "N9-client-disconnect-resources-released",
+      "status": "PASS"
+    },
+    {
+      "case": "N9-I12-SSE-closed-on-SIGTERM",
+      "status": "PASS"
+    },
+    {
+      "case": "I10-upstream-down-controlled-json",
+      "status": "PASS"
+    },
+    {
+      "case": "I12-proxy-recovers-after-restart",
+      "status": "PASS"
+    },
+    {
+      "case": "N-logs-query-path-cookie-error-no-leak",
+      "status": "PASS"
+    },
+    {
+      "case": "SELinux-no-global-network-boolean",
+      "status": "PASS"
+    },
+    {
+      "case": "SELinux-private-storage-not-httpd-readable",
+      "status": "PASS"
+    },
+    {
+      "case": "production-ranges-have-no-local-bypass",
+      "status": "PASS"
+    },
+    {
+      "case": "firewall-internal-ports-not-open",
+      "status": "PASS"
+    }
+  ],
+  "error": null,
+  "noOCI": true,
+  "noDatabase": true,
+  "fixtureAuth": true,
+  "fixtureWebhookPersistence": true,
+  "actualRebootTested": true,
+  "environment": {
+    "os": "Oracle Linux 9.8",
+    "architecture": "aarch64 native virtualization",
+    "nginx": "1.20.1-28.0.1.el9_8.6",
+    "systemd": "252-67.0.1.el9_8.2",
+    "node": "22.23.2",
+    "selinux": "Enforcing",
+    "firewalld": "active",
+    "httpdDomain": "httpd_t",
+    "broadNetworkBooleans": "off",
+    "hostMounts": [],
+    "sshAgentForwarded": false,
+    "forwardedApplicationPorts": false
+  },
+  "productionTrustRestoredInLab": true,
+  "sourceOfFixtures": "deploy/tests",
+  "initialAttempts": [
+    {
+      "attempt": 1,
+      "cause": "copied units retained user_tmp_t; restorecon added to installation/test procedure"
+    },
+    {
+      "attempt": 2,
+      "cause": "fixture certificate directory absent; prerequisite created before systemd namespace"
+    },
+    {
+      "attempt": 3,
+      "cause": "reset-failed on not-loaded units; harness accepts only this benign reset status"
+    },
+    {
+      "attempt": 4,
+      "cause": "systemd 252 Result remains exit-code after ExecStartPre start limit; test now proves 3 restarts then stable failed PID 0"
+    },
+    {
+      "attempt": 5,
+      "cause": "CORS OPTIONS correctly returns 204; expectation corrected without runtime change"
+    },
+    {
+      "attempt": 6,
+      "status": "PASS",
+      "note": "prior to adding no-transform and missing Host/SNI cases"
+    }
+  ],
+  "supplementary": {
+    "worker-sandbox": {
+      "sandbox": {
+        "event": "tf04_worker_sandbox",
+        "nonRoot": true,
+        "denied": [
+          "/opt/traceflow/current/deny-worker",
+          "/etc/traceflow/deny-worker",
+          "/var/lib/traceflow/test-evidence/deny-worker",
+          "/etc/nginx/ssl/traceflow-origin.key"
+        ],
+        "temporaryWrite": true,
+        "argon2": true
+      },
+      "stopDeadlineSeconds": 90,
+      "observedStopSeconds": 90.23261730099989,
+      "result": "timeout",
+      "fixtureIgnoresSigterm": true,
+      "activeSyncLeaseClaimed": false,
+      "prodTouched": false
+    },
+    "release-context": {
+      "distRealTarget": "/opt/traceflow/releases/tf04-selinux/frontend/dist",
+      "context": "httpd_sys_content_t",
+      "currentIsSymlink": true,
+      "frontendThroughConfinedNginx": "PASS",
+      "noPersistentSymlinkOnHostOrOCI": true
+    },
+    "reboot": {
+      "bootIdChanged": true,
+      "services": {
+        "traceflow-api": "active",
+        "traceflow-github-worker": "active"
+      },
+      "actualEntryPoints": {
+        "api": "{ path=/usr/bin/node ; argv[]=/usr/bin/node /opt/traceflow/current/backend/src/server.js ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }",
+        "worker": "{ path=/usr/bin/node ; argv[]=/usr/bin/node /opt/traceflow/current/backend/src/github-worker.js ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+      },
+      "liveness": 200,
+      "readinessWithoutDatabase": 503,
+      "selinux": "Enforcing",
+      "firewalld": "active",
+      "protectedDatabasesAccessed": false,
+      "diagnosticExitWhenNotReady": 1
+    }
+  },
+  "supplementaryChecks": [
+    "worker sandbox: four protected paths denied, PrivateTmp usable, native Argon2 passes",
+    "worker 90-second forced stop observed on synthetic process ignoring SIGTERM",
+    "real release dist labeled and served through controlled current symlink",
+    "reboot changes boot ID and starts real API/worker automatically",
+    "diagnostic exits 1 for readiness 503 without exposing body/secrets"
+  ],
+  "cleanup": {
+    "servicesStopped": true,
+    "unitsDisabled": true,
+    "vmStopped": true,
+    "vmDeleted": true,
+    "ownedLimaHomeRemoved": true,
+    "productionTouched": false
+  }
+}

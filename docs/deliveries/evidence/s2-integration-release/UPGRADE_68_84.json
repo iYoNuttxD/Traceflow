@@ -1,0 +1,81 @@
+{
+  "status": "ISOLATED_UPGRADE_PASS",
+  "baseline": "b9c1beb9f6ded49ce9257d346c086a8893f700c9",
+  "fromSchemaSha256": "5ac65ff981ce2fde7f93955cf1a7cab63dce74fef7f9210f121335ac5937cd93",
+  "toSchemaSha256": "2b38a8124ff16c39f1f0def026e920577f3744424af7cd3a31c6158d594396a6",
+  "from": 68,
+  "to": 84,
+  "added": [
+    {
+      "name": "20261007010000_s201_traceability_alerts",
+      "sha256": "959906e19ca440fb0748fd3b388c6aacb7eb498ff7c3faa6a53896a97cff6c09"
+    },
+    {
+      "name": "20261009010000_github_field_limits",
+      "sha256": "fc5b665b19d44edacb9cd77a7872ab67f1de252602e39b07723a30b557884c04"
+    },
+    {
+      "name": "20261009010100_github_sync_run_branch_limit",
+      "sha256": "848593a3dac1a47ced8d3e37561ec90f8a5348c41227d0019b7ca3dba94e51db"
+    },
+    {
+      "name": "20261009020000_traceability_alert_reconciliation",
+      "sha256": "08f33660a44aa4004c81ef39faf7e70c9cca34ae6f13b7a03f9176b3c1e1f715"
+    },
+    {
+      "name": "20261010010000_task_notifications",
+      "sha256": "c4e63e56d04c8fb583520269378a0b511f3bbd34f8bdc18488b62810e4e36558"
+    },
+    {
+      "name": "20261011010000_notification_preference_enabled_at",
+      "sha256": "860a633e4bacd164131a59bbef2e910930986eb5f509a3c5596cc086a56c9d6f"
+    },
+    {
+      "name": "20261012010000_github_event_notifications",
+      "sha256": "abe89b2cdbb2ae986a447447b427fa2dfeea8cbd47ec898aecbfa8cd9b18f22c"
+    },
+    {
+      "name": "20261014120000_s2_06_project_reports",
+      "sha256": "621fdf271ff491cd1af8028316e0c81750728c49bd284e4014ec0325cb7b804c"
+    },
+    {
+      "name": "20261015120000_notification_decisions",
+      "sha256": "77e6d534a454b8058ad30466bf82e68d6b6a440c903dd7c9688c3f133279125b"
+    },
+    {
+      "name": "20261015130000_traceability_inconsistency_notices",
+      "sha256": "0c87f246a47c336639b44885fab877084b65a4a2ca2b8542e082e1e87d9e326c"
+    },
+    {
+      "name": "20261017100000_task_artifact_link_periods",
+      "sha256": "82e2987eaa08759b150752f8d5e4d546fd7b5c2a6d05c2a0cf18736c0ba7167a"
+    },
+    {
+      "name": "20261017110000_durable_github_events",
+      "sha256": "5dcca0d1619d848d53734602dbfaba0a0d8f97d76c3eaed00a12c1773f4d5c48"
+    },
+    {
+      "name": "20261017120000_issue_opened_event",
+      "sha256": "40c1231806f15d06c5e696cc798e8955faec37b6191ad2203e09b9c902997b85"
+    },
+    {
+      "name": "20261017130000_scheduled_job_leases",
+      "sha256": "dafc39e31d6816040caffbef4148723e9fbac39ecc3123c6fe3934542a274c69"
+    },
+    {
+      "name": "20261018100000_issue_linked_event",
+      "sha256": "61670940a80c382d8de77fb6d0d1db166ba8f47bc24d7f387892a8f566ada2f3"
+    },
+    {
+      "name": "20261018110000_traceability_alert_scheduled_trigger",
+      "sha256": "30b9230647d072c4acaab19220d700f2f244f2c83d3b3523dec2ff9e8fbf8693"
+    }
+  ],
+  "preservedTables": 60,
+  "preservedRows": 10,
+  "foreignKeys": 145,
+  "backfills": true,
+  "mysql": "26.7.0",
+  "seconds": 3.511,
+  "productionUsed": false
+}

@@ -1,0 +1,57 @@
+{
+  "origin": "analysis-and-prepared-not-executed",
+  "environment": "OCI06.1 operational plan",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "Reconcile evidence and roadmap",
+  "result": {
+    "localPackage": "PASS_LOCAL",
+    "tlsServer": "PASS_OPERATOR",
+    "prismaManaged": "PENDING",
+    "heatwaveManaged": "PARTIAL",
+    "drProduction": "PENDING",
+    "ociDeploy061": "EM_ANDAMENTO",
+    "ociDeploy06": "PARTIAL",
+    "ociDeploy07": "NOT_STARTED",
+    "blockers": [
+      "Human Unix identity/custody decision before D01/D02",
+      "Own authorizations for D01,D02,B40,B41,D03,D04 and relock; no automatic execution",
+      "Actual public mandatory role expansion and Prisma TLS/identity on 26.7.0-cloud remain unobserved",
+      "Migration bridge requires literal +00:00 while operator reports UTC",
+      "First-empty-schema migration flow requires backupVerified/backupReference/restoreRehearsed; no fabricated backup",
+      "Production backup/restore, retention and RPO/RTO evidence",
+      "Runtime/end-to-end and deployment authorization after prior gates"
+    ],
+    "protected": {
+      "dev": "NOT_ACCESSED",
+      "heatwave": "NOT_ACCESSED",
+      "ociVm": "NOT_ACCESSED",
+      "iam": "UNCHANGED",
+      "dns": "UNCHANGED",
+      "cloudflare": "UNCHANGED",
+      "realCredentials": "NOT_ACCESSED",
+      "realCertificates": "UNCHANGED",
+      "realPrivateKeys": "NOT_ACCESSED"
+    },
+    "localCleanup": {
+      "origin": "executed-local",
+      "environment": "owned task workspace and disposable VM only",
+      "date": "2026-10-15T17:22:36.521Z",
+      "command": "limactl stop tf061pkg; limactl delete --force tf061pkg (task-specific LIMA_HOME); remove only owned synthetic key/token directories",
+      "status": "PASS",
+      "result": {
+        "vmStopped": true,
+        "vmDeleted": true,
+        "mysqlProcessesBeforeStop": false,
+        "labHarnessesRemovedOwnDatadirs": true,
+        "taskLimaKeysRemoved": true,
+        "syntheticOwnerTokenRemoved": true,
+        "artifactRetainedInIgnoredBuild": true,
+        "taskTemporaryWorkspaceRemoved": true,
+        "artifactAndEvidenceRetained": true
+      },
+      "limitations": "Only this task's disposable VM, synthetic keys/data and temporary workspace were removed; ignored local artifact and repository evidence retained; older laboratories untouched"
+    }
+  },
+  "status": "PARTIAL_MANAGED",
+  "limitations": "Local PASS does not authorize deployment, unlock, migration or real diagnostic."
+}

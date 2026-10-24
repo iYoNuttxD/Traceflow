@@ -1,0 +1,313 @@
+{
+  "formatVersion": 1,
+  "environment": {
+    "os": "Oracle Linux Server release 9.8",
+    "architecture": "aarch64",
+    "node": {
+      "exitCode": 0,
+      "output": [
+        "v22.23.2"
+      ]
+    },
+    "nginx": {
+      "exitCode": 0,
+      "output": [
+        "nginx version: nginx/1.20.1"
+      ]
+    },
+    "systemd": {
+      "exitCode": 0,
+      "output": [
+        "systemd 252 (252-67.0.1.el9_8.2)",
+        "+PAM +AUDIT +SELINUX -APPARMOR +IMA +SMACK +SECCOMP +GCRYPT +GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN -IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT -QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK +XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified"
+      ]
+    },
+    "selinux": {
+      "exitCode": 0,
+      "output": [
+        "Enforcing"
+      ]
+    },
+    "firewalld": {
+      "exitCode": 0,
+      "output": [
+        "active"
+      ]
+    },
+    "mysql": {
+      "exitCode": 0,
+      "output": [
+        "/tmp/tf05-tools/mysql-8.4.8-linux-glibc2.28-aarch64/bin/mysql  Ver 8.4.8 for Linux on aarch64 (MySQL Community Server - GPL)"
+      ]
+    }
+  },
+  "runs": [
+    {
+      "run": "1792014841320130750",
+      "cases": [
+        {
+          "case": "first-install-explicit-recovery-real-API-worker-Nginx",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run": "1792014891932451678",
+      "cases": [
+        {
+          "case": "R13-schema-fingerprint-mismatch-blocked",
+          "status": "PASS"
+        },
+        {
+          "case": "R17-missing-test-url",
+          "status": "PASS"
+        },
+        {
+          "case": "R16-protected-host-refused",
+          "status": "PASS"
+        },
+        {
+          "case": "R20-filesystem-mutex",
+          "status": "PASS"
+        },
+        {
+          "case": "R15-database-session-mutex",
+          "status": "PASS"
+        },
+        {
+          "case": "full-job-67-official-migrations-from-empty",
+          "status": "PASS"
+        },
+        {
+          "case": "full-job-idempotent-second-run",
+          "status": "PASS"
+        },
+        {
+          "case": "schema-drift-blocks-job",
+          "status": "PASS"
+        },
+        {
+          "case": "R14-real-partial-migration-failure",
+          "status": "PASS"
+        },
+        {
+          "case": "R14-no-reset-no-following-migrations",
+          "status": "PASS"
+        },
+        {
+          "case": "failed-job-reexecution-blocked",
+          "status": "PASS"
+        },
+        {
+          "case": "runtime-DDL-still-denied",
+          "status": "PASS"
+        },
+        {
+          "case": "A-to-B-real-systemd-activation",
+          "status": "PASS"
+        },
+        {
+          "case": "R22-prior-hashed-assets-retained",
+          "status": "PASS"
+        },
+        {
+          "case": "application-rollback-A-api-worker-assets",
+          "status": "PASS"
+        },
+        {
+          "case": "R5-native-engine-refused",
+          "status": "PASS"
+        },
+        {
+          "case": "R10-R12-readiness-failure-restores-A",
+          "status": "PASS"
+        },
+        {
+          "case": "R11-worker-failure-restores-A",
+          "status": "PASS"
+        },
+        {
+          "case": "R18-evidence-bytes-preserved",
+          "status": "PASS"
+        },
+        {
+          "case": "SELinux-remains-Enforcing",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run": "1792015458932900196",
+      "cases": [
+        {
+          "case": "R19-real-activation-paused-before-reboot",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run": "1792017433178005119",
+      "cases": [
+        {
+          "case": "R19-real-boot-id-changed",
+          "status": "PASS"
+        },
+        {
+          "case": "R19-guard-prevents-ambiguous-autostart",
+          "status": "PASS"
+        },
+        {
+          "case": "R19-recovery-after-reboot-real-api-worker-and-smoke",
+          "status": "PASS"
+        },
+        {
+          "case": "worker-heartbeat-recovers-with-owned-database",
+          "status": "PASS"
+        },
+        {
+          "case": "R21-Linux-proc-preserves-in-use-release",
+          "status": "PASS"
+        },
+        {
+          "case": "R21-Linux-prune-idempotent",
+          "status": "PASS"
+        },
+        {
+          "case": "private-evidence-survives-reboot",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run": "1792018349145340534",
+      "cases": [
+        {
+          "case": "R20-second-activation-refused-with-live-mutex",
+          "status": "PASS"
+        },
+        {
+          "case": "R23-SIGKILL-stage-never-approves-partial-release",
+          "status": "PASS"
+        },
+        {
+          "case": "R23-fresh-stage-after-abrupt-interruption",
+          "status": "PASS"
+        },
+        {
+          "case": "R12-api-failure-after-completed-activation",
+          "status": "PASS"
+        },
+        {
+          "case": "R12-explicit-rollback-after-api-failure-with-compatible-schema",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run": "1792018623449608217",
+      "cases": [
+        {
+          "case": "final-two-independent-builds-byte-identical",
+          "status": "PASS"
+        },
+        {
+          "case": "final-artifact-real-api-worker-nginx-smoke",
+          "status": "PASS"
+        },
+        {
+          "case": "post-migration-real-systemd-guard-blocks-unapproved-restart",
+          "status": "PASS"
+        },
+        {
+          "case": "post-migration-explicit-same-release-activation-and-smoke",
+          "status": "PASS"
+        },
+        {
+          "case": "final-artifact-verified-rollback-to-protected-A",
+          "status": "PASS"
+        },
+        {
+          "case": "final-artifact-reactivation-idle-and-storage-preserved",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run": "1792018817714537241",
+      "cases": [
+        {
+          "case": "migration-insufficient-DDL-grants-refused-before-CLI",
+          "status": "PASS"
+        },
+        {
+          "case": "migration-wrong-server-UUID-refused",
+          "status": "PASS"
+        },
+        {
+          "case": "migration-unverified-backup-refused-before-CLI",
+          "status": "PASS"
+        },
+        {
+          "case": "candidate-production-migration-refused-before-connection",
+          "status": "PASS"
+        },
+        {
+          "case": "negative-guards-preserve-journal-and-current",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run": "1792018842424534530",
+      "cases": [
+        {
+          "case": "owned-mysql-stopped",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "ociAccess": false,
+  "realSecretsUsed": false,
+  "databaseDevAccess": false,
+  "syntheticFixturesOnly": true,
+  "cleanup": {
+    "serviceDisableExit": 0,
+    "services": {
+      "traceflow-api.service": {
+        "exitCode": 0,
+        "output": [
+          "MainPID=0",
+          "ActiveState=inactive"
+        ]
+      },
+      "traceflow-github-worker.service": {
+        "exitCode": 0,
+        "output": [
+          "MainPID=0",
+          "ActiveState=inactive"
+        ]
+      },
+      "nginx": {
+        "exitCode": 0,
+        "output": [
+          "MainPID=0",
+          "ActiveState=inactive"
+        ]
+      }
+    },
+    "mysqlStopped": true,
+    "vm": {
+      "vm": "tf05",
+      "isolatedLimaHome": "/private/tmp/tf05-0o6wkvjh/lima",
+      "stopExit": 0,
+      "deleteExit": 0,
+      "vmListEmpty": true,
+      "ownedVmHomeRemoved": true,
+      "otherVmHomesTouched": false,
+      "publicArtifactsPreserved": true
+    }
+  },
+  "caseCount": 46,
+  "status": "PASS LOCAL"
+}

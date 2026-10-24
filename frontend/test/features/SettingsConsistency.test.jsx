@@ -171,7 +171,7 @@ describe('Settings consistency', () => {
     await user.type(within(dialog).getByLabelText(/Senha atual/), 'senha local segura');
     await user.click(within(dialog).getByRole('button', { name: 'Desconectar' }));
 
-    expect(await screen.findByText('GitHub App não instalada')).toBeInTheDocument();
+    expect(await screen.findByText('GitHub App não autorizada nesta conta')).toBeInTheDocument();
     const heading = screen.getByRole('heading', { name: 'GitHub App' });
     await waitFor(() => expect(heading).toHaveFocus());
     expect(screen.queryByRole('button', { name: 'Desconectar' })).not.toBeInTheDocument();
@@ -434,7 +434,7 @@ describe('Settings consistency', () => {
 
     await user.click(screen.getByRole('button', { name: 'Tentar atualizar integrações' }));
     expect(mocks.api.removeGithubAuthorization).toHaveBeenCalledOnce();
-    expect(await screen.findByText('GitHub App não instalada')).toBeInTheDocument();
+    expect(await screen.findByText('GitHub App não autorizada nesta conta')).toBeInTheDocument();
     expect(
       screen.queryByText(/Não foi possível atualizar os dados exibidos/)
     ).not.toBeInTheDocument();

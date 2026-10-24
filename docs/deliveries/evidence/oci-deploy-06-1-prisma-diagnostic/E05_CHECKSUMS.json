@@ -1,0 +1,22 @@
+{
+  "origin": "executed-local",
+  "environment": "Linux independent builds and host artifact copy",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "SHA-256 of archive, manifest, verifier; compare exact archive bytes",
+  "result": {
+    "path": "build/oci-deploy-06-1-prisma-diagnostic/traceflow-prisma-diagnostic-efa7abc8191bbf10",
+    "file": "traceflow-prisma-diagnostic-efa7abc8191bbf10.tar.gz",
+    "head": "09d98d7fb6a7ffcf4b6e1546ab866afc7090915f",
+    "manifestSha256": "e155bf4ccf3e323a4fd2b0b9bafb1451713d1127bf501b9ca7df7ca17be00ea1",
+    "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+    "productionRelease": false,
+    "sha256": "5344f07d4387f17f57d57e1418e0772a2a10b10ca51079f2b9f41080152a730b",
+    "size": 7498083,
+    "sourceSha256": "efa7abc8191bbf10871b9c013044ed0b7dc3479a9a35da88be60078bc5a76d68",
+    "verifierSha256": "a6b4a77d725f24c31f1a8368983ff8a28bde0db4c29de61e0a18b7d1cf254378",
+    "archiveBytesEqual": true,
+    "externalVerifierPinned": true
+  },
+  "status": "PASS",
+  "limitations": "Hashes establish integrity against reviewed pins; no release signature or promotion attestation."
+}

@@ -35,7 +35,7 @@ export function createTestExecutionService({
   storage = testEvidenceStorage
 } = {}) {
   return {
-    async record(id, input, attempt, context) {
+    async record(id, input, attempt, context, receipt) {
       let committed = false;
       try {
         const data = parse(executionSchema, input);
@@ -44,11 +44,14 @@ export function createTestExecutionService({
         await authorize(cases, current.projectId, context, true);
         const evidence = await storage.prepare(
           attempt,
-          data.steps.map((s) => s.position)
+          data.steps.map((s) => s.position),
+          { promote: !receipt }
         );
+        if (receipt) receipt.validate(evidence);
         const recorded = await cases.transaction(
           async (tx) => {
             await tx.lockProject(current.projectId);
+            if (receipt) await receipt.assert(tx.uploads);
             let defect;
             if (data.retest) {
               defect = await prepareDefectRetest(
@@ -90,6 +93,7 @@ export function createTestExecutionService({
               );
             }
             if (!ref) throw missing();
+            if (receipt) await receipt.promote();
             const result = calculateResult(steps);
             const execution = await tx.executions.create(
               {
@@ -129,6 +133,7 @@ export function createTestExecutionService({
               })
             );
             if (defect) await completeDefectRetest(tx.defects, defect, execution, context);
+            if (receipt) await receipt.commit(tx.uploads, execution.id);
             return executionDetail(await tx.executions.find(execution.id));
           },
           {
@@ -143,7 +148,8 @@ export function createTestExecutionService({
         committed = true;
         return recorded;
       } finally {
-        await cleanupAttempt(storage, attempt, committed);
+        // A resumable receipt owns compensation, including an ambiguous COMMIT response.
+        if (!receipt) await cleanupAttempt(storage, attempt, committed);
       }
     },
     async detail(id, context) {

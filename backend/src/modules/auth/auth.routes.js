@@ -5,6 +5,7 @@ import { createAuthenticationMiddleware } from '../../middlewares/auth/authentic
 import { createCsrfMiddleware } from '../../middlewares/auth/csrf.middleware.js';
 import { requireAccountState } from '../../middlewares/auth/account-state.middleware.js';
 import { authController } from './auth.controller.js';
+import { githubAppController } from '../github/github-app.controller.js';
 import { githubAuthController } from './github-auth.controller.js';
 import {
   changePasswordBodySchema,
@@ -29,7 +30,13 @@ router.post(
   validateRequest({ body: githubLoginStartBodySchema }),
   githubAuthController.startLogin
 );
-router.get('/github/callback', githubAuthController.callback);
+// Both flows use the registered OAuth callback. The opaque state selects its
+// independent verifier; neither flow can consume the other's hashed state record.
+router.get('/github/callback', (req, res, next) =>
+  typeof req.query.state === 'string' && req.query.state.startsWith('authorize.')
+    ? githubAppController.callback(req, res, next)
+    : githubAuthController.callback(req, res, next)
+);
 router.post(
   '/github/reauth/start',
   authenticate,

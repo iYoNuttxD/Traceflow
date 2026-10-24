@@ -1,0 +1,497 @@
+{
+  "numTotalTestSuites": 7,
+  "numPassedTestSuites": 7,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 38,
+  "numPassedTests": 38,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1791945195115,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database requires explicit TEST_DATABASE_URL without fallback",
+          "status": "passed",
+          "title": "requires explicit TEST_DATABASE_URL without fallback",
+          "duration": 0.9002499999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database accepts only a fresh run namespace and restricted identity",
+          "status": "passed",
+          "title": "accepts only a fresh run namespace and restricted identity",
+          "duration": 0.3194999999999908,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses OCI, DNS and unowned host 10.20.2.25",
+          "status": "passed",
+          "title": "refuses OCI, DNS and unowned host 10.20.2.25",
+          "duration": 0.14620800000000145,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses OCI, DNS and unowned host localhost",
+          "status": "passed",
+          "title": "refuses OCI, DNS and unowned host localhost",
+          "duration": 0.09783399999999176,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses OCI, DNS and unowned host [::1]",
+          "status": "passed",
+          "title": "refuses OCI, DNS and unowned host [::1]",
+          "duration": 0.10016599999998732,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses OCI, DNS and unowned host traceflow.dev",
+          "status": "passed",
+          "title": "refuses OCI, DNS and unowned host traceflow.dev",
+          "duration": 0.10354100000000699,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses OCI, DNS and unowned host db.example.invalid",
+          "status": "passed",
+          "title": "refuses OCI, DNS and unowned host db.example.invalid",
+          "duration": 0.08874999999999034,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses OCI, DNS and unowned host 127.0.0.2",
+          "status": "passed",
+          "title": "refuses OCI, DNS and unowned host 127.0.0.2",
+          "duration": 0.0848749999999967,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses non-isolated port 3306",
+          "status": "passed",
+          "title": "refuses non-isolated port 3306",
+          "duration": 0.34745900000000063,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses non-isolated port 33060",
+          "status": "passed",
+          "title": "refuses non-isolated port 33060",
+          "duration": 0.08254199999998946,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses non-isolated port 443",
+          "status": "passed",
+          "title": "refuses non-isolated port 443",
+          "duration": 0.08058300000000429,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses non-isolated port 49151",
+          "status": "passed",
+          "title": "refuses non-isolated port 49151",
+          "duration": 0.04574999999999818,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses existing or ambiguous schema traceflow",
+          "status": "passed",
+          "title": "refuses existing or ambiguous schema traceflow",
+          "duration": 0.05875000000000341,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses existing or ambiguous schema traceflow_test",
+          "status": "passed",
+          "title": "refuses existing or ambiguous schema traceflow_test",
+          "duration": 0.05170800000000497,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses existing or ambiguous schema traceflow_production_test",
+          "status": "passed",
+          "title": "refuses existing or ambiguous schema traceflow_production_test",
+          "duration": 0.038624999999996135,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses existing or ambiguous schema mysql",
+          "status": "passed",
+          "title": "refuses existing or ambiguous schema mysql",
+          "duration": 0.06795900000000188,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses existing or ambiguous schema tf_oci_nothex_test",
+          "status": "passed",
+          "title": "refuses existing or ambiguous schema tf_oci_nothex_test",
+          "duration": 0.039917000000002645,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database refuses root or external credentials and options that can redirect the datasource",
+          "status": "passed",
+          "title": "refuses root or external credentials and options that can redirect the datasource",
+          "duration": 0.19291700000000844,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database the actual CLI rejects production before spawning mysqld or writing a report",
+          "status": "passed",
+          "title": "the actual CLI rejects production before spawning mysqld or writing a report",
+          "duration": 54.880667,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "OCI compatibility fails closed before opening a database"
+          ],
+          "fullName": "OCI compatibility fails closed before opening a database preserves an existing report when the CLI refuses to overwrite evidence",
+          "status": "passed",
+          "title": "preserves an existing report when the CLI refuses to overwrite evidence",
+          "duration": 56.140457999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence checks the actual version, UUID, datadir, port, database and owner",
+          "status": "passed",
+          "title": "checks the actual version, UUID, datadir, port, database and owner",
+          "duration": 0.23849999999998772,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence classifies authentication failure P1000",
+          "status": "passed",
+          "title": "classifies authentication failure P1000",
+          "duration": 0.046499999999980446,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence classifies authentication failure ER_ACCESS_DENIED_ERROR",
+          "status": "passed",
+          "title": "classifies authentication failure ER_ACCESS_DENIED_ERROR",
+          "duration": 0.020749999999992497,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence classifies connection/pool failure ETIMEDOUT",
+          "status": "passed",
+          "title": "classifies connection/pool failure ETIMEDOUT",
+          "duration": 0.024249999999994998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence classifies connection/pool failure P1001",
+          "status": "passed",
+          "title": "classifies connection/pool failure P1001",
+          "duration": 0.059499999999985675,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence classifies connection/pool failure P1002",
+          "status": "passed",
+          "title": "classifies connection/pool failure P1002",
+          "duration": 0.020749999999992497,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence classifies connection/pool failure P2024",
+          "status": "passed",
+          "title": "classifies connection/pool failure P2024",
+          "duration": 0.018292000000002417,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence never approves a failed migration command: {\"status\":1}",
+          "status": "passed",
+          "title": "never approves a failed migration command: {\"status\":1}",
+          "duration": 0.04808399999998869,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence never approves a failed migration command: {\"status\":null,\"signal\":\"SIGTERM\"}",
+          "status": "passed",
+          "title": "never approves a failed migration command: {\"status\":null,\"signal\":\"SIGTERM\"}",
+          "duration": 0.0297079999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence never approves a failed migration command: {\"status\":0,\"error\":\"TIMEOUT\"}",
+          "status": "passed",
+          "title": "never approves a failed migration command: {\"status\":0,\"error\":\"TIMEOUT\"}",
+          "duration": 0.029291999999998097,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence requires a loaded engine for the declared ARM64 platform and a native Argon2 addon",
+          "status": "passed",
+          "title": "requires a loaded engine for the declared ARM64 platform and a native Argon2 addon",
+          "duration": 0.2015829999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "effective identity, failure propagation and native evidence"
+          ],
+          "fullName": "effective identity, failure propagation and native evidence redacts credentials from URLs, command output and failures",
+          "status": "passed",
+          "title": "redacts credentials from URLs, command output and failures",
+          "duration": 0.13691700000001106,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cleanup only removes the current stopped owned instance"
+          ],
+          "fullName": "cleanup only removes the current stopped owned instance refuses running server or altered ownership without deleting any files",
+          "status": "passed",
+          "title": "refuses running server or altered ownership without deleting any files",
+          "duration": 2.037417000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cleanup only removes the current stopped owned instance"
+          ],
+          "fullName": "cleanup only removes the current stopped owned instance refuses a symlink substituted for the ownership marker",
+          "status": "passed",
+          "title": "refuses a symlink substituted for the ownership marker",
+          "duration": 1.4823749999999905,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": ["partial connection initialization"],
+          "fullName": "partial connection initialization disconnects the first owned client if authentication of the second fails",
+          "status": "passed",
+          "title": "disconnects the first owned client if authentication of the second fails",
+          "duration": 0.6377499999999827,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1791945195255,
+      "endTime": 1791945195374.6377,
+      "status": "passed",
+      "message": "",
+      "name": "test/unit/oci-mysql-compatibility.test.js"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["serializableTransaction"],
+          "fullName": "serializableTransaction repete somente conflitos P2034 e limita as tentativas",
+          "status": "passed",
+          "title": "repete somente conflitos P2034 e limita as tentativas",
+          "duration": 1.7870419999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": ["serializableTransaction"],
+          "fullName": "serializableTransaction propaga o último conflito após exatamente três tentativas esgotadas",
+          "status": "passed",
+          "title": "propaga o último conflito após exatamente três tentativas esgotadas",
+          "duration": 0.2908329999999921,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": ["serializableTransaction"],
+          "fullName": "serializableTransaction não repete falha não transacional",
+          "status": "passed",
+          "title": "não repete falha não transacional",
+          "duration": 0.10591700000000515,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1791945195506,
+      "endTime": 1791945195508.106,
+      "status": "passed",
+      "message": "",
+      "name": "test/unit/serializable-transaction.test.js"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "age": "/opt/traceflow-tools/age-1.3.2/age",
+  "ageSha256": "41b072352f4561018949623c674d16ef704019b9108a9bbdbd21292efebfc94f",
+  "alertTo": "danielganzmusse@gmail.com",
+  "bucket": "traceflow-production-recovery",
+  "descriptorSha256": "095d9c36bdbfe5c940a46fe6965ceed55274e2fa009f436b7f53e294101abfff",
+  "formatVersion": 1,
+  "maxBucketBytes": 8589934592,
+  "maxObjectRequestsPerMonth": 1000,
+  "maxPlainBytes": 536870912,
+  "namespace": "grcxenfrp09f",
+  "oci": "/opt/traceflow-tools/oci-3.95.0/bin/oci",
+  "ociSha256": "d07fa2d70537709298ecb46beaa4bac19593034603a39d1fc796d118d9a4888e",
+  "prefix": "production-live-v1/",
+  "recipient": "age1t5hst0u2dcdmuyr9fk7cypvx69amtflu5qelcnfmc8s54ca4kpgqt8me72",
+  "region": "sa-saopaulo-1",
+  "release": "/opt/traceflow/releases/20261019T011508Z-9bc3dad199566afc6fa43d67abba400665d843ea-a6eda960ef55",
+  "retentionDays": 14,
+  "schema": "traceflow_live"
+}

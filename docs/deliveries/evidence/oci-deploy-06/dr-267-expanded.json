@@ -1,0 +1,269 @@
+{
+  "formatVersion": 1,
+  "version": "26.7.0",
+  "mode": "LOCAL_ISOLATED",
+  "startedAtUtc": "2026-10-15T01:12:56.645051+00:00",
+  "checks": [
+    {
+      "name": "new-owned-source",
+      "status": "PASS",
+      "seconds": 1.791,
+      "result": {
+        "tlsRequired": true
+      }
+    },
+    {
+      "name": "complete-migration-chain",
+      "status": "PASS",
+      "seconds": 2.059,
+      "result": {
+        "count": 68
+      }
+    },
+    {
+      "name": "idempotent-migrate-deploy",
+      "status": "PASS",
+      "seconds": 0.342,
+      "result": true
+    },
+    {
+      "name": "synthetic-business-fixture",
+      "status": "PASS",
+      "seconds": 0.576,
+      "result": true
+    },
+    {
+      "name": "coordinated-encrypted-backup",
+      "status": "PASS",
+      "seconds": 8.055,
+      "result": {
+        "status": "COMPLETE",
+        "backupId": "20261015T011309Z-6db3e93b130d",
+        "manifestSha256": "5939f78bbadaed018f4601e551ce2dc72f08ef1d6c6776ee4ee33469d47d1beb",
+        "restoreStatus": "NOT_REHEARSED"
+      }
+    },
+    {
+      "name": "authenticated-decrypt-and-integrity",
+      "status": "PASS",
+      "seconds": 0.047,
+      "result": "COMPLETE"
+    },
+    {
+      "name": "R07-incompatible-chain",
+      "status": "PASS",
+      "seconds": 0.047,
+      "result": {
+        "rejected": true,
+        "code": "INCOMPATIBLE_SCHEMA_OR_VERSION"
+      }
+    },
+    {
+      "name": "R08-old-exact-schema-verified-age-not-approval",
+      "status": "PASS",
+      "seconds": 0.045,
+      "result": "COMPLETE"
+    },
+    {
+      "name": "R09-missing-evidence",
+      "status": "PASS",
+      "seconds": 0.045,
+      "result": {
+        "rejected": true,
+        "code": "EVIDENCE_MISSING_OR_CORRUPT"
+      }
+    },
+    {
+      "name": "backup-real-process-interruption",
+      "status": "PASS",
+      "seconds": 8.126,
+      "result": {
+        "signal": "SIGTERM",
+        "priorBackupPreserved": true,
+        "privateScratchCleaned": true
+      }
+    },
+    {
+      "name": "runtime-DDL-denied",
+      "status": "PASS",
+      "seconds": 0.012,
+      "result": {
+        "rejected": true,
+        "code": "RuntimeError"
+      }
+    },
+    {
+      "name": "backup-DML-denied",
+      "status": "PASS",
+      "seconds": 0.011,
+      "result": {
+        "rejected": true,
+        "code": "RuntimeError"
+      }
+    },
+    {
+      "name": "R04-incomplete-set",
+      "status": "PASS",
+      "seconds": 0.02,
+      "result": {
+        "rejected": true,
+        "code": "PATH_MISSING"
+      }
+    },
+    {
+      "name": "R05-corrupt-ciphertext",
+      "status": "PASS",
+      "seconds": 0.023,
+      "result": {
+        "rejected": true,
+        "code": "CIPHERTEXT_CHECKSUM"
+      }
+    },
+    {
+      "name": "AEAD-rejects-rehashed-corruption",
+      "status": "PASS",
+      "seconds": 0.028,
+      "result": {
+        "rejected": true,
+        "code": "TOOL_FAILED_AGE"
+      }
+    },
+    {
+      "name": "R06-wrong-key",
+      "status": "PASS",
+      "seconds": 0.027,
+      "result": {
+        "rejected": true,
+        "code": "TOOL_FAILED_AGE"
+      }
+    },
+    {
+      "name": "untrusted-manifest-digest",
+      "status": "PASS",
+      "seconds": 0.018,
+      "result": {
+        "rejected": true,
+        "code": "MANIFEST_CHECKSUM"
+      }
+    },
+    {
+      "name": "R12-protected-target",
+      "status": "PASS",
+      "seconds": 0.0,
+      "result": {
+        "rejected": true,
+        "code": "LOCAL_ONLY_OCI06"
+      }
+    },
+    {
+      "name": "concurrent-backup",
+      "status": "PASS",
+      "seconds": 0.019,
+      "result": {
+        "rejected": true,
+        "code": "OPERATION_LOCKED"
+      }
+    },
+    {
+      "name": "encryption-configuration-failure",
+      "status": "PASS",
+      "seconds": 8.027,
+      "result": {
+        "rejected": true,
+        "code": "AGE_RECIPIENT_REQUIRED"
+      }
+    },
+    {
+      "name": "previous-copy-preserved",
+      "status": "PASS",
+      "seconds": 0.0,
+      "result": true
+    },
+    {
+      "name": "new-owned-restore-target",
+      "status": "PASS",
+      "seconds": 1.764,
+      "result": true
+    },
+    {
+      "name": "R01-R02-R03-complete-restore",
+      "status": "PASS",
+      "seconds": 4.364,
+      "result": {
+        "status": "RESTORED_INTEGRITY_VALIDATED",
+        "backupId": "20261015T011309Z-6db3e93b130d",
+        "manifestSha256": "5939f78bbadaed018f4601e551ce2dc72f08ef1d6c6776ee4ee33469d47d1beb",
+        "finishedAtUtc": "2026-10-15T01:13:32.439561+00:00",
+        "restoreSeconds": 4.317,
+        "tables": 61,
+        "foreignKeys": 116,
+        "confirmedEvidence": 1,
+        "uploads": 2,
+        "applicationSmoke": "PENDING",
+        "productionCertified": false
+      }
+    },
+    {
+      "name": "R11-safe-reexecution-refusal",
+      "status": "PASS",
+      "seconds": 0.08,
+      "result": {
+        "rejected": true,
+        "code": "RESTORE_STORAGE_EXISTS"
+      }
+    },
+    {
+      "name": "restored-application-smoke",
+      "status": "PASS",
+      "seconds": 0.719,
+      "result": true
+    },
+    {
+      "name": "R10-interrupted-restore-quarantined",
+      "status": "PASS",
+      "seconds": 0.265,
+      "result": {
+        "signal": "SIGTERM",
+        "partialSchemaQuarantined": true,
+        "protectedTargetsUntouched": true
+      }
+    },
+    {
+      "name": "maintenance-readiness-worker-upload-recovery",
+      "status": "PASS",
+      "seconds": 92.471,
+      "result": {
+        "outage": {
+          "protocol": "OCI06_OUTAGE",
+          "phase": "degraded",
+          "liveness": 200,
+          "readiness": 503,
+          "partCommitted": false,
+          "workerTickRejected": true
+        },
+        "reconnection": {
+          "protocol": "OCI06_OUTAGE",
+          "phase": "reconnected",
+          "readiness": 200,
+          "workerHeartbeat": true,
+          "staleWriterRejected": true,
+          "falseSuccess": false
+        },
+        "recovery": {
+          "protocol": "OCI06_OUTAGE",
+          "phase": "recovered",
+          "uploadResumed": true,
+          "idempotence": true,
+          "authorizationEnforced": true,
+          "confirmedFilesPreserved": true
+        },
+        "leaseDurationUnchanged": true,
+        "githubLeaseClockAdvancedInTestOnly": true
+      }
+    }
+  ],
+  "restoreSeconds": 4.317,
+  "status": "PASS",
+  "productionCertified": false,
+  "cleanedUp": true
+}

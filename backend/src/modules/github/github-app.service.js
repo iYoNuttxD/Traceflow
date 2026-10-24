@@ -16,6 +16,7 @@ import { githubRepository } from './github.repository.js';
 import { buildAuditEvent } from '../audit/audit.service.js';
 import { projectRepository } from '../projects/project.repository.js';
 import { githubSyncService } from './githubSync.service.js';
+import { githubId, parseGithubJson } from './github-json.js';
 
 const hashToken = (value) => createHash('sha256').update(value).digest('hex');
 export const GITHUB_WEBHOOK_STALE_AFTER_MS = 5 * 60 * 1000;
@@ -159,8 +160,9 @@ function validCallbackInput({ code, installationId, setupAction, state }) {
     typeof code === 'string' &&
     code.length > 0 &&
     code.length <= 512 &&
-    typeof installationId === 'string' &&
-    /^\d+$/.test(installationId) &&
+    (typeof state === 'string' && state.startsWith('authorize.')
+      ? !installationId && !setupAction
+      : typeof installationId === 'string' && /^[1-9]\d{0,39}$/.test(installationId)) &&
     typeof state === 'string' &&
     state.length >= 32 &&
     state.length <= 128 &&
@@ -200,7 +202,14 @@ function assertValidStateRecord(record, now) {
 }
 
 export const githubAppService = {
-  async startInstallation({ user, session, intendedAction, projectId }) {
+  async startInstallation({
+    user,
+    session,
+    intendedAction,
+    projectId,
+    flow = 'authorize',
+    githubInstallationId
+  }) {
     if (!env.githubAppConfigured)
       throw new AppError({
         message: 'GitHub App não configurada.',
@@ -209,7 +218,17 @@ export const githubAppService = {
         exposeTechnicalDetails: true
       });
     if (projectId) await requireOwner(projectId, user.id);
-    const state = randomBytes(32).toString('base64url');
+    if (!['authorize', 'install'].includes(flow))
+      throw forbidden('Fluxo GitHub inválido.', 'INVALID_STATE');
+    const selected = githubInstallationId == null ? '' : githubId(githubInstallationId);
+    if (flow === 'install' && selected)
+      throw forbidden('Instalação incompatível com o fluxo.', 'INVALID_STATE');
+    // The complete opaque value is hashed in the existing state record, binding
+    // mode and optional choice without a schema change or trusting callback IDs.
+    const state =
+      flow === 'authorize'
+        ? `authorize.${randomBytes(32).toString('base64url')}.${selected}`
+        : randomBytes(32).toString('base64url');
     await githubRepository.createConnectionState({
       userId: user.id,
       sessionId: session.id,
@@ -218,9 +237,16 @@ export const githubAppService = {
       projectId: projectId ? Number(projectId) : null,
       expiresAt: new Date(Date.now() + env.githubAppStateTtlMs)
     });
-    const url = new URL(
-      `https://github.com/apps/${encodeURIComponent(env.githubAppSlug)}/installations/new`
-    );
+    const url =
+      flow === 'authorize'
+        ? new URL('https://github.com/login/oauth/authorize')
+        : new URL(
+            `https://github.com/apps/${encodeURIComponent(env.githubAppSlug)}/installations/new`
+          );
+    if (flow === 'authorize') {
+      url.searchParams.set('client_id', env.githubAppClientId);
+      url.searchParams.set('redirect_uri', env.githubLoginCallbackUrl);
+    }
     url.searchParams.set('state', state);
     return { url: url.toString(), expiresInMs: env.githubAppStateTtlMs };
   },
@@ -242,13 +268,42 @@ export const githubAppService = {
       assertValidStateRecord(record, now);
 
       logStep('exchange_installation_user_code');
-      const userToken = await githubAppCredentialProvider.exchangeInstallationUserCode(code);
+      const userToken = state.startsWith('authorize.')
+        ? await githubAppCredentialProvider.exchangeInstallationUserCode(code, {
+            existingInstallation: true
+          })
+        : await githubAppCredentialProvider.exchangeInstallationUserCode(code);
 
       logStep('validate_installation');
       const installations =
         await githubAppCredentialProvider.listInstallationsAccessibleToUser(userToken);
+      if (state.startsWith('authorize.')) {
+        const parts = state.split('.');
+        if (
+          parts.length !== 3 ||
+          !/^[A-Za-z0-9_-]{43}$/.test(parts[1]) ||
+          (parts[2] && !/^[1-9]\d{0,39}$/.test(parts[2]))
+        )
+          throw forbidden('State de autorização inválido.', 'INVALID_STATE');
+        // A GitHub user authorization is independent of the TraceFlow login identity.
+        // The verified user token must prove access to the selected installation.
+        const actor = await githubAppCredentialProvider.getAuthenticatedUser(userToken);
+        const actorId = githubId(actor.id);
+        const personal = installations.filter((item) => item.accountId === actorId);
+        const choices = parts[2]
+          ? installations.filter((item) => item.githubInstallationId === parts[2])
+          : personal.length === 1
+            ? personal
+            : installations;
+        if (choices.length !== 1)
+          throw forbidden(
+            'Selecione uma instalação acessível; instale a App se ainda não existir.',
+            'INSTALLATION_SELECTION_REQUIRED'
+          );
+        installationId = choices[0].githubInstallationId;
+      }
       const userInstallation = installations.find(
-        (item) => item.githubInstallationId === String(installationId)
+        (item) => item.githubInstallationId === installationId
       );
       if (!userInstallation) {
         throw forbidden(
@@ -261,7 +316,8 @@ export const githubAppService = {
       const metadata = await githubAppCredentialProvider.getInstallation(installationId);
       if (
         metadata.githubInstallationId !== String(installationId) ||
-        metadata.accountId !== userInstallation.accountId
+        metadata.accountId !== userInstallation.accountId ||
+        metadata.isSuspended === true
       ) {
         throw forbidden(
           'A instalação GitHub não corresponde ao contexto validado.',
@@ -552,7 +608,7 @@ export const githubAppService = {
       });
     let payload;
     try {
-      payload = JSON.parse(rawBody.toString('utf8'));
+      payload = parseGithubJson(rawBody.toString('utf8'));
     } catch {
       throw new AppError({
         message: 'Payload GitHub inválido.',

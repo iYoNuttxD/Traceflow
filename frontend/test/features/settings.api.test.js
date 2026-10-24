@@ -36,9 +36,18 @@ describe('contratos da API de configurações L2', () => {
     });
   });
 
+  it('seleciona explicitamente primeira instalação sem confundir autorização existente', async () => {
+    await settingsApi.startGithubInstallation('install');
+    expect(client.post).toHaveBeenCalledWith('/github/app/installations/start', {
+      flow: 'install',
+      intendedAction: 'CREATE_PROJECT'
+    });
+  });
+
   it('inicia a autorização GitHub pela área de integrações', async () => {
     await settingsApi.startGithubInstallation();
     expect(client.post).toHaveBeenCalledWith('/github/app/installations/start', {
+      flow: 'authorize',
       intendedAction: 'CREATE_PROJECT'
     });
   });

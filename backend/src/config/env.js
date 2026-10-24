@@ -1,8 +1,11 @@
 import dotenv from 'dotenv';
 import { Buffer } from 'node:buffer';
+import { isIP } from 'node:net';
+import { isAbsolute } from 'node:path';
 import { ConfigurationError } from '../shared/errors/index.js';
 
-dotenv.config();
+// Production receives its environment from the supervisor, never a release-local .env.
+if (process.env.NODE_ENV !== 'production') dotenv.config({ quiet: true });
 
 const allowedEnvironments = new Set(['development', 'test', 'production']);
 const allowedRateLimitProfiles = new Set(['development', 'production']);
@@ -24,6 +27,64 @@ function parseUrl(value, key, { protocol } = {}) {
     return value;
   } catch {
     throw new ConfigurationError(`Configuração inválida: ${key} deve ser uma URL válida.`);
+  }
+}
+
+function publicUrl(value, key, nodeEnv, fallback) {
+  const result = parseUrl(value || (nodeEnv === 'production' ? undefined : fallback), key);
+  const url = new URL(result);
+  const host = url.hostname.toLowerCase().replace(/\.$/, '');
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw new ConfigurationError(
+      `Configuração inválida: ${key} deve usar HTTP(S) sem credenciais.`
+    );
+  }
+  if (
+    nodeEnv === 'production' &&
+    (url.protocol !== 'https:' ||
+      !host.includes('.') ||
+      isIP(host) ||
+      host.startsWith('[') ||
+      /(^|\.)(localhost|local|internal|invalid)$/.test(host))
+  ) {
+    throw new ConfigurationError(
+      `Configuração inválida: ${key} deve usar HTTPS e hostname público.`
+    );
+  }
+  return result;
+}
+
+function parseHttpHost(value, nodeEnv) {
+  if (nodeEnv === 'production') {
+    if (value && value !== '127.0.0.1') {
+      throw new ConfigurationError(
+        'Configuração inválida: HTTP_HOST deve ser 127.0.0.1 em produção.'
+      );
+    }
+    return '127.0.0.1';
+  }
+  if (value && !isIP(value)) {
+    throw new ConfigurationError(
+      'Configuração inválida: HTTP_HOST deve ser um endereço IP literal.'
+    );
+  }
+  return value || undefined;
+}
+
+function parseStorageDirectory(value, nodeEnv) {
+  if (nodeEnv === 'production' && (!value || !isAbsolute(value))) {
+    throw new ConfigurationError(
+      'Configuração inválida: TEST_EVIDENCE_STORAGE_DIR deve ser absoluto em produção.'
+    );
+  }
+  return value;
+}
+
+export function assertWorkerEnvironment(configuration) {
+  if (configuration.isProduction && !configuration.githubSchedulerEnabled) {
+    throw new ConfigurationError(
+      'Configuração inválida: GITHUB_SCHEDULER_ENABLED deve ser true no worker de produção.'
+    );
   }
 }
 
@@ -81,7 +142,12 @@ function parseCorsOrigins(source, nodeEnv, frontendUrl) {
         'Configuração inválida: CORS_ALLOWED_ORIGINS não aceita wildcard.'
       );
     }
-    const parsed = parseUrl(origin, 'CORS_ALLOWED_ORIGINS');
+    const parsed = publicUrl(origin, 'CORS_ALLOWED_ORIGINS', nodeEnv);
+    if (new URL(parsed).origin !== origin) {
+      throw new ConfigurationError(
+        'Configuração inválida: CORS_ALLOWED_ORIGINS exige origens sem path, query ou fragmento.'
+      );
+    }
     if (!['http:', 'https:'].includes(new URL(parsed).protocol)) {
       throw new ConfigurationError(
         'Configuração inválida: CORS_ALLOWED_ORIGINS aceita somente HTTP(S).'
@@ -89,6 +155,11 @@ function parseCorsOrigins(source, nodeEnv, frontendUrl) {
     }
   }
 
+  if (nodeEnv === 'production' && !origins.includes(frontendUrl)) {
+    throw new ConfigurationError(
+      'Configuração inválida: CORS_ALLOWED_ORIGINS deve incluir FRONTEND_URL.'
+    );
+  }
   return origins;
 }
 
@@ -105,7 +176,13 @@ function parseCorsMethods(value) {
 }
 
 function parseCorsHeaders(value) {
-  const headers = parseCsv(value, ['Content-Type', 'X-Request-Id', 'X-CSRF-Token']);
+  const headers = parseCsv(value, [
+    'Content-Type',
+    'X-Request-Id',
+    'X-CSRF-Token',
+    'X-Chunk-SHA256',
+    'X-Chunk-Offset'
+  ]);
   if (headers.length === 0 || headers.some((header) => !/^[A-Za-z0-9-]+$/.test(header))) {
     throw new ConfigurationError(
       'Configuração inválida: CORS_ALLOWED_HEADERS contém header inválido.'
@@ -127,7 +204,12 @@ function parseBodyLimit(value) {
   return bodyLimit.toLowerCase();
 }
 
-function parseTrustProxy(value) {
+function parseTrustProxy(value, nodeEnv) {
+  if (nodeEnv === 'production' && value !== 'loopback') {
+    throw new ConfigurationError(
+      'Configuração inválida: TRUST_PROXY deve ser loopback em produção.'
+    );
+  }
   if (value === undefined || value === '' || value === 'false') return false;
   if (value === 'true') {
     throw new ConfigurationError(
@@ -195,38 +277,72 @@ function parseEmailConfiguration(source, nodeEnv) {
       if (!source[key]) throw new ConfigurationError(`Configuração obrigatória ausente: ${key}.`);
     }
   }
+  const smtpPort = parseInteger(source.SMTP_PORT, 'SMTP_PORT', {
+    defaultValue: 587,
+    min: 1,
+    max: 65535
+  });
+  const smtpSecure = parseBoolean(source.SMTP_SECURE, 'SMTP_SECURE', smtpPort === 465);
+  if (
+    nodeEnv === 'production' &&
+    ((smtpPort === 465 && !smtpSecure) || (smtpPort === 587 && smtpSecure))
+  ) {
+    throw new ConfigurationError(
+      'Configuração inválida: SMTP_SECURE deve corresponder ao transporte da SMTP_PORT (465 TLS; 587 STARTTLS).'
+    );
+  }
   return {
     emailProvider: provider,
     emailFrom: from,
     smtpHost: source.SMTP_HOST,
-    smtpPort: parseInteger(source.SMTP_PORT, 'SMTP_PORT', {
-      defaultValue: 587,
-      min: 1,
-      max: 65535
-    }),
-    smtpSecure: parseBoolean(source.SMTP_SECURE, 'SMTP_SECURE', false),
+    smtpPort,
+    smtpSecure,
     smtpUser: source.SMTP_USER,
     smtpPassword: source.SMTP_PASSWORD,
-    passwordResetUrl: parseUrl(
-      source.PASSWORD_RESET_URL || 'http://localhost:5173/reset-password',
-      'PASSWORD_RESET_URL'
+    smtpConnectionTimeoutMs: parseInteger(
+      source.SMTP_CONNECTION_TIMEOUT_MS,
+      'SMTP_CONNECTION_TIMEOUT_MS',
+      { defaultValue: 10000, min: 100, max: 60000 }
     ),
-    invitationAcceptUrl: parseUrl(
-      source.INVITATION_ACCEPT_URL || 'http://localhost:5173/invitations/accept',
-      'INVITATION_ACCEPT_URL'
+    smtpGreetingTimeoutMs: parseInteger(
+      source.SMTP_GREETING_TIMEOUT_MS,
+      'SMTP_GREETING_TIMEOUT_MS',
+      { defaultValue: 10000, min: 100, max: 60000 }
     ),
-    emailVerificationUrl: parseUrl(
-      source.EMAIL_VERIFICATION_URL || 'http://localhost:5173/verify-email',
-      'EMAIL_VERIFICATION_URL'
+    smtpSocketTimeoutMs: parseInteger(source.SMTP_SOCKET_TIMEOUT_MS, 'SMTP_SOCKET_TIMEOUT_MS', {
+      defaultValue: 20000,
+      min: 100,
+      max: 120000
+    }),
+    passwordResetUrl: publicUrl(
+      source.PASSWORD_RESET_URL,
+      'PASSWORD_RESET_URL',
+      nodeEnv,
+      'http://localhost:5173/reset-password'
     ),
-    emailChangeUrl: parseUrl(
-      source.EMAIL_CHANGE_CONFIRM_URL ||
-        'http://localhost:5173/settings/account/email-change/confirm',
-      'EMAIL_CHANGE_CONFIRM_URL'
+    invitationAcceptUrl: publicUrl(
+      source.INVITATION_ACCEPT_URL,
+      'INVITATION_ACCEPT_URL',
+      nodeEnv,
+      'http://localhost:5173/invitations/accept'
     ),
-    accountReactivationUrl: parseUrl(
-      source.ACCOUNT_REACTIVATION_URL || 'http://localhost:5173/account/reactivation/confirm',
-      'ACCOUNT_REACTIVATION_URL'
+    emailVerificationUrl: publicUrl(
+      source.EMAIL_VERIFICATION_URL,
+      'EMAIL_VERIFICATION_URL',
+      nodeEnv,
+      'http://localhost:5173/verify-email'
+    ),
+    emailChangeUrl: publicUrl(
+      source.EMAIL_CHANGE_CONFIRM_URL,
+      'EMAIL_CHANGE_CONFIRM_URL',
+      nodeEnv,
+      'http://localhost:5173/settings/account/email-change/confirm'
+    ),
+    accountReactivationUrl: publicUrl(
+      source.ACCOUNT_REACTIVATION_URL,
+      'ACCOUNT_REACTIVATION_URL',
+      nodeEnv,
+      'http://localhost:5173/account/reactivation/confirm'
     )
   };
 }
@@ -255,9 +371,10 @@ function parseGithubAppConfiguration(source, nodeEnv) {
   const githubLoginCallbackUrl =
     source.GITHUB_LOGIN_CALLBACK_URL ||
     (nodeEnv === 'production' ? undefined : 'http://localhost:3001/api/auth/github/callback');
-  const parsedGithubLoginCallbackUrl = parseUrl(
+  const parsedGithubLoginCallbackUrl = publicUrl(
     githubLoginCallbackUrl,
-    'GITHUB_LOGIN_CALLBACK_URL'
+    'GITHUB_LOGIN_CALLBACK_URL',
+    nodeEnv
   );
   if (nodeEnv === 'production' && new URL(parsedGithubLoginCallbackUrl).protocol !== 'https:') {
     throw new ConfigurationError(
@@ -272,14 +389,20 @@ function parseGithubAppConfiguration(source, nodeEnv) {
     githubAppSlug: source.GITHUB_APP_SLUG,
     githubAppPrivateKeyBase64: source.GITHUB_APP_PRIVATE_KEY_BASE64,
     githubAppWebhookSecret: source.GITHUB_APP_WEBHOOK_SECRET,
-    githubAppCallbackUrl: parseUrl(source.GITHUB_APP_CALLBACK_URL, 'GITHUB_APP_CALLBACK_URL'),
-    githubAppFrontendSuccessUrl: parseUrl(
-      source.GITHUB_APP_FRONTEND_SUCCESS_URL,
-      'GITHUB_APP_FRONTEND_SUCCESS_URL'
+    githubAppCallbackUrl: publicUrl(
+      source.GITHUB_APP_CALLBACK_URL,
+      'GITHUB_APP_CALLBACK_URL',
+      nodeEnv
     ),
-    githubAppFrontendErrorUrl: parseUrl(
+    githubAppFrontendSuccessUrl: publicUrl(
+      source.GITHUB_APP_FRONTEND_SUCCESS_URL,
+      'GITHUB_APP_FRONTEND_SUCCESS_URL',
+      nodeEnv
+    ),
+    githubAppFrontendErrorUrl: publicUrl(
       source.GITHUB_APP_FRONTEND_ERROR_URL,
-      'GITHUB_APP_FRONTEND_ERROR_URL'
+      'GITHUB_APP_FRONTEND_ERROR_URL',
+      nodeEnv
     ),
     githubLoginCallbackUrl: parsedGithubLoginCallbackUrl
   };
@@ -299,7 +422,17 @@ export function createEnvironment(source = {}) {
   const databaseSource =
     nodeEnv === 'test' && testDatabaseUrl ? testDatabaseUrl : source.DATABASE_URL;
   const databaseUrl = parseUrl(databaseSource, 'DATABASE_URL', { protocol: 'mysql:' });
-  const frontendUrl = parseUrl(source.FRONTEND_URL || 'http://localhost:5173', 'FRONTEND_URL');
+  const frontendUrl = publicUrl(
+    source.FRONTEND_URL,
+    'FRONTEND_URL',
+    nodeEnv,
+    'http://localhost:5173'
+  );
+  if (new URL(frontendUrl).origin !== frontendUrl) {
+    throw new ConfigurationError(
+      'Configuração inválida: FRONTEND_URL deve ser uma origem sem path, query ou fragmento.'
+    );
+  }
 
   const corsAllowedOrigins = parseCorsOrigins(source, nodeEnv, frontendUrl);
   const emailConfiguration = parseEmailConfiguration(source, nodeEnv);
@@ -311,11 +444,28 @@ export function createEnvironment(source = {}) {
       'Configuração inválida: RATE_LIMIT_PROFILE deve ser development ou production.'
     );
   }
+  if (nodeEnv === 'production' && rateLimitProfile !== 'production') {
+    throw new ConfigurationError(
+      'Configuração inválida: RATE_LIMIT_PROFILE deve ser production em produção.'
+    );
+  }
   const developmentRateLimits = rateLimitProfile === 'development';
 
   return Object.freeze({
     nodeEnv,
     port: parsePort(source.PORT),
+    httpHost: parseHttpHost(source.HTTP_HOST, nodeEnv),
+    shutdownTimeoutMs: parseInteger(source.SHUTDOWN_TIMEOUT_MS, 'SHUTDOWN_TIMEOUT_MS', {
+      defaultValue: 30000,
+      min: 1000,
+      max: 120000
+    }),
+    readinessTimeoutMs: parseInteger(source.READINESS_TIMEOUT_MS, 'READINESS_TIMEOUT_MS', {
+      defaultValue: 3000,
+      min: 100,
+      max: 10000
+    }),
+    testEvidenceStorageDir: parseStorageDirectory(source.TEST_EVIDENCE_STORAGE_DIR, nodeEnv),
     databaseUrl,
     testDatabaseUrl,
     ...githubAppConfiguration,
@@ -582,7 +732,7 @@ export function createEnvironment(source = {}) {
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
     githubOAuthCookieName: source.GITHUB_OAUTH_COOKIE_NAME || 'traceflow_github_oauth',
     sessionCookieSameSite: parseSameSite(source.SESSION_COOKIE_SAME_SITE),
-    trustProxy: parseTrustProxy(source.TRUST_PROXY),
+    trustProxy: parseTrustProxy(source.TRUST_PROXY, nodeEnv),
     isDevelopment: nodeEnv === 'development',
     isTest: nodeEnv === 'test',
     isProduction: nodeEnv === 'production',

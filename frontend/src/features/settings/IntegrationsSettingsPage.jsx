@@ -114,13 +114,13 @@ export function IntegrationsSettingsPage() {
     }
   }
 
-  async function authorize() {
+  async function authorize(flow = 'authorize') {
     if (authorizing || cooldown > 0 || refreshWarning) return;
     setAuthorizing(true);
     setError('');
     setRetryAfterSeconds(0);
     try {
-      const response = await settingsApi.startGithubInstallation();
+      const response = await settingsApi.startGithubInstallation(flow);
       window.location.assign(response.data.url);
     } catch (value) {
       const normalized = normalizeApiError(value);
@@ -301,14 +301,25 @@ export function IntegrationsSettingsPage() {
                 {authorizing
                   ? 'Abrindo GitHub...'
                   : integrations.length > 0
-                    ? 'Adicionar ou atualizar acesso'
-                    : 'Instalar ou autorizar GitHub App'}
+                    ? 'Autorizar outra instalação'
+                    : 'Autorizar instalação existente'}
               </button>
             </div>
             {!integrations.length ? (
               <div className="settings-panel">
-                <h3>GitHub App não instalada</h3>
-                <p>Autorize a App para integrar repositórios e sincronização.</p>
+                <h3>GitHub App não autorizada nesta conta</h3>
+                <p>
+                  Se a App já está instalada no GitHub, autorize a instalação existente. Caso
+                  contrário, instale a App primeiro.
+                </p>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={authorizing || cooldown > 0 || Boolean(refreshWarning)}
+                  onClick={() => void authorize('install')}
+                >
+                  Instalar GitHub App
+                </button>
               </div>
             ) : (
               <div className="integration-list">

@@ -7,7 +7,7 @@ def api(path):return json.loads(subprocess.check_output(['gh','api','repos/iYoNu
 def source_ci(sha,timeout=1200):
  deadline=time.monotonic()+timeout
  while True:
-  runs=[x for x in api(f'actions/runs?head_sha={sha}&event=push&per_page=100')['workflow_runs'] if x['head_sha']==sha and x['path']=='.github/workflows/ci.yml' and x['event']=='push']
+  runs=[x for x in api(f'actions/runs?head_sha={sha}&per_page=100')['workflow_runs'] if x['head_sha']==sha and x['path']=='.github/workflows/ci.yml' and x['event'] in ('push','pull_request')]
   latest=max(runs,key=lambda x:x['id']) if runs else None
   if latest and latest['status']=='completed':
    if latest['conclusion']!='success':raise ValueError('EXACT_SOURCE_CI_NOT_SUCCESSFUL')
@@ -16,7 +16,7 @@ def source_ci(sha,timeout=1200):
     matches=[x for x in checks if x['name']==name and x['app']['slug']=='github-actions' and '/runs/'+str(latest['id'])+'/' in x['details_url']]
     if not matches or max(matches,key=lambda x:x['id'])['conclusion']!='success':raise ValueError('EXACT_SHA_CI_REQUIRED_'+name.replace(' ','_'))
    return latest['id']
-  if time.monotonic()>=deadline:raise ValueError('EXACT_SOURCE_PUSH_CI_REQUIRED')
+  if time.monotonic()>=deadline:raise ValueError('EXACT_SOURCE_COMMIT_CI_REQUIRED')
   time.sleep(min(30,max(0,deadline-time.monotonic())))
 def validate(sha):
  if not re.fullmatch('[a-f0-9]{40}',sha):raise ValueError('FULL_SHA_REQUIRED')

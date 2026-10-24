@@ -1,3 +1,4 @@
+import { createEvidenceUploadRepository } from './evidence-upload.repository.js';
 import { traceabilityMutation } from '../../traceability/requirement-reconciliation.repository.js';
 import { createDefectRepository } from '../../defects/repositories/defect.repository.js';
 import { lockActiveProject } from '../../projects/active-project-write.js';
@@ -20,6 +21,7 @@ const latestJoin = Prisma.sql`LEFT JOIN TestExecution e ON e.id = (SELECT e2.id 
 export function createTestCaseRepository(client = prisma) {
   return {
     defects: createDefectRepository(client),
+    uploads: createEvidenceUploadRepository(client),
     lockProject(id) {
       return lockActiveProject(client, id);
     },

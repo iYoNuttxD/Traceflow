@@ -1,0 +1,24 @@
+{
+  "database": "disposable local traceflow_upgrade_test",
+  "productionUsed": false,
+  "previousApiReadyOn84": true,
+  "previousClientReadsOn84": true,
+  "githubIdsExact": true,
+  "projects": 1,
+  "previousApiExit": 0,
+  "jobs": [
+    "github-event-dispatch",
+    "notifications-due",
+    "traceability-alerts",
+    "traceability-notice-dispatch"
+  ],
+  "workerHeartbeat": true,
+  "integratedWorkerExit": 0,
+  "workerHeartbeatRemovedOnShutdown": true,
+  "status": "ISOLATED_RUNTIME_COMPATIBILITY_PASS",
+  "previousCommit": "b9c1beb9f6ded49ce9257d346c086a8893f700c9",
+  "targetSchemaSha256": "2b38a8124ff16c39f1f0def026e920577f3744424af7cd3a31c6158d594396a6",
+  "previousApiReadyOnTarget": true,
+  "previousClientReadsOnTarget": true,
+  "targetMigrationCount": 84
+}

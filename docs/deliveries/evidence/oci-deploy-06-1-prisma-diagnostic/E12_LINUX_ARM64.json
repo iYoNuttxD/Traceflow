@@ -1,0 +1,69 @@
+{
+  "origin": "executed-local",
+  "environment": "new local Lima VM tf061pkg",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "verified public toolchains; getenforce; runtime tests; stop and delete owned VM",
+  "result": {
+    "platform": {
+      "origin": "executed-local",
+      "environment": "new disposable VM tf061pkg",
+      "date": "2026-10-15T17:04:44.974631+00:00",
+      "command": "uname; oracle-release; node --version; npm --version; getenforce; independent build comparison; owned-process inventory",
+      "status": "PASS",
+      "result": {
+        "distribution": "Oracle Linux Server release 9.8",
+        "architecture": "aarch64",
+        "node": "v22.23.2",
+        "selinux": "Enforcing",
+        "archiveBytesEqual": true,
+        "receiptEqual": true,
+        "mysqlProcesses": false
+      },
+      "limitations": "Community 26.7.0, not HeatWave; no host mounts or personal SSH keys"
+    },
+    "cleanup": {
+      "origin": "executed-local",
+      "environment": "owned task workspace and disposable VM only",
+      "date": "2026-10-15T17:22:36.521Z",
+      "command": "limactl stop tf061pkg; limactl delete --force tf061pkg (task-specific LIMA_HOME); remove only owned synthetic key/token directories",
+      "status": "PASS",
+      "result": {
+        "vmStopped": true,
+        "vmDeleted": true,
+        "mysqlProcessesBeforeStop": false,
+        "labHarnessesRemovedOwnDatadirs": true,
+        "taskLimaKeysRemoved": true,
+        "syntheticOwnerTokenRemoved": true,
+        "artifactRetainedInIgnoredBuild": true,
+        "taskTemporaryWorkspaceRemoved": true,
+        "artifactAndEvidenceRetained": true
+      },
+      "limitations": "Only this task's disposable VM, synthetic keys/data and temporary workspace were removed; ignored local artifact and repository evidence retained; older laboratories untouched"
+    },
+    "vm": {
+      "driver": "VZ",
+      "cpus": 4,
+      "memoryGiB": 8,
+      "diskGiB": 24,
+      "hostMounts": [],
+      "loadPersonalSshKeys": false,
+      "publicPortForwarding": false
+    },
+    "toolchains": {
+      "oracleLinux": {
+        "url": "https://yum.oracle.com/templates/OracleLinux/OL9/u8/aarch64/OL9U8_aarch64-kvm-cloud-b182.qcow2",
+        "sha256": "4793c3ec49d9f8b27a932d3bd88ec45d08249c5195faa3b0fac876ab0d5f5856"
+      },
+      "node": {
+        "url": "https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-arm64.tar.xz",
+        "sha256": "fff4078c5def658577f92c88db7db3bc0072924bfb93fe52c1e744a54e94abb8"
+      },
+      "mysql": {
+        "url": "https://cdn.mysql.com/Downloads/MySQL-26.7/mysql-26.7.0-linux-glibc2.28-aarch64.tar.xz",
+        "sha256": "894da547042baf5f7da6eac72252978dc3da146aca706dbbae2f4176aded34b4"
+      }
+    }
+  },
+  "status": "PASS",
+  "limitations": "Somente laboratório; não comprova homologação gerenciada."
+}

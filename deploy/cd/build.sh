@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Executed only in the pinned-for-this-run Oracle Linux ARM64 container.
-: "${APP_SHA:?}" "${SOURCE_DATE_EPOCH:?}" "${PASS:?}" "${OPS_ROOT:?}" "${SOURCE_ROOT:?}"
+: "${BASELINE_SHA:?}" "${APP_SHA:?}" "${SOURCE_DATE_EPOCH:?}" "${PASS:?}" "${OPS_ROOT:?}" "${SOURCE_ROOT:?}"
 test "$(uname -m)" = aarch64
 grep -q 'release 9.8' /etc/oracle-release
 test "$(node --version)" = v22.23.2
@@ -14,11 +14,18 @@ export TEST_DATABASE_URL="$DATABASE_URL" VITE_API_URL=/api
 npm --prefix backend ci --no-audit --no-fund
 npm --prefix frontend ci --no-audit --no-fund
 if [ "$PASS" = 1 ]; then
+ python3 -B -m unittest discover -s "$OPS_ROOT/deploy/cd/tests" -v
+ python3 -B -m unittest discover -s "$OPS_ROOT/deploy/tests/operations" -v
+ node --test "$OPS_ROOT/deploy/tests/operations/retention.test.mjs"
  npm --prefix backend run lint
  npm --prefix frontend run lint
  npm --prefix backend run security:secrets
  (cd backend && npx prisma validate && npx prisma generate)
  (cd backend && npx vitest run test/unit/production-environment.test.js test/unit/production-lifecycle.test.js test/unit/health-shutdown.test.js)
+ if [ -f backend/scripts/validate-integration-upgrade.js ]; then
+  (cd backend && node --input-type=module -e 'import {PrismaClient} from "@prisma/client";const p=new PrismaClient({datasourceUrl:"mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_test"});try{const existing=await p.$queryRawUnsafe("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=?","traceflow_cd_upgrade_test");if(existing.length)throw Error("UPGRADE_TARGET_EXISTS");await p.$executeRawUnsafe("CREATE DATABASE traceflow_cd_upgrade_test");}finally{await p.$disconnect();}')
+  (cd backend && NODE_ENV=test DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_dev_unused TEST_DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_upgrade_test node scripts/validate-integration-upgrade.js "$BASELINE_SHA") | tee /out/upgrade-proof.json
+ fi
  (cd backend && bash "$OPS_ROOT/deploy/cd/staging.sh")
  npm --prefix backend audit --omit=dev --audit-level=high
  npm --prefix frontend audit --omit=dev --audit-level=high

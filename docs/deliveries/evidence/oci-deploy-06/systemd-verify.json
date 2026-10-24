@@ -1,0 +1,6 @@
+{
+  "command": "systemd-analyze verify monitor.service monitor.timer",
+  "exitCode": 0,
+  "installed": false,
+  "started": false
+}

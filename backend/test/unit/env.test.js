@@ -20,6 +20,14 @@ const githubAppSource = {
   GITHUB_APP_FRONTEND_ERROR_URL: 'https://traceflow.example/projects?github=error'
 };
 const productionInfrastructure = {
+  FRONTEND_URL: 'https://traceflow.example',
+  PASSWORD_RESET_URL: 'https://traceflow.example/reset-password',
+  INVITATION_ACCEPT_URL: 'https://traceflow.example/invitations/accept',
+  EMAIL_VERIFICATION_URL: 'https://traceflow.example/verify-email',
+  EMAIL_CHANGE_CONFIRM_URL: 'https://traceflow.example/settings/account/email-change/confirm',
+  ACCOUNT_REACTIVATION_URL: 'https://traceflow.example/account/reactivation/confirm',
+  TRUST_PROXY: 'loopback',
+  TEST_EVIDENCE_STORAGE_DIR: '/var/lib/traceflow/test-evidence',
   CORS_ALLOWED_ORIGINS: 'https://traceflow.example',
   EMAIL_PROVIDER: 'smtp',
   EMAIL_FROM: 'no-reply@traceflow.example',
@@ -212,6 +220,7 @@ describe('configuração centralizada', () => {
       createEnvironment({
         ...validSource,
         NODE_ENV: 'production',
+        FRONTEND_URL: 'https://traceflow.example',
         ...githubAppSource
       })
     ).toThrowError(/CORS_ALLOWED_ORIGINS/);

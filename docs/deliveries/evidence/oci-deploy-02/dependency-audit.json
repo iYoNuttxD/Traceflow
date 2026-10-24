@@ -1,0 +1,12 @@
+[
+  {
+    "project": "backend",
+    "exitCode": 0,
+    "output": "Audit aprovado: 0 ocorr\u00eancia(s) coberta(s) por exce\u00e7\u00e3o espec\u00edfica; 0 high, 0 critical.\n"
+  },
+  {
+    "project": "frontend",
+    "exitCode": 0,
+    "output": "Audit aprovado: 0 ocorr\u00eancia(s) coberta(s) por exce\u00e7\u00e3o espec\u00edfica; 0 high, 0 critical.\n"
+  }
+]

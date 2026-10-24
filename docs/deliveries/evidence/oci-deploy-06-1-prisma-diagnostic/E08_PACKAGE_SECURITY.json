@@ -1,0 +1,43 @@
+{
+  "origin": "executed-local",
+  "environment": "artifact and synthetic fixtures",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "allowlist scan in build/extract/verify; unittest test_diagnostic_package; source check-secrets.js",
+  "result": {
+    "files": 24,
+    "tarMembers": 25,
+    "sourceScan": {
+      "origin": "executed-local",
+      "environment": "macOS ARM64 source-only",
+      "date": "2026-10-15T17:02:53.373Z",
+      "command": "node backend/scripts/check-secrets.js <explicit public source allowlist>",
+      "result": "Secret scan aprovado (680 arquivos verificados).",
+      "status": "PASS",
+      "findings": "",
+      "files": 680,
+      "limitations": "Pattern scan; no real env read; artifact scan separately in builder and verifier."
+    },
+    "privateKeyFixtureRefused": true,
+    "credentialUrlFixtureRefused": true,
+    "tokenFixtureRefused": true,
+    "archiveAdversaries": [
+      "absolute path",
+      "traversal",
+      "duplicate",
+      "symlink",
+      "hardlink",
+      "unexpected file",
+      "unexpected directory",
+      "wrong outer checksum",
+      "wrong manifest pin",
+      "content changed under valid outer checksum",
+      "wrong ELF architecture",
+      "missing dependency",
+      "writable file"
+    ],
+    "mode": "0644 files; protected immutable-owner installation planned",
+    "runtimeCredentialsIncluded": false
+  },
+  "status": "PASS",
+  "limitations": "Pattern scan plus explicit source/content inventory; no claim of universal detection of arbitrary secrets."
+}

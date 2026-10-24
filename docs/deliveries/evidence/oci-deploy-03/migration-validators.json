@@ -1,0 +1,211 @@
+{
+  "inventory": {
+    "name": "inventory",
+    "status": "PASS",
+    "startedAt": "2026-10-14T03:47:20.143Z",
+    "result": {
+      "binary": "/private/tmp/traceflow-oci-deploy02.UhnVyN/mysql-8.4.8-macos15-arm64/bin/mysqld  Ver 8.4.8 for macos15 on arm64 (MySQL Community Server - GPL)",
+      "binarySha256": "04db8ce9d3a689227cab29dff4423cd7284e7f4d6d59a99ca6fe4d2580bacc00",
+      "models": 58,
+      "enums": 32,
+      "migrations": 67,
+      "migrationNames": [
+        "20260604224631_add_github_fields_to_project",
+        "20260605120000_create_commit_model",
+        "20260606120000_create_pull_request_model",
+        "20260606130000_create_issue_model",
+        "20260606140000_add_github_sync_settings_to_project",
+        "20260606233000_add_responsible_team_to_project",
+        "20260607021903_add_task_module",
+        "20260607024213_use_integer_task_effort",
+        "20260607030000_add_task_movements_for_kanban",
+        "20260607170000_adjust_kanban_project_members",
+        "20260607190000_add_requirement_module",
+        "20260608120000_add_task_pull_request_relation",
+        "20260610120000_add_task_commit_links",
+        "20260610130000_add_task_issue_links",
+        "20260611120000_add_github_sync_status_to_project",
+        "20260724120000_add_identity_session_authorization",
+        "20260724190000_add_privacy_audit_governance",
+        "20260725120000_e8_expand_task_pull_request",
+        "20260725121000_e8_indexes_and_constraints",
+        "20260725122000_e8_remove_redundant_indexes",
+        "20260725130000_e8_contract_remove_task_pull_request",
+        "20260725131000_e8_contract_remove_github_artifact",
+        "20260725132000_e8_contract_remove_trace_link",
+        "20260725140000_e10_add_task_commit_suggestions",
+        "20260726120000_e11_add_task_history",
+        "20260801120000_l1_identity_email_github_app",
+        "20260801160000_fix_github_repository_cardinality",
+        "20260802120000_l2_account_security_privacy",
+        "20260802171805",
+        "20260805120000_add_sprint_milestone_schedule",
+        "20260808120000_l1_1_github_identity_login",
+        "20260810120000_l1_2_github_multibranch",
+        "20260810190000_l1_2_1_github_sync_robustness",
+        "20260815120000_l2_1_invitations_members_roles",
+        "20260815230000_l5_1_project_access_invitations",
+        "20260816120000_s104_domain_fixes",
+        "20260820120000_lr2_contract_legacy_consolidation",
+        "20260820180000_lr3_github_hardening",
+        "20260820220000_lr4_privacy_lifecycle_hardening",
+        "20260821120000_lr5_gitbranch_case_sensitive",
+        "20260821180000_lr3_1_github_repository_authorization_migration",
+        "20260823120000_adr011_invert_milestone_sprint",
+        "20260824120000_lr9_github_oauth_app_decoupling",
+        "20260829120000_s1_05_add_task_comments",
+        "20260902120000_task_comment_cursor_index",
+        "20260904180000_planning_historical_snapshots",
+        "20260905010000_planning_frozen_cards_soft_delete",
+        "20260905030000_sprint_active_name_uniqueness",
+        "20260906120000_s1_06_task_time_entries",
+        "20260906150000_s1_06_half_hour_estimates",
+        "20260907120000_s1_07_test_cases",
+        "20260908190000_s108_defect_foundation",
+        "20260910120000_s109_requirement_traceability",
+        "20260910120000_s1_06_preserve_legacy_effort",
+        "20260912010000_s109_lifecycle_effort_history",
+        "20260921010000_project_deletion_retention",
+        "20260922010000_project_purge_fencing",
+        "20260924120000_s2_p1_indicator_data_foundation",
+        "20260924130000_s2_p1_lifecycle_coverage",
+        "20260924234000_s2_p3_lifecycle_coverage_start",
+        "20260925120000_s2_p5_1_sprint_burnup_history",
+        "20260925123000_s2_p5_1_burnup_project_scope",
+        "20261004090000_project_dashboard_preference",
+        "20261009120000_task_responsibility_snapshot_state",
+        "20261011000000_github_automatic_sync",
+        "20261011010000_github_scheduler_liveness",
+        "20261012000000_github_sync_run_actor_set_null"
+      ],
+      "migrationsSha256": "cc0e91a9b1185f5cead6e688e74881f5b6babcd9e69a0d1302fb9bfae7e693d6"
+    },
+    "finishedAt": "2026-10-14T03:47:20.290Z"
+  },
+  "validators": {
+    "name": "historical-migration-validators",
+    "status": "PASS",
+    "startedAt": "2026-10-14T03:47:30.260Z",
+    "result": [
+      {
+        "name": "lr5-schema-audit.js",
+        "args": [
+          "--enforce",
+          "--test"
+        ],
+        "status": 0,
+        "output": "{\n  \"mode\": \"LR5_SCHEMA_AUDIT\",\n  \"target\": {\n    \"host\": \"127.0.0.1\",\n    \"port\": \"56672\",\n    \"database\": \"tf_oci_df5096bc3034_test\"\n  },\n  \"server\": {\n    \"version\": \"8.4.8\",\n    \"databaseCharacterSet\": \"utf8mb4\",\n    \"databaseCollation\": \"utf8mb4_unicode_ci\"\n  },\n  \"gitBranch\": {\n    \"column\": {\n      \"columnType\": \"varchar(191)\",\n      \"isNullable\": \"NO\",\n      \"characterSet\": \"utf8mb4\",\n      \"collation\": \"utf8mb4_bin\"\n    },\n    \"caseSensitive\": true,\n    \"preflight\": {\n      \"total\": 0,\n      \"exactDistinct\": 0,\n      \"foldedDistinct\": 0,\n      \"exactDuplicateGroups\": 0,\n      \"caseVariantGroups\": 0\n    },\n    \"indexes\": [\n      {\n        \"indexName\": \"GitBranch_projectId_isActive_idx\",\n        \"nonUnique\": 1,\n        \"columns\": \"projectId,isActive\"\n      },\n      {\n        \"indexName\": \"GitBranch_projectId_isDefault_idx\",\n        \"nonUnique\": 1,\n        \"columns\": \"projectId,isDefault\"\n      },\n      {\n        \"indexName\": \"GitBranch_projectId_name_key\",\n        \"nonUnique\": 0,\n        \"columns\": \"projectId,name\"\n      },\n      {\n        \"indexName\": \"PRIMARY\",\n        \"nonUnique\": 0,\n        \"columns\": \"id\"\n      }\n    ]\n  },\n  \"referentialIntegrity\": {\n    \"foreignKeyCount\": 14,\n    \"orphanChecks\": {\n      \"membershipWithoutUser\": 0,\n      \"membershipWithoutProject\": 0,\n      \"invitationWithoutProject\": 0,\n      \"identityWithoutUser\": 0,\n      \"integrationWithoutProject\": 0,\n      \"branchWithoutProject\": 0,\n      \"commitBranchWithoutCommit\": 0,\n      \"commitBranchWithoutBranch\": 0\n    },\n    \"orphanTotal\": 0,\n    \"projectsWithoutActiveOwner\": 0\n  },\n  \"indexes\": {\n    \"inspected\": 215,\n    \"exactDuplicateDefinitions\": []\n  },\n  \"decision\": \"SCHEMA_CONSISTENT\"\n}\n"
+      },
+      {
+        "name": "validate-empty-migrations.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_lr2_empty_validation\",\"migrations\":\"ok\",\"users\":0,\"sessions\":0,\"emailChanges\":0,\"integrations\":0}\n"
+      },
+      {
+        "name": "validate-lr5-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"target\":{\"host\":\"127.0.0.1\",\"port\":\"56672\",\"database\":\"tf_oci_df5096bc3034_test\"},\"scenarios\":{\"populated\":{\"preflight\":{\"collation\":\"utf8mb4_unicode_ci\",\"total\":1,\"exactDistinct\":1,\"foldedDistinct\":1},\"preserved\":{\"users\":1,\"projects\":1,\"memberships\":1,\"tasks\":1,\"requirements\":1,\"commits\":1,\"branches\":1,\"branchLinks\":1,\"integrations\":1,\"privacyRequests\":1,\"invitations\":0},\"finalCollation\":\"utf8mb4_bin\",\"caseVariants\":3,\"traceLinks\":3,\"foreignKeyGuard\":\"blocked-membership-without-user\",\"ownerAtomicity\":\"rolled-back-project-without-valid-owner\",\"migrationStatus\":\"up-to-date\"},\"historical\":{\"preflight\":{\"collation\":\"utf8mb4_unicode_ci\",\"total\":1,\"exactDistinct\":1,\"foldedDistinct\":1},\"preserved\":{\"users\":1,\"projects\":1,\"memberships\":1,\"tasks\":0,\"requirements\":0,\"commits\":1,\"branches\":1,\"branchLinks\":1,\"integrations\":1,\"privacyRequests\":1,\"invitations\":1},\"finalCollation\":\"utf8mb4_bin\",\"branchState\":\"inactive-history-preserved\",\"migrationStatus\":\"up-to-date\"}}}\n"
+      },
+      {
+        "name": "validate-lr9-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_lr9_lr8_validation\",\"baseline\":\"LR.8 representative\",\"preserved\":{\"installations\":1,\"installationAuthorizations\":1,\"integrations\":1,\"commits\":1,\"pullRequests\":1,\"issues\":1,\"branches\":1,\"syncRuns\":1},\"obsoleteSnapshot\":\"removed\"}\n"
+      },
+      {
+        "name": "validate-lr2-legacy-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"target\":{\"host\":\"127.0.0.1\",\"port\":\"56672\",\"database\":\"tf_oci_df5096bc3034_test_lr2_legacy_validation\"},\"scenario\":\"representative-legacy-data\",\"migrations\":\"ok\",\"preLr2Migrations\":36,\"finalMigrations\":67,\"reapplication\":\"unchanged\",\"projectMemberGuard\":\"blocked-unreconciled-data-before-drop\",\"integration\":\"reconciled\",\"branchLinks\":1,\"removedLegacyStructures\":true}\n"
+      },
+      {
+        "name": "validate-s2-p1-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_s2_p1_upgrade_validation\",\"upgrade\":\"ok\",\"preserved\":[\"Project\",\"Task\",\"TaskMovement\",\"Commit\",\"PullRequest\",\"GitBranch\",\"CommitBranch\"],\"lifecycleEvents\":0}\n"
+      },
+      {
+        "name": "validate-s2-p3-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_s2_p3_upgrade_validation\",\"upgrade\":\"ok\",\"preserved\":[\"Project\",\"Task\",\"TaskMovement\",\"Commit\",\"PullRequest\",\"GitBranch\",\"CommitBranch\",\"PullRequestLifecycleEvent\"],\"lifecycleEvents\":1,\"legacyCoverageFrom\":null}\n"
+      },
+      {
+        "name": "validate-s2-p5-1-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"schema\":\"tf_oci_df5096bc3034_test_s2_p5_1_upgrade_validation\",\"upgrade\":\"ok\",\"activeAnchor\":true,\"oldCoverage\":null,\"effortPreserved\":1,\"events\":1,\"crossProjectRejected\":true}\n"
+      },
+      {
+        "name": "validate-dashboard-preference-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_preference_upgrade_validation\",\"upgrade\":\"ok\",\"uniquePair\":true,\"foreignKey\":true,\"userCascade\":true,\"projectCascade\":true}\n"
+      },
+      {
+        "name": "validate-task-responsibility-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_responsibility_upgrade_validation\",\"upgrade\":\"ok\",\"preserved\":[\"Project\",\"Task\",\"TaskMovement\",\"Commit\",\"PullRequest\",\"GitBranch\",\"CommitBranch\"],\"lifecycleEvents\":0}\n"
+      },
+      {
+        "name": "validate-github-sync-migration.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_github_sync_upgrade_validation\",\"migrations\":[\"20261011000000_github_automatic_sync\"],\"upgrade\":\"PASS\",\"preservedTables\":[\"User\",\"Project\",\"ProjectMembership\",\"GitHubInstallation\",\"ProjectGitHubIntegration\",\"GitHubSyncRun\",\"Commit\"],\"automaticActor\":null,\"reapply\":\"PASS\"}\n"
+      },
+      {
+        "name": "validate-github-sync-migration.js",
+        "args": [
+          "--liveness"
+        ],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_github_sync_upgrade_validation\",\"migrations\":[\"20261011010000_github_scheduler_liveness\"],\"upgrade\":\"PASS\",\"preservedTables\":[\"User\",\"Project\",\"ProjectMembership\",\"GitHubInstallation\",\"ProjectGitHubIntegration\",\"GitHubSyncRun\",\"Commit\"],\"automaticActor\":null,\"reapply\":\"PASS\"}\n"
+      },
+      {
+        "name": "validate-github-sync-migration.js",
+        "args": [
+          "--actor"
+        ],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_github_sync_upgrade_validation\",\"migrations\":[\"20261012000000_github_sync_run_actor_set_null\"],\"upgrade\":\"PASS\",\"preservedTables\":[\"User\",\"Project\",\"ProjectMembership\",\"GitHubInstallation\",\"ProjectGitHubIntegration\",\"GitHubSyncRun\",\"Commit\"],\"automaticActor\":null,\"reapply\":\"PASS\"}\n"
+      },
+      {
+        "name": "validate-schema-drift.js",
+        "args": [],
+        "status": 0,
+        "output": "{\"database\":\"tf_oci_df5096bc3034_test_schema_drift_validation\",\"fullSqlChain\":\"PASS\",\"schemaDrift\":\"NONE\",\"negativeControlExit\":2}\n"
+      }
+    ],
+    "finishedAt": "2026-10-14T03:48:11.272Z"
+  },
+  "server": {
+    "port": 56672,
+    "datadir": "/private/tmp/traceflow-oci-zdkIBn/data/",
+    "sqlMode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+    "version": "8.4.8",
+    "database": "tf_oci_df5096bc3034_test",
+    "timeZone": "+00:00",
+    "compileOs": "macos15",
+    "serverUuid": "f52bfff2-c781-11f1-a2c1-aa765239281d",
+    "compileMachine": "arm64",
+    "systemTimeZone": "UTC",
+    "versionComment": "MySQL Community Server - GPL",
+    "collationServer": "utf8mb4_0900_ai_ci",
+    "characterSetServer": "utf8mb4",
+    "lowerCaseTableNames": 2,
+    "defaultStorageEngine": "InnoDB",
+    "transactionIsolation": "REPEATABLE-READ",
+    "ownershipVerified": true,
+    "credentialScope": "owned-prefix-only",
+    "administrativeRead": "DENIED",
+    "invalidPassword": "REJECTED"
+  },
+  "cleanup": {
+    "serverStopped": true,
+    "ownedDirectoryRemoved": true
+  },
+  "scope": "isolated MySQL 8.4.8; unchanged SQL chain"
+}

@@ -11,6 +11,10 @@ import {
   resultOf
 } from '../../src/features/testCases/model/test-cases.js';
 import { testCasesApi } from '../../src/features/testCases/api/test-cases.api.js';
+import { recordResumable } from '../../src/features/testCases/api/resumable-uploads.api.js';
+vi.mock('../../src/features/testCases/api/resumable-uploads.api.js', () => ({
+  recordResumable: vi.fn()
+}));
 const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() }));
 vi.mock('../../src/api/http-client.js', () => ({ httpClient: http }));
 const form = {
@@ -117,7 +121,7 @@ describe('S1-07 API and payload contracts', () => {
     expect(body.get('evidence')).toBe(file);
     expect(body.get('stepEvidence.1')).toBe(stepFile);
     await testCasesApi.record(1, body);
-    expect(http.post).toHaveBeenCalledWith('/test-cases/1/executions', body, { timeout: 120000 });
+    expect(recordResumable).toHaveBeenCalledWith(1, body, undefined);
   });
   it('downloads only through authenticated blob transport', async () => {
     const signal = new AbortController().signal;

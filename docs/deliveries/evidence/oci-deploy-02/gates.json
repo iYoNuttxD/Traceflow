@@ -1,0 +1,68 @@
+{
+  "recordedAt": "2026-10-14T02:36:17.362949+00:00",
+  "baseline": "11eeea3137b0bccc8fcc69597e31ad26ea700a5c",
+  "branch": "daniel-dev",
+  "node": "22.23.3",
+  "gates": [
+    {
+      "command": "vitest run test/unit/oci-mysql-compatibility.test.js test/unit/serializable-transaction.test.js --reporter=json",
+      "environment": "temporary allowlisted workspace without .env; no database connection",
+      "status": "PASS",
+      "passed": 38,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "eslint src test scripts vitest.config.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node scripts/check-architecture.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node scripts/check-secrets.js",
+      "status": "PASS",
+      "files": 642
+    },
+    {
+      "command": "prettier --check src/**/*.js test/**/*.js scripts/**/*.js *.js package.json",
+      "status": "PASS"
+    },
+    {
+      "command": "check-npm-audit.mjs backend + frontend with current exception policy",
+      "status": "PASS",
+      "high": 0,
+      "critical": 0,
+      "exceptions": 0
+    },
+    {
+      "command": "Compare every INFORMATION_SCHEMA row field after canonical sorting",
+      "status": "PASS",
+      "environments": 3
+    },
+    {
+      "command": "git diff --exit-code; git diff --cached --exit-code",
+      "status": "PASS",
+      "trackedChanges": 0
+    }
+  ],
+  "notExecuted": [
+    "managed HeatWave validation",
+    "managed TLS identity and trust validation",
+    "production VM operations",
+    "coverage total",
+    "frontend build",
+    "remote CI",
+    "load test"
+  ],
+  "cleanup": {
+    "allOwnedMysqldStopped": true,
+    "allOwnedDatadirsRemoved": true,
+    "limaInstanceStopped": true,
+    "limaInstanceDeleted": true,
+    "temporaryLimaConfigurationAndIdentityRemoved": true,
+    "productionAccessed": false
+  },
+  "finalScriptReview": "After persistent suites, only the partial-initialization cleanup path of the concurrency probe changed; its regression is covered by the final unit run."
+}

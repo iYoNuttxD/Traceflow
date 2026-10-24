@@ -1,0 +1,165 @@
+{
+  "origin": "executed-local",
+  "environment": "local synthetic authorization only",
+  "date": "2026-10-15T17:11:27.350Z",
+  "command": "canonical connectionContract/protectedFile tests; launcher negative tests",
+  "result": {
+    "requiredFields": [
+      "formatVersion",
+      "operation",
+      "mode",
+      "approved (managed)",
+      "expiresAt",
+      "role",
+      "target.host",
+      "target.expectedAddress (managed)",
+      "target.port",
+      "target.schema",
+      "target.user",
+      "target.serverUuid",
+      "target.version",
+      "target.caSha256 (managed)"
+    ],
+    "realApprovedAuthorizationGenerated": false,
+    "newAuthorizationProperties": false,
+    "credentialFormat": "external JSON, password only, owned 0600, no symlink",
+    "tests": [
+      {
+        "name": "validate-only-no-connection",
+        "status": "PASS",
+        "result": {
+          "status": "CONFIG_VALID",
+          "connected": false,
+          "mode": "local-isolated",
+          "packageId": "traceflow-prisma-diagnostic-efa7abc8191bbf10",
+          "durationSeconds": 0.137
+        }
+      },
+      {
+        "name": "N13-expired",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "AUTHORIZATION_EXPIRED",
+          "writes": false,
+          "durationSeconds": 0.104
+        }
+      },
+      {
+        "name": "N28-migration-operation",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "READ_ONLY_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.105
+        }
+      },
+      {
+        "name": "N27-managed-no-approval",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "REMOTE_APPROVAL_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.106
+        }
+      },
+      {
+        "name": "N14-authorization-absent",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "ENOENT",
+          "writes": false,
+          "durationSeconds": 0.103
+        }
+      },
+      {
+        "name": "N15-permissions-authorization",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "PRIVATE_FILE_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.104
+        }
+      },
+      {
+        "name": "N16-symlink-authorization",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "UNSAFE_FILE",
+          "writes": false,
+          "durationSeconds": 0.101
+        }
+      },
+      {
+        "name": "N15-permissions-credential",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "PRIVATE_FILE_REQUIRED",
+          "writes": false,
+          "durationSeconds": 0.106
+        }
+      },
+      {
+        "name": "N16-symlink-credential",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "UNSAFE_FILE",
+          "writes": false,
+          "durationSeconds": 0.104
+        }
+      }
+    ],
+    "environmentRefusals": [
+      {
+        "name": "N17-inherited-database",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.018
+        }
+      },
+      {
+        "name": "N18-inherited-test",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.018
+        }
+      },
+      {
+        "name": "N19-inherited-migration",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.017
+        }
+      },
+      {
+        "name": "N05-tls-bypass-environment",
+        "status": "PASS",
+        "result": {
+          "status": "FAIL",
+          "code": "INHERITED_ENVIRONMENT_REFUSED",
+          "writes": false,
+          "durationSeconds": 0.018
+        }
+      }
+    ],
+    "identityDecision": "traceflow only before runtime if no same-UID processes and explicitly accepted; otherwise approve separate Unix identity outside scope"
+  },
+  "status": "PASS",
+  "limitations": "Somente laboratório; não comprova homologação gerenciada."
+}

@@ -487,6 +487,40 @@ describe('S1-07 integrated case flows', () => {
       expect(mocks.api.references).not.toHaveBeenCalled();
     }
   );
+  it('retains a manual reference and files when retrying a resumable upload', async () => {
+    mocks.api.detail.mockResolvedValue({
+      ...testCase,
+      capabilities: { ...testCase.capabilities, canUseManualReference: true }
+    });
+    mocks.api.record.mockImplementationOnce(async (_id, _body, options) => {
+      options.onProgress({ phase: 'ERROR', message: 'Envio interrompido.' });
+      throw Object.assign(new Error('Envio interrompido.'), { resumableUpload: true });
+    });
+    const user = await setup();
+    await start(user);
+    await user.type(dialog().getByLabelText('Versão testada *'), 'build local retomável');
+    await user.selectOptions(dialog().getByLabelText('Ambiente *'), 'LOCAL');
+    for (let i = 0; i < 5; i++) await finish(user);
+    const file = new File(['{}'], 'evidencia-local.json', { type: 'application/json' });
+    await user.upload(dialog().getByLabelText('Adicionar evidência'), file);
+    await user.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+    await within(dialog().getByRole('region', { name: 'Envio de evidências' })).findByRole('alert');
+    expect(dialog().getByLabelText('Versão testada *')).toHaveValue('build local retomável');
+    expect(dialog().getByText('evidencia-local.json')).toBeInTheDocument();
+    const retry = dialog().getByRole('button', { name: 'Retomar envio e confirmar execução' });
+    expect(retry).toBeEnabled();
+    await user.click(retry);
+    await waitFor(() => expect(mocks.api.record).toHaveBeenCalledTimes(2));
+    for (const [, body, options] of mocks.api.record.mock.calls) {
+      expect(JSON.parse(body.get('payload')).testedReference).toEqual({
+        type: 'MANUAL',
+        version: 'build local retomável'
+      });
+      expect(body.get('evidence')).toBe(file);
+      expect(options.onProgress).toEqual(expect.any(Function));
+    }
+    expect(mocks.api.references).not.toHaveBeenCalled();
+  });
   it('keeps observations and files across navigation and records all destinations once', async () => {
     mocks.api.record.mockResolvedValue({ ...execution, result: 'FAIL' });
     const user = await setup();

@@ -1,0 +1,34 @@
+{
+  "status": "PASS_LOCAL_PREPRODUCTION",
+  "sourceMain": "daf5c1e87082b8bba24c1ee5c87e2e09da73d86b",
+  "sourceDanielDev": "f43ccb2cdbecc395f977414e9f58fe4066faf47d",
+  "migrations": {
+    "main": 83,
+    "danielDev": 68,
+    "union": 84,
+    "allOriginalSqlBytesPreserved": true
+  },
+  "tests": {
+    "lifecycleAndBudgets": 66,
+    "backendIntegration": 179,
+    "githubHealthUploads": 92,
+    "frontendAffected": 70,
+    "cd": 65,
+    "operations": 25,
+    "retention": 4,
+    "ciPolicy": 59
+  },
+  "schemaDrift": "NONE; negative control exit 2",
+  "productionDependenciesAudit": {
+    "backend": 0,
+    "frontend": 0
+  },
+  "nativeEngine": "MySQL 26.7.0 on macOS ARM64",
+  "cloudEngine": "26.7.0-cloud; grants/settings/own-query interruption verified, new DDL NOT_EXECUTED",
+  "productionMutation": "No schema change or promotion; only private diagnostic connections and their own temporary query interruption",
+  "ci": "Previous incomplete PR runs canceled after a proven containment defect; definitive head pending",
+  "arm64OracleLinuxBuild": "NOT_EXECUTED_YET",
+  "demoSchemaUpgrade": "83\u219284 PASS; no production import; Health source unchanged",
+  "diffCheck": "No whitespace errors in new implementation changes; inherited EOF blank lines in original migrations/docs/systemd units preserved",
+  "diagnosticImportClosure": "PASS; seven required source files added, legacy inventories unchanged"
+}

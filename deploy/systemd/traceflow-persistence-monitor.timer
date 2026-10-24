@@ -1,0 +1,12 @@
+# Prepared template only; approval of policy and sensor collector is still required.
+[Unit]
+Description=Check TraceFlow persistence evidence every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=30
+Persistent=true
+Unit=traceflow-persistence-monitor.service
+
+[Install]
+WantedBy=timers.target

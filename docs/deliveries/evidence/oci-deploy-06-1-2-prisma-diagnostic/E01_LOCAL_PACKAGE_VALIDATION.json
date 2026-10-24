@@ -1,0 +1,270 @@
+{
+  "archiveSafetyAndContentScanner": "PASS",
+  "baseline": {
+    "branch": "daniel-dev",
+    "head": "4a9b64edb85d2c4e91fea8858972e42380b3ab92",
+    "initialWorkingTree": "clean",
+    "instrumentationCommittedInCurrentHead": true,
+    "investigationHead": "cf15522587b3de0293c951c83ffdd0165cd5d6e5"
+  },
+  "databaseConnection": false,
+  "engine": {
+    "elfClass": 2,
+    "endianness": 1,
+    "machine": 183,
+    "sha256": "116c9f3661e626c81587ab89cedc7e7d2ff3ac5ad53b7e3585bafb737546706c",
+    "size": 15335624
+  },
+  "historicalEvidencePreserved": {
+    "E01_BASELINE.json": "b17a94d6e4f0b1f584da1ff4e5b6e9c398a68a94acb36e33a62270b9439e0c17",
+    "E02_DEPENDENCIES.json": "322db32a0c512c3f7bf22a10ad875905caa1645d4c2d4a07cda6a42fa4a2b639",
+    "E03_BUILD.json": "a096f4c6d03a111d8e903267967da0298bd4cfa3917fa8b9ca4c95bf4ba3484c",
+    "E04_MANIFEST.json": "5981562fea0cdd8cbe53d3312dd9b8a038cfddf1e7008a2acea646967e502a36",
+    "E05_CHECKSUMS.json": "091183cbd2a88b3ce463cac1ec9bc7dff084be607399866de09f0629eed986ee",
+    "E06_PRISMA_CLIENT.json": "1b2b0ad905c29a263477dc2b4661e801a9194a98e1d99c0e069f06a9436e5dd3",
+    "E07_PRISMA_ENGINE.json": "0edafb9d34ebf4d667fee745cc185306f256a3eddbd1756850c2e1b85edba966",
+    "E08_PACKAGE_SECURITY.json": "4e3b8219077622aeee4c37a6ed7f88af5537474618724e4959618be6cebb578f",
+    "E09_POSITIVE_TESTS.json": "d18d18ec03564b00fc3a45f674d4f5b08748f4ba58f896c5ede0bd07eb5f05bd",
+    "E10_NEGATIVE_TESTS.json": "5c88006de2ebd33a2266a5fd4b0b6ae59a31343f55dacde39b18a87c398ffc90",
+    "E11_AUTHORIZATION.json": "35847ed7db57c4170a7f9a7ac4fa778628828ccb5976457ef8bfeae60882e531",
+    "E12_LINUX_ARM64.json": "2ed8e5b916c630f191454d60c75dce79af18bd832db43203d0bed4c3de88a454",
+    "E13_LOCAL_TLS.json": "96126068ccfbf0717cc51a9120a966fb4f279c389d396cfbd174c2f8c4ec162b",
+    "E14_OPERATOR_BOOTSTRAP.json": "cdc15729338d67fff7091dd64f603d4e3b4cc709bc6b8f41c37a06d6663537b8",
+    "E15_REMOTE_PROCEDURE.json": "44e42a8e4d8a7dad51f2b46a3f3fc684977043f1b7acc967f40961776d5b61fe",
+    "E16_QUALITY_GATES.json": "4fea5c0a28e8f0957c79c43754eabe133dc4216537b8d235c1a14c3b3132830e",
+    "E17_REMAINING_GATES.json": "faa11708a45aa837e7a97308962b89a466c9dcd49be3126f7d60c75bd909cde4"
+  },
+  "inventory": {
+    "backend/node_modules/.prisma/client/default.js": {
+      "mode": 420,
+      "sha256": "767a87e4a348d7fa0207db5d1fe010a5d0a9ed48aa9ef90eda1c6e0ff7f57ef8",
+      "size": 125
+    },
+    "backend/node_modules/.prisma/client/index.js": {
+      "mode": 420,
+      "sha256": "4fcca636df5aafc7e69d22ba5a6fba3961ca4eda43f6fcdaf224a87cc120e690",
+      "size": 365384
+    },
+    "backend/node_modules/.prisma/client/libquery_engine-linux-arm64-openssl-3.0.x.so.node": {
+      "mode": 420,
+      "sha256": "116c9f3661e626c81587ab89cedc7e7d2ff3ac5ad53b7e3585bafb737546706c",
+      "size": 15335624
+    },
+    "backend/node_modules/.prisma/client/package.json": {
+      "mode": 420,
+      "sha256": "5d1821658b6fe457236e1316d4e8789865180f1d20d574a149ae6e6dcb8d33fa",
+      "size": 4326
+    },
+    "backend/node_modules/.prisma/client/schema.prisma": {
+      "mode": 420,
+      "sha256": "df9cefe73b9ee08c277c405120cb8ba16482f80e27672ecef2052c20f6ccec38",
+      "size": 55920
+    },
+    "backend/node_modules/@prisma/client/LICENSE": {
+      "mode": 420,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "size": 11357
+    },
+    "backend/node_modules/@prisma/client/default.js": {
+      "mode": 420,
+      "sha256": "0cfff057c91fcb7559bd1a3bb4891404e455829ced5b18a87c9393ee1721ace4",
+      "size": 61
+    },
+    "backend/node_modules/@prisma/client/index.js": {
+      "mode": 420,
+      "sha256": "98ebb7453444d223cacae7a3d8ad655f29997523d9a1646d383f852b10ba70fa",
+      "size": 110
+    },
+    "backend/node_modules/@prisma/client/package.json": {
+      "mode": 420,
+      "sha256": "419d3a361c88d97b7f82b74ed6b10f6b92fd50d6b7bf1aaffcaace2e18f8c905",
+      "size": 10156
+    },
+    "backend/node_modules/@prisma/client/runtime/library.js": {
+      "mode": 420,
+      "sha256": "c7007ae0f7e447362dac9f28022ed902eb279ec73f7b630111d45d61c34a10e6",
+      "size": 202698
+    },
+    "backend/node_modules/dotenv/LICENSE": {
+      "mode": 420,
+      "sha256": "74b629b24865e1e83c5277ee84590b7937644d6fd959d0c7bdce758676cd2ced",
+      "size": 1294
+    },
+    "backend/node_modules/dotenv/lib/main.js": {
+      "mode": 420,
+      "sha256": "3381601545980775b6ecd2bf078ce369a3b24316e10a3182ab78811f01dc83b5",
+      "size": 10703
+    },
+    "backend/node_modules/dotenv/package.json": {
+      "mode": 420,
+      "sha256": "922be338d27d6b0b3a238f8da99daeb1f42ef972e71b4568d5104bbef661f5f5",
+      "size": 1688
+    },
+    "backend/package.json": {
+      "mode": 420,
+      "sha256": "2e778340cfdc3de4280aea302872be9fa917f7b456fce5f527e7b8c5fe022305",
+      "size": 139
+    },
+    "backend/prisma/schema.prisma": {
+      "mode": 420,
+      "sha256": "5ac65ff981ce2fde7f93955cf1a7cab63dce74fef7f9210f121335ac5937cd93",
+      "size": 55838
+    },
+    "backend/scripts/lib/database-safety.js": {
+      "mode": 420,
+      "sha256": "52e561e55e913308364f0a2719c688af8ba1e0491d778471e1b3684360dd1b92",
+      "size": 117
+    },
+    "backend/scripts/lib/heatwave-connection.js": {
+      "mode": 420,
+      "sha256": "91aedcd2956be6ed3e4d0aee12a9215068a166da68213fc4e2871dd097ad555f",
+      "size": 13909
+    },
+    "backend/scripts/lib/oci-compatibility-safety.js": {
+      "mode": 420,
+      "sha256": "45097beb2ce563d112d21db7eda14aa70edb745b9c2a1ce3fe11ca38e40881c3",
+      "size": 6207
+    },
+    "backend/scripts/validate-oci-heatwave-connection.js": {
+      "mode": 420,
+      "sha256": "8242be6b6a8d0a81452d23f2f2ca004dcfb6c9b9651928b7abd81e7adfbd2766",
+      "size": 5225
+    },
+    "backend/src/database/database-safety.js": {
+      "mode": 420,
+      "sha256": "702039c3416c4a268cb32641971c5973f6fff776bd5a42653524c225d75689bf",
+      "size": 3501
+    },
+    "backend/src/database/prismaClient.js": {
+      "mode": 420,
+      "sha256": "1b2ad17bf1ca9bb9dc3763db6bfb97999637da865204dd79eecf116fe2614596",
+      "size": 720
+    },
+    "deploy/scripts/diagnostic-launcher.mjs": {
+      "mode": 420,
+      "sha256": "044c4c7d818917b1e50e33cb85efadf46c7744a4a064596f0d32582442cf4572",
+      "size": 8629
+    },
+    "deploy/scripts/diagnostic-runtime.mjs": {
+      "mode": 420,
+      "sha256": "11c038d77b1211a423b275275bd952edb2d7e8de35fde9494366003977f720b3",
+      "size": 2305
+    },
+    "diagnostic-tool.py": {
+      "mode": 420,
+      "sha256": "a6b4a77d725f24c31f1a8368983ff8a28bde0db4c29de61e0a18b7d1cf254378",
+      "size": 11260
+    }
+  },
+  "isolatedImport": {
+    "allInsidePackage": true,
+    "clientConstructed": false,
+    "connected": false,
+    "loadedModules": 6,
+    "prisma": "6.12.0",
+    "status": "CLIENT_IMPORT_VALID"
+  },
+  "launcherMacRefusal": {
+    "exitCode": 1,
+    "output": {
+      "code": "LINUX_ARM64_REQUIRED",
+      "status": "FAIL",
+      "writes": false
+    },
+    "status": "PASS_EXPECTED_REFUSAL"
+  },
+  "limitations": [
+    "No new native Linux ARM64 runtime execution",
+    "No HeatWave or OCI access",
+    "D03 remains FAIL; original P2010 cause unknown",
+    "Secret scan uses patterns and exact public input allowlist, not a universal proof"
+  ],
+  "managedRuntime": "NOT_EXECUTED",
+  "manifestFiles": 24,
+  "nativeArm64Runtime": "NOT_EXECUTED",
+  "nativeRuntimeMacRefusal": {
+    "exitCode": 1,
+    "output": {
+      "code": "LINUX_ARM64_REQUIRED",
+      "connected": false,
+      "status": "FAIL"
+    },
+    "status": "PASS_EXPECTED_REFUSAL"
+  },
+  "oldArtifactPreserved": {
+    "artifact.json": "eb9db0cccbc11fd908bfbaa11ad73916f3ceea86246ef96ec9cbf870ddd62eeb",
+    "diagnostic-tool.py": "a6b4a77d725f24c31f1a8368983ff8a28bde0db4c29de61e0a18b7d1cf254378",
+    "manifest.json": "e155bf4ccf3e323a4fd2b0b9bafb1451713d1127bf501b9ca7df7ca17be00ea1",
+    "traceflow-prisma-diagnostic-efa7abc8191bbf10.tar.gz": "5344f07d4387f17f57d57e1418e0772a2a10b10ca51079f2b9f41080152a730b"
+  },
+  "package": {
+    "buildMethod": "offline-verified-dependencies",
+    "file": "traceflow-prisma-diagnostic-fa4a318dfa1c636d.tar.gz",
+    "head": "4a9b64edb85d2c4e91fea8858972e42380b3ab92",
+    "manifestSha256": "2bcaa329cb40f2767fe5e9b4df2125b39799c1b2e2db544843137e5d1fcceae5",
+    "nativeRuntime": "NOT_EXECUTED",
+    "packageId": "traceflow-prisma-diagnostic-fa4a318dfa1c636d",
+    "productionRelease": false,
+    "sha256": "00cfcc96f51c6cef36ed3753b77831bc000cb0e79add855f84abd9a75c782020",
+    "size": 7499618,
+    "sourceSha256": "fa4a318dfa1c636d6ae9611765710f28906d95c38defe3adc016cb37eaa3a92a",
+    "verifierSha256": "a6b4a77d725f24c31f1a8368983ff8a28bde0db4c29de61e0a18b7d1cf254378"
+  },
+  "packageUnchangedAfterTests": true,
+  "packagedInstrumentationTests": {
+    "fail": 0,
+    "outsideCheckout": true,
+    "pass": 40,
+    "prisma": "simulated",
+    "skipped": 0,
+    "tests": 40
+  },
+  "packager": {
+    "architecture": "arm64",
+    "nodeVersion": "22.23.3",
+    "os": "Darwin",
+    "pythonVersion": "3.9.6"
+  },
+  "reproducibility": {
+    "independentOfflineRuns": 2,
+    "tarManifestVerifierReceiptByteIdentical": true
+  },
+  "reusedDependencyFiles": 13,
+  "runtimeTarget": {
+    "engine": "linux-arm64-openssl-3.0.x",
+    "nodeVersion": "22.23.2",
+    "platform": {
+      "architecture": "arm64",
+      "distribution": "Oracle Linux 9.8",
+      "opensslMajor": 3,
+      "os": "linux"
+    },
+    "prismaVersion": "6.12.0"
+  },
+  "sourceInputs": 18,
+  "sourcesMatchCheckout": true,
+  "staticChecks": {
+    "eslint": "PASS",
+    "gitDiffCheck": "PASS",
+    "prettier": "PASS",
+    "pythonSyntax": "PASS",
+    "sqlQueries": 6,
+    "sqlTextOrderAndQ5Preserved": true
+  },
+  "status": "PASS LOCAL",
+  "tarMembers": 25,
+  "unitTests": {
+    "node": {
+      "fail": 0,
+      "pass": 40,
+      "skipped": 0,
+      "tests": 40
+    },
+    "python": {
+      "fail": 0,
+      "pass": 19,
+      "skipped": 0,
+      "tests": 19
+    }
+  }
+}

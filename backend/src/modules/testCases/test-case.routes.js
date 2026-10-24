@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import uploadRoutes from './evidence-upload.routes.js';
 import { emptyBodySchema, validateRequest } from '../../shared/validation/index.js';
 import { testCaseController as c } from './test-case.controller.js';
 import {
@@ -14,6 +15,7 @@ import {
 } from './test-case.schema.js';
 import { createEvidenceUpload } from './test-evidence.middleware.js';
 const router = Router();
+router.use(uploadRoutes);
 const params = validateRequest({ params: paramsSchema });
 router.get(
   '/projects/:projectId/test-cases',

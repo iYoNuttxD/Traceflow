@@ -1,3 +1,4 @@
+import { recordResumable } from './resumable-uploads.api.js';
 import { httpClient } from '../../../api/http-client.js';
 
 const compact = (params) =>
@@ -18,9 +19,12 @@ export const testCasesApi = {
   references: (id, search, options, retestDefectId) =>
     read(`/test-cases/${id}/tested-references`, { search, limit: 20, retestDefectId }, options),
   execution: async (id, options) => (await read(`/test-executions/${id}`, {}, options)).execution,
-  record: async (id, formData) =>
-    (await httpClient.post(`/test-cases/${id}/executions`, formData, { timeout: 120000 })).data
-      .execution,
+  record: async (id, formData, options) => {
+    if (Array.from(formData.keys()).some((field) => field !== 'payload'))
+      return recordResumable(id, formData, options);
+    return (await httpClient.post(`/test-cases/${id}/executions`, formData, { timeout: 120000 }))
+      .data.execution;
+  },
   content: (id, options) =>
     httpClient.get(`/test-evidence/${id}/content`, {
       ...options,
