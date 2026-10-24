@@ -1,4 +1,6 @@
 import { startTestServer } from '../helpers/http-server.js';
+import { gzipSync } from 'node:zlib';
+import { request as httpRequest } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express from 'express';
@@ -20,6 +22,34 @@ const silentLogger = Object.freeze({
   warn: vi.fn(),
   debug: vi.fn()
 });
+
+async function sendGzip(server, payload) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        host: '127.0.0.1',
+        port: server.address().port,
+        path: '/api/projects/join',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Encoding': 'gzip',
+          'Content-Length': payload.length
+        }
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () =>
+          resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) })
+        );
+        res.on('error', reject);
+      }
+    );
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
 
 function securityConfig(overrides = {}) {
   return {
@@ -92,6 +122,28 @@ describe('headers, body e CORS', () => {
       .set('Access-Control-Request-Method', 'POST')
       .set('Access-Control-Request-Headers', 'Authorization');
     expect(forbiddenHeader.status).toBe(403);
+  });
+
+  it('enforces the body limit after gzip decompression', async () => {
+    const app = createApp({ logger: silentLogger, securityConfig: securityConfig() });
+    const payload = gzipSync(Buffer.from(JSON.stringify({ name: 'x'.repeat(2048) })));
+    expect(payload.length).toBeLessThan(1024);
+    const response = await sendGzip(await startTestServer(app), payload);
+    expect(response.status).toBe(413);
+    expect(response.body.code).toBe(ERROR_CODES.PAYLOAD_TOO_LARGE);
+    expect(JSON.stringify(response.body)).not.toContain('x'.repeat(100));
+    expect((await request(await startTestServer(app)).get('/health')).status).toBe(200);
+  });
+
+  it('refuses invalid trailing gzip bytes without terminating the server', async () => {
+    const app = createApp({ logger: silentLogger, securityConfig: securityConfig() });
+    const payload = Buffer.concat([
+      gzipSync(Buffer.from('{"accessCode":"synthetic"}')),
+      Buffer.from('invalid gzip trailer')
+    ]);
+    const response = await sendGzip(await startTestServer(app), payload);
+    expect(response.status).toBe(400);
+    expect((await request(await startTestServer(app)).get('/health')).status).toBe(200);
   });
 
   it('rejeita JSON excessivo, malformado e content type inesperado com resposta segura', async () => {

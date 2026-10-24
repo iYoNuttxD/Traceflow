@@ -1,8 +1,8 @@
 # Integração dos Ciclos 1 e 2 e publicação OCI
 
-**Estado em 23/10/2026: PARTIAL — transporte migrador corrigido e comprovado com credenciais sintéticas; preflight real/revisão e novo GO pendentes. Produção integrada não publicada.**
-Este relatório registra a integração, as homologações e as duas execuções produtivas autorizadas.
-A execução adicional foi recusada no preflight, sem DDL ou cutover. A versão integrada não foi publicada.
+**Estado em23/10/2026: HOTFIX LOCAL PASS, CI/ARM64 pendentes. Produção b9c1beb9/68 preservada. Novo GO será solicitado antes de DDL/promoção.**
+Este relatório preserva a integração, as homologações e o histórico das execuções autorizadas.
+A execução mais recente foi recusada no build, antes do job de produção; a versão integrada não foi publicada.
 
 ## Código e proveniência
 
@@ -291,3 +291,196 @@ concluiu SUCCESS/readback externo às06:00:11 UTC (14,39 h na consulta). Não ho
 Para o novo plano, o contrato exige restore vinculado a esse id/cipher/manifest: o restore de22/10
 permanece histórico e não será apresentado como prova deste conjunto de23/10. O --check real
 com a conta migradora ainda não foi executado.
+
+## Fechamento da correção em23/10 — pronto para novo GO
+
+- [PR #33](https://github.com/iYoNuttxD/Traceflow/pull/33), head `51405eeb0082b7f94b45b6edb9929b9c6bda5a7b`,
+  merge `d0f577fc407d1780c88f100872d1c76967844489`. O proprietário integrou sem revisão, com a
+  regra desabilitada, e depois dispensou expressamente a revisão independente para os dois
+  hashes propostos. Não há aprovação independente registrada. A regra Protect main foi
+  restabelecida com uma revisão exigida e zero bypass. CI da PR e do merge passou; o job
+  [ARM64](https://github.com/iYoNuttxD/Traceflow/actions/runs/40019202656) concluiu SUCCESS.
+- Instalação restrita às21:15:08 UTC: receiver `29ca8fff2c86180d45279580fc29aa054810f6ff5553d2ea8bde31d8d41d49df`
+  e migrate `23c11eb5f15aed46948ed5068a094635384ee6fda1fe3891b094421549c7d4fa`, mais seus dois
+  fingerprints no cd.json. Versões anteriores em
+  `/var/lib/traceflow-live-cd/admin-updates/migrator-preflight-51405eeb0082`.
+  PIDs, current, ingress, ACLs/contextos SELinux, unidade CD e autoridade do workflow preservados.
+  Não houve bootstrap, restart de aplicação, alteração de secrets operacionais ou migrations.
+- **REAL_MIGRATOR_PREFLIGHT_PASS às21:15:28 UTC, 5,3 s totais**, usando o código instalado,
+  pai oneshot ainda activating e a credencial dedicada real. MySQL/TLS VERIFY_IDENTITY,
+  identidade/schema/privilégios, limite2, CLI Prisma e migrate diff PASS; schemaDrift=NONE.
+  Invocation ID `6c6effbe53374e78baccfbbfb46534cc`.
+  Evidência root: `/var/lib/traceflow-live-cd/diagnostics/heatwave-check-20261023211523`.
+  O ensaio só usou SELECT/SHOW e introspecção; a custódia autorizada realizou a rotação/unlock/lock
+  da conta dedicada, sem mudar grants. Conta bloqueada, zero sessões e credencial cifrada
+  temporária removida ao final. Nenhum DDL, quiescência, cutover ou request produtivo.
+- Backup automático de23/10 às06:00 UTC, id `20261023T060005Z-8e686a25d1584fd492f6e044c111bfea`,
+  SUCCESS/readback. Restore real do MESMO conjunto PASS em **7,3 s**: 61 tabelas, 68 migrations,
+  116 FKs sem órfãos, todos os dados/estruturas, um arquivo e configurações iguais; volume
+  cifrado/limpeza PASS, sem conexão à OCI. Cipher `3e2c5cd88139dcb1322aef3b0e4ddd5ebb4b6e6fd9b4e22d5e07b181bb7a61fa`;
+  manifesto `409779a70baaf7647925dd8a564fb468387fb09ca2f108f60bdf7fb0548408b2`.
+  O MySQL global do Mac avançou para26.10; foi usada uma cópia isolada26.7 da distribuição
+  Homebrew, com SHA-256 do bottle oficial conferido e apenas relocação de prefixo local.
+  A verificação oficial de versão e todas as comparações de restore permaneceram intactas.
+  Não houve captura adicional nem alteração do MySQL global.
+- Extração inativa da39721691174 preservada em
+  `/opt/traceflow-live/releases/81718c29ade2550d33fa7986defa3d96dc3c7b34-a76e39a50011-preserved-failed-39721691174`.
+  Referências por processos/configurações e listener3002 ausentes; inventário/inodes/conteúdo/
+  ACLs/SELinux idênticos após rename. Um primeiro gate de lock recusou antes de qualquer
+  alteração; a consulta seguinte comprovou zero locks/destino/journal ausentes, e houve uma
+  única renomeação efetiva. Nenhuma evidência ou versão ativa foi excluída.
+- Auditoria final às21:18:42 UTC: b9c1beb9, 68 migrations com checksums exatos, 61 tabelas/116 FKs,
+  HTTPS/frontend/readiness PASS, MySQL/worker saudáveis, todos os timers ativos, 24 fingerprints
+  válidos, SELinux Enforcing, migrador encerrado. Backup com15,308 h de idade; contrato máximo26 h.
+
+O plano anterior expirado permanece preservado. Há somente um rascunho não consumível com
+as mesmas16 adições/provas e o backup novo, sem issuedAt/expiresAt nem declaração atual de
+exclusão de escritores. Depois do novo GO será emitido plano exclusivo (até4 h), request novo
+pela CD existente e aprovação humana obrigatória de production. O candidato segue81718c29 e
+pacote a76e39a5, sem reconstrução ou mudança funcional nesta correção.
+
+**A promoção/DDL ainda NÃO está autorizada.** Solicitar um único GO, incluindo confirmação
+atual da exclusão dos demais escritores. DDL parcial implica parada/intervenção, sem retry,
+resolve/reset ou restore destrutivo. Após schema completo, eventual rollback de binário
+preserva o schema84; a compatibilidade funcional bidirecional integral continua não comprovada.
+S2-08 IaC permanece PARTIAL; S2-09 com migrations produtivas continua PARTIAL até a promoção.
+O OAuth antecipado foi bloqueado pela revisão automática antes da ação e foi adiado para
+os testes pós-GO, conforme o escopo; nenhuma sessão foi criada nesse teste antecipado.
+
+## Publicação autorizada em23/10 — execução em andamento
+
+O operador concedeu o novo GO: “GO — uma publicação, escritores excluídos até o encerramento”.
+Abrange o mesmo candidato81718c29/pacotea76e39a5, custódia temporária, parada coordenada e16
+migrations. Mantidos: uma execução, aprovação humana de production e intervenção em DDL parcial.
+
+Às23:24:42 UTC, leitura atual comprovou b9c1beb9/68/61tabelas/116FKs, HTTPS/readiness,24
+fingerprints e timers íntegros; nenhuma credencial migradora temporária. Backup de23/10
+com17,409h, vigente com readback e restore real já comprovados, sem nova captura.
+
+Plano protegido exclusivo `aa5b054d7cccd3e535d67bd2187a1132215300a095762df6bb869e4d508d0500`,
+emitido23:25:23 UTC, válido até24/10 03:25:23 UTC, com os mesmos hashes de homologação
+e o restore do backup diário. Os documentos anteriores permanecem intactos.
+[CD40039599837](https://github.com/iYoNuttxD/Traceflow/actions/runs/40039599837) disparada
+uma vez às23:25:33 UTC na main d0f577fc. Build/homologação em andamento; nenhuma migration
+ou promoção declarada nesta atualização. A proteção da main está ativa, uma revisão e sem bypass.
+
+## Resultado da execução40039599837 — BLOCKED, produção preservada
+
+A execução autorizada [40039599837](https://github.com/iYoNuttxD/Traceflow/actions/runs/40039599837)
+foi encerrada sem retry. O ensaio CD passou nos93 testes; o teste isolado real de schema84,
+API e worker também passou. Em23/10 às23:27:59 UTC, a primeira montagem ARM64 foi interrompida
+por `npm --prefix backend audit --omit=dev --audit-level=high` (exit1). Não se declara build
+reproduzível completo nem comparação de artefato desta execução: ela parou antes da emissão.
+
+Causa específica: **body-parser1.20.8 e zod4.4.3 com vulnerabilidades high**; adicionalmente
+ip-address10.7.3 e nodemailer10.0.9 com moderate. Total:2 high e2 moderate. Os alertas high:
+
+- [GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828): body-parser <1.20.9;
+  correção1.20.9, advisory publicado22/10 e atualizado23/10.
+- [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5): zod <4.6.6;
+  correção4.6.6, revisão/atualização23/10.
+
+Os PASSs anteriores de CI/audit permanecem evidência histórica, não substituem esse gate atual.
+Nenhum audit foi ignorado, flexibilizado ou convertido em PASS. Corrigir dependências exige
+novo SHA/pacote e validação correspondente; o pacotea76e39a5 não pode ser alterado mantendo a
+identidade aprovada. Conforme a regra de parada diante de falha nova, não se iniciou essa
+correção de aplicação nem outra execução automaticamente.
+
+**Produção ignorada pelo workflow:** job production=skipped; nenhuma aprovação do ambiente
+solicitada, request assinado ou release de promoção publicado. A custódia migradora preparada
+localmente NÃO foi executada: nenhuma senha foi gerada/provisionada nesta execução. O plano
+novo permanece original e não utilizado; não reutilizar esse GO/request para outra publicação.
+
+Leitura final real às23:29:12 UTC confirmou: **b9c1beb9,61 tabelas,68 migrations,116 FKs**,
+nomes/checksums exatos; HTTPS/frontend/readiness PASS; API,worker,Nginx e timers ativos,
+monitoramento sem falhas;24 fingerprints intactos e SELinux Enforcing. Não existem recibo,
+diretório de trabalho ou extração do candidato dessa execução na OCI, nem guard de DDL,
+listener3002 ou credencial migradora temporária. Current, ingress e horários de início dos
+serviços preservados. Nenhuma parada, migration, cutover ou recuperação de produção necessária.
+Backup diário/readback/restore preservados; zero capturas adicionais.
+
+Evidências sanitizadas: `docs/deliveries/evidence/s2-integration-release/CURRENT_VALIDATION.json`
+e `build/cd-migrator-preflight/PUBLICATION_FINAL_RESULT.json`; log bruto somente local protegido.
+S2-09 C1/C2 permanece PARTIAL até publicação/homologação pública; S2-08 IaC e rollback funcional
+integral após schema expandido continuam PARTIAL. A CD sem mudança de schema já comprovada
+e a S2-10 permanecem preservadas.
+
+## Hotfix de dependências após40039599837 — validação local
+
+Branch isolada `fix/c1c2-dependency-hotfix`, originada da main d0f577fc e preservando os dois
+commits documentais locais do diagnóstico anterior. Nenhuma mudança em backend/src, frontend,
+schema ou qualquer uma das84 migrations versus81718c29. Express permanece4.22.3.
+
+| Dependência | Anterior | Corrigida | Motivo |
+| --- | --- | --- | --- |
+| body-parser, transitiva do Express4 | 1.20.8 | 1.20.9 | GHSA-27r3-jxmh-p828 |
+| zod | 4.4.3 | 4.6.6 | GHSA-mrhx-c7xc-m3w5 |
+| ip-address, transitiva do rate limiter | 10.7.3 | 10.7.4 | GHSA-rxp7-6hxx-x8q5 |
+| nodemailer | 10.0.9 | 10.1.4 | GHSA-39m8-27wv-hr27 e correções posteriores de destinatários |
+| multer | 2.4.0 | 2.5.0 | GHSA-q7qp-rjg7-q26m, HIGH encontrado no audit atual |
+
+O primeiro update Nodemailer10.0.10 corrigiu o advisory pedido, mas o audit ainda encontrou
+GHSA-8c8m-p3m8-cjg8, GHSA-m943-m63m-w62w e GHSA-85x2-q946-cp5h;10.1.4 corrige os três.
+O update foi dirigido, sem force, waiver, novo override ou mudança major. O lockfile muda
+apenas as cinco bibliotecas e os metadados do manifesto raiz; frontend permanece idêntico.
+
+`npm ci` backend/frontend PASS. Audit produtivo com o gate original high: **zero vulnerabilidades
+em todas as severidades nos dois pacotes**. Lint, formatação e scan de segredos PASS.
+Testes focados:14 arquivos/166 testes PASS e security.test.js/24 testes PASS, total190.
+Os primeiros comandos locais não usaram cwd/URLs/Client gerado corretos; os logs preservam
+as recusas de preparação. Corrigida a preparação, sem alterar código produtivo ou relaxar
+assertivas. A fixture de evidência por passo passou a PNG, conforme o contrato existente.
+
+Inventário Zod:8 arrays externos, todos já com max explícito; nenhum ZodSet/ZodMap em src.
+Testes novos exercitam os limites e max+1 de requisitos, sprints, tarefas de casos de teste,
+passos de definição/execução, defeitos, widgets e manifesto de upload. Não foi necessário
+alterar validadores. Body HTTP padrão100kb, configuração máxima10mb e webhook raw1mb
+preservados; teste gzip por HTTP real loopback valida413 após descompressão e400 para
+trailer inválido, mantendo o servidor vivo. Nodemailer real JSON transport valida templates
+e preservação do destinatário em comentários aninhados/grupos e local part quoted.
+Nenhuma mensagem externa ou credencial de produção foi usada nesses testes.
+
+**Runtime por leitura real em23/10 às23:45:33 UTC:** API/worker usam `/usr/bin/node-22`
+22.23.2; RPM22.23.2-2 registra backportsCVE-2026-9496/CVE-2026-19534. Nginx1.20.1,
+RPM1.20.1-28.0.1.el9_8.6 registra patches da distribuição, inclusiveCVE-2026-42533.
+Ambos os pacotes informam instalação em13/10. Não foi observada22.23.4 em produção;
+a condição para alinhar o builder a22.23.4 não se comprovou. Não se declara atualização
+nova nem cobertura universal de advisories. Node/Nginx não foram modificados. Builder
+permanece22.23.2, com SHA oficial ARM64 `fff4078c5def658577f92c88db7db3bc0072924bfb93fe52c1e744a54e94abb8`
+reconsultado em nodejs.org; nenhum contrato de versão foi afrouxado. SELinux Enforcing e
+receiver29ca8fff/migrador23c11eb5 preservados.
+
+Próximos gates desta mesma entrega: CI do SHA exato, dupla montagem ARM64 e homologação
+isolada do mesmo candidato. Novo pacote/manifesto obrigatórios; o pacotea76e39a5 não será
+reutilizado sob nova identidade. Schema alvo inalterado; o novo plano deverá vincular o
+novo SHA e provas correspondentes, com timestamps reais somente após GO. Backup diário e
+restore serão conferidos antes do resumo produtivo. Nenhuma promoção, DDL, nova captura,
+modificação de configuração operacional ou custódia migradora ocorreu neste hotfix local.
+
+### Complemento do gate completo de CI — mesma entrega
+
+A revisãofdf855f8 abriu a PR34 e o CI40042006958 encontrou Zod4.4.3 transitivo **de
+desenvolvimento** do eslint-plugin-react-hooks no frontend. O audit produtivo omit=dev
+continuava zero; o gate completo corretamente recusou HIGH. Avisos moderados no ferramental
+Vitest/coverage/mocker e Undici também foram corrigidos. Frontend/src permanece idêntico;
+manifests/lockfiles do ferramental foram atualizados, portanto a afirmação anterior sobre
+lockfile frontend idêntico descreve somente a revisão inicial, não o candidato final.
+
+Vitest/coverage4.1.12 nos dois projetos; Zod transitivo frontend4.6.7 e Undici7.30.1.
+Transitivos atualizados pertencem à resolução compatível do ferramental (incluindo Vite/
+Rolldown do teste backend); não entram no backend produtivo após prune. O gerador npm10.9.9
+falhou internamente em Arborist edgesOut; os manifests/lockfiles foram resolvidos pelo
+npm11.20.0 já instalado, sob Node22, com peers normais. npm ci10.9.9 validou ambos.
+Sem force, legacy-peer-deps, alteração de política ou exceção. Audits completos backend e
+frontend: **zero em todas as severidades**. Os comandos exatos de Supply Chain passaram.
+
+**15 arquivos/190 testes focados PASS com Vitest4.1.12**. Lint/formatação preservados.
+Não houve repetição idêntica do CI: a revisão seguinte é necessária porque o lockfile do
+frontend foi corrigido após a recusa; o CI completo será exigido nesse SHA definitivo.
+
+Ensaio MySQL26.7 nativo inicial: upgrade68→84 PASS em2,772s,60 tabelas/10 registros sintéticos
+preservados,145FKs/backfills. A API recusou readiness porque o caminho temporário local
+atravessava o symlink /var; o storage fez a recusa prevista. Os processos foram encerrados
+e o workspace removido. O auxiliar local agora usa o caminho real resolvido; nenhum gate
+de storage foi relaxado e nenhuma mudança no código funcional foi necessária. Os logs
+originais estão preservados em build/c1c2-dependency-hotfix/native-attempt1/.

@@ -686,8 +686,18 @@ bloqueado e credencial temporária removida. Sem nova tentativa automática. Rec
 C2/PDF ainda não homologados nessa release; sem import do dataset. S2-08 IaC e rollback integrado
 mantêm as ressalvas. Em23/10: 93 testes CD PASS e prova nativa da correção de transporte
 --pipe → saída exclusiva root/0600 aberta pelo systemd, mantendo o sandbox e SELinux.
-Revisão, preflight HeatWave real e novo GO produtivo ainda pendentes.
-Nenhuma nova instalação, migration ou promoção. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
+PR #33 integrada com dispensa explícita de revisão independente e checks verdes; proteção
+restabelecida. Receptor instalado/verificado, preflight HeatWave real PASS em5,3 s e
+backup diário de23/10 restaurado em7,3 s. Após o novo GO, a execução40039599837 foi recusada
+no npm audit ARM64 (body-parser1.20.8 e zod4.4.3 high;2 moderate adicionais), antes do job
+production. Nenhuma custódia migradora, DDL, parada ou cutover; leitura final às23:29 UTC
+confirma b9c1beb9/68 saudável e operações preservadas. Sem retry ou gate relaxado; candidato
+integrado ainda não publicado. Evidências: `docs/deliveries/S2_INTEGRATION_AND_RELEASE_REPORT.md`.
+
+Hotfix posterior: cinco dependências corrigidas sem alteração de código funcional ou das84
+migrations; audits produtivos backend/frontend zerados e190 testes focados PASS. Node/Nginx
+conferidos por leitura e preservados. CI/ARM64 do novo candidato e novo GO produtivo pendentes;
+nenhuma publicação C1/C2 declarada. Evidências no relatório de integração acima.
 
 ### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
