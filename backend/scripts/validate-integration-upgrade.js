@@ -91,10 +91,12 @@ try {
     data: { userId: user.id, projectId: project.id, role: 'OWNER' },
     select: { id: true }
   });
-  const requirement = await client.requirement.create({
-    data: { projectId: project.id, title: 'Preservar dados' },
-    select: { id: true }
-  });
+  // Seed the historical schema without defaults introduced by the candidate client.
+  await client.$executeRaw`INSERT INTO Requirement (projectId,title,type,status,createdAt,updatedAt)
+    VALUES (${project.id},'Preservar dados','FUNCIONAL','PLANEJADO',NOW(3),NOW(3))`;
+  const [requirement] =
+    await client.$queryRaw`SELECT id FROM Requirement WHERE projectId=${project.id} AND title='Preservar dados'`;
+  assert.ok(requirement?.id, 'Historical requirement fixture missing.');
   const pr = await client.pullRequest.create({
     data: {
       projectId: project.id,
