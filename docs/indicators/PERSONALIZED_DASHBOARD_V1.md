@@ -103,9 +103,12 @@ para retorno de foco ao fechar/cancelar e nova fixação; visitas novas sem fixa
 exibem esse painel. Falha do catálogo permite remover pelo mesmo editor, com edição
 indisponível até recuperar o catálogo.
 
-Buscar e filtrar, Personalizar painel e atualização ficam juntos em controles compactos,
-com alvos de ao menos 44px. No mobile, quebram linha. As abas são preservadas acima;
-os campos expandidos ocupam toda a região abaixo, com resumo, contador e limpeza.
+Somente na Visão Geral, a barra Buscar e filtrar mantém título, resumo e contador
+e ocupa o espaço disponível; Personalizar painel e atualização ficam no canto direito.
+Os campos expandidos ocupam toda a largura abaixo. No mobile, as ações passam para
+a linha seguinte, com alvos de ao menos 44px. Na página de Indicadores, inclusive
+Meu painel, o layout anterior é preservado: filtros em largura total acima da barra
+de abas, personalização e atualização. Expandir filtros não invade as abas.
 
 O DELETE continua sendo o reset completo da API, distinto de remover a fixação.
 

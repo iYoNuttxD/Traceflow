@@ -5,6 +5,38 @@ preservado **max-dev → daniel-dev**, base `6de5ece5e7af3a7edcd1c24f15f78f16d0b
 Implementação em worktree isolado; checkout original e suas demais worktrees preservados.
 Sem acesso à OCI, alteração de privilégios produtivos, deploy ou merge da PR.
 
+## Retificação visual após revisão do usuário
+
+A primeira correção visual (`3402c239`) foi rejeitada: aplicou a compactação também
+em Indicadores, fora do escopo pretendido, e colocou filtros expandidos na barra de
+abas de Meu painel. A regra grid existente dessa toolbar fez os filtros disputarem
+a linha com as abas. A inspeção anterior não cobriu adequadamente esse caso e não
+serve como aprovação dessa distribuição.
+
+A correção restaura o CSS compartilhado original de filtros e a toolbar original de
+Indicadores. Os filtros voltam a ocupar largura total acima de abas e ações, tanto
+em Geral quanto em Meu painel. Só a Visão Geral tem a barra ampla com personalização
+e atualização à direita; os inputs expandidos continuam abaixo, em largura total.
+No mobile, as ações ficam na linha seguinte. Remoção continua exclusivamente no editor.
+Backend, migrations, cálculo de indicadores, API e preferências não foram alterados
+nesta retificação.
+
+[Registro da nova inspeção](evidence/pr25-review-20261024/ui-scope-correction.json).
+Chrome com API real e MySQL sintético: 1440×900 e 390×844, claro/escuro, filtros abertos
+e recolhidos, Indicadores/Meu painel e Visão Geral. Em desktop, a barra de filtros de
+Indicadores tem 1104px e termina 24px antes da toolbar de abas; em mobile, tem 358px
+e conserva a mesma separação. A Visão Geral reserva 228px para ações no desktop,
+com toggle de aproximadamente 858px. Não houve overflow horizontal da página.
+Remover, rascunho, cancelar, foco no opener, nova fixação, período/limpeza e abas por
+teclado foram exercitados. A exportação das capturas continua indisponível (EPERM);
+as imagens foram inspecionadas na sessão e as medidas estão versionadas.
+
+Validação desta retificação: 121 testes direcionados; frontend completo com
+**1.885 PASS / 152 arquivos**, cobertura **87,13% / 81,60% / 83,27% / 89,39%**
+(statements/branches/functions/lines), lint, formatação e build aprovados. Nenhum
+threshold, skip ou waiver adicionado. A CI do novo SHA é registrada na descrição da
+PR; o resultado da CI #207 pertence ao head anterior e não aprova esta retificação.
+
 ## PR25-01 — causa e solução
 
 `CREATE TEMPORARY TABLE` requer um privilégio ausente no migrador OCI. O teste antigo
@@ -71,11 +103,12 @@ O resultado remoto deve ser conferido no novo SHA, sem reutilizar checks anterio
   permitir nova fixação. Cancelar não salva o rascunho. Nova visita sem pin oculta o painel.
 - Falha de catálogo mantém a remoção no mesmo editor, com edição indisponível para não
   sobrescrever widgets desconhecidos. Loading, erro, retry e sucesso mantêm seus fluxos.
-- Filtro compacto, personalização e atualização ficam juntos; abas permanecem acima.
-  Campos expandidos ocupam a região abaixo. Mobile quebra linha sem reduzir alvos/fontes.
-  Nenhuma regra de cálculo de indicadores ou Health foi modificada.
+- Somente na Visão Geral, a barra ampla de filtros reserva espaço à direita para
+  personalização e atualização. Em Indicadores, os filtros mantêm o layout anterior
+  acima da toolbar de abas. Campos expandidos usam toda a largura. Mobile quebra
+  linha sem reduzir alvos/fontes. Nenhuma regra de cálculo foi modificada.
 
-## Inspeção real da interface
+## Inspeção anterior da interface (histórico; retificada acima)
 
 [Registro de medições e interações](evidence/pr25-review-20261024/ui-inspection.json).
 Chrome autenticado, API real e schema sintético separado dos testes automáticos.
@@ -92,7 +125,7 @@ filesystem somente leitura da ferramenta de navegador impediu sua exportação p
 arquivos. As medições e resultados estão versionados. Esta é inspeção técnica, não
 aprovação visual humana. Dispositivos físicos e outros navegadores não foram certificados.
 
-## Validação local definitiva
+## Validação local anterior (backend preservado; frontend retificado acima)
 
 - Instalação limpa por lockfile, Node 22.23.3; nenhum lockfile ou threshold alterado.
 - Backend completo uma vez: **3.481 PASS, os mesmos 5 skips legados**, 270 arquivos

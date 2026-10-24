@@ -407,6 +407,120 @@ export function DashboardPanel({ projectId, refreshVersion = 0, overview = false
   // Keep the original opener mounted after removal for focus return and re-pinning
   // during this visit; the dashboard itself disappears immediately.
   const controlsOnly = overview && !enabled && editorAccessProject === projectId;
+  const toolbarActions = (
+    <div className="dashboard-panel__toolbar-actions">
+      {view === 'CUSTOM' && (
+        <button
+          type="button"
+          className="button button-secondary"
+          ref={personalizeRef}
+          disabled={
+            preferenceState.saving ||
+            !preferenceState.preference ||
+            ((!catalogState.personalization || !catalog) &&
+              !preferenceState.preference.pinnedToOverview &&
+              !controlsOnly)
+          }
+          onClick={() => {
+            setEditorAccessProject(projectId);
+            setSavedContext(null);
+            setEditorContext(projectId);
+          }}
+        >
+          Personalizar painel
+        </button>
+      )}
+      <button
+        hidden={controlsOnly}
+        type="button"
+        className="dashboard-panel__refresh"
+        aria-label="Atualizar indicadores"
+        title="Atualizar indicadores"
+        disabled={loading || dashboardError?.status === 429 || Boolean(invalidPeriod)}
+        onClick={() => setManualRefresh((value) => value + 1)}
+      >
+        <span
+          aria-hidden="true"
+          className={
+            loading
+              ? 'dashboard-panel__refresh-icon dashboard-panel__refresh-icon--loading'
+              : 'dashboard-panel__refresh-icon'
+          }
+        >
+          ↻
+        </span>
+      </button>
+    </div>
+  );
+  const filters = (
+    <CollapsibleFilterPanel
+      controlsOnly={controlsOnly}
+      actions={overview ? toolbarActions : undefined}
+      onClear={clearFilters}
+      canClear={Boolean(activeFilterCount > 0 || draft.startDate || draft.endDate)}
+      activeCount={activeFilterCount}
+      resultLabel={filterSummary || 'Todos os dados disponíveis'}
+      className="indicator-filters"
+    >
+      <div
+        id="dashboard-indicator-filters"
+        className="dashboard-panel__filters"
+        role="group"
+        aria-label="Filtros de indicadores"
+      >
+        <fieldset className="dashboard-panel__period" aria-label="Período">
+          <label className="sprint-filter">
+            <span>De</span>
+            <input
+              type="date"
+              value={draft.startDate}
+              aria-invalid={Boolean(filterError)}
+              aria-describedby={filterError ? 'indicator-period-error' : undefined}
+              onChange={(event) => updateFilter('startDate', event.target.value)}
+            />
+          </label>
+          <label className="sprint-filter">
+            <span>Até</span>
+            <input
+              type="date"
+              value={draft.endDate}
+              aria-invalid={Boolean(filterError)}
+              aria-describedby={filterError ? 'indicator-period-error' : undefined}
+              min={draft.startDate || undefined}
+              onChange={(event) => updateFilter('endDate', event.target.value)}
+            />
+          </label>
+          {filterError && (
+            <p id="indicator-period-error" role="alert" className="dashboard-panel__filter-error">
+              {filterError}
+            </p>
+          )}
+        </fieldset>
+        <label className="sprint-filter">
+          <span>Sprint</span>
+          <SelectControl
+            value={sprintId}
+            onChange={(event) => updateFilter('sprintId', event.target.value)}
+          >
+            <option value="">Seleção automática</option>
+            {sprints.map((sprint) => (
+              <option key={sprint.id} value={sprint.id}>
+                {sprint.name} · {labelForField(sprint.status)}
+              </option>
+            ))}
+          </SelectControl>
+        </label>
+        {sprintState.projectId === projectId && sprintState.error && (
+          <div className="dashboard-panel__filter-error" role="alert">
+            <p>{sprintState.error}</p>
+            <button type="button" onClick={() => setSprintRefresh((value) => value + 1)}>
+              Recarregar Sprints
+            </button>
+          </div>
+        )}
+      </div>
+    </CollapsibleFilterPanel>
+  );
   const panel = (
     <section
       className={`dashboard-panel${overview ? ' dashboard-panel--overview' : ''}`}
@@ -446,10 +560,11 @@ export function DashboardPanel({ projectId, refreshVersion = 0, overview = false
           }
         />
       )}
-      <div
-        className={`dashboard-panel__toolbar${view === 'CUSTOM' ? ' dashboard-panel__toolbar--custom' : ''}`}
-      >
-        {!overview && (
+      {filters}
+      {!overview && (
+        <div
+          className={`dashboard-panel__toolbar${view === 'CUSTOM' ? ' dashboard-panel__toolbar--custom' : ''}`}
+        >
           <div
             className="internal-tabs dashboard-panel__tabs"
             role="tablist"
@@ -472,124 +587,9 @@ export function DashboardPanel({ projectId, refreshVersion = 0, overview = false
               </button>
             ))}
           </div>
-        )}
-        <CollapsibleFilterPanel
-          compact
-          controlsOnly={controlsOnly}
-          actions={
-            <div className="dashboard-panel__toolbar-actions">
-              {view === 'CUSTOM' && (
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  ref={personalizeRef}
-                  disabled={
-                    preferenceState.saving ||
-                    !preferenceState.preference ||
-                    ((!catalogState.personalization || !catalog) &&
-                      !preferenceState.preference.pinnedToOverview &&
-                      !controlsOnly)
-                  }
-                  onClick={() => {
-                    setEditorAccessProject(projectId);
-                    setSavedContext(null);
-                    setEditorContext(projectId);
-                  }}
-                >
-                  Personalizar painel
-                </button>
-              )}
-              <button
-                hidden={controlsOnly}
-                type="button"
-                className="dashboard-panel__refresh"
-                aria-label="Atualizar indicadores"
-                title="Atualizar indicadores"
-                disabled={loading || dashboardError?.status === 429 || Boolean(invalidPeriod)}
-                onClick={() => setManualRefresh((value) => value + 1)}
-              >
-                <span
-                  aria-hidden="true"
-                  className={
-                    loading
-                      ? 'dashboard-panel__refresh-icon dashboard-panel__refresh-icon--loading'
-                      : 'dashboard-panel__refresh-icon'
-                  }
-                >
-                  ↻
-                </span>
-              </button>
-            </div>
-          }
-          onClear={clearFilters}
-          canClear={Boolean(activeFilterCount > 0 || draft.startDate || draft.endDate)}
-          activeCount={activeFilterCount}
-          resultLabel={filterSummary || 'Todos os dados disponíveis'}
-          className="indicator-filters"
-        >
-          <div
-            id="dashboard-indicator-filters"
-            className="dashboard-panel__filters"
-            role="group"
-            aria-label="Filtros de indicadores"
-          >
-            <fieldset className="dashboard-panel__period" aria-label="Período">
-              <label className="sprint-filter">
-                <span>De</span>
-                <input
-                  type="date"
-                  value={draft.startDate}
-                  aria-invalid={Boolean(filterError)}
-                  aria-describedby={filterError ? 'indicator-period-error' : undefined}
-                  onChange={(event) => updateFilter('startDate', event.target.value)}
-                />
-              </label>
-              <label className="sprint-filter">
-                <span>Até</span>
-                <input
-                  type="date"
-                  value={draft.endDate}
-                  aria-invalid={Boolean(filterError)}
-                  aria-describedby={filterError ? 'indicator-period-error' : undefined}
-                  min={draft.startDate || undefined}
-                  onChange={(event) => updateFilter('endDate', event.target.value)}
-                />
-              </label>
-              {filterError && (
-                <p
-                  id="indicator-period-error"
-                  role="alert"
-                  className="dashboard-panel__filter-error"
-                >
-                  {filterError}
-                </p>
-              )}
-            </fieldset>
-            <label className="sprint-filter">
-              <span>Sprint</span>
-              <SelectControl
-                value={sprintId}
-                onChange={(event) => updateFilter('sprintId', event.target.value)}
-              >
-                <option value="">Seleção automática</option>
-                {sprints.map((sprint) => (
-                  <option key={sprint.id} value={sprint.id}>
-                    {sprint.name} · {labelForField(sprint.status)}
-                  </option>
-                ))}
-              </SelectControl>
-            </label>
-            {sprintState.projectId === projectId && sprintState.error && (
-              <div className="dashboard-panel__filter-error" role="alert">
-                <p>{sprintState.error}</p>
-                <button type="button" onClick={() => setSprintRefresh((value) => value + 1)}>
-                  Recarregar Sprints
-                </button>
-              </div>
-            )}
-          </div>
-        </CollapsibleFilterPanel>
-      </div>
+          {toolbarActions}
+        </div>
+      )}
 
       {!controlsOnly && (
         <div

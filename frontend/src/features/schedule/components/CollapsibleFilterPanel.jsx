@@ -18,7 +18,6 @@ export function CollapsibleFilterPanel({
   clearDisabled = false,
   className = '',
   actions,
-  compact = false,
   controlsOnly = false,
   children
 }) {
@@ -37,9 +36,7 @@ export function CollapsibleFilterPanel({
 
   return (
     <section
-      className={['planning-filter-panel', compact && 'planning-filter-panel--compact', className]
-        .filter(Boolean)
-        .join(' ')}
+      className={['planning-filter-panel', className].filter(Boolean).join(' ')}
       aria-labelledby={controlsOnly ? undefined : titleId}
     >
       <button
@@ -53,12 +50,10 @@ export function CollapsibleFilterPanel({
       >
         <span className="planning-filter-panel__title">
           <strong id={titleId}>{title}</strong>
-          {!compact && <small aria-live="polite">{resultLabel}</small>}
+          <small aria-live="polite">{resultLabel}</small>
         </span>
         <span className="planning-filter-panel__state">
-          <span className={compact && !activeCount ? 'sr-only' : undefined}>
-            {activeLabel(activeCount)}
-          </span>
+          <span>{activeLabel(activeCount)}</span>
           <TraceFlowIcon name="arrowRight" />
         </span>
       </button>
@@ -67,11 +62,6 @@ export function CollapsibleFilterPanel({
       <div className="planning-filter-panel__body" id={panelId} hidden={!expanded || controlsOnly}>
         {expanded && !controlsOnly && (
           <>
-            {compact && (
-              <p className="planning-filter-panel__summary" aria-live="polite">
-                {resultLabel}
-              </p>
-            )}
             {children}
             <FilterActions onClear={onClear} canClear={canClear} disabled={clearDisabled} />
           </>

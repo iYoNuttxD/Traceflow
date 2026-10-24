@@ -598,18 +598,39 @@ describe('P9.1 controls', () => {
     expect(api.savePreference).not.toHaveBeenCalled();
   });
 
-  it('groups compact controls in keyboard order and keeps filter fields below them', async () => {
+  it('keeps the Indicators filter above the unchanged tabs and actions, including when expanded', async () => {
     const user = userEvent.setup();
     mount();
     await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
     const filter = screen.getByRole('button', { name: /Buscar e filtrar/ });
     const region = filter.closest('.planning-filter-panel');
-    expect(region).toHaveClass('planning-filter-panel--compact');
-    expect(
-      within(region)
-        .getAllByRole('button')
-        .map((button) => button.textContent.trim())
-    ).toEqual(['Buscar e filtrar2 filtros ativos', 'Personalizar painel', '↻']);
+    const toolbar = screen.getByRole('tablist').parentElement;
+    expect(region.nextElementSibling).toBe(toolbar);
+    expect(region.querySelector('.dashboard-panel__toolbar-actions')).toBeNull();
+    expect(filter.querySelector('small')).toHaveTextContent('01 de set.–30 de set. · Sprint A');
+    await user.click(filter);
+    expect(region.nextElementSibling).toBe(toolbar);
+    expect(within(toolbar).getByRole('button', { name: 'Personalizar painel' })).toBeVisible();
+    expect(within(toolbar).getByRole('button', { name: 'Atualizar indicadores' })).toBeVisible();
+    const body = document.getElementById(filter.getAttribute('aria-controls'));
+    expect(within(body).getByLabelText('De')).toBeVisible();
+    filter.focus();
+    await user.keyboard('{Enter}');
+    expect(filter).toHaveAttribute('aria-expanded', 'false');
+    expect(filter).toHaveFocus();
+    expect(body).not.toBeVisible();
+  });
+
+  it('keeps Overview actions beside the full filter header and expanded fields below them', async () => {
+    const user = userEvent.setup();
+    stored = { ...stored, pinnedToOverview: true };
+    mountOverview();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    const filter = screen.getByRole('button', { name: /Buscar e filtrar/ });
+    const region = filter.closest('.planning-filter-panel');
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(filter.querySelector('small')).toHaveTextContent('Todos os dados disponíveis');
+    expect(within(region).getByRole('button', { name: 'Personalizar painel' })).toBeVisible();
     filter.focus();
     await user.keyboard('{Enter}');
     expect(filter).toHaveAttribute('aria-expanded', 'true');
@@ -618,6 +639,8 @@ describe('P9.1 controls', () => {
     expect(within(body).getByLabelText('Sprint')).toBeVisible();
     await user.tab();
     expect(screen.getByRole('button', { name: 'Personalizar painel' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Atualizar indicadores' })).toHaveFocus();
     await user.click(filter);
     expect(filter).toHaveAttribute('aria-expanded', 'false');
     expect(filter).toHaveFocus();

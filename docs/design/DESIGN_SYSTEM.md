@@ -1140,10 +1140,13 @@ Esta composição substitui as duas linhas desktop descritas no P9.
 
 ### PR25 V01/V02 — controles e remoção (2026-10-24)
 
-Substitui a distribuição da toolbar de P9.1: abas preservadas na primeira linha;
-Buscar e filtrar, Personalizar painel (Meu painel/Overview) e Atualizar na mesma
-região compacta abaixo. Filtros expandidos usam a largura da região abaixo dos botões.
-Mobile permite quebra de linha, mantendo rótulos e alvos de toque de 44px.
+Retificação de escopo: a toolbar de P9.1 permanece na página de Indicadores, inclusive
+Meu painel. Buscar e filtrar mantém largura total e fica acima das abas e ações.
+Somente a Visão Geral reserva o canto direito da barra ampla de filtros para
+Personalizar painel e Atualizar. Título, resumo e contador continuam visíveis; os
+campos expandidos usam toda a largura abaixo. No mobile, as ações passam para a linha
+seguinte, mantendo rótulos e alvos de toque de 44px. O CSS dessa distribuição é
+escoped por `.dashboard-panel--overview`, sem modificar os filtros das outras telas.
 
 Remover da Visão Geral existe exclusivamente no editor. O PATCH e os rascunhos são
 preservados; após remover, o controle que abriu o modal continua nesta visita para

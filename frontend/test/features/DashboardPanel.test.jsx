@@ -1457,6 +1457,10 @@ describe('P8 Dashboard na Visão Geral', () => {
     const toolbar = document.querySelector('.dashboard-panel__toolbar');
     expect(within(toolbar).getByRole('tablist')).toBeInTheDocument();
     const filterButton = screen.getByRole('button', { name: /Buscar e filtrar/ });
+    expect(filterButton.closest('.planning-filter-panel').nextElementSibling).toBe(toolbar);
+    expect(
+      within(toolbar).queryByRole('button', { name: /Buscar e filtrar/ })
+    ).not.toBeInTheDocument();
     expect(filterButton).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('form', { name: 'Filtros de indicadores' })).not.toBeInTheDocument();
     await user.click(filterButton);
