@@ -299,3 +299,11 @@ Não há rollback destrutivo ou retry automático. Uma atualização do receptor
 revisão, checks, cópias root-only, locks operacionais e atualização mínima dos
 fingerprints correspondentes. Não se reexecuta o instalador inicial. Uma promoção
 cancelada não permite reutilizar request, plano ou autorização consumida.
+
+## Registro da publicação 84 → 86
+
+A publicação autorizada de 24/10/2026 terminou com SUCCESS no workflow
+[40074306672](https://github.com/iYoNuttxD/Traceflow/actions/runs/40074306672).
+Consultar o [registro operacional](OCI_PUBLICATION_2026-10-24.md) para identidades,
+provas, encerramento da credencial e limites da verificação. Esse registro é histórico;
+o plano e a autorização consumidos não podem ser reutilizados em outra publicação.
