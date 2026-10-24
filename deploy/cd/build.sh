@@ -26,6 +26,7 @@ if [ "$PASS" = 1 ]; then
   (cd backend && node --input-type=module -e 'import {PrismaClient} from "@prisma/client";const p=new PrismaClient({datasourceUrl:"mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_test"});try{const existing=await p.$queryRawUnsafe("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=?","traceflow_cd_upgrade_test");if(existing.length)throw Error("UPGRADE_TARGET_EXISTS");await p.$executeRawUnsafe("CREATE DATABASE traceflow_cd_upgrade_test");}finally{await p.$disconnect();}')
   (cd backend && NODE_ENV=test DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_dev_unused TEST_DATABASE_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_upgrade_test node scripts/validate-integration-upgrade.js "$BASELINE_SHA") | tee /out/upgrade-proof.json
  fi
+ (cd backend && NODE_ENV=test MIGRATION_LAB_ADMIN_URL=mysql://root:synthetic-root-ci@127.0.0.1:3306/traceflow_cd_test DATABASE_URL=mysql://ci:synthetic@127.0.0.1:3306/traceflow_dev_unused node scripts/validate-restricted-migrations.js) > /out/receiver-upgrade-proof.json
  (cd backend && bash "$OPS_ROOT/deploy/cd/staging.sh")
  npm --prefix backend audit --omit=dev --audit-level=high
  npm --prefix frontend audit --omit=dev --audit-level=high

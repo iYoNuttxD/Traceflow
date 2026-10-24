@@ -94,3 +94,40 @@ A autoridade revisada inclui também `.github/workflows/ci.yml`: a promoção n�
 silenciosamente uma mudança nos comandos que geram os checks obrigatórios. No job Supply Chain,
 instalações não repetem o audit implícito; os dois audits explícitos continuam obrigatórios e
 falham se o registro não responder. O timeout de rede é limitado, sem transformar erro em PASS.
+
+## Preservação na transição 84 → 86 (24/10/2026)
+
+A comparação estrita de hashes continua sendo o padrão. Para as duas migrations
+`20261013170000_manual_test_execution_reference` e
+`20261013171000_requirement_lifecycle_basis`, o plano deve declarar
+`dataPreservation: standalone-lifecycle-84-86-v1`. O receptor valida os hashes das
+cadeias completas, schemas e SQL; um plano dessa transição sem a política é recusado
+no preflight. A política não autoriza outras migrations.
+
+Com os escritores parados, a projeção esperada é calculada sobre os fatos anteriores
+ao DDL usando SELECT e o SQL fixado por hash. O ensaio confronta essa projeção com as
+regras canônicas do backend. Requisitos preservam identidade, projeto e todos os
+campos anteriores, exceto status e timestamp quando a reconciliação os exige.
+Estados novos ou alterados precisam corresponder à projeção LOCAL. Todo histórico
+anterior permanece idêntico; cada entrada nova deve corresponder exatamente a uma
+transição esperada, sem duplicações. Demais tabelas continuam com hashes e contagens
+idênticos. Os 84 registros Prisma mantêm seus metadados e as duas novas migrations
+precisam estar concluídas. Todas as chaves estrangeiras são verificadas.
+
+Valores de negócio ficam somente em memória: dump anônimo limitado a 512 MiB e
+linhas estruturadas das três tabelas limitadas a 8 MiB/50 mil registros. Os arquivos
+de evidência contêm somente hashes, contagens e resultados. Exceder limites recusa
+a operação; não autoriza aumentar privilégios ou desligar verificações.
+
+O teste permanente `db:test:validate-restricted` usa MySQL isolado e sete privilégios,
+chamando `Host.apply_migrations`, os fingerprints e `contract.promote` reais.
+Somente fronteiras de serviços/roteamento são adaptadas no laboratório. Exercita
+base populada, vazia, falha parcial e falha após DDL, além de controles negativos
+de corrupção e inicialização real da API/worker com quatro jobs. Também integra
+o build ARM64; sua prova é `receiver-upgrade-proof.json`.
+
+Falha após início do DDL preserva o guard e exige verificação administrativa.
+Não há rollback destrutivo ou retry automático. Uma atualização do receptor exige
+revisão, checks, cópias root-only, locks operacionais e atualização mínima dos
+fingerprints correspondentes. Não se reexecuta o instalador inicial. Uma promoção
+cancelada não permite reutilizar request, plano ou autorização consumida.
