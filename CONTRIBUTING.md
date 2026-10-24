@@ -1,5 +1,16 @@
 # Contribuindo com o TRACEFLOW
 
+## Branches de desenvolvimento
+
+A branch oficial e origem da CI/CD é `main`. As branches de desenvolvimento são
+`daniel`, `joao`, `gt` e `max`. Integre alterações por PR com os checks e a revisão
+exigidos pela proteção da main. Branches temporárias devem ser excluídas após o merge.
+A publicação permanece manual, com aprovação humana do ambiente `production`.
+
+Referências aos nomes antigos em relatórios históricos documentam o contexto da época.
+A sincronização administrativa das quatro branches requer preservar os HEADs anteriores
+e conferir alterações concorrentes; nunca se aplica force-push à main.
+
 ## Requisitos locais
 
 - versão principal do Node.js declarada em `.github/workflows/ci.yml` e npm com suporte ao lockfile

@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from contract import need,sha,canonical,unpack,schema_gate,promote
 from migrations import transition
+import preservation
 REPO='iYoNuttxD/Traceflow';WORKFLOW='.github/workflows/oci-cd.yml'
 CONFIG=Path('/etc/traceflow-live/cd.json');STATE=Path('/var/lib/traceflow-live-cd')
 RELEASES=Path('/opt/traceflow-live/releases');FRONTENDS=Path('/var/www/traceflow-live-releases')
@@ -180,7 +181,7 @@ def migration_unit(root,run_id,check=False,output=None):
  # No After=parent: the receiver is a oneshot still activating while awaiting this child.
  return ['systemd-run','--wait','--collect','--unit=traceflow-live-cd-migrate-'+('check-' if check else '')+str(run_id),'-p','Type=exec','-p','BindsTo=traceflow-live-cd.service','-p','PartOf=traceflow-live-cd.service','-p','User=root','-p','UMask=0077','-p','LoadCredentialEncrypted=mysql-migrator:/etc/credstore.encrypted/traceflow-live-mysql-migrator','-p','RuntimeMaxSec='+('60' if check else '300'),'-p','TimeoutStopSec=15','-p','KillMode=control-group','-p','Restart=no','-p','LimitCORE=0','-p','MemorySwapMax=0','-p','MemoryMax=512M','-p','ProtectSystem=strict','-p','ProtectHome=yes','-p','PrivateTmp=yes','-p','PrivateDevices=yes','-p','NoNewPrivileges=yes','-p','ProtectKernelTunables=yes','-p','ProtectKernelModules=yes','-p','ProtectKernelLogs=yes','-p','ProtectControlGroups=yes','-p','RestrictSUIDSGID=yes','-p','RestrictRealtime=yes','-p','LockPersonality=yes','-p','RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6','-p','InaccessiblePaths=/etc/traceflow /opt/traceflow/shared /var/lib/traceflow-recovery /var/lib/traceflow/test-evidence /etc/traceflow-live /etc/nginx /etc/credstore.encrypted -/var/lib/systemd/credential.secret -/var/lib/traceflow-live-cd/gh-config','-p','StandardOutput=append:'+str(output),'-p','StandardError=null','/usr/bin/python3','-I','-B','/usr/local/libexec/traceflow-live-cd/migrate.py',root]+(['--check'] if check else [])
 
-def data_fingerprint(ops):
+def data_fingerprint(ops,plan=None,root=None,capture_projection=False):
  """SELECT-only dump in anonymous RAM; only row hashes/counts leave this function."""
  need(hasattr(os,'memfd_create'),'ANONYMOUS_MEMORY_REQUIRED')
  limit=512*1024**2;fd=os.memfd_create('traceflow-migration-readonly',os.MFD_CLOEXEC)
@@ -189,10 +190,15 @@ def data_fingerprint(ops):
   p=subprocess.run(ops.mysql_args('mysqldump')+ops.DUMP_FLAGS+[ops.SCHEMA],stdin=subprocess.DEVNULL,stdout=dump,stderr=subprocess.PIPE,timeout=120,preexec_fn=bound,env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8'})
   need(p.returncode==0 and 0<dump.tell()<=limit,'DATA_FINGERPRINT_CAPTURE_FAILED');dump.flush();dump.seek(0)
   snapshot=ops.dump_manifest(Path('/proc/self/fd/'+str(fd)))
+  policy=preservation.enabled(plan,root)
+  structured=preservation.read_rows(Path('/proc/self/fd/'+str(fd)),ops.sql_values) if policy else None
  rows=ops.sql("SELECT CONCAT(migration_name,CHAR(9),SHA2(CAST(JSON_ARRAY(id,checksum,started_at,finished_at,rolled_back_at,applied_steps_count,SHA2(COALESCE(logs,''),256)) AS CHAR),256)) FROM _prisma_migrations ORDER BY migration_name")
  pairs=[r.split('\t') for r in rows];need(all(len(r)==2 for r in pairs),'MIGRATION_AUDIT_FORMAT')
  ledger=dict(pairs);need(len(ledger)==len(pairs),'MIGRATION_AUDIT_DUPLICATE')
- return {'tables':{n:{k:v[k] for k in ('rows','dataSha256')} for n,v in snapshot['tables'].items() if n!='_prisma_migrations'},'ledger':ledger}
+ public={'tables':{n:{k:v[k] for k in ('rows','dataSha256')} for n,v in snapshot['tables'].items() if n!='_prisma_migrations'},'ledger':ledger}
+ if not policy:return public
+ expected=preservation.projection(ops,root) if capture_projection else None
+ return preservation.Snapshot(public,structured,preservation.clock(ops),expected)
 
 class Host:
  def __init__(self,root,manifest,request,work,cfg):
@@ -308,16 +314,17 @@ class Host:
    for role in ('worker','api'):
     self.restarted_units.add(role);run(['systemctl','stop','traceflow-live-'+role],timeout=120)
    validate_migration_chain(applied_chain(self.ops),self.plan['from']['migrations'])
-   before=data_fingerprint(self.ops);atomic(self.work/'data-before.json',before)
+   before=data_fingerprint(self.ops,self.plan,self.root,capture_projection=True);atomic(self.work/'data-before.json',before)
    self.schema_started=True;atomic(marker,{'status':'DDL_STARTED','runId':self.request['runId'],'transitionSha256':self.transition_digest})
    output=self.invoke_migrator(check=False)
    self.migration_result=json.loads(output);need(self.migration_result.get('status')=='PRISMA_DEPLOY_PASS','PRISMA_DEPLOY_RESULT')
    validate_migration_chain(applied_chain(self.ops),self.plan['to']['migrations'])
-   after=data_fingerprint(self.ops);atomic(self.work/'data-after.json',after)
-   need(all(after['tables'].get(n)==v for n,v in before['tables'].items()),'PREEXISTING_DATA_CHANGED_BY_MIGRATION')
+   after=data_fingerprint(self.ops,self.plan,self.root);atomic(self.work/'data-after.json',after)
+   data_proof=preservation.compare(before,after,self.plan)
+   if preservation.enabled(self.plan):data_proof['foreignKeysChecked']=preservation.verify_foreign_keys(self.ops)
    need(all(after['ledger'].get(n)==v for n,v in before['ledger'].items()),'HISTORICAL_MIGRATION_RECORD_CHANGED')
    self.schema_complete=True;self.select_retention_target()
-   self.migration_result.update(status='SCHEMA_TRANSITION_COMPLETE',transitionSha256=self.transition_digest,added=self.plan['added'],preexistingDataPreserved=True,dataBeforeSha256=sha(self.work/'data-before.json'),dataAfterSha256=sha(self.work/'data-after.json'))
+   self.migration_result.update(status='SCHEMA_TRANSITION_COMPLETE',transitionSha256=self.transition_digest,added=self.plan['added'],preexistingDataPreserved=True,dataPreservation=data_proof,dataBeforeSha256=sha(self.work/'data-before.json'),dataAfterSha256=sha(self.work/'data-after.json'))
    atomic(marker,self.migration_result);atomic(self.work/'migration.json',self.migration_result)
   except BaseException as error:
    containment='not-started'

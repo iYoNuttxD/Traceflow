@@ -90,6 +90,32 @@ function command(url, args, expected = 0) {
   else assert.equal(result.status, expected, output);
   return output;
 }
+function receiverUpgrade(url, schema, mode) {
+  const result = spawnSync(
+    'python3',
+    [resolve('../deploy/cd/tests/receiver_upgrade_lab.py'), mode],
+    { env: { ...process.env, TEST_DATABASE_URL: url, CD_LAB_SCHEMA: schema }, encoding: 'utf8' }
+  );
+  assert.ifError(result.error);
+  assert.equal(
+    result.status,
+    0,
+    'Receiver integration lab failed: ' +
+      (result.stderr || '')
+        .replaceAll(url, '[LAB_DATABASE_URL]')
+        .replaceAll(password, '[REDACTED_SECRET]')
+  );
+  const report = JSON.parse(result.stdout);
+  assert.ok(
+    [
+      'ISOLATED_RECEIVER_UPGRADE_PASS',
+      'ISOLATED_RECEIVER_FAILURE_CONTAINED',
+      'ISOLATED_RECEIVER_RUNTIME_PASS'
+    ].includes(report.status)
+  );
+  return report;
+}
+
 async function snapshot(client) {
   const rows =
     await client.$queryRaw`SELECT TABLE_NAME AS name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME`;
@@ -171,14 +197,13 @@ async function run(mode) {
       orderBy: { id: 'asc' }
     });
     const facts = await snapshot(client);
+    let receiverProof;
     for (const name of pending)
       cpSync(join(source, name), join(migrationDirectory, name), { recursive: true });
     if (mode === 'partial') {
       const file = join(migrationDirectory, lifecycle, 'migration.sql');
       cpSync(resolve('scripts/fixtures/pr25-original-lifecycle.sql'), file);
-      const failed = command(limited, ['migrate', 'deploy', '--schema', schema], 'failure');
-      assert.match(failed, /P3018/);
-      assert.match(failed, /1044/);
+      receiverProof = receiverUpgrade(limited, schema, 'partial');
       const [record] =
         await client.$queryRaw`SELECT * FROM _prisma_migrations WHERE migration_name=${lifecycle} AND finished_at IS NULL AND rolled_back_at IS NULL`;
       assert.ok(record, 'Prisma failed record missing');
@@ -247,7 +272,8 @@ async function run(mode) {
       ]);
       command(limited, ['migrate', 'resolve', '--applied', lifecycle, '--schema', schema]);
     }
-    command(limited, ['migrate', 'deploy', '--schema', schema]);
+    if (mode !== 'partial') receiverProof = receiverUpgrade(limited, schema, mode);
+    else command(limited, ['migrate', 'deploy', '--schema', schema]);
     const applied =
       await client.$queryRaw`SELECT migration_name, checksum FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name`;
     assert.deepEqual(applied.map((row) => row.migration_name).sort(), migrations);
@@ -297,9 +323,13 @@ async function run(mode) {
       history,
       'No duplicate transitions on redeploy'
     );
+    const runtimeProof =
+      mode === 'populated' ? receiverUpgrade(limited, schema, 'runtime') : undefined;
     const [version] = await client.$queryRaw`SELECT VERSION() AS version`;
     reports.push({
       mode,
+      receiver: receiverProof,
+      runtime: runtimeProof,
       version: version.version,
       baseline: previous.length,
       completed: applied.length,
@@ -323,7 +353,7 @@ async function run(mode) {
 try {
   await admin.$executeRawUnsafe(`CREATE USER '${username}'@'%' IDENTIFIED BY '${password}'`);
   userCreated = true;
-  for (const mode of ['populated', 'empty', 'partial']) await run(mode);
+  for (const mode of ['populated', 'empty', 'partial', 'after-ddl']) await run(mode);
   process.stdout.write(`${JSON.stringify({ baseline: baseline.commit, reports }, null, 2)}\n`);
 } finally {
   for (const database of databases) await admin.$executeRawUnsafe(`DROP DATABASE \`${database}\``);
