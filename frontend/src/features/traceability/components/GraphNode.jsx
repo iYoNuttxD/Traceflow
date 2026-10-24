@@ -4,7 +4,12 @@ import { TraceFlowIcon, githubStateLabel } from '../../../shared/index.js';
 import { TestResultBadge, environments, referenceLabel } from '../../testCases/index.js';
 import { DefectBadge } from '../../defects/index.js';
 import { taskStatusLabels, taskPriorityLabels } from '../../tasks/index.js';
-import { situations, requirementStatuses, percentageLabel } from '../model/requirement-view.js';
+import {
+  situations,
+  requirementStatuses,
+  percentageLabel,
+  implementationEvidence
+} from '../model/requirement-view.js';
 import { identity, nodeLabels } from '../model/graph.js';
 const date = (value) => (value ? new Date(value).toLocaleString('pt-BR') : '—');
 const compactIds = (items, prefix, key = 'id', total = items?.length || 0) =>
@@ -17,6 +22,7 @@ const compactIds = (items, prefix, key = 'id', total = items?.length || 0) =>
 export function graphFields(type, d) {
   if (type === 'REQUIREMENT') {
     const p = d.projection;
+    const implementation = implementationEvidence(p);
     return [
       ['Status', requirementStatuses[d.status] || d.status],
       ['Situação', situations[p?.situation]?.[0]],
@@ -26,7 +32,7 @@ export function graphFields(type, d) {
       [
         'Evidências',
         p
-          ? `Implementação: ${p.evidence.implementation ? 'presente' : 'ausente'} · Validação: ${p.evidence.validation ? 'presente' : 'ausente'} · Correção: ${{ NOT_APPLICABLE: 'não aplicável', PRESENT: 'presente', MISSING: 'ausente' }[p.evidence.correction]}`
+          ? `${implementation.label}: ${implementation.present ? 'presente' : 'ausente'} · Validação: ${p.evidence.validation ? 'presente' : 'ausente'} · Correção: ${{ NOT_APPLICABLE: 'não aplicável', PRESENT: 'presente', MISSING: 'ausente' }[p.evidence.correction]}`
           : '—'
       ]
     ];

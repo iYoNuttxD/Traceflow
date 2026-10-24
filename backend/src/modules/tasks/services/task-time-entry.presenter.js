@@ -22,6 +22,7 @@ export function formatTaskTimeEntry(entry, context = {}) {
     taskId: entry.taskId,
     source: entry.source,
     startedAt: entry.startedAt,
+    ...(!entry.endedAt ? { serverNow: new Date().toISOString() } : {}),
     endedAt: entry.endedAt ?? null,
     durationSeconds: entry.durationSeconds ?? null,
     note: entry.note ?? null,
@@ -92,7 +93,12 @@ export function buildEffortSummary({
     usagePercent: usageRatio === null ? null : round2(usageRatio * 100),
     status,
     running: running
-      ? { id: running.id, startedAt: running.startedAt, startedBy: running.startedBy }
+      ? {
+          id: running.id,
+          startedAt: running.startedAt,
+          startedBy: running.startedBy,
+          serverNow: new Date().toISOString()
+        }
       : null
   };
 }

@@ -409,6 +409,13 @@
   font-size: var(--font-size-1);
 }
 
+/* Add useful columns once the workspace exceeds laptop-sized layouts. */
+@container projects-page (min-width: 85rem) {
+  .projects-grid {
+    grid-template-columns: repeat(4, minmax(min(100%, 17.5rem), 1fr));
+  }
+}
+
 @container projects-page (max-width: 58rem) {
   .projects-grid {
     grid-template-columns: repeat(2, minmax(min(100%, 17.5rem), 1fr));

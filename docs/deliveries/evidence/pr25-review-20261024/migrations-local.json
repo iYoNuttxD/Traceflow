@@ -1,0 +1,72 @@
+{
+  "baseline": "6de5ece5e7af3a7edcd1c24f15f78f16d0b6ec0c",
+  "reports": [
+    {
+      "mode": "populated",
+      "version": "26.10.0",
+      "baseline": 84,
+      "completed": 86,
+      "grants": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "CREATE",
+        "ALTER",
+        "INDEX",
+        "REFERENCES"
+      ],
+      "scenarios": 26,
+      "preservedTables": 70,
+      "oldExecutions": 26,
+      "oldHistory": 25,
+      "appendedHistory": 22,
+      "status": "PASS",
+      "schemaDrift": "NONE"
+    },
+    {
+      "mode": "empty",
+      "version": "26.10.0",
+      "baseline": 84,
+      "completed": 86,
+      "grants": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "CREATE",
+        "ALTER",
+        "INDEX",
+        "REFERENCES"
+      ],
+      "scenarios": 0,
+      "preservedTables": 70,
+      "oldExecutions": 0,
+      "oldHistory": 0,
+      "appendedHistory": 0,
+      "status": "PASS",
+      "schemaDrift": "NONE"
+    },
+    {
+      "mode": "partial",
+      "version": "26.10.0",
+      "baseline": 84,
+      "completed": 86,
+      "grants": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "CREATE",
+        "ALTER",
+        "INDEX",
+        "REFERENCES"
+      ],
+      "scenarios": 26,
+      "preservedTables": 70,
+      "oldExecutions": 26,
+      "oldHistory": 25,
+      "appendedHistory": 22,
+      "status": "PASS",
+      "schemaDrift": "NONE",
+      "recovery": "1044 reproduced; DDL retained; DML rolled back; restricted roll-forward and resolve verified"
+    }
+  ]
+}

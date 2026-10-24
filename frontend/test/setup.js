@@ -1,13 +1,17 @@
-import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 
+let cleanup;
+
 afterEach(() => {
-  cleanup();
+  cleanup?.();
   vi.clearAllMocks();
 });
 
 if (typeof window !== 'undefined') {
+  // Pure Node suites do not need React's renderer, DOM queries or matchers.
+  await import('@testing-library/jest-dom/vitest');
+  ({ cleanup } = await import('@testing-library/react'));
+
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({

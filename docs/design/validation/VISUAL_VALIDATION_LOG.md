@@ -1493,6 +1493,45 @@ ajuda correspondentes no inventário ficam TECHNICALLY VERIFIED, sem rebaixar RF
 A retificação P8.4 continua válida; caminhos ausentes foram mantidos como referências históricas
 textuais, não links de evidência disponível. Não foi fabricada evidência retroativa.
 
+
+## 2026-10-17 — workspace largo e painel pessoal fixado (validação renderizada bloqueada)
+
+Escopo: shell autenticado, Overview/Indicadores, catálogos e workspaces que usam
+`--layout-page-max`; painel CUSTOM fixado na Overview e ação correspondente no editor.
+A largura útil é definida pela página, até 1920px, sem o teto intermediário do shell.
+Settings, páginas de leitura e formulários conservam limites próprios.
+
+### Evidência técnica
+
+- Frontend lint, format:check e build de produção passaram. Build manteve avisos de chunk
+  grande/IIFE; não houve falha de compilação.
+- Suíte de estilos/app: 19 arquivos, 125 testes passaram no código final; a suíte responsiva
+  específica verifica 17 contratos, incluindo wrap das ações do painel fixado.
+- `scripts/check-ui-inventory.test.mjs`: 3 testes passaram; inventário/censo atualizados.
+- A fixture `frontend/test/visual/p8.jsx` foi compilada separadamente com Vite. Ela renderiza os
+  componentes reais com respostas sintéticas e não consulta APIs reais. Parâmetros:
+  `screen=overview|indicators|settings`, `sidebar=expanded|collapsed|auto`, `pin=1|0`,
+  `panelState=available|loading|error`, `theme=light|dark`, `health=HEALTHY|ATTENTION|CRITICAL|UNASSESSED`.
+  O histórico de views/filtros pode ser exercitado dentro do router da fixture.
+
+### Limitação e classificação
+
+Status da tentativa renderizada: `ENVIRONMENT BLOCKED`. O navegador de nuvem está disponível,
+mas não alcança o servidor Vite no localhost isolado do executor. A tentativa de servidor em
+rede compartilhada falhou na inicialização do sandbox, antes de expor a aplicação. Nenhum caminho
+negado foi alterado. As rotas file/data e automação alternativa fora do navegador suportado não
+foram usadas.
+
+Consequentemente, 320/375/768/1280/1440/1920/2560px, Light/Dark, estados de sidebar, drawer,
+loading/erro/retry e interação do editor não receberam inspeção renderizada nesta rodada. Não há
+capturas nem alegação de ausência de overflow medida. Cálculos de largura e testes de CSSOM
+são evidência estrutural, não substituem inspeção visual.
+
+As surfaces afetadas permanecem `TECHNICALLY VERIFIED` no escopo automatizado. A homologação
+visual anterior é preservada como histórico; o inventário marca `REVALIDATION REQUIRED` para
+layout largo e fixação. Uma próxima execução com navegador conectado ao frontend deve verificar
+as larguras acima, nomes longos, filtros abertos/fechados, navegação e foco após Cancelar/Salvar,
+Fixar/Remover e retorno entre Overview/Indicadores.
 ## 2026-10-15 — S2-06/S2-07: aba Relatórios e PDF, inspeção parcial
 
 Tela (Chrome, API real local, tema claro, desktop, 14/10): lista com cards por status,
@@ -1522,3 +1561,68 @@ visão ficava abaixo do cabeçalho da tabela por `display: flex` no `caption`.
 PDF do mesmo relatório renderizado em imagem e revisado: resumo na capa, Planejamento em página
 própria, selos com cor de fundo (o fundo da célula-pai cobria o selo e foi retirado), barras e
 coluna Status. Tema claro, larguras menores e leitor de tela não foram verificados nesta rodada.
+
+
+## 2026-10-21 — sidebar, notificações e overflow de navegação (max-dev)
+
+As duas referências do usuário foram materializadas pela Library e inspecionadas no Mac.
+O estado anterior foi conferido no Chrome com a aplicação local autenticada: o painel de
+notificações usava superfície elevada, distinta do fundo da sidebar; em Indicadores, a barra
+tinha `clientHeight=48` e `scrollHeight=49`, com overflow vertical automático.
+
+A correção foi validada no Chrome do Mac, com os componentes reais montados na fixture
+`frontend/test/visual/p8.html`, dados sintéticos e sem alterações nos dados da sessão real.
+Viewport: 1440×900 e 1280×800 (sidebar recolhida/expandida e temas escuro/claro), 768×900,
+390×844 e 320×640. Não é uma homologação de toda a aplicação ou dos fluxos de gravação da API.
+
+- Sidebar e painel têm o mesmo fundo calculado: escuro `rgb(16,23,33)` e claro `rgb(248,250,253)`.
+- Abas de Indicadores e do projeto: altura e conteúdo de 48px, sem scrollbar vertical.
+  Em 390px, a navegação do projeto mantém 1171px em um contêiner de 358px; a rolagem
+  horizontal necessária continua disponível. Em 768px, End seleciona/foca Rastreabilidade
+  e desloca horizontalmente a barra (`scrollLeft=365`).
+- Configurações em 320px: removidas margens negativas; largura global caiu de 328 para 320px.
+  As abas têm 304px de viewport e 533px de conteúdo, altura/conteúdo 48px.
+- Notificações em 320px: Origem ocupa 280px e o botão quebra para outra linha, sem cortar
+  o texto; a lista conserva 1760px de conteúdo em 384px disponíveis e continua rolável.
+- Abertura/fechamento pelo botão desktop e pelo menu móvel, Escape e retorno ao botão
+  de origem conferidos. Preferências longas continuam roláveis. Sem mutações de notificações.
+
+Capturas sintéticas (não contêm dados pessoais reais):
+
+- [Indicadores, escuro, 1440px](navigation-notifications-20261021/indicators-dark-1440.jpg)
+- [Notificações, sidebar recolhida, escuro, 1440px](navigation-notifications-20261021/notifications-dark-1440.jpg)
+- [Notificações, sidebar expandida, claro, 1280px](navigation-notifications-20261021/notifications-light-1280.jpg)
+- [Notificações, escuro, 390px](navigation-notifications-20261021/notifications-dark-390.jpg)
+- [Notificações, controles em duas linhas, 320px](navigation-notifications-20261021/notifications-dark-320.jpg)
+- [Configurações, claro, 320px](navigation-notifications-20261021/settings-light-320.jpg)
+- [Medições antes/depois e etapas intermediárias](navigation-notifications-20261021/measurements.json)
+
+Captura principal salva também na Library: `libfile_0250bdd1efe481918a2314c7f700dcbf`.
+Os status históricos das surfaces são preservados; esta evidência é limitada aos ajustes
+de cor, navegação, reflow e overflow acima.
+
+
+## 2026-10-22 — botão da sidebar junto ao modal de notificações
+
+Regressão da PR #25 reproduzida no Chrome do Mac: o alvo recolhido ultrapassava a
+sidebar em 21px. Botão agora ocupa linha própria no cabeçalho e fica contido; animação
+do painel entra pela área de conteúdo e abertura do modal conclui a transição de largura.
+Sem alteração de z-index ou da semântica modal. Inspeção escura 1440×900, 1280×800,
+768×640 com três projetos, 390×844 e 320×640: estados recolhido/expandido, aberto/fechado,
+clique real, Enter/Espaço, foco preso, Escape e retorno ao sino. Rolagem necessária da lista
+preservada; abas 48/48px sem overflow vertical. Componentes reais em fixture sintética;
+sem homologação da API real ou de outros navegadores.
+
+[Relato, capturas e medições](../../deliveries/MAX_DEV_SIDEBAR_TOGGLE_20261022.md).
+Captura principal Library: `libfile_960201dedee48191ab66573c723648b4`.
+
+
+## 2026-10-22 — refinamento do peso e espaçamento do botão da sidebar
+
+Ícone 20→16px, alvo 44×44px mantido, círculo/sombra permanentes removidos e gap de 8px
+entre alvos no cabeçalho recolhido (24px visuais). Chrome/Mac: recolhida/expandida, painel
+aberto/fechado, 1280×800, 1440×900, 768×640 e conferência móvel 390×844. Clique,
+Enter/Espaço, foco visível, Shift+Tab e Escape conferidos, sem sobreposição nas transições.
+Fixture sintética, tema escuro; não é homologação da API ou de outros navegadores.
+[Relato e evidências](../../deliveries/MAX_DEV_SIDEBAR_TOGGLE_REFINEMENT_20261022.md).
+Library: `libfile_f78acca4a5088191ba4dc73ef1051b56`.

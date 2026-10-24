@@ -6,10 +6,42 @@ import {
 } from '../../src/modules/indicators/personalized-dashboard.catalog.js';
 import {
   dashboardPreferenceBodySchema,
+  dashboardOverviewPinBodySchema,
   dashboardQuerySchema
 } from '../../src/modules/indicators/indicators.validation.js';
 
 describe('P9 catalog authority', () => {
+  it('accepts only boolean overview pins, without requiring them from existing clients', () => {
+    for (const value of [true, false, undefined]) {
+      expect(
+        dashboardPreferenceBodySchema.safeParse({
+          configurationVersion: 1,
+          widgets: ['I01'],
+          ...(value === undefined ? {} : { pinnedToOverview: value })
+        }).success
+      ).toBe(true);
+    }
+    for (const pinnedToOverview of ['true', 1, null, [], {}]) {
+      expect(
+        dashboardPreferenceBodySchema.safeParse({
+          configurationVersion: 1,
+          widgets: ['I01'],
+          pinnedToOverview
+        }).success
+      ).toBe(false);
+    }
+  });
+  it('requires exactly the boolean flag for a pin-only update', () => {
+    for (const pinnedToOverview of [true, false])
+      expect(dashboardOverviewPinBodySchema.safeParse({ pinnedToOverview }).success).toBe(true);
+    for (const body of [
+      {},
+      { pinnedToOverview: 'true' },
+      { pinnedToOverview: false, widgets: ['I01'] },
+      { pinnedToOverview: false, userId: 5 }
+    ])
+      expect(dashboardOverviewPinBodySchema.safeParse(body).success).toBe(false);
+  });
   it('uses one valid, immutable default for first read and reset', () => {
     const first = defaultDashboardPreference();
     expect(first.widgets.length).toBeGreaterThan(0);

@@ -431,7 +431,7 @@ function RepositoryInfoContent({ projectId }) {
               clearDisabled={loading || !project.githubIntegration}
               id="repository-filters"
               className="repository-filters"
-              title="Filtrar artefatos"
+              title="Buscar e filtrar"
               resultLabel={
                 project.githubIntegration
                   ? artifactCountLabel(summary.total ?? artifacts.length)

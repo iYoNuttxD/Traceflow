@@ -37,5 +37,9 @@ export const traceabilityHelp = {
   evidence: [
     'Evidências',
     'Implementação considera PRs ou commits vinculados ao trabalho. Validação considera execuções da versão atual dos casos ativos. Correção considera artefatos e reteste aprovado no ciclo atual quando houve defeito. Evidência presente não significa, sozinha, requisito concluído.'
+  ],
+  localEvidence: [
+    'Evidências',
+    'Este requisito segue o ciclo local: implementação considera tarefas concluídas; validação considera execuções da versão atual dos casos ativos; correção considera tarefas concluídas e reteste aprovado no ciclo atual. A vinculação posterior ao GitHub preserva esta base. PRs e commits continuam sendo evidências técnicas separadas, sem serem exigidos para concluir este requisito.'
   ]
 };

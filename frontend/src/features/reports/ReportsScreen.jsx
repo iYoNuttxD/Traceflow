@@ -150,16 +150,6 @@ function ProjectReports({ project }) {
           <p>Ajuste os filtros ou use Limpar filtros para ver todos os relatórios.</p>
         </section>
       )}
-      {!reports.loading && !reports.error && listed === 0 && !filtered && (
-        <section className="report-empty-panel">
-          <p role="status">Nenhum relatório gerado neste projeto.</p>
-          <p>
-            {canWrite
-              ? 'Gere o primeiro relatório para registrar um retrato do planejamento, da rastreabilidade e dos indicadores.'
-              : 'Relatórios gerados por membros do projeto aparecerão aqui.'}
-          </p>
-        </section>
-      )}
       {pagination && listed < pagination.total && listed < REPORTS_MAX_LISTED && (
         <button
           className="button button-secondary report-load-more"

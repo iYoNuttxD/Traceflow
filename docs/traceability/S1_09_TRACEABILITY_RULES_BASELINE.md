@@ -2,6 +2,16 @@
 
 **Regra vigente — FINAL TARGETED CORRECTIONS da Etapa 5, 2026-09-12.** Esta decisão substitui a exigência anterior de confirmação terminal manual. `Requirement.status` permanece persistido, mas agora é o macro derivado da mesma policy pura que produz a situação detalhada. O estado anterior não entra no cálculo da conclusão.
 
+## Extensão vigente: lifecycle local preservado (13/10/2026)
+
+[ADR-018](../architecture/ADR-018-STANDALONE-QUALITY-LIFECYCLE.md) amplia esta regra com
+`Requirement.lifecycleBasis` imutável. LOCAL usa tarefas concluídas como implementação; GITHUB
+mantém Commit/PR como condição adicional. As exigências de versão atual, testes relevantes e
+defeitos abaixo permanecem iguais. Vinculação posterior não altera a base de requisitos existentes;
+requisitos novos passam a usar GITHUB. `implementation.technicalImplemented` continua refletindo
+somente a implementação com evidência técnica real, independentemente da base de lifecycle.
+Novas transições registram `rulesVersion: 4` e `lifecycleBasis`; histórico anterior é preservado.
+
 ## Autoridade única e mapa canônico
 
 `projectRequirement` calcula a situação a partir da cadeia corrente; `deriveRequirementLifecycleStatus` aplica o mapa abaixo. `traceabilityMutation`/`reconcileRequirements` persistem macro, situação e transição na mesma transação da mutação original. GET permanece somente leitura.
@@ -46,7 +56,7 @@ VALIDADO continua no vocabulário histórico e no mapa, mas a aprovação comple
 | Defect em correção ou aguardando reteste | EM_CORRECAO ou AGUARDANDO_RETESTE / EM_CORRECAO |
 | Cadeia novamente completa | CONCLUIDO / CONCLUIDO |
 
-A conclusão anterior permanece no histórico append-only. Novas entradas usam `rulesVersion: 3`; versões 1/2 permanecem intactas. Reparar apenas um macro legado, com situação já correta, não fabrica uma transição detalhada. Dry-run expõe `statusChanges` separadamente de `changes`; segundo apply sem mudanças não grava novos eventos. Falha na escrita do histórico desfaz a mutação, o macro e o State juntos.
+A conclusão anterior permanece no histórico append-only. Novas entradas usam `rulesVersion: 4` e `lifecycleBasis`; versões 1/2/3 permanecem intactas. Reparar apenas um macro legado, com situação já correta, não fabrica uma transição detalhada. Dry-run expõe `statusChanges` separadamente de `changes`; segundo apply sem mudanças não grava novos eventos. Falha na escrita do histórico desfaz a mutação, o macro e o State juntos.
 
 Relevância por projeto, deduplicação, currentVersion, ordenação executedAt/id, cobertura por passo FAIL, lifecycle de Defect e reteste contextual permanecem canônicos. PASS comum não encerra um Defect. Progresso continua independente: 25% com Defect em correção é EM_CORRECAO com progresso de 25%.
 

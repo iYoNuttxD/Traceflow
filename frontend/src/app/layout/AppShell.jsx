@@ -297,6 +297,7 @@ export function AppShell({ user, onLogout, children }) {
       ref={shellRef}
       className="trace-shell"
       data-sidebar-state={sidebarState}
+      data-notifications-state={panelOpen ? 'open' : 'closed'}
       data-drawer-state={drawerOpen ? 'open' : 'closed'}
     >
       <a

@@ -206,6 +206,7 @@
 
 .project-overview-group dd {
   min-width: 0;
+  max-width: 72ch;
   margin: 0;
   color: var(--color-text-strong);
   font-size: var(--font-size-2);

@@ -1,3 +1,4 @@
+import { observeTimerSnapshots } from '../utils/timer-clock.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { deleteTask, kanbanApi, tasksApi } from '../api/tasks.api.js';
@@ -106,7 +107,7 @@ export function KanbanScreen() {
   useEffect(() => {
     if (!subscribeToProjectEvents) return undefined;
     return subscribeToProjectEvents(EFFORT_EVENT_TYPES, (event) => {
-      const effort = event.data?.effort;
+      const effort = observeTimerSnapshots(event.data?.effort);
       if (!effort || event.taskId == null) return;
       const patch = {
         actualEffort: actualEffortFromSummary(effort),

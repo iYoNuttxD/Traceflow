@@ -69,6 +69,87 @@ const config = (widgets) => ({ configurationVersion: 1, widgets });
 const ids = (r) => r.body.sections.flatMap((s) => s.indicators.map((i) => i.metricId));
 
 describe('P9 personal preference and custom aggregate', () => {
+  it.each(['VIEWER', 'MEMBER', 'MANAGER', 'OWNER'])(
+    '%s pins only their panel, preserves the pin on legacy saves, and unpins without deletion',
+    async (role) => {
+      const user = await actor();
+      const other = await actor();
+      const p = await project(user, role);
+      const q = await project(user);
+      await prisma.projectMembership.create({
+        data: { projectId: p.id, userId: other.id, role: 'VIEWER' }
+      });
+      const saved = await call(p, user, 'put').send({
+        ...config(['I23', 'I01']),
+        pinnedToOverview: true
+      });
+      expect(saved.status).toBe(200);
+      expect(saved.body).toMatchObject({ widgets: ['I23', 'I01'], pinnedToOverview: true });
+      expect((await call(p, user)).body.pinnedToOverview).toBe(true);
+      expect((await call(p, other)).body.pinnedToOverview).toBe(false);
+      expect((await call(q, user)).body.pinnedToOverview).toBe(false);
+      const legacySave = await call(p, user, 'put').send(config(['I01', 'I23']));
+      expect(legacySave.body).toMatchObject({ widgets: ['I01', 'I23'], pinnedToOverview: true });
+      const unpinned = await call(p, user, 'patch').send({ pinnedToOverview: false });
+      expect(unpinned.body).toMatchObject({ widgets: ['I01', 'I23'], pinnedToOverview: false });
+      expect(
+        await prisma.projectDashboardPreference.count({
+          where: { projectId: p.id, userId: user.id }
+        })
+      ).toBe(1);
+      expect((await call(p, user)).body.widgets).toEqual(['I01', 'I23']);
+      expect((await call(p, user, 'delete')).body).toEqual(defaultDashboardPreference());
+    }
+  );
+  it('unpins a missing preference without creating a row, and preserves legacy JSON on unpin', async () => {
+    const user = await actor();
+    const p = await project(user);
+    expect((await call(p, user, 'patch').send({ pinnedToOverview: false })).body).toEqual(
+      defaultDashboardPreference()
+    );
+    expect(await prisma.projectDashboardPreference.count()).toBe(0);
+    const configuration = {
+      widgets: ['I99', 'I23', 'I01'],
+      pinnedToOverview: true,
+      extraLegacySetting: 'kept'
+    };
+    await prisma.projectDashboardPreference.create({
+      data: { projectId: p.id, userId: user.id, configurationVersion: 7, configuration }
+    });
+    expect((await call(p, user, 'patch').send({ pinnedToOverview: false })).status).toBe(200);
+    expect(await prisma.projectDashboardPreference.findFirst()).toMatchObject({
+      configurationVersion: 7,
+      configuration: { ...configuration, pinnedToOverview: false }
+    });
+  });
+
+  it.each([
+    {},
+    { pinnedToOverview: 'true' },
+    { pinnedToOverview: null },
+    { pinnedToOverview: false, userId: 1 },
+    { pinnedToOverview: false, widgets: ['I01'] }
+  ])('rejects invalid pin-only payload %j', async (body) => {
+    const user = await actor();
+    const p = await project(user);
+    expect((await call(p, user, 'patch').send(body)).status).toBe(400);
+    expect(await prisma.projectDashboardPreference.count()).toBe(0);
+  });
+
+  it('requires CSRF for flag-only writes and cannot modify another user', async () => {
+    const user = await actor();
+    const p = await project(user);
+    expect(
+      (
+        await request(app)
+          .patch(`/api/projects/${p.id}/indicator-preference`)
+          .set('Cookie', `traceflow_session=${user.token}`)
+          .send({ pinnedToOverview: true })
+      ).status
+    ).toBe(403);
+    expect(await prisma.projectDashboardPreference.count()).toBe(0);
+  });
+
   it.each(['deactivate', 'leave'])(
     '%s removes only this membership preference; reactivation starts with the default',
     async (operation) => {
@@ -221,6 +302,9 @@ describe('P9 personal preference and custom aggregate', () => {
     {},
     { widgets: ['I01'] },
     { ...config(['I01']), userId: 1 },
+    { ...config(['I01']), pinnedToOverview: 'true' },
+    { ...config(['I01']), pinnedToOverview: 1 },
+    { ...config(['I01']), pinnedToOverview: null },
     config([]),
     config(['I01', 'I01']),
     config(['I99']),
@@ -255,12 +339,28 @@ describe('P9 personal preference and custom aggregate', () => {
     const user = await actor();
     const other = await actor();
     const p = await project(user);
-    for (const method of ['get', 'put', 'delete']) {
+    for (const method of ['get', 'put', 'patch', 'delete']) {
       expect(
-        (await call(p, null, method).send(method === 'put' ? config(['I01']) : {})).status
+        (
+          await call(p, null, method).send(
+            method === 'put'
+              ? config(['I01'])
+              : method === 'patch'
+                ? { pinnedToOverview: true }
+                : {}
+          )
+        ).status
       ).toBe(401);
       expect(
-        (await call(p, other, method).send(method === 'put' ? config(['I01']) : {})).status
+        (
+          await call(p, other, method).send(
+            method === 'put'
+              ? config(['I01'])
+              : method === 'patch'
+                ? { pinnedToOverview: true }
+                : {}
+          )
+        ).status
       ).toBe(404);
     }
     expect(
@@ -307,7 +407,10 @@ describe('P9 personal preference and custom aggregate', () => {
     const { settingsRepository } =
       await import('../../src/modules/settings/settings.repository.js');
     expect((await settingsRepository.exportData(user.id)).dashboardPreferences).toEqual([
-      expect.objectContaining({ projectId: p.id, configuration: { widgets: ['I01'] } })
+      expect.objectContaining({
+        projectId: p.id,
+        configuration: { widgets: ['I01'], pinnedToOverview: false }
+      })
     ]);
     await prisma.project.update({ where: { id: p.id }, data: { deletedAt: new Date() } });
     expect((await settingsRepository.exportData(user.id)).dashboardPreferences).toEqual([]);

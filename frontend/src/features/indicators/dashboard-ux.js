@@ -19,6 +19,7 @@ export function compatibleDashboardPreference(preference, catalog, policy) {
     : filterDashboardWidgets(policy.defaultPreference.widgets, catalog, policy.maxWidgets);
   return {
     ...preference,
+    pinnedToOverview: preference.pinnedToOverview === true,
     widgets,
     configurationAdjusted:
       preference.configurationAdjusted ||

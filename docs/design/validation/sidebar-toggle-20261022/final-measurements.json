@@ -1,0 +1,165 @@
+[
+  {
+    "label": "collapsed-open-1280",
+    "button": {
+      "bottom": 92,
+      "height": 44,
+      "left": 21.5,
+      "right": 65.5,
+      "top": 48,
+      "width": 44
+    },
+    "contained": true,
+    "contentHeight": 704,
+    "contentScrollHeight": 704,
+    "inert": true,
+    "notifications": "open",
+    "overlap": 0,
+    "pageScrollWidth": 1280,
+    "panelLeft": 89.50664520263672,
+    "sidebarRight": 88,
+    "state": "collapsed",
+    "transition": "0s",
+    "viewport": {
+      "height": 800,
+      "width": 1280
+    }
+  },
+  {
+    "label": "immediate-collapse-and-open-1280",
+    "button": {
+      "bottom": 92,
+      "height": 44,
+      "left": 21.5,
+      "right": 65.5,
+      "top": 48,
+      "width": 44
+    },
+    "contained": true,
+    "contentHeight": 704,
+    "contentScrollHeight": 704,
+    "inert": true,
+    "notifications": "open",
+    "overlap": 0,
+    "pageScrollWidth": 1280,
+    "panelLeft": 108.0809326171875,
+    "sidebarRight": 88,
+    "state": "collapsed",
+    "transition": "0s",
+    "viewport": {
+      "height": 800,
+      "width": 1280
+    }
+  },
+  {
+    "label": "mobile-390-focus-trap",
+    "focusInDialog": true
+  },
+  {
+    "label": "mobile-390-escape",
+    "dialogs": 0,
+    "focus": "Notificações, 20 não lidas"
+  },
+  {
+    "label": "collapsed-open-768x640-final",
+    "button": {
+      "bottom": 92,
+      "height": 44,
+      "left": 21.5,
+      "right": 65.5,
+      "top": 48,
+      "width": 44
+    },
+    "contained": true,
+    "contentHeight": 544,
+    "contentScrollHeight": 544,
+    "inert": true,
+    "notifications": "open",
+    "overlap": 0,
+    "pageScrollWidth": 768,
+    "panelLeft": 88,
+    "sidebarRight": 88,
+    "state": "collapsed",
+    "transition": "0s",
+    "viewport": {
+      "height": 640,
+      "width": 768
+    }
+  },
+  {
+    "label": "tabs-768",
+    "tabs": [
+      {
+        "height": 48,
+        "overflowX": "auto",
+        "overflowY": "hidden",
+        "scrollHeight": 48
+      },
+      {
+        "height": 48,
+        "overflowX": "auto",
+        "overflowY": "hidden",
+        "scrollHeight": 48
+      }
+    ],
+    "pageWidth": 768
+  },
+  {
+    "label": "expanded-open-1440-final",
+    "button": {
+      "bottom": 62,
+      "height": 44,
+      "left": 207,
+      "right": 251,
+      "top": 18,
+      "width": 44
+    },
+    "contained": true,
+    "contentHeight": 820,
+    "contentScrollHeight": 820,
+    "inert": true,
+    "notifications": "open",
+    "overlap": 0,
+    "pageScrollWidth": 1440,
+    "panelLeft": 272,
+    "sidebarRight": 272,
+    "state": "expanded",
+    "transition": "0s",
+    "viewport": {
+      "height": 900,
+      "width": 1440
+    }
+  },
+  {
+    "label": "expanded-real-click-on-background",
+    "state": "expanded",
+    "dialogs": 0,
+    "focus": "Notificações, 20 não lidas"
+  },
+  {
+    "label": "collapsed-open-1280-settled-final",
+    "button": {
+      "bottom": 92,
+      "height": 44,
+      "left": 21.5,
+      "right": 65.5,
+      "top": 48,
+      "width": 44
+    },
+    "contained": true,
+    "contentHeight": 704,
+    "contentScrollHeight": 704,
+    "inert": true,
+    "notifications": "open",
+    "overlap": 0,
+    "pageScrollWidth": 1280,
+    "panelLeft": 88,
+    "sidebarRight": 88,
+    "state": "collapsed",
+    "transition": "0s",
+    "viewport": {
+      "height": 800,
+      "width": 1280
+    }
+  }
+]

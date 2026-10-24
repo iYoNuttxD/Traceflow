@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 import {
   indicatorAuditDetails,
@@ -6,6 +8,29 @@ import {
 import { INDICATORS } from '../../../backend/src/modules/indicators/indicators.catalog.js';
 
 describe('RF55 metadata presentation', () => {
+  it('uses local calculation time when the API explicitly marks a local projection', () => {
+    const details = indicatorAuditDetails({
+      state: 'AVAILABLE',
+      sources: ['S1-09 situation'],
+      sourceScope: 'LOCAL',
+      sourceUpdatedAt: null,
+      asOf: '2026-10-13T12:00:00Z'
+    });
+    expect(details.clockLabel).toBe('Calculado com dados até');
+    expect(details.clock).toContain('13/10/2026');
+    expect(details.sources).toEqual(['Rastreabilidade, casos de teste e defeitos dos requisitos']);
+  });
+  it.each(['GITHUB', 'MIXED'])('preserves the external clock for %s projections', (sourceScope) => {
+    const details = indicatorAuditDetails({
+      state: 'AVAILABLE',
+      sources: ['S1-09 situation'],
+      sourceScope,
+      sourceUpdatedAt: null,
+      asOf: '2026-10-13T12:00:00Z'
+    });
+    expect(details.clockLabel).toBe('Fonte atualizada');
+    expect(details.clock).toBe('Indisponível no momento.');
+  });
   it('presents every API-owned rule unchanged without a frontend formula registry', () => {
     for (const definition of Object.values(INDICATORS)) {
       const details = indicatorAuditDetails({

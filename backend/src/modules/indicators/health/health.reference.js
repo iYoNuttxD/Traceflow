@@ -26,7 +26,14 @@ export function healthReference(metricId, result) {
     relative = true;
   } else if (result.reasonCode === 'STAGE_GAP') {
     type = 'PROJECT_STAGE';
-    label = b.expectedMetricId === 'I01' ? 'Progresso do projeto' : 'Cobertura de implementação';
+    label =
+      b.scope === 'GITHUB_REQUIREMENTS'
+        ? b.expectedMetricId === 'I01'
+          ? 'Progresso das tarefas de requisitos GitHub'
+          : 'Implementação dos requisitos GitHub'
+        : b.expectedMetricId === 'I01'
+          ? 'Progresso do projeto'
+          : 'Cobertura de implementação';
     current = b.current;
     value = b.expected;
     unit = 'PERCENT';

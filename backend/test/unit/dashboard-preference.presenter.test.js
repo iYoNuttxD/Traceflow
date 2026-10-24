@@ -8,6 +8,28 @@ const row = (widgets) => ({
   updatedAt: new Date('2026-10-06T12:00:00Z')
 });
 describe('legacy preference presentation', () => {
+  it('defaults old/missing preferences to unpinned, and exposes only a real boolean pin', () => {
+    expect(presentDashboardPreference(null).pinnedToOverview).toBe(false);
+    expect(presentDashboardPreference(row(['I01'])).pinnedToOverview).toBe(false);
+    for (const value of [null, 'true', 1, {}]) {
+      expect(
+        presentDashboardPreference({
+          ...row(['I01']),
+          configuration: { widgets: ['I01'], pinnedToOverview: value }
+        }).pinnedToOverview
+      ).toBe(false);
+    }
+  });
+  it('preserves a pin when removed widgets require a read-only fallback', () => {
+    const saved = { ...row(['I99']), configuration: { widgets: ['I99'], pinnedToOverview: true } };
+    const before = structuredClone(saved);
+    expect(presentDashboardPreference(saved)).toMatchObject({
+      widgets: defaultDashboardPreference().widgets,
+      pinnedToOverview: true,
+      configurationAdjusted: true
+    });
+    expect(saved).toEqual(before);
+  });
   it('filters missing/unapproved IDs, preserves order, and never mutates the row', () => {
     const saved = row(['I03', 'I23', 'I99', 'I01']);
     const before = structuredClone(saved);
@@ -32,6 +54,7 @@ describe('legacy preference presentation', () => {
     expect(presentDashboardPreference({ ...row(['I01']), configurationVersion: 7 })).toEqual({
       configurationVersion: 7,
       widgets: ['I01'],
+      pinnedToOverview: false,
       isDefault: false,
       updatedAt: '2026-10-06T12:00:00.000Z'
     });

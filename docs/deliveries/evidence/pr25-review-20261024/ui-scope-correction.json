@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-24",
+  "supersedes": "ui-inspection.json layout claims for 3402c239",
+  "scope": "Restore Indicators filters above tabs; only Overview reserves header space for actions",
+  "browser": "Chrome",
+  "syntheticProject": 4,
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900,
+      "documentScrollWidth": 1440,
+      "indicatorsFilterWidth": 1104,
+      "filterToToolbarGap": 24,
+      "overviewToggleWidth": 857.8,
+      "overviewActionsWidth": 228.2
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "documentScrollWidth": 390,
+      "indicatorsFilterWidth": 358,
+      "filterToToolbarGap": 24,
+      "overviewFilterWidth": 358,
+      "overviewActionsNextRow": true
+    }
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "screens": [
+    "Indicators General",
+    "Indicators My dashboard",
+    "Project Overview"
+  ],
+  "checks": [
+    "Filters expanded and collapsed",
+    "No filter/tab overlap",
+    "Keyboard tab selection and focus",
+    "Date period applied and cleared",
+    "Removal only in editor",
+    "Unpin preserves draft; cancel restores saved order",
+    "Focus returns to opener; repinning preserves saved widgets"
+  ],
+  "minimumActionHeight": 44,
+  "screenshotExport": "EPERM; screenshots inspected in browser tool session, not archived",
+  "humanVisualApproval": false
+}

@@ -62,9 +62,14 @@ export const dashboardWidgetsSchema = z
   .max(DASHBOARD_WIDGET_LIMIT, 'Selecione no máximo 12 indicadores.')
   .refine((ids) => new Set(ids).size === ids.length, 'Indicadores duplicados não são permitidos.');
 
+export const dashboardOverviewPinBodySchema = strictObject({
+  pinnedToOverview: z.boolean()
+});
+
 export const dashboardPreferenceBodySchema = strictObject({
   configurationVersion: z.literal(DASHBOARD_CONFIGURATION_VERSION),
-  widgets: dashboardWidgetsSchema
+  widgets: dashboardWidgetsSchema,
+  pinnedToOverview: z.boolean().optional()
 });
 
 export const dashboardQuerySchema = strictObject({

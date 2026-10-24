@@ -46,6 +46,7 @@ const managerOrAbove = [
 const viewerMayWrite = new Set([
   'DELETE /api/projects/:projectId/members/me',
   'PUT /api/projects/:projectId/indicator-preference',
+  'PATCH /api/projects/:projectId/indicator-preference',
   'DELETE /api/projects/:projectId/indicator-preference'
 ]);
 
@@ -142,7 +143,7 @@ describe('H09 — varredura de autorização gerada do roteador', () => {
     expect(await deviationsOf(fixture.accounts.outsider, routes, 404)).toEqual([]);
   });
 
-  it('VIEWER recebe 403 em toda escrita de projeto, salvo as três da matriz', async () => {
+  it('VIEWER recebe 403 em toda escrita de projeto, salvo as quatro da matriz', async () => {
     const routes = inventory.routes.filter(
       (route) =>
         sweepable(route) &&

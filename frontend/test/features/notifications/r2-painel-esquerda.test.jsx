@@ -323,6 +323,48 @@ describe('UX-R3-01 — o painel escurece só a área principal', () => {
   const ruleOf = (selector) =>
     panelCss().match(new RegExp(`\\n${escaped(selector)} \\{[^}]*\\}`))?.[0] ?? '';
 
+  it.each(['expanded', 'collapsed'])(
+    'o botão visível não atravessa o modal (%s) e volta a funcionar pelo teclado ao fechar',
+    async (state) => {
+      const user = userEvent.setup();
+      renderShell();
+      if (state === 'collapsed')
+        await user.click(screen.getByRole('button', { name: 'Recolher sidebar' }));
+      const shell = document.querySelector('.trace-shell');
+      const toggle = screen.getByRole('button', {
+        name: state === 'collapsed' ? 'Expandir sidebar' : 'Recolher sidebar'
+      });
+      await openPanel(user);
+      expect(panel()).toHaveAttribute('aria-modal', 'true');
+      expect(shell.inert).toBe(true);
+      expect(shell).toHaveAttribute('data-notifications-state', 'open');
+      expect(panel().contains(toggle)).toBe(false);
+      await user.tab({ shift: true });
+      expect(panel().contains(document.activeElement)).toBe(true);
+
+      // The transparent modal shield owns clicks over the background toggle.
+      await user.click(layer().querySelector('.notifications-panel__menu-shield'));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(shell).toHaveAttribute('data-sidebar-state', state);
+      expect(shell.inert).toBe(false);
+      expect(shell).toHaveAttribute('data-notifications-state', 'closed');
+      expect(document.activeElement).toBe(bell());
+
+      toggle.focus();
+      await user.keyboard('{Enter}');
+      expect(shell).toHaveAttribute(
+        'data-sidebar-state',
+        state === 'collapsed' ? 'expanded' : 'collapsed'
+      );
+      await user.keyboard(' ');
+      expect(shell).toHaveAttribute('data-sidebar-state', state);
+      await openPanel(user);
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(bell());
+    }
+  );
+
   it('M-01 o fundo começa no deslocamento do menu expandido, e o menu fica sem escurecer', async () => {
     const user = userEvent.setup();
     renderShell();

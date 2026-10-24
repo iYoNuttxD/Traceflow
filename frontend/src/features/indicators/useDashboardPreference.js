@@ -23,7 +23,7 @@ export function useDashboardPreference(projectId, active) {
     if (!active || preference || saving) return;
     const controller = new AbortController();
     setState({ projectId, data: null, error: false });
-    void indicatorsApi.preference(projectId, { signal: controller.signal }).then(
+    void indicatorsApi.preference(projectId, { signal: controller.signal, fresh: true }).then(
       (response) => {
         if (!controller.signal.aborted) setState({ projectId, data: response.data, error: false });
       },
@@ -65,6 +65,8 @@ export function useDashboardPreference(projectId, active) {
     error: state.projectId === projectId && state.error,
     retry: () => setRetry((value) => value + 1),
     save: (configuration) => persist(() => indicatorsApi.savePreference(projectId, configuration)),
+    setOverviewPin: (pinnedToOverview) =>
+      persist(() => indicatorsApi.setOverviewPin(projectId, pinnedToOverview)),
     reset: () => persist(() => indicatorsApi.resetPreference(projectId))
   };
 }

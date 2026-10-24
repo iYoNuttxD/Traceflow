@@ -5,6 +5,8 @@ import {
   definitionPayload,
   executionFormData,
   referenceOption,
+  referenceLabel,
+  testedReferenceError,
   mergeItems,
   resultOf
 } from '../../src/features/testCases/model/test-cases.js';
@@ -33,6 +35,34 @@ beforeEach(() => {
   http.put.mockResolvedValue({ data: { testCase: { id: 1 } } });
 });
 describe('S1-07 API and payload contracts', () => {
+  it('serializes a named manual version without fabricating a GitHub resource', () => {
+    const reference = { type: 'MANUAL', version: '  build 2026-10-13  ' };
+    const body = executionFormData({
+      testCaseVersion: 3,
+      environment: 'LOCAL',
+      testedReference: reference,
+      stepResults: [{ position: 1, result: 'FAIL', observedResult: 'Falha', evidences: [] }],
+      evidences: []
+    });
+    expect(JSON.parse(body.get('payload')).testedReference).toEqual({
+      type: 'MANUAL',
+      version: 'build 2026-10-13'
+    });
+    expect(referenceLabel({ type: 'MANUAL', version: 'build 2026-10-13' })).toBe(
+      'Versão manual · build 2026-10-13'
+    );
+    expect(referenceLabel(null)).toBe('Versão não informada');
+    expect(referenceLabel({})).toBe('Versão não informada');
+  });
+  it('requires a nonblank bounded manual version', () => {
+    expect(testedReferenceError({ type: 'MANUAL', version: '   ' })).toBe(
+      'Informe a versão testada.'
+    );
+    expect(testedReferenceError({ type: 'MANUAL', version: 'x'.repeat(201) })).toBe(
+      'Use até 200 caracteres.'
+    );
+    expect(testedReferenceError({ type: 'MANUAL', version: 'x'.repeat(200) })).toBe('');
+  });
   it('omits empty filters, keeps numerical pagination and marks fresh reads', async () => {
     await testCasesApi.list(4, { search: '', status: 'ATIVO', page: 2, limit: 20, taskId: null });
     expect(http.get).toHaveBeenCalledWith('/projects/4/test-cases', {

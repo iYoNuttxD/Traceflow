@@ -8,7 +8,9 @@ import './IndicatorsScreen.css';
 
 function ProjectIndicators({ project }) {
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const hasGithubIntegration = Boolean(project.githubIntegration);
   useEffect(() => {
+    if (!hasGithubIntegration) return;
     const controller = new AbortController();
     let timer;
     let observedRun = null;
@@ -41,7 +43,7 @@ function ProjectIndicators({ project }) {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [project.id]);
+  }, [project.id, hasGithubIntegration]);
   return <DashboardPanel projectId={project.id} refreshVersion={refreshVersion} />;
 }
 

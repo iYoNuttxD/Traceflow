@@ -62,7 +62,11 @@ export const executionSchema = z.strictObject({
   retest: retestSchema.optional(),
   testCaseVersion: id,
   environment: z.enum(['LOCAL', 'DESENVOLVIMENTO', 'HOMOLOGACAO']),
-  testedReference: z.strictObject({ type: z.enum(['PULL_REQUEST', 'COMMIT']), id }),
+  testedReference: z.discriminatedUnion('type', [
+    z.strictObject({ type: z.literal('PULL_REQUEST'), id }),
+    z.strictObject({ type: z.literal('COMMIT'), id }),
+    z.strictObject({ type: z.literal('MANUAL'), version: text(200) })
+  ]),
   steps: z
     .array(
       z
@@ -182,6 +186,7 @@ export function executionSteps(snapshot, submitted) {
   }));
 }
 export function referenceSnapshot(type, ref) {
+  if (type === 'MANUAL') return { type, version: ref.version };
   return type === 'PULL_REQUEST'
     ? {
         type,

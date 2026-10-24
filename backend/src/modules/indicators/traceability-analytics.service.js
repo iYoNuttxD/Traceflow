@@ -17,6 +17,33 @@ export const traceabilityAnalyticsService = {
     const denominator = summary.totalRequirements;
     const timestamp = now().toISOString();
     const freshness = githubFreshness(facts.project.githubIntegration, facts.branch);
+    const cohort = summary.githubCohort;
+    const sourceScope =
+      summary.lifecycleBasis.github > 0
+        ? summary.lifecycleBasis.local > 0
+          ? 'MIXED'
+          : 'GITHUB'
+        : 'LOCAL';
+    // Public metrics retain their global denominator. Only Health comparisons are scoped
+    // away from requirements whose immutable lifecycle never required technical evidence.
+    const healthComparison = (field, implementationReference = false) => {
+      if (!summary.lifecycleBasis.local) return undefined;
+      const numerator = cohort[field];
+      return {
+        scope: 'GITHUB_REQUIREMENTS',
+        applicable: cohort.totalRequirements > 0,
+        numerator,
+        denominator: cohort.totalRequirements,
+        value: percentage(numerator, cohort.totalRequirements),
+        expectedValue: implementationReference
+          ? percentage(cohort.implementedRequirements, cohort.totalRequirements)
+          : percentage(cohort.tasksDone, cohort.tasksTotal),
+        expectedNumerator: implementationReference
+          ? cohort.implementedRequirements
+          : cohort.tasksDone,
+        expectedDenominator: implementationReference ? cohort.totalRequirements : cohort.tasksTotal
+      };
+    };
     const result = (metricId, numerator, options = {}) => {
       const notConfigured = options.githubDependent && !facts.project.githubIntegration;
       const stale = options.githubDependent && freshness.stale && denominator > 0;
@@ -27,6 +54,10 @@ export const traceabilityAnalyticsService = {
           value: denominator && !notConfigured ? percentage(numerator, denominator) : null,
           numerator: notConfigured ? null : numerator,
           denominator,
+          ...(options.sourceScope ? { sourceScope: options.sourceScope } : {}),
+          ...(options.healthComparison
+            ? { components: { healthComparison: options.healthComparison } }
+            : {}),
           state: notConfigured
             ? 'UNAVAILABLE'
             : denominator
@@ -47,11 +78,23 @@ export const traceabilityAnalyticsService = {
     };
     const indicators = [
       result('I61', summary.requirementsWithTasks),
-      result('I62', summary.requirementsWithTechnicalEvidence, { githubDependent: true }),
-      result('I63', summary.requirementsWithTestCase),
+      result('I62', summary.requirementsWithTechnicalEvidence, {
+        githubDependent: true,
+        healthComparison: healthComparison('requirementsWithTechnicalEvidence')
+      }),
+      result('I63', summary.requirementsWithTestCase, {
+        healthComparison: healthComparison('requirementsWithTestCase', true)
+      }),
       result('I64', summary.requirementsWithActiveDefect),
-      result('I65', summary.validatedRequirements, { githubDependent: true }),
-      result('I66', summary.implementedRequirements, { githubDependent: true }),
+      result('I65', summary.validatedRequirements, {
+        githubDependent: summary.lifecycleBasis.github > 0,
+        sourceScope,
+        healthComparison: healthComparison('validatedRequirements', true)
+      }),
+      result('I66', summary.implementedRequirements, {
+        githubDependent: true,
+        healthComparison: healthComparison('implementedRequirements')
+      }),
       indicatorResult(
         'I67',
         id,

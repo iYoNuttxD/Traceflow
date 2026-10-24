@@ -46,6 +46,13 @@ afterAll(async () => {
 });
 
 const ALL_RIGHT = { update: 'ok', read: 'ok', select: 'ok', create: 'ok' };
+// Keep the default interruption in F1-01 and both real default/custom success
+// windows in F1-05. Other rounds exercise the same real MySQL failure paths
+// with the public transaction options, without mocking clocks or recovery.
+const SHORT_TRANSACTION = { timeout: 1000 };
+const SHORT_QUERY_SECONDS = 3;
+const HARD_TRANSACTION = { timeout: 1000, maxWait: 1000 };
+const HARD_QUERY_SECONDS = 9;
 
 async function fixture() {
   sequence += 1;
@@ -121,9 +128,10 @@ async function storedName(userId) {
   return (await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })).name;
 }
 
-function expectDeadline(error) {
+function expectDeadline(error, timeoutMs = 5000) {
   expect(error?.name, String(error?.message).slice(0, 200)).toBe('TransactionDeadlineError');
   expect(error.code).toBe('TRANSACTION_DEADLINE');
+  expect(error.timeoutMs).toBe(timeoutMs);
 }
 
 async function withOwnClient(run) {
@@ -141,18 +149,20 @@ describe('S202-F33 — Fase 1: prazo próprio da transação interativa', () => 
 
     await withOwnClient(async (client) => {
       for (let round = 1; round <= 3; round += 1) {
+        const options = round === 1 ? undefined : SHORT_TRANSACTION;
+        const timeoutMs = options?.timeout ?? 5000;
         const { error, ms } = await timed(() =>
           client.$transaction(async (tx) => {
             await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado antes' } });
-            await slowQuery(tx);
+            await slowQuery(tx, round === 1 ? undefined : SHORT_QUERY_SECONDS);
             await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado depois' } });
-          })
+          }, options)
         );
 
-        expectDeadline(error);
+        expectDeadline(error, timeoutMs);
         expect(String(error.cause?.meta?.code ?? error.cause?.message)).toMatch(/1317/);
-        expect(ms).toBeGreaterThanOrEqual(4900);
-        expect(ms).toBeLessThan(6000);
+        expect(ms).toBeGreaterThanOrEqual(timeoutMs - 100);
+        expect(ms).toBeLessThan(timeoutMs + 1000);
         expect(await storedName(data.user.id)).not.toMatch(/^Gravado/);
         expect(await probe(client, data), `rodada ${round}`).toEqual(Array(4).fill(ALL_RIGHT));
       }
@@ -167,12 +177,12 @@ describe('S202-F33 — Fase 1: prazo próprio da transação interativa', () => 
         const { error, ms } = await timed(() =>
           client.$transaction(async (tx) => {
             await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado antes' } });
-            await slowUpdate(tx, data.user.id);
-          })
+            await slowUpdate(tx, data.user.id, SHORT_QUERY_SECONDS);
+          }, SHORT_TRANSACTION)
         );
 
-        expectDeadline(error);
-        expect(ms).toBeLessThan(6000);
+        expectDeadline(error, SHORT_TRANSACTION.timeout);
+        expect(ms).toBeLessThan(SHORT_TRANSACTION.timeout + 1000);
         expect(await storedName(data.user.id)).not.toMatch(/^(Gravado|pesado)/);
         expect(await probe(client, data), `rodada ${round}`).toEqual(Array(4).fill(ALL_RIGHT));
       }
@@ -186,12 +196,12 @@ describe('S202-F33 — Fase 1: prazo próprio da transação interativa', () => 
       const { error } = await timed(() =>
         client.$transaction(async (tx) => {
           await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado antes' } });
-          await tx.$queryRawUnsafe('SELECT SLEEP(7) AS s');
+          await tx.$queryRawUnsafe(`SELECT SLEEP(${SHORT_QUERY_SECONDS}) AS s`);
           await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado depois' } });
-        })
+        }, SHORT_TRANSACTION)
       );
 
-      expectDeadline(error);
+      expectDeadline(error, SHORT_TRANSACTION.timeout);
       expect(await storedName(data.user.id)).toBe('Pessoa original');
       expect(await probe(client, data)).toEqual(Array(4).fill(ALL_RIGHT));
     });
@@ -207,18 +217,18 @@ describe('S202-F33 — Fase 1: prazo próprio da transação interativa', () => 
           await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado antes' } });
           for (let attempt = 1; attempt <= 2; attempt += 1) {
             try {
-              await slowQuery(tx);
+              await slowQuery(tx, SHORT_QUERY_SECONDS);
             } catch (failure) {
               caught.push(String(failure.meta?.code ?? failure.code));
             }
           }
           return 'terminou';
-        })
+        }, SHORT_TRANSACTION)
       );
 
-      expectDeadline(error);
+      expectDeadline(error, SHORT_TRANSACTION.timeout);
       expect(caught).toEqual(['1317', '1317']);
-      expect(ms).toBeLessThan(6000);
+      expect(ms).toBeLessThan(SHORT_TRANSACTION.timeout + 1000);
       expect(await storedName(data.user.id)).toBe('Pessoa original');
       expect(await probe(client, data)).toEqual(Array(4).fill(ALL_RIGHT));
     });
@@ -252,6 +262,7 @@ describe('S202-F33 — Fase 1: prazo próprio da transação interativa', () => 
 describe('S202-F33 — Fase 2: segunda camada', () => {
   it('F2-03 P2028 que escapa do prazo próprio: o prazo duro solta a requisição, a conexão é encerrada, ninguém recebe resposta errada, e 3 rodadas não escalam (TF-REV-013)', async () => {
     const data = await fixture();
+    expect(HARD_QUERY_SECONDS * 1000).toBeGreaterThan(settleDeadlineMs(HARD_TRANSACTION));
     const reasons = [];
     const client = guardTransactions(new PrismaClient(), {
       killQuery: async () => {
@@ -271,12 +282,15 @@ describe('S202-F33 — Fase 2: segunda camada', () => {
         const { error, ms } = await timed(() =>
           client.$transaction(async (tx) => {
             await tx.user.update({ where: { id: data.user.id }, data: { name: 'Gravado antes' } });
-            await slowQuery(tx);
-          })
+            await slowQuery(tx, HARD_QUERY_SECONDS);
+          }, HARD_TRANSACTION)
         );
 
-        expectDeadline(error);
-        expect(ms, `rodada ${round}`).toBeLessThan(settleDeadlineMs() + 1500);
+        expectDeadline(error, HARD_TRANSACTION.timeout);
+        expect(ms, `rodada ${round}`).toBeGreaterThanOrEqual(
+          settleDeadlineMs(HARD_TRANSACTION) - 100
+        );
+        expect(ms, `rodada ${round}`).toBeLessThan(settleDeadlineMs(HARD_TRANSACTION) + 1500);
         expect(reasons.at(-1)).toBe('UNSETTLED_TRANSACTION');
         expect(await storedName(data.user.id)).not.toMatch(/^Gravado/);
         await vi.waitFor(() => expect(discarded()).toBe(1), { timeout: 10000, interval: 100 });

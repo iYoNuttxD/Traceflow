@@ -13,6 +13,15 @@ export const dashboardPreferenceService = {
       await dashboardPreferenceRepository.write(Number(projectId), userId, configuration)
     );
   },
+  async setOverviewPin(projectId, userId, pinnedToOverview) {
+    return presentDashboardPreference(
+      await dashboardPreferenceRepository.setOverviewPin(
+        Number(projectId),
+        userId,
+        pinnedToOverview
+      )
+    );
+  },
   async reset(projectId, userId) {
     await dashboardPreferenceRepository.write(Number(projectId), userId, null);
     return defaultDashboardPreference();

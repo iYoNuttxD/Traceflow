@@ -6,6 +6,7 @@ import {
 } from '../helpers/test-database.js';
 import { createProject, createTask } from '../fixtures/factories.js';
 import {
+  coverGithubEvents,
   lifecycleEventsFor,
   openLinkPeriod,
   recordGithubEvent
@@ -727,6 +728,8 @@ describe('S2-03 despacho: gancho na sincronização (D9, V16.5.3)', () => {
 
   async function syncedPullRequest() {
     const context = await integratedProject();
+    // Keep fixed historical events inside coverage even as the real clock advances.
+    await coverGithubEvents(prisma, context.project.id);
     const responsible = await person(context.project.id);
     const task = await createTask(prisma, context.project.id, {
       responsibleUserId: responsible.id

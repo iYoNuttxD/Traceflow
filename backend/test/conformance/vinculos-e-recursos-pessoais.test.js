@@ -237,6 +237,15 @@ describe('H11 — recurso pessoal de outra conta no mesmo projeto', () => {
     ).toBe(200);
     const saved = await accounts.member.send('GET', preference);
     expect((await viewer.send('GET', preference)).body).not.toEqual(saved.body);
+    const viewerPreference = await viewer.send('GET', preference);
+    const pinned = await viewer.send('PATCH', preference, { pinnedToOverview: true });
+    expect(pinned.status).toBe(200);
+    expect(pinned.body).toMatchObject({
+      widgets: viewerPreference.body.widgets,
+      pinnedToOverview: true
+    });
+    expect((await viewer.send('GET', preference)).body).toEqual(pinned.body);
+    expect((await accounts.member.send('GET', preference)).body).toEqual(saved.body);
     expect((await viewer.send('DELETE', preference)).status).toBeLessThan(500);
     expect((await accounts.member.send('GET', preference)).body).toEqual(saved.body);
 

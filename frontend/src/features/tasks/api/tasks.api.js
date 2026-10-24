@@ -1,25 +1,33 @@
+import { observeTimerSnapshots } from '../utils/timer-clock.js';
 import { httpClient } from '../../../api/http-client.js';
 import { compactParams } from '../../../shared/utils/compact-params.js';
 
+function observeResponse(response) {
+  observeTimerSnapshots(response.data);
+  return response;
+}
+
 async function responseData(request) {
-  return (await request).data;
+  return observeTimerSnapshots((await request).data);
 }
 
 export const tasksApi = {
   get(taskId, options = {}) {
-    return httpClient.get(`/tasks/${taskId}`, options);
+    return httpClient.get(`/tasks/${taskId}`, options).then(observeResponse);
   },
   list(projectId, params = {}, options = {}) {
-    return httpClient.get(`/projects/${projectId}/tasks`, {
-      ...options,
-      params: compactParams(params)
-    });
+    return httpClient
+      .get(`/projects/${projectId}/tasks`, {
+        ...options,
+        params: compactParams(params)
+      })
+      .then(observeResponse);
   },
   create(projectId, payload) {
-    return httpClient.post(`/projects/${projectId}/tasks`, payload);
+    return httpClient.post(`/projects/${projectId}/tasks`, payload).then(observeResponse);
   },
   update(taskId, payload) {
-    return httpClient.put(`/tasks/${taskId}`, payload);
+    return httpClient.put(`/tasks/${taskId}`, payload).then(observeResponse);
   },
   remove(taskId) {
     return responseData(httpClient.delete(`/tasks/${taskId}`));
@@ -118,28 +126,34 @@ export const unlinkTaskIssue = (taskId, issueId) => tasksApi.unlinkIssue(taskId,
 
 export const kanbanApi = {
   getBoard(projectId, options = {}) {
-    return httpClient.get(`/projects/${projectId}/kanban`, options);
+    return httpClient.get(`/projects/${projectId}/kanban`, options).then(observeResponse);
   },
   moveTask(taskId, data) {
-    return httpClient.patch(`/tasks/${taskId}/move`, data);
+    return httpClient.patch(`/tasks/${taskId}/move`, data).then(observeResponse);
   },
   listMovements(projectId, params = {}, options = {}) {
-    return httpClient.get(`/projects/${projectId}/kanban/movements`, {
-      ...options,
-      params: compactParams(params)
-    });
+    return httpClient
+      .get(`/projects/${projectId}/kanban/movements`, {
+        ...options,
+        params: compactParams(params)
+      })
+      .then(observeResponse);
   },
   listTaskHistory(projectId, params = {}, options = {}) {
-    return httpClient.get(`/projects/${projectId}/tasks/history`, {
-      ...options,
-      params: compactParams(params)
-    });
+    return httpClient
+      .get(`/projects/${projectId}/tasks/history`, {
+        ...options,
+        params: compactParams(params)
+      })
+      .then(observeResponse);
   },
   getMetrics(projectId, params = {}, options = {}) {
-    return httpClient.get(`/projects/${projectId}/kanban/metrics`, {
-      ...options,
-      params: compactParams(params)
-    });
+    return httpClient
+      .get(`/projects/${projectId}/kanban/metrics`, {
+        ...options,
+        params: compactParams(params)
+      })
+      .then(observeResponse);
   }
 };
 

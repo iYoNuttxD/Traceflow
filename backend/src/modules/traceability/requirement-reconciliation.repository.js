@@ -119,7 +119,7 @@ export async function reconcileRequirements(
       reason: state ? reason : 'BASELINE_INITIALIZED',
       sourceEntityType,
       sourceEntityId,
-      metadataJson: { rulesVersion: 3 }
+      metadataJson: { rulesVersion: 4, lifecycleBasis: row.requirement.lifecycleBasis }
     };
     changes.push(entry);
     if (dryRun) continue;

@@ -1,0 +1,223 @@
+[
+  {
+    "viewport": "1440x900",
+    "screen": "indicators-dark",
+    "tabs": {
+      "height": 48,
+      "overflowX": "auto",
+      "overflowY": "hidden",
+      "scrollHeight": 48,
+      "scrollWidth": 1223,
+      "width": 1223
+    }
+  },
+  {
+    "viewport": "1440x900",
+    "screen": "notifications-dark-collapsed",
+    "sidebar": "rgb(16, 23, 33)",
+    "panel": {
+      "background": "rgb(16, 23, 33)",
+      "left": 88,
+      "width": 399
+    },
+    "list": {
+      "height": 696,
+      "overflowY": "auto",
+      "scrollHeight": 1440
+    }
+  },
+  {
+    "viewport": "1280x800",
+    "screen": "indicators-dark-expanded",
+    "bars": [
+      {
+        "height": 48,
+        "name": "Navegação do projeto",
+        "overflowX": "auto",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 944,
+        "width": 944
+      },
+      {
+        "height": 48,
+        "name": "Visões de indicadores",
+        "overflowX": "auto",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 879,
+        "width": 879
+      }
+    ],
+    "page": {
+      "scrollWidth": 1280,
+      "width": 1280
+    }
+  },
+  {
+    "viewport": "1280x800",
+    "screen": "notifications-light-expanded",
+    "sidebar": "rgb(248, 250, 253)",
+    "panel": {
+      "background": "rgb(248, 250, 253)",
+      "left": 271.8713073730469,
+      "width": 399
+    }
+  },
+  {
+    "viewport": "768x900",
+    "screen": "indicators-light",
+    "bars": [
+      {
+        "height": 48,
+        "name": "Navegação do projeto",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 1171,
+        "width": 432
+      },
+      {
+        "height": 48,
+        "name": "Visões de indicadores",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 797,
+        "width": 432
+      }
+    ],
+    "page": {
+      "scrollWidth": 768,
+      "width": 768
+    }
+  },
+  {
+    "viewport": "390x844",
+    "screen": "indicators-dark-mobile",
+    "bars": [
+      {
+        "height": 48,
+        "name": "Navegação do projeto",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 1171,
+        "width": 358
+      },
+      {
+        "height": 48,
+        "name": "Visões de indicadores",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 797,
+        "width": 358
+      }
+    ],
+    "page": {
+      "scrollWidth": 390,
+      "width": 390
+    }
+  },
+  {
+    "viewport": "390x844",
+    "screen": "notifications-dark-mobile",
+    "panel": {
+      "left": -0.3951519727706909,
+      "scrollWidth": 390,
+      "width": 390
+    },
+    "list": {
+      "height": 640,
+      "scrollHeight": 1480,
+      "scrollWidth": 390,
+      "width": 390
+    }
+  },
+  {
+    "viewport": "390x844",
+    "screen": "notifications-scrolled",
+    "list": {
+      "height": 640,
+      "scrollHeight": 1480,
+      "scrollTop": 840
+    },
+    "bodyOverflow": "hidden"
+  },
+  {
+    "viewport": "320x640",
+    "screen": "notifications-dark-mobile",
+    "panel": {
+      "scrollWidth": 320,
+      "width": 320
+    },
+    "list": {
+      "height": 436,
+      "scrollHeight": 1760,
+      "scrollWidth": 320,
+      "width": 320
+    },
+    "tabs": {
+      "height": 48,
+      "scrollHeight": 48,
+      "scrollWidth": 320,
+      "width": 320
+    }
+  },
+  {
+    "viewport": "320x640",
+    "screen": "notifications-final-wrap",
+    "select": {
+      "height": 44,
+      "width": 280
+    },
+    "toolbar": {
+      "height": 138,
+      "scrollWidth": 320,
+      "width": 320
+    },
+    "list": {
+      "height": 384,
+      "scrollHeight": 1760
+    }
+  },
+  {
+    "viewport": "320x640",
+    "screen": "settings-light",
+    "bars": [
+      {
+        "height": 48,
+        "name": "Configurações da conta",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 565,
+        "width": 336
+      }
+    ],
+    "page": {
+      "scrollWidth": 328,
+      "width": 320
+    }
+  },
+  {
+    "viewport": "320x640",
+    "screen": "settings-final-no-bleed",
+    "bars": [
+      {
+        "height": 48,
+        "name": "Configurações da conta",
+        "overflowY": "hidden",
+        "scrollHeight": 48,
+        "scrollWidth": 533,
+        "width": 304
+      }
+    ],
+    "page": {
+      "scrollWidth": 320,
+      "width": 320
+    }
+  },
+  {
+    "viewport": "390x844",
+    "screen": "mobile-drawer-to-notifications",
+    "closedDialogs": 0,
+    "focus": "Notificações, 20 não lidas"
+  }
+]

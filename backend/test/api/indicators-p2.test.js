@@ -365,9 +365,41 @@ describe('Indicator Engine P2 — API persistida', () => {
     expect(combined.people.every((person) => !('rank' in person))).toBe(true);
   });
 
+  it('RF16 keeps an unconfigured source unavailable without false branch/snapshot errors', async () => {
+    const actor = await user('Local');
+    const p = await project(actor);
+    const path = `/api/projects/${p.id}/indicators/activity${activityQuery}`;
+    const assertLocal = async () => {
+      const response = await get(path, actor);
+      expect(response.status).toBe(200);
+      expect(response.body.indicators[0]).toMatchObject({
+        value: null,
+        state: 'UNAVAILABLE',
+        sourceUpdatedAt: null,
+        sourceSyncStatus: null,
+        limitations: ['GITHUB_NOT_CONFIGURED']
+      });
+      expect(response.body.indicators[0]).not.toHaveProperty('distribution');
+      expect(response.body.indicators[2].value.commits).toBeNull();
+      expect(response.body.indicators[2].people).toEqual([]);
+    };
+    await assertLocal();
+    // Residual imported rows do not turn an absent integration into a configured source.
+    const branch = await mainBranch(p.id);
+    await prisma.gitHubIdentity.create({
+      data: { userId: actor.id, githubUserId: 'standalone-residual', githubLogin: 'local' }
+    });
+    await commit(p.id, branch.id, '2026-09-10T00:00:00Z', 'standalone-residual');
+    await assertLocal();
+  });
+
   it('RF16 diferencia main ausente, fotografia não confirmada e última coleta falha', async () => {
     const actor = await user('Ana');
     const p = await project(actor);
+    // Branch/snapshot diagnostics describe a configured source, not a standalone project.
+    await prisma.projectGitHubIntegration.create({
+      data: { projectId: p.id, status: 'ACTIVE', lastSyncStatus: 'PENDENTE' }
+    });
     const path = `/api/projects/${p.id}/indicators/activity${activityQuery}`;
     await prisma.gitBranch.create({
       data: {
@@ -379,7 +411,8 @@ describe('Indicator Engine P2 — API persistida', () => {
     });
     expect((await get(path, actor)).body.indicators[0]).toMatchObject({
       value: null,
-      state: 'UNAVAILABLE'
+      state: 'UNAVAILABLE',
+      limitations: expect.arrayContaining(['MAIN_BRANCH_NOT_OBSERVED'])
     });
     const branch = await mainBranch(p.id, { confirmed: false });
     expect((await get(path, actor)).body.indicators[0]).toMatchObject({
@@ -394,10 +427,9 @@ describe('Indicator Engine P2 — API persistida', () => {
         lastSyncedGeneration: 'generation-1'
       }
     });
-    await prisma.projectGitHubIntegration.create({
+    await prisma.projectGitHubIntegration.update({
+      where: { projectId: p.id },
       data: {
-        projectId: p.id,
-        status: 'ACTIVE',
         lastSyncStatus: 'FALHA',
         lastSyncAt: new Date('2026-09-20T00:00:00Z')
       }

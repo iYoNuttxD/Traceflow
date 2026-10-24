@@ -1,7 +1,9 @@
+// @vitest-environment node
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const get = vi.hoisted(() => vi.fn());
-vi.mock('../../src/api/http-client.js', () => ({ httpClient: { get } }));
+const { get, patch } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn() }));
+vi.mock('../../src/api/http-client.js', () => ({ httpClient: { get, patch } }));
 
 import { indicatorsApi } from '../../src/features/indicators/api/indicators.api.js';
 
@@ -33,6 +35,13 @@ describe('P8 indicators API client', () => {
         sprintId: 3,
         responsibleUserId: 9
       }
+    });
+  });
+
+  it('changes only the personal overview flag', () => {
+    indicatorsApi.setOverviewPin(4, false);
+    expect(patch).toHaveBeenCalledExactlyOnceWith('/projects/4/indicator-preference', {
+      pinnedToOverview: false
     });
   });
 
