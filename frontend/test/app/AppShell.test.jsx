@@ -156,6 +156,35 @@ describe('AppShell', () => {
     expect(trigger).toHaveFocus();
   });
 
+  it('restaura scroll e foco após abrir e fechar repetidamente o drawer mobile', () => {
+    mockViewport({ mobile: true });
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'auto';
+    const view = renderShell();
+    const trigger = document.querySelector('[aria-label="Abrir navegação"]');
+    const close = document.querySelector('.trace-shell__mobile-close');
+    const main = document.querySelector('.trace-shell__main');
+
+    try {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        fireEvent.click(trigger);
+        expect(document.body.style.overflow).toBe('hidden');
+        expect(close).toHaveFocus();
+        expect(main).toHaveProperty('inert', true);
+        fireEvent.click(close);
+        expect(document.body.style.overflow).toBe('auto');
+        expect(main).toHaveProperty('inert', false);
+        expect(trigger).toHaveFocus();
+      }
+      fireEvent.click(trigger);
+      view.unmount();
+      expect(document.body.style.overflow).toBe('auto');
+    } finally {
+      view.unmount();
+      document.body.style.overflow = previousOverflow;
+    }
+  });
+
   it('contém Tab e Shift+Tab dentro do drawer mobile', async () => {
     mockViewport({ mobile: true });
     const interaction = userEvent.setup();

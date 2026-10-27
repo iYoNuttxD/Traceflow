@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -62,7 +62,18 @@ const { ConfirmProvider } = await import('../../../src/shared/index.js');
 
 function Probe() {
   const location = useLocation();
-  return <output aria-label="Destino">{`${location.pathname}${location.search}`}</output>;
+  const navigate = useNavigate();
+  return (
+    <>
+      <output aria-label="Destino">{`${location.pathname}${location.search}`}</output>
+      <button onClick={() => navigate('?rastreabilidade=SEM_COMMIT&origem=alertas')}>
+        Abrir alertas
+      </button>
+      <button onClick={() => navigate('?origem=lista')}>Abrir todas</button>
+      <button onClick={() => navigate(-1)}>Voltar</button>
+      <button onClick={() => navigate(1)}>Avançar</button>
+    </>
+  );
 }
 
 function task(id, overrides = {}) {
@@ -252,5 +263,73 @@ describe('UX-R2-03 — "Sem vínculo técnico" no resumo e só no filtro', () =>
     await screen.findByText(/As tarefas concluídas sem commit não puderam ser carregadas/);
     await openFilters();
     expect(document.body.textContent).not.toMatch(/RF58|RF13/);
+  });
+});
+
+describe('Tarefas — filtro de rastreabilidade acompanha a URL', () => {
+  it('acompanha navegação na mesma rota e Voltar/Avançar sem sobrescrever o destino', async () => {
+    mocks.alertIndex.mockResolvedValue({
+      tasks: [{ subjectId: 31, alertId: 7 }],
+      pullRequests: [],
+      issues: []
+    });
+    renderAt('/projects/9/tasks?rastreabilidade=SEM_VINCULO&origem=inicial');
+    const user = await openFilters();
+    const filter = screen.getByRole('combobox', { name: 'Rastreabilidade' });
+    expect(filter).toHaveValue('SEM_VINCULO');
+    expect(cardOf(32)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Abrir alertas' }));
+    expect(filter).toHaveValue('SEM_COMMIT');
+    expect(cardOf(31)).toBeInTheDocument();
+    expect(screen.getByLabelText('Destino')).toHaveTextContent(
+      '?rastreabilidade=SEM_COMMIT&origem=alertas'
+    );
+    expect(cardOf(33)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Abrir todas' }));
+    expect(filter).toHaveValue('');
+    expect(cardOf(32)).toBeInTheDocument();
+    expect(screen.getByLabelText('Destino')).toHaveTextContent('?origem=lista');
+
+    await user.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(filter).toHaveValue('SEM_COMMIT');
+    await user.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(filter).toHaveValue('SEM_VINCULO');
+    expect(screen.getByLabelText('Destino')).toHaveTextContent(
+      '?rastreabilidade=SEM_VINCULO&origem=inicial'
+    );
+    await user.click(screen.getByRole('button', { name: 'Avançar' }));
+    expect(filter).toHaveValue('SEM_COMMIT');
+    expect(cardOf(31)).toBeInTheDocument();
+    expect(screen.getByLabelText('Destino')).toHaveTextContent(
+      '?rastreabilidade=SEM_COMMIT&origem=alertas'
+    );
+    expect(mocks.listTasks).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva outros parâmetros ao selecionar e limpar o filtro', async () => {
+    renderAt('/projects/9/tasks?origem=alertas&tag=a&tag=b');
+    const user = await openFilters();
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Rastreabilidade' }),
+      'SEM_VINCULO'
+    );
+    expect(screen.getByLabelText('Destino')).toHaveTextContent(
+      '?origem=alertas&tag=a&tag=b&rastreabilidade=SEM_VINCULO'
+    );
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(screen.getByLabelText('Destino')).toHaveTextContent(/\?origem=alertas&tag=a&tag=b$/);
+    expect(cardOf(32)).toBeInTheDocument();
+  });
+
+  it('trata valores desconhecidos como Todas sem reescrever uma URL recebida', async () => {
+    renderAt('/projects/9/tasks?rastreabilidade=DESCONHECIDO&origem=externa');
+    await openFilters();
+    expect(screen.getByRole('combobox', { name: 'Rastreabilidade' })).toHaveValue('');
+    expect(cardOf(32)).toBeInTheDocument();
+    expect(screen.getByLabelText('Destino')).toHaveTextContent(
+      '?rastreabilidade=DESCONHECIDO&origem=externa'
+    );
   });
 });

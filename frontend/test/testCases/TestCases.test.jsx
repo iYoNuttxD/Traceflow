@@ -679,15 +679,42 @@ describe('S1-07 integrated case flows', () => {
       await screen.findByText(/Não foi possível atualizar a lista e os indicadores/)
     ).toBeInTheDocument();
   });
-  it('restores details after canceling confirmation without stacked dialogs', async () => {
-    const user = await setup();
-    await user.click(screen.getByRole('article', { name: /^TC-15/ }));
-    await user.click(await dialog().findByRole('button', { name: 'Excluir caso' }));
-    expect(screen.getAllByRole('dialog')).toHaveLength(1);
-    await user.click(dialog().getByRole('button', { name: 'Cancelar' }));
-    expect(await dialog().findByText('Conta disponível')).toBeInTheDocument();
-    expect(screen.getAllByRole('dialog')).toHaveLength(1);
-  });
+  it.each([false, true])(
+    'restores the delete trigger after repeated Cancel with delayed details (compact=%s)',
+    async (compact) => {
+      const originalMatchMedia = window.matchMedia;
+      vi.stubGlobal('matchMedia', (query) => ({
+        ...originalMatchMedia(query),
+        matches: query === '(max-width: 720px)' && compact
+      }));
+      const user = await setup();
+      await user.click(screen.getByRole('article', { name: /^TC-15/ }));
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await dialog().findByText('Conta disponível');
+        if (compact) {
+          await user.click(dialog().getByRole('button', { name: /Mais ações do caso/ }));
+          await user.click(dialog().getByRole('menuitem', { name: 'Excluir caso' }));
+        } else {
+          await user.click(dialog().getByRole('button', { name: 'Excluir caso' }));
+        }
+        expect(screen.getAllByRole('dialog')).toHaveLength(1);
+        const reloaded = deferred();
+        mocks.api.detail.mockReturnValueOnce(reloaded.promise);
+        await user.click(dialog().getByRole('button', { name: 'Cancelar' }));
+        expect(mocks.api.remove).not.toHaveBeenCalled();
+        expect(dialog().queryByText('Conta disponível')).not.toBeInTheDocument();
+        await act(async () => reloaded.resolve(structuredClone(testCase)));
+        const trigger = await dialog().findByRole('button', {
+          name: compact ? /Mais ações do caso/ : 'Excluir caso'
+        });
+        await waitFor(() => expect(trigger).toHaveFocus());
+        expect(screen.getAllByRole('dialog')).toHaveLength(1);
+        expect(dialog().queryByRole('menu')).not.toBeInTheDocument();
+      }
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    }
+  );
   it.each(['create', 'edit', 'execute'])(
     'keeps confirmed %s success separate from a failed refresh',
     async (kind) => {

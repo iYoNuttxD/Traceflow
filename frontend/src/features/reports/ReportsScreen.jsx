@@ -111,7 +111,7 @@ function ProjectReports({ project }) {
         <header className="sprint-grid-section__heading">
           <h2>Relatórios do projeto</h2>
         </header>
-        <div className="sprint-grid" role="list" aria-label="Relatórios do projeto">
+        <div className="reports-grid" role="list" aria-label="Relatórios do projeto">
           {canWrite && (
             <div role="listitem">
               <button

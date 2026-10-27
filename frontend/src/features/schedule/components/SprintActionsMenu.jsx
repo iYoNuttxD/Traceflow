@@ -1,32 +1,59 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import './SprintActionsMenu.css';
-
-const ALTURA_ESTIMADA = 240;
 
 export function SprintActionsMenu({
   sprintName,
   entityName = sprintName,
   entityDescriptor = 'da sprint',
   disabled = false,
+  triggerRef: externalTriggerRef,
   items
 }) {
   const [posicao, setPosicao] = useState(null);
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
+  const menuRef = useRef(null);
   const itemRefs = useRef([]);
   const aberto = posicao !== null;
+
+  useLayoutEffect(() => {
+    if (!aberto) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const menu = menuRef.current.getBoundingClientRect();
+    const maxHeight = Math.max(0, window.innerHeight - 16);
+    const height = Math.min(menu.height, maxHeight);
+    const below = rect.bottom + 6;
+    const above = rect.top - height - 6;
+    const preferred = below + height <= window.innerHeight - 8 ? below : above;
+    setPosicao({
+      right: Math.max(
+        8,
+        Math.min(window.innerWidth - rect.right, window.innerWidth - menu.width - 8)
+      ),
+      top: Math.max(8, Math.min(preferred, window.innerHeight - height - 8)),
+      maxHeight
+    });
+  }, [aberto]);
 
   useEffect(() => {
     if (!aberto) return undefined;
     const foraDoMenu = (event) => {
-      if (!containerRef.current?.contains(event.target)) setPosicao(null);
+      if (
+        !containerRef.current?.contains(event.target) &&
+        !menuRef.current?.contains(event.target)
+      ) {
+        setPosicao(null);
+      }
     };
     const noEscape = (event) => {
       if (event.key !== 'Escape') return;
       setPosicao(null);
       triggerRef.current?.focus();
     };
-    const aoRolar = () => setPosicao(null);
+    const aoRolar = (event) => {
+      if (!menuRef.current?.contains(event.target)) setPosicao(null);
+    };
     document.addEventListener('pointerdown', foraDoMenu);
     document.addEventListener('keydown', noEscape);
     window.addEventListener('scroll', aoRolar, true);
@@ -45,11 +72,9 @@ export function SprintActionsMenu({
       return;
     }
     const rect = triggerRef.current.getBoundingClientRect();
-    const paraCima = rect.bottom + ALTURA_ESTIMADA > window.innerHeight;
     setPosicao({
       right: Math.max(8, window.innerWidth - rect.right),
-      top: paraCima ? 'auto' : rect.bottom + 6,
-      bottom: paraCima ? window.innerHeight - rect.top + 6 : 'auto'
+      top: rect.bottom + 6
     });
     window.requestAnimationFrame(() => itemRefs.current.find((item) => !item?.disabled)?.focus());
   };
@@ -80,7 +105,10 @@ export function SprintActionsMenu({
   return (
     <div className="sprint-actions-menu" ref={containerRef}>
       <button
-        ref={triggerRef}
+        ref={(element) => {
+          triggerRef.current = element;
+          if (externalTriggerRef) externalTriggerRef.current = element;
+        }}
         type="button"
         className="button button-secondary sprint-menu-trigger"
         disabled={disabled}
@@ -92,39 +120,40 @@ export function SprintActionsMenu({
         <span aria-hidden="true">…</span>
       </button>
 
-      {aberto && (
-        <div
-          className="sprint-menu"
-          role="menu"
-          aria-label={`Ações ${entityDescriptor} ${entityName}`}
-          style={posicao}
-          onKeyDown={moveFocus}
-        >
-          {items.map((item, index) => (
-            <button
-              ref={(element) => {
-                itemRefs.current[index] = element;
-              }}
-              key={item.key}
-              type="button"
-              className={`sprint-menu-item${item.danger ? ' sprint-menu-item-danger' : ''}`}
-              role="menuitem"
-              disabled={item.disabled}
-              aria-label={item.ariaLabel}
-              title={item.title}
-              onClick={() => {
-                setPosicao(null);
-                item.onSelect(triggerRef.current);
-                queueMicrotask(() => {
-                  if (triggerRef.current?.isConnected) triggerRef.current.focus();
-                });
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {aberto &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="sprint-menu"
+            role="menu"
+            aria-label={`Ações ${entityDescriptor} ${entityName}`}
+            style={posicao}
+            onKeyDown={moveFocus}
+          >
+            {items.map((item, index) => (
+              <button
+                ref={(element) => {
+                  itemRefs.current[index] = element;
+                }}
+                key={item.key}
+                type="button"
+                className={`sprint-menu-item${item.danger ? ' sprint-menu-item-danger' : ''}`}
+                role="menuitem"
+                disabled={item.disabled}
+                aria-label={item.ariaLabel}
+                title={item.title}
+                onClick={() => {
+                  setPosicao(null);
+                  triggerRef.current?.focus();
+                  item.onSelect(triggerRef.current);
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>,
+          containerRef.current?.closest('[role="dialog"]') || document.body
+        )}
     </div>
   );
 }

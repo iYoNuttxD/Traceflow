@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SprintActionsMenu } from '../../src/features/schedule/components/SprintActionsMenu.jsx';
+import { ConfirmProvider, useConfirm } from '../../src/shared/components/ConfirmDialog.jsx';
 
 const item = (overrides = {}) => ({
   key: 'ver-tarefas',
@@ -26,6 +27,55 @@ function renderMenu(props = {}) {
 const gatilho = () => screen.getByRole('button', { name: 'Mais ações da sprint Sprint 1' });
 
 describe('SprintActionsMenu', () => {
+  it('devolve o foco ao gatilho ao cancelar a confirmação aberta por uma ação', async () => {
+    function DeleteMenu() {
+      const confirm = useConfirm();
+      return (
+        <SprintActionsMenu
+          sprintName="Sprint 1"
+          items={[
+            item({
+              label: 'Excluir',
+              onSelect: () => confirm({ title: 'Excluir sprint', description: 'Confirme a ação.' })
+            })
+          ]}
+        />
+      );
+    }
+    const user = userEvent.setup();
+    render(
+      <ConfirmProvider>
+        <DeleteMenu />
+      </ConfirmProvider>
+    );
+    await user.click(gatilho());
+    await user.click(screen.getByRole('menuitem', { name: 'Excluir' }));
+    await user.click(await screen.findByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(gatilho()).toHaveFocus());
+  });
+
+  it('mantém o menu dentro da altura da janela e permite rolar os próprios itens', async () => {
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function () {
+        return this.getAttribute('role') === 'menu'
+          ? { width: 216, height: 600, top: 0, bottom: 600, left: 0, right: 216 }
+          : { width: 44, height: 44, top: 100, bottom: 144, left: 200, right: 244 };
+      });
+    try {
+      const user = userEvent.setup();
+      renderMenu();
+      await user.click(gatilho());
+      const menu = screen.getByRole('menu');
+      expect(Number.parseFloat(menu.style.top)).toBeGreaterThanOrEqual(8);
+      expect(Number.parseFloat(menu.style.top) + 600).toBeLessThanOrEqual(window.innerHeight - 8);
+      fireEvent.scroll(menu);
+      expect(menu).toBeInTheDocument();
+    } finally {
+      bounds.mockRestore();
+    }
+  });
+
   it('anuncia que abre um menu e o estado de aberto', async () => {
     const user = userEvent.setup();
     renderMenu();

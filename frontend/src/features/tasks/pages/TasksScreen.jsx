@@ -52,8 +52,7 @@ const EMPTY_FILTERS = Object.freeze({
   status: '',
   priority: '',
   responsibleUserId: '',
-  sprintId: '',
-  traceability: ''
+  sprintId: ''
 });
 
 const TRACEABILITY_PARAM = 'rastreabilidade';
@@ -87,13 +86,10 @@ export function TasksScreen() {
   const [projectMembers, setProjectMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [sprints, setSprints] = useState([]);
-  const [filters, setFilters] = useState(() => {
-    const requested = searchParams.get(TRACEABILITY_PARAM);
-    return {
-      ...EMPTY_FILTERS,
-      traceability: isTraceabilityFilter(requested) ? requested : ''
-    };
-  });
+  const [localFilters, setFilters] = useState(EMPTY_FILTERS);
+  const requestedTraceability = searchParams.get(TRACEABILITY_PARAM);
+  const traceability = isTraceabilityFilter(requestedTraceability) ? requestedTraceability : '';
+  const filters = useMemo(() => ({ ...localFilters, traceability }), [localFilters, traceability]);
   const [detailsSection, setDetailsSection] = useState(null);
   const alertIndex = useOpenAlertIndex(projectId);
   const reloadAlertIndex = alertIndex.reload;
@@ -117,14 +113,17 @@ export function TasksScreen() {
 
   const canWrite = Boolean(currentMembership && currentMembership.role !== 'VIEWER');
 
-  useEffect(() => {
-    const current = searchParams.get(TRACEABILITY_PARAM) || '';
-    if (current === filters.traceability) return;
-    const next = new URLSearchParams(searchParams);
-    if (filters.traceability) next.set(TRACEABILITY_PARAM, filters.traceability);
-    else next.delete(TRACEABILITY_PARAM);
-    setSearchParams(next, { replace: true });
-  }, [filters.traceability, searchParams, setSearchParams]);
+  function updateTraceabilityFilter(value) {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (value) next.set(TRACEABILITY_PARAM, value);
+        else next.delete(TRACEABILITY_PARAM);
+        return next;
+      },
+      { replace: true }
+    );
+  }
 
   const loadTaskData = useCallback(
     async ({ showLoading = true } = {}) => {
@@ -644,7 +643,10 @@ export function TasksScreen() {
             <TaskMetrics tasks={tasks} />
 
             <CollapsibleFilterPanel
-              onClear={() => setFilters({ ...EMPTY_FILTERS })}
+              onClear={() => {
+                setFilters(EMPTY_FILTERS);
+                updateTraceabilityFilter('');
+              }}
               canClear={activeFilterCount > 0}
               id="tasks-filters"
               className="tasks-filters"
@@ -727,9 +729,7 @@ export function TasksScreen() {
                   <span>Rastreabilidade</span>
                   <SelectControl
                     value={filters.traceability}
-                    onChange={(event) =>
-                      setFilters((current) => ({ ...current, traceability: event.target.value }))
-                    }
+                    onChange={(event) => updateTraceabilityFilter(event.target.value)}
                   >
                     {TRACEABILITY_FILTERS.map((option) => (
                       <option key={option.value} value={option.value}>

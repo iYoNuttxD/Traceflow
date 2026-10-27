@@ -356,7 +356,6 @@
 
 .sprint-menu {
   position: fixed;
-  z-index: 30;
   display: grid;
   min-width: 210px;
   padding: 0.35rem;
