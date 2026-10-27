@@ -3,6 +3,45 @@
   padding: var(--space-10) 0 var(--space-16);
   display: grid;
   gap: var(--space-6);
+  container: reports-page / inline-size;
+}
+
+/* Reports owns its responsive grid; schedule container queries do not apply here. */
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(min(100%, 18rem), 1fr));
+  gap: var(--layout-grid-gap);
+  align-items: stretch;
+}
+
+.reports-grid > [role='listitem'] {
+  min-width: 0;
+}
+
+@container reports-page (min-width: 88rem) {
+  .reports-grid {
+    grid-template-columns: repeat(4, minmax(min(100%, 18rem), 1fr));
+  }
+}
+
+@container reports-page (max-width: 66rem) {
+  .reports-grid {
+    grid-template-columns: repeat(2, minmax(min(100%, 18rem), 1fr));
+  }
+}
+
+@container reports-page (max-width: 40rem) {
+  .reports-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reports-grid .report-card {
+    min-height: 0;
+  }
+
+  .reports-grid .new-milestone-card {
+    min-height: 13rem;
+  }
 }
 
 .reports-screen__header {
@@ -244,6 +283,10 @@
   margin: 0;
   color: var(--color-text-strong);
   font-size: var(--font-size-6);
+}
+
+.report-section__heading h2 {
+  scroll-margin-top: 5rem;
 }
 
 .report-document__header .field-help {

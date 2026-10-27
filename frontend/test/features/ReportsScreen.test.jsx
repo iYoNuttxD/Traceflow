@@ -197,6 +197,10 @@ describe('S2-06 — lista de relatórios', () => {
   it('mostra o card com período, solicitante congelado e acesso ao relatório pronto', async () => {
     page();
     const card = await screen.findByRole('article', { name: 'Relatório #3' });
+    const list = screen.getByRole('list', { name: 'Relatórios do projeto' });
+    expect(list).toHaveClass('reports-grid');
+    expect(list).not.toHaveClass('sprint-grid');
+    expect(list.closest('.reports-screen')).not.toBeNull();
     expect(within(card).getByText('Pronto')).toBeInTheDocument();
     expect(within(card).getByText('01/09/2026 a 30/09/2026')).toBeInTheDocument();
     expect(within(card).getByText('Ana Congelada (@ana)')).toBeInTheDocument();

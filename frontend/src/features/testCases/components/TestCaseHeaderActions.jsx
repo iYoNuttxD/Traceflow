@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { SprintActionsMenu } from '../../schedule/index.js';
 
-export function TestCaseHeaderActions({ testCase, canWrite, onView, onDelete }) {
-  const [compact, setCompact] = useState(false);
+export function TestCaseHeaderActions({ testCase, canWrite, onView, onDelete, deleteTriggerRef }) {
+  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 720px)').matches);
   useEffect(() => {
     const query = window.matchMedia('(max-width: 720px)');
     const update = () => setCompact(query.matches);
@@ -30,6 +30,7 @@ export function TestCaseHeaderActions({ testCase, canWrite, onView, onDelete }) 
       {testCase.capabilities.canDelete &&
         (compact ? (
           <SprintActionsMenu
+            triggerRef={deleteTriggerRef}
             entityName={testCase.displayId}
             entityDescriptor="do caso"
             items={[
@@ -44,7 +45,7 @@ export function TestCaseHeaderActions({ testCase, canWrite, onView, onDelete }) 
         ) : (
           <button
             className="button button-danger button-compact"
-            data-delete-case
+            ref={deleteTriggerRef}
             onClick={onDelete}
           >
             Excluir caso

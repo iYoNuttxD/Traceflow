@@ -44,6 +44,8 @@ function ProjectTestCases({ project }) {
   const listRef = useRef(null);
   const returnFocusRef = useRef(null);
   const modalContentRef = useRef(null);
+  const deleteTriggerRef = useRef(null);
+  const restoreDeleteFocusRef = useRef(false);
   const mutationLock = useRef(false);
   const confirmationLock = useRef(false);
   const [dialog, setDialog] = useState(null);
@@ -103,6 +105,7 @@ function ProjectTestCases({ project }) {
   const canWrite = ['MEMBER', 'MANAGER', 'OWNER'].includes(state.membership?.role);
   const close = useCallback(() => {
     if (!mutationLock.current && !defectBusy.current) {
+      restoreDeleteFocusRef.current = false;
       setDefectContext(null);
       setDefectHeader(null);
       setDialog(null);
@@ -185,13 +188,8 @@ function ProjectTestCases({ project }) {
     if (!state.scope.valid(context)) return;
     if (accepted) await mutate('delete', () => testCasesApi.remove(item.id), item.id);
     else if (previousDialog) {
+      restoreDeleteFocusRef.current = true;
       setDialog(previousDialog);
-      requestAnimationFrame(() =>
-        modalContentRef.current
-          ?.closest('[role="dialog"]')
-          ?.querySelector('[data-delete-case]')
-          ?.focus()
-      );
     }
   }
   function open(type, item, trigger) {
@@ -200,6 +198,7 @@ function ProjectTestCases({ project }) {
       void deleteCase(item, trigger);
       return;
     }
+    restoreDeleteFocusRef.current = false;
     returnFocusRef.current = trigger || document.activeElement;
     setMutationError(null);
     setLoaded(null);
@@ -224,6 +223,13 @@ function ProjectTestCases({ project }) {
       if (body) body.scrollTop = 0;
     }
   }, [dialog]);
+  useEffect(() => {
+    // Details reload after Cancel; wait for the newly mounted desktop or compact trigger.
+    if (restoreDeleteFocusRef.current && current && deleteTriggerRef.current) {
+      deleteTriggerRef.current.focus({ preventScroll: true });
+      restoreDeleteFocusRef.current = false;
+    }
+  }, [current]);
   const title =
     dialog?.type === 'create'
       ? 'Criar caso de teste'
@@ -425,6 +431,7 @@ function ProjectTestCases({ project }) {
             current && (
               <TestCaseHeaderActions
                 testCase={current}
+                deleteTriggerRef={deleteTriggerRef}
                 canWrite={canWrite}
                 onView={switchView}
                 onDelete={(event) => deleteCase(current, event.currentTarget, dialog)}

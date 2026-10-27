@@ -588,11 +588,26 @@ button.trace-shell__nav-item {
     top: 0;
     left: 0;
     width: min(18.25rem, calc(100vw - 3rem));
+    /* Keep the footer inside the visible viewport as browser chrome expands. */
+    height: 100vh;
+    height: 100dvh;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    overflow: hidden;
     visibility: hidden;
     transform: translateX(-102%);
     transition:
       transform var(--duration-normal) var(--ease-standard),
       visibility 0s linear var(--duration-normal);
+  }
+
+  .trace-shell__sidebar-header {
+    flex-shrink: 0;
+  }
+
+  .trace-shell__sidebar-content {
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior-y: contain;
   }
 
   .trace-shell[data-drawer-state='open'] .trace-shell__sidebar {
