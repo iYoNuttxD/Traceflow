@@ -1,0 +1,773 @@
+{
+  "formatVersion": 1,
+  "date": "2026-11-04",
+  "sourceCommit": "716aad84ecbba6d8d58bab5ffc409884a7ccf38c",
+  "deploymentTechnicallyReady": false,
+  "productionPatched": false,
+  "preconditions": [
+    {
+      "name": "Preservação do repositório/produção",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Autenticidade Node ARM64",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Compatibilidade Oracle Linux ARM64",
+      "status": "APROVADO"
+    },
+    {
+      "name": "API/worker/jobs/Prisma/Argon2 sintéticos",
+      "status": "APROVADO"
+    },
+    {
+      "name": "433 testes ARM64 adicionais",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Frontend 71 hashes idênticos",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Seleção de runtime e rollback local",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Release anterior exata em laboratório",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Simulação DNF sem transação",
+      "status": "APROVADO"
+    },
+    {
+      "name": "30 RPMs assinados",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Solver de rollback dos 15 RPMs",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Cifrado de backup existente íntegro",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Acesso administrativo humano existente",
+      "status": "APROVADO"
+    },
+    {
+      "name": "Backup de boot",
+      "status": "BLOQUEADO"
+    },
+    {
+      "name": "Ensaio real de boot/RTO",
+      "status": "PENDENTE"
+    },
+    {
+      "name": "Restore de captura atual de dados/configuração",
+      "status": "PENDENTE"
+    },
+    {
+      "name": "GitHub externo com App de teste",
+      "status": "BLOQUEADO"
+    },
+    {
+      "name": "Instalação e rollback dos patches SO",
+      "status": "PENDENTE"
+    },
+    {
+      "name": "Release oficial assinada/CI final",
+      "status": "PENDENTE"
+    },
+    {
+      "name": "Autorização produtiva específica",
+      "status": "PENDENTE"
+    }
+  ],
+  "recovery": {
+    "consoleAuthenticated": true,
+    "instancePrincipalComputeBlockReads": "NotAuthorizedOrNotFound",
+    "humanMemberOfAdministrators": true,
+    "adminPolicyObserved": "ALLOW GROUP Administrators to manage all-resources IN TENANCY",
+    "bootVolumeGB": 47,
+    "bootVolumeState": "Available",
+    "bootAttachedToExpectedInstance": true,
+    "bootBackupCountInScopedConsoleList": 0,
+    "bootBackupPolicy": "None",
+    "bootReplication": "Off",
+    "bootRestoreTestPerformed": false,
+    "appCipherReadback": {
+      "status": "EXISTING_CIPHER_READBACK_PASS",
+      "checkedAt": "2026-11-04T22:55:37.972212+00:00",
+      "backupId": "20261104T060003Z-88a843c1eefe4a12bb4676c5c4ae32fb",
+      "bytes": 892449,
+      "sha256": "777ac6853570ef25236dec3dd63e5a3172362c18ca2adf47fff5051b09f9a847",
+      "externalObjectPresent": true,
+      "decrypted": false,
+      "restoreTestPerformed": false,
+      "newBackupCreated": false,
+      "productionFilesModified": false,
+      "additionalReadOnlyRequests": 1,
+      "existingCounterUnchanged": true,
+      "counterRequestsBefore": 80,
+      "requestBudget": 1000,
+      "diagnostic": "A verificação e o GET terminaram; erro local de delimitador depois da emissão do resultado. Não foi repetido o GET."
+    },
+    "managedMysql": {
+      "state": "Active",
+      "versionObservedInConsole": "26.10.0",
+      "storageGiB": 50,
+      "crashRecovery": true,
+      "deleteProtection": true,
+      "automaticBackup": "mysqlbackup20261104212932",
+      "backupState": "Active",
+      "backupSizeGiB": 1,
+      "backupCreatedAt": "2026-11-04T21:29:32Z",
+      "retentionDays": 1,
+      "expiresAt": "2026-11-05T21:29:32Z",
+      "pointInTimeRecovery": false,
+      "highAvailability": false,
+      "crossRegionCopy": false,
+      "restoreTestPerformed": false
+    },
+    "restoreToolPin": "26.7.0",
+    "localMacMysqlVersionObserved": "26.10.0",
+    "historicalSchemaProofMigrations": 84,
+    "currentBackupMigrations": 86
+  },
+  "lab": {
+    "localOnly": true,
+    "provider": "Lima 2.2.1 / VZ",
+    "os": "Oracle Linux 9.8",
+    "arch": "aarch64",
+    "cpus": 4,
+    "memoryGiB": 6,
+    "diskGiB": 30,
+    "selinux": "Enforcing",
+    "hostMounts": false,
+    "sshAgentForwarded": false,
+    "applicationPortsForwarded": false,
+    "mysql": "8.4.11",
+    "databaseScope": "New synthetic test schemas only; TLS strict",
+    "backendTests": {
+      "numTotalTests": 337,
+      "numPassedTests": 337,
+      "numFailedTests": 0,
+      "numPendingTests": 0,
+      "numTotalTestSuites": 59,
+      "success": true
+    },
+    "frontendTests": {
+      "numTotalTests": 96,
+      "numPassedTests": 96,
+      "numFailedTests": 0,
+      "numPendingTests": 0,
+      "success": true
+    },
+    "frontendFileCount": 71,
+    "frontendHashMapMatchesPublishedStage1": true,
+    "systemdRuntime": {
+      "status": "PASS",
+      "os": "Oracle Linux 9.8",
+      "arch": "aarch64",
+      "selinux": "Enforcing",
+      "candidateFactoryUnmodified": true,
+      "productionUsed": false,
+      "initialProcesses": {
+        "api": {
+          "pid": 17881,
+          "version": "v22.23.4",
+          "exeSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+          "exe": "/usr/bin/node-22",
+          "active": "active"
+        },
+        "worker": {
+          "pid": 17633,
+          "version": "v22.23.4",
+          "exeSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+          "exe": "/usr/bin/node-22",
+          "active": "active"
+        }
+      },
+      "candidate": {
+        "pid": 17981,
+        "version": "v22.23.4",
+        "exeSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+        "exe": "/usr/bin/node-22",
+        "active": "active"
+      },
+      "atomicSelectionDoesNotChangeRunningProcesses": true,
+      "fallbackProcesses": {
+        "api": {
+          "pid": 18043,
+          "version": "v22.23.2",
+          "exeSha256": "9aacb5aa2c961e69d8040853edec3a949be26777611f8f4a2c0c9a46386c543a",
+          "exe": "/usr/bin/node-22",
+          "active": "active"
+        },
+        "worker": {
+          "pid": 18063,
+          "version": "v22.23.2",
+          "exeSha256": "9aacb5aa2c961e69d8040853edec3a949be26777611f8f4a2c0c9a46386c543a",
+          "exe": "/usr/bin/node-22",
+          "active": "active"
+        }
+      },
+      "correctedProcesses": {
+        "api": {
+          "pid": 18079,
+          "version": "v22.23.4",
+          "exeSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+          "exe": "/usr/bin/node-22",
+          "active": "active"
+        },
+        "worker": {
+          "pid": 18110,
+          "version": "v22.23.4",
+          "exeSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+          "exe": "/usr/bin/node-22",
+          "active": "active"
+        }
+      },
+      "hostRpmNodeUntouched": true,
+      "hostRpmNodeSha256": "9aacb5aa2c961e69d8040853edec3a949be26777611f8f4a2c0c9a46386c543a",
+      "officialNodeSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+      "workerCount": 1,
+      "heartbeatAgeSeconds": 9,
+      "scheduledJobLeases": [
+        "github-event-dispatch",
+        "notifications-due",
+        "traceability-alerts",
+        "traceability-notice-dispatch"
+      ],
+      "readiness": 200,
+      "anonymousAuth": 401,
+      "systemdNamespace": "BindReadOnlyPaths selected/bin/node:/usr/bin/node-22"
+    },
+    "productionDependencies": {
+      "status": "PASS",
+      "node": "22.23.4",
+      "dependencyScope": "production only; npm prune --omit=dev",
+      "runtimeDependenciesAudit": 0,
+      "argon2": "ARM64 hash/verify PASS",
+      "qs": "6.16.2",
+      "prisma": "6.12.0",
+      "candidateReady": true,
+      "apiReady": true,
+      "workerCount": 1,
+      "scheduledJobLeases": 4,
+      "processes": {
+        "api": {
+          "version": "v22.23.4",
+          "pid": 19269,
+          "executableSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+        },
+        "worker": {
+          "version": "v22.23.4",
+          "pid": 19280,
+          "executableSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+        }
+      },
+      "productionUsed": false,
+      "officialSignedReleaseBuilt": false,
+      "sourceCommit": "716aad84ecbba6d8d58bab5ffc409884a7ccf38c"
+    },
+    "previousRelease": {
+      "status": "PASS",
+      "previousReleaseDigest": "142ded2d52952f8a70198a6ccf86b4cc58565d2422dd2d3144b5e3a82688698c",
+      "previousCommit": "d0645b457960b6830d6f8e87cb6e1a6fa461ebf6",
+      "manifestFilesVerified": 4764,
+      "migrations": 86,
+      "schemaUnchanged": true,
+      "officialNode": "22.23.4",
+      "previousReleaseApiReady": true,
+      "previousReleaseWorkerCount": 1,
+      "previousReleaseCandidateReady": true,
+      "productionUsed": false,
+      "githubReleaseImmutableFlag": false,
+      "limitation": "Application rollback on synthetic TLS database. No production data or boot-volume recovery performed."
+    },
+    "maintenanceAndTls": {
+      "status": "PASS",
+      "node": "v22.23.4",
+      "retention": "real services dry-run; synthetic empty database",
+      "productionTargetGuardUnchanged": true,
+      "reports": {
+        "auth": {
+          "mode": "dry-run",
+          "retentionDays": {
+            "sessions": 30,
+            "passwordResetTokens": 7,
+            "projectInvitations": 30,
+            "emailVerificationTokens": 7,
+            "githubConnectionStates": 7,
+            "githubOAuthStates": 7,
+            "githubWebhookDeliveries": 30
+          },
+          "counts": {
+            "sessions": 0,
+            "passwordResetTokens": 0,
+            "projectInvitations": 0,
+            "emailVerificationTokens": 0,
+            "githubConnectionStates": 0,
+            "githubOAuthStates": 0,
+            "githubWebhookDeliveries": 0
+          }
+        },
+        "privacy": {
+          "mode": "dry-run",
+          "counts": {
+            "auditEvents": 0,
+            "privacyRequests": 0,
+            "personalDataExports": 0,
+            "notifications": 0,
+            "githubArtifactEvents": 0,
+            "notificationDecisions": 0,
+            "failedProjectReports": 0
+          }
+        },
+        "projects": {
+          "mode": "dry-run",
+          "count": 0
+        },
+        "uploads": {
+          "inspected": 0,
+          "cleaned": 0,
+          "eligible": 0,
+          "failed": 0,
+          "busy": 0
+        }
+      },
+      "tls": [
+        {
+          "url": "https://api.github.com/meta",
+          "status": 200,
+          "authorized": true,
+          "protocol": "TLSv1.3"
+        },
+        {
+          "url": "https://traceflow.dev/",
+          "status": 200,
+          "authorized": true,
+          "protocol": "TLSv1.3"
+        }
+      ],
+      "untrustedMySqlCertificateRejected": true,
+      "productionDatabaseUsed": false,
+      "productionCredentialsUsed": false,
+      "systemdSandbox": "production retention template; only laboratory runner and synthetic env differ"
+    },
+    "signature": {
+      "status": "PASS",
+      "exitCode": 0,
+      "fingerprint": "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356",
+      "statusLines": [
+        "[GNUPG:] NEWSIG",
+        "[GNUPG:] KEY_CONSIDERED 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356 0",
+        "[GNUPG:] SIG_ID EjCVFVC4zjqR4nOzzuiXf4IDY64 2026-10-21 1792578792",
+        "[GNUPG:] KEY_CONSIDERED 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356 0",
+        "[GNUPG:] GOODSIG 20B1A390B168D356 Antoine du Hamel <antoine.duhamel@platformatic.dev>",
+        "[GNUPG:] VALIDSIG 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356 2026-10-21 1792578792 0 4 0 22 8 01 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356"
+      ],
+      "diagnostics": "gpgv: Signature made Wed 21 Oct 2026 10:33:12 AM UTC\ngpgv:                using EDDSA key 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356\ngpgv: Good signature from \"Antoine du Hamel <antoine.duhamel@platformatic.dev>\"\ngpgv:                 aka \"Antoine du Hamel <duhamelantoine1995@gmail.com>\"",
+      "keyringCommit": "481637f813e912c4aa3622d7964ab426c97b8e8d",
+      "exportedSignerSha256": "067260a186848e8e35937eb8b1a3d5649d204f0153274b5f844b762dc5cea77a",
+      "lockWarningResolvedByOpenPgpExport": true
+    },
+    "externalGithubAuthenticatedSync": false,
+    "externalGithubBlocker": "Operator confirmed no homologation credentials available",
+    "officialSignedReleaseBuilt": false,
+    "limitations": [
+      "MySQL 8.4.11 lab is not HeatWave 26.10.0.",
+      "Laboratory RPM fallback is 22.23.2-2.0.1; production remains 22.23.2-2.",
+      "Systemd candidate factory was exercised; the full production CD and remote CI were not invoked.",
+      "Original lab setup failures retained: uninitialized MySQL datadir, absent connection_limit, storage permissions 0755 versus required 0700. No code/test/timeout weakened."
+    ],
+    "stoppedAfterTests": true,
+    "stoppedAt": "2026-11-04T23:22:57Z",
+    "diskAndEvidencePreserved": true
+  },
+  "runtimeArtifact": {
+    "url": "https://nodejs.org/dist/v22.23.4/node-v22.23.4-linux-arm64.tar.xz",
+    "tarSha256": "6287aa46b6c375d816e63ae66d024fbbfd70404825aabdfdf898a970871d2f4b",
+    "binarySha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+    "node": "22.23.4",
+    "openssl": "3.5.9",
+    "caPolicyProduction": {
+      "node": "v22.23.2",
+      "openssl": "3.5.8",
+      "flags": [],
+      "default": {
+        "count": 145,
+        "sha256": "7993e1b0f7d5bb06f737983f3225d9953d76369ba8c7bde11608cf96dccede77"
+      },
+      "bundled": {
+        "count": 145,
+        "sha256": "7993e1b0f7d5bb06f737983f3225d9953d76369ba8c7bde11608cf96dccede77"
+      },
+      "system": {
+        "count": 292,
+        "sha256": "bf9612afc75f7759c9ae7f0b1df92badc0ad0731715a597ca6549134b1866dd9"
+      }
+    },
+    "caPolicyOfficialLab": {
+      "node": "v22.23.4",
+      "openssl": "3.5.9",
+      "default": {
+        "count": 116,
+        "sha256": "883fbb1b49dfad00baa71acdecb250488d2f3cd3f8646fd7abed59b773fc9649"
+      },
+      "bundled": {
+        "count": 116,
+        "sha256": "883fbb1b49dfad00baa71acdecb250488d2f3cd3f8646fd7abed59b773fc9649"
+      },
+      "system": {
+        "count": 293,
+        "sha256": "192435d1d5c7cfcfd3335a2820a72657c8244e346da49fc2ab59862e6810a275"
+      }
+    }
+  },
+  "productionFinal": {
+    "at": "2026-11-04T23:13:58.126611+00:00",
+    "services": {
+      "traceflow-live-api": {
+        "MainPID": "998649",
+        "Result": "success",
+        "NRestarts": "0",
+        "ActiveState": "active",
+        "node": "v22.23.2"
+      },
+      "traceflow-live-worker": {
+        "MainPID": "998659",
+        "Result": "success",
+        "NRestarts": "0",
+        "ActiveState": "active",
+        "node": "v22.23.2"
+      }
+    },
+    "rpmCount": 808,
+    "rpmInventorySha256": "15f323a2ca047d3233ba47efdc207de448352450b79104a70e5f322e3e264c60",
+    "protectedConfigurationCount": 27,
+    "protectedConfigurationUnchanged": true,
+    "cdStateUnchanged": true,
+    "selinux": "Enforcing",
+    "firewalld": "active",
+    "kernel": "6.12.0-207.111.5.1.el9uek.aarch64",
+    "nginxConfigTestExit": 0,
+    "readiness": {
+      "status": 200,
+      "bodySha256": "31bf75f4c0a97cc1f7b60df824fa390b3be9ba014f29b63c87c698ba63d9a9fd",
+      "json": {
+        "status": "ready"
+      }
+    },
+    "publicHttpDiagnostic": {
+      "at": "2026-11-04T23:14:56.917602+00:00",
+      "requests": {
+        "receiver-curl": {
+          "exitCode": 0,
+          "bytes": 2081,
+          "sha256": "81c52d98591604c43946bf593b4783fec0743a65ee8c91f2acb90c8f4932e29a",
+          "stderr": ""
+        },
+        "monitor-curl": {
+          "exitCode": 0,
+          "bytes": 2081,
+          "sha256": "81c52d98591604c43946bf593b4783fec0743a65ee8c91f2acb90c8f4932e29a",
+          "stderr": ""
+        },
+        "python-default": {
+          "code": 403,
+          "server": "cloudflare",
+          "cfMitigated": null,
+          "contentType": "text/plain; charset=UTF-8"
+        }
+      },
+      "metrics": {
+        "api": {
+          "seconds": 0.005924,
+          "status": 200
+        },
+        "apiUnitActive": true,
+        "at": "2026-11-04T23:14:42.265829+00:00",
+        "backupAgeHours": 17.242081314259107,
+        "consecutiveFailures": {},
+        "diskUsedPercent": 78.75,
+        "failedGitHubJobs15m": 0,
+        "failures": [],
+        "http5xx5m": 0,
+        "https": {
+          "seconds": 0.057648,
+          "status": 200
+        },
+        "memoryAvailablePercent": 86.97,
+        "mysql": true,
+        "p95Seconds5m": 0.0,
+        "requests5m": 5,
+        "scheduledJobs": {
+          "enabled": true,
+          "failedEvents15m": 0,
+          "leaseAgeSeconds": {
+            "github-event-dispatch": 131,
+            "notifications-due": 298,
+            "traceability-alerts": 2128,
+            "traceability-notice-dispatch": 298
+          },
+          "warming": false
+        },
+        "schemaTransitionPending": false,
+        "workerCount": 1,
+        "workerHeartbeatAgeSeconds": 2,
+        "workerUnitActive": true
+      }
+    },
+    "serviceRestartsPerformedByTask": 0,
+    "packageInstallationsPerformedByTask": 0,
+    "ociResourcesCreatedByTask": 0,
+    "deployPushMergeRebootPerformed": false
+  },
+  "localEvidenceManifest": {
+    "bootstrap-mysql-lab.py": {
+      "sha256": "028373b9d07a6bbb38129f4a7e3c3bcab1ba4961f4a899bc4d8fb9daa76ac1e0",
+      "bytes": 2443
+    },
+    "complete-artifact-validation.py": {
+      "sha256": "41feb174911ac49d3a7f709a3964724ac23f694f09ca87b208baf603e9de4a34",
+      "bytes": 1971
+    },
+    "download-rpms-lab.py": {
+      "sha256": "b39961fc45b94901ff28e60e575bb656a21a70069a5661fec147ac95bc783c18",
+      "bytes": 1822
+    },
+    "evidence/artifact-validation-complete-keyring-present.log": {
+      "sha256": "86452a0f60524fb95cec83bdbf101aea7193096f6188d4c61fee18cc8cec89f4",
+      "bytes": 102
+    },
+    "evidence/artifact-validation-complete.log": {
+      "sha256": "5725aa17421fa4eaa127e14b3a6c0d463c43894c0ddf9dc8893db2721a54b417",
+      "bytes": 699
+    },
+    "evidence/backup-object-readback.json": {
+      "sha256": "db8d177519c1d0e9f647ab3b562c0a6012c119156febd48762eb8c2353fe8d86",
+      "bytes": 773
+    },
+    "evidence/dnf-minimal-resolution-correct-format.log": {
+      "sha256": "a57a5260d6ad646cf40b62f43467f1526543facd32fac3600517d56b8d0500a8",
+      "bytes": 696
+    },
+    "evidence/dnf-minimal-resolution.log": {
+      "sha256": "cd25153c2a956201f948053dd2566c47782b118abdfa663ec409fc73cb9aa71b",
+      "bytes": 205
+    },
+    "evidence/dnf-offline-combined.json": {
+      "sha256": "e75eb2fe7b4ff391faa8dba35aba3563936fa1d62d46d2e9017618705f1754e5",
+      "bytes": 89279
+    },
+    "evidence/dnf-offline-resolution.log": {
+      "sha256": "a98f6e1b44c73d65194157781a4214b81cb34c5b2c23bba7a77b0ac59953950d",
+      "bytes": 2220
+    },
+    "evidence/dnf-resolution.log": {
+      "sha256": "4b236fa4a828b80669fac0379bd1878b5ae68d8ea5dc00f704c8a7b66ded25e3",
+      "bytes": 3654
+    },
+    "evidence/dnf-rollback-availability.log": {
+      "sha256": "22ee04debe60bf41a8000610e57c4163cf2a1cf948187abafd063de9821f1816",
+      "bytes": 360
+    },
+    "evidence/dnf-rollback-solver.log": {
+      "sha256": "cedcce4c288147c2b749bc785d3db49151c05546511a60baba65c148f5c7d313",
+      "bytes": 925
+    },
+    "evidence/dnf-solver-api.txt": {
+      "sha256": "f9bf7fff26d0fad4e2b1d654aee39522920b4e2dcea81340362e54202289a8c6",
+      "bytes": 5242
+    },
+    "evidence/final-lab-proofs.json": {
+      "sha256": "cf57422fd72d0fb2263ef8be3bad840cee16df775c104c89d5cc64cb64c09aa0",
+      "bytes": 100082
+    },
+    "evidence/lab-baseline.log": {
+      "sha256": "68682366a47ae5c13a119db9e40e4e8f77cc858935081f89bc2c3b015ae1fad3",
+      "bytes": 414
+    },
+    "evidence/lab-bootstrap.log": {
+      "sha256": "d45fc6183d8ae2e79a38ce0b1c6c8a641e07db429007ead91e1d2474f35ad17c",
+      "bytes": 45851
+    },
+    "evidence/lab-complete-results.json": {
+      "sha256": "622afcdf275680b694e7bafa14013b3e205f0fd72a193caabddbd752e953ecfc",
+      "bytes": 55419
+    },
+    "evidence/lab-results.json": {
+      "sha256": "c1f1665ee16dcbdf9b8b01992cf8795ebfbb9060d0dc0ed16b8175c97b326a2f",
+      "bytes": 141837
+    },
+    "evidence/lima-start.log": {
+      "sha256": "28227819cb6421f1d3b0b54d5a81b4f61bf3c205e0dd70148ba9a42a4cb0d130",
+      "bytes": 2539
+    },
+    "evidence/maintenance-systemd-invocation.log": {
+      "sha256": "ea9c85853919fdd89088b3ea7fdc05372841eb77fb5cbfe37bc9209db0a1bbfd",
+      "bytes": 1328
+    },
+    "evidence/maintenance-systemd-proof.json": {
+      "sha256": "7f2f1dceac4f424e0946209583fbe5b5168113ad3b0371122e8dd1ddf9983659",
+      "bytes": 1730
+    },
+    "evidence/mysql-lab-bootstrap.log": {
+      "sha256": "9415e404ee79603c5d6da5fc29625cb659ed55ec48db5797a27ea93fe6119954",
+      "bytes": 671
+    },
+    "evidence/mysql-lab-initialize.log": {
+      "sha256": "b3f27f9c8ad53b6075dd7683d42b5e64b220bf4752b44d0d7569b9512e56cb85",
+      "bytes": 80
+    },
+    "evidence/native-frontend-invocation.log": {
+      "sha256": "d3b9a2bc9f0a669b9bdebf639e6eddd5661ccc7969c8132611d4d004274753e4",
+      "bytes": 46
+    },
+    "evidence/native-install.log": {
+      "sha256": "86a02abdf15bdf4cd342b529d915ce40349c5b4fb603bdcfc9a373a6a262b5e0",
+      "bytes": 4074
+    },
+    "evidence/native-tests-invocation.log": {
+      "sha256": "92ca850d1b13c446326b04a66a4e9eaba2f17ec494f9196f87f1de7d6720fd99",
+      "bytes": 1010
+    },
+    "evidence/node-authenticity-and-elf.log": {
+      "sha256": "7156eaa07cc3b3b5d086a87cf2d0545f3cf5d47aad3bc8ec19af83e2c8ef2c88",
+      "bytes": 2336
+    },
+    "evidence/node-signature-final.json": {
+      "sha256": "33374867549f4d9e14a4eab8ca27d24e065f73618a9eb532e18ccaa0253ec0c4",
+      "bytes": 1075
+    },
+    "evidence/official-node-ca-policy.json": {
+      "sha256": "9c9fc858edbf036cc211e6ec305d4aa3f03cd8ad5d9d8430fefc0ea75737cbc3",
+      "bytes": 337
+    },
+    "evidence/previous-release-compatibility.log": {
+      "sha256": "db02b7238684dbc9bf4e4c142af464ef95b2c5c668b0666ac35bb10ca5758201",
+      "bytes": 561
+    },
+    "evidence/production-dependencies-invocation.log": {
+      "sha256": "a98989ba03b2679d890236a22c4292c58cf5480a1ad5fe043ba5276ca919d8fc",
+      "bytes": 694
+    },
+    "evidence/production-dnf-policy.json": {
+      "sha256": "e059ae5d4a3f4196d3df8baf9e6f76ed36fbc1cfb1865097207ee6d268416c03",
+      "bytes": 15081
+    },
+    "evidence/production-final-audit.json": {
+      "sha256": "1dabb7f9707f59060492b913789efb599de268bdb84a513ce9863d0d5b6bf1f2",
+      "bytes": 7790
+    },
+    "evidence/production-inventory.json": {
+      "sha256": "0623e6295d1d52a9ef808398ba0a9ee00b3b1b3cb41ebf204fae62ad137175f6",
+      "bytes": 63063
+    },
+    "evidence/production-library-exposure.json": {
+      "sha256": "9a945eea8418514e0518c7d311b24e035ea829bb7910e91d64d4c12a0add8a27",
+      "bytes": 5458
+    },
+    "evidence/production-metadata-timestamps.json": {
+      "sha256": "9e685c85b1c27e94fe74edd83b2b58b8df09d73df671cadad151c3ab6571b067",
+      "bytes": 991
+    },
+    "evidence/production-node-ca-policy.json": {
+      "sha256": "fe088a1721126ba32f88d5b4a8593d03cadc962ab52d10d96586f1b1371373e7",
+      "bytes": 348
+    },
+    "evidence/production-public-http-diagnostic.json": {
+      "sha256": "bc7f7c2c1ad17da86c584d500cb0d9951aa73355b373c804b67245cdd02f40bb",
+      "bytes": 1494
+    },
+    "evidence/production-systemd-contract.json": {
+      "sha256": "6878d42856c60c8c3c943673150f5acda56e118d44768b288d27d8138b3ee0a4",
+      "bytes": 6112
+    },
+    "evidence/production-unit-templates.json": {
+      "sha256": "2ee51075739e3fa580926a3a911240453e6e1684bd480275fbcf43c81198f2bd",
+      "bytes": 4536
+    },
+    "evidence/rpm-artifact-validation.log": {
+      "sha256": "ada5fa7d95898346890d0a655d29ad9d8185112841ea1cc8b8e666c84cd55310",
+      "bytes": 281
+    },
+    "evidence/systemd-runtime-lab-correct-env.log": {
+      "sha256": "b429f1fd13bb57a0252e8e82c2d60e9028c22a3d276f0eb64137703ed0f7c9df",
+      "bytes": 212
+    },
+    "evidence/systemd-runtime-lab-storage-custody.log": {
+      "sha256": "067762e53efc01ca082632a5aca5b33df274dca7c64c44e5d0d98fd9e900d437",
+      "bytes": 1999
+    },
+    "evidence/systemd-runtime-lab.log": {
+      "sha256": "63e1b7424ff16fa8ae765daefefd352e5256d9225ce6c09931eb7a1956e6b118",
+      "bytes": 291
+    },
+    "final-production-audit.py": {
+      "sha256": "4d2db9ffb51251191cf93447cd2ecab1e90b5962a770e72fd792837ac03f6873",
+      "bytes": 3218
+    },
+    "maintenance-proof.mjs": {
+      "sha256": "e2539bc5314293a9af554164d1b54e6294c54bf0d76928c4962b0aee6b81f985",
+      "bytes": 2660
+    },
+    "maintenance-systemd-lab.py": {
+      "sha256": "4947bf749f799a23bc2a560007c914877c41d24ddcc120724a0d2899872e30da",
+      "bytes": 2328
+    },
+    "oraclelinux-lab.yaml": {
+      "sha256": "56188c728e8896c92e48fefff9bb5957f4f652b0bc2c9f19d0cbb92f4e5fb943",
+      "bytes": 527
+    },
+    "previous-release-compatibility.py": {
+      "sha256": "212a6d254c9d7f87342c348955941d8cf04bfe73a43002f50248469ed562863f",
+      "bytes": 2648
+    },
+    "production-dependencies-lab.py": {
+      "sha256": "4e776cc2339d0de83ea5e71a98de3b3eb2ed010d6b4e0c283154cd820fc5feff",
+      "bytes": 3695
+    },
+    "query-dnf-rollback.py": {
+      "sha256": "da1a85f850650436386f5187ec04b3c1cb7488a952df48ededb00e369cd974fb",
+      "bytes": 2156
+    },
+    "run-native-frontend.py": {
+      "sha256": "6b80d3ff30c12c7652580321707ef21601094054f07d1cc7472aa1ca91f5e036",
+      "bytes": 1269
+    },
+    "run-native-tests.py": {
+      "sha256": "a0f3d2e1b3bd9dfe6cbefbf97cb5e4ea00228118203db022465d0b691e359a8a",
+      "bytes": 2003
+    },
+    "solve-dnf-in-lab.py": {
+      "sha256": "9062e46d17ab0466c04ea410de587b350add000fde95405d9d0ed6f0b45c5b9c",
+      "bytes": 5169
+    },
+    "solve-dnf-minimal.py": {
+      "sha256": "19fb3a165a31f2fe87be7dfb0e625d68b160b647658c529561782fa49ecc2429",
+      "bytes": 2833
+    },
+    "solve-dnf-offline.py": {
+      "sha256": "76f28cf0f95715fd2d7cfeb943db31b45b1793996828e10991a6e7b67f635211",
+      "bytes": 6598
+    },
+    "solve-rpm-rollback.py": {
+      "sha256": "afe070202bc9c92094cebbf6e0898a57f30b085ce31e3acec17907ef557f317d",
+      "bytes": 2875
+    },
+    "systemd-runtime-lab.py": {
+      "sha256": "f3579d7d08c10b62648e771f56538e064aba78c1fbeadf8f8d99a9ba3571d365",
+      "bytes": 8106
+    },
+    "evidence/lab-stop.log": {
+      "sha256": "db5b700ef2698092b18f2ed400c31018cff7ab8d443c3a4a70c405436d7c8d2b",
+      "bytes": 875
+    }
+  }
+}

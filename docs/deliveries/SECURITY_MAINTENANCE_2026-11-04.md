@@ -1,6 +1,233 @@
 # Manutenção controlada de segurança — 04/11/2026
 
-## Estado da entrega
+## Etapa 2 — resultado atual
+
+**A implantação NÃO está tecnicamente pronta. Nenhuma correção foi aplicada à OCI.**
+A homologação nativa do runtime e a resolução seletiva do DNF avançaram; a recuperação
+integral continua bloqueada pela ausência de backup de boot e de ensaio de restauração.
+O GitHub externo permanece sem prova por ausência de credenciais de homologação,
+confirmada pelo operador.
+
+Branch `security/20261104-controlled-maintenance`; base homologada
+`716aad84ecbba6d8d58bab5ffc409884a7ccf38c`. Esta etapa acrescenta somente documentação
+e evidências sanitizadas. Os patches `qs=6.16.2` e `follow-redirects=1.16.2` foram mantidos.
+O checkout `daniel`, HEAD `d0645b457960b6830d6f8e87cb6e1a6fa461ebf6`, e os quatro
+scripts locais não rastreados continuam preservados.
+
+Procedimento proposto: [implantação e recuperação](../runbooks/OCI_SECURITY_MAINTENANCE_2026-11-04.md).
+Evidência verificável: [resumo da etapa 2](evidence/security-20261104/stage2-validation.json),
+[transações, versões e CVEs](evidence/security-20261104/stage2-dnf-plan.json).
+O histórico integral da etapa 1 está abaixo, com suas conclusões datadas; esta seção
+substitui os estados pendentes que foram efetivamente resolvidos.
+
+| Pré-requisito                                   | Estado    | Evidência e limite                                                                                                          |
+| ----------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Preservação do repositório e da produção        | APROVADO  | Configurações/permissões, estado CD e inventário de 808 RPMs idênticos; PIDs originais mantidos                             |
+| Autenticidade do Node oficial ARM64             | APROVADO  | Assinatura válida da chave pinada, checksum do tar e hash do executável conferidos                                          |
+| Compatibilidade Oracle Linux 9 ARM64            | APROVADO  | VM local Oracle Linux 9.8 aarch64; SELinux Enforcing; dependências ELF satisfeitas                                          |
+| API, worker, jobs, Prisma e Argon2              | APROVADO  | Inicialização real em production, TLS MySQL estrito; também com dependências somente de produção                            |
+| Testes adicionais ARM64                         | APROVADO  | 337 backend + 96 frontend, zero falhas/skips; 433 execuções adicionais, sem repetir toda a etapa 1                          |
+| Frontend sem alteração de artefatos             | APROVADO  | Build Linux com os mesmos 71 caminhos e hashes do bundle já publicado                                                       |
+| Seleção de runtime e rollback local             | APROVADO  | API/worker e candidato CD: 22.23.4 → RPM 22.23.2 → 22.23.4; arquivo do RPM intacto                                          |
+| Release anterior recuperável como aplicação     | APROVADO  | Artefato ativo baixado, SHA conferido; 4.764 entradas verificadas; API/worker/candidato executados no laboratório           |
+| Simulação DNF seletiva                          | APROVADO  | Cinco cenários resolvidos offline; nenhuma transação DNF executada; inventário original intacto                             |
+| RPMs de ida e volta do grupo de 15              | APROVADO  | 30 artefatos com checksum e assinatura Oracle válidos; disponibilidade não equivale a restore do SO                         |
+| Solução de downgrade dos 15 RPMs                | APROVADO  | Somente modelo de cabeçalhos: resolução exata e ida/volta do inventário; nenhum scriptlet instalado                         |
+| Backup cifrado da aplicação ainda presente      | APROVADO  | GET do objeto existente: 892.449 bytes e SHA do recibo coincidem; não decriptado                                            |
+| Acesso administrativo do operador à recuperação | APROVADO  | Console autenticado; grupo Administrators e política manage all-resources em tenancy observados; nenhuma permissão ampliada |
+| Backup do volume de boot                        | BLOQUEADO | Nenhum item no escopo do volume; política None, replicação Off; não foi criado backup                                       |
+| Restauração real de boot / RTO                  | PENDENTE  | Requer autorização para backup e recursos temporários isolados; capacidade, custo e boot precisam ser comprovados           |
+| Restore atual de dados/configurações            | PENDENTE  | Não autorizado/executado; helper fixa MySQL 26.7.0, Mac e HeatWave observados em 26.10.0                                    |
+| GitHub App e sincronização externa real         | BLOQUEADO | Operador informou que não há credenciais de homologação; testes simulados não substituem esse gate                          |
+| Instalação/rollback real dos patches do SO      | PENDENTE  | Somente solver e artefatos; scriptlets, certificados e efeitos sobre daemons ainda exigem ensaio compatível                 |
+| Release oficial assinada / CI no commit final   | PENDENTE  | Nenhum push, workflow remoto, release, merge ou deploy nesta etapa                                                          |
+| Autorização produtiva específica                | PENDENTE  | Não solicitada como GO genérico; recuperação e demais gates devem ser resolvidos antes                                      |
+
+## Recuperação comprovada e limites
+
+O console passou a carregar depois da autenticação/MFA do operador. O bloqueio anterior
+do console não foi reproduzido. A identidade da VM continuou recebendo
+`NotAuthorizedOrNotFound` nas consultas Compute/Block; a região e o compartimento
+foram conferidos. O operador humano tem acesso administrativo distinto dessa identidade.
+Não ampliar o IAM da VM para contornar sua limitação.
+
+O boot volume `traceflow-app (Boot Volume)` tem 47 GB, está Available e anexado como
+boot, leitura/escrita paravirtualizada, à instância esperada em São Paulo AD-1.
+Criptografia Oracle, sem volume group, política de backup None e replicação Off.
+A aba de backups desse volume não contém itens. Nenhum volume de dados adicional foi
+listado no compartimento raiz; o inventário local confirma o disco de boot e LVM.
+Isto não é uma busca global em outros compartimentos.
+
+O MySQL gerenciado é um recurso separado: `traceflow-mysql`, Active, versão 26.10.0
+observada no console, armazenamento 50 GiB, crash recovery e delete protection Enabled.
+Backup automático ativo `mysqlbackup20261104212932`, criado às 21:29:32 UTC, 1 GiB,
+retenção de um dia, expiração prevista em 05/11 às 21:29:32 UTC. PITR, HA e cópia
+entre regiões estão desabilitados. Nenhuma dessas configurações foi alterada.
+Restaurar o boot não restaura o HeatWave e pode reconectar uma cópia antiga ao banco
+atual: o ensaio proposto exige isolamento antes do primeiro boot.
+
+O backup da aplicação de 04/11 às 06:00 UTC conserva recibo SUCCESS e readback externo.
+Foi feita uma nova leitura do cifrado existente, sem baixar dados em claro nem obter
+a chave: SHA `777ac6853570ef25236dec3dd63e5a3172362c18ca2adf47fff5051b09f9a847`.
+Foi uma requisição GET adicional; o contador produtivo não foi escrito
+(80 registrados, limite 1.000; contabilizar essa leitura externa no controle operacional).
+O erro de delimitador do comando ocorreu depois da emissão da prova; o GET não foi
+repetido. O histórico de restore sintético de 84 migrations não comprova a restauração
+da captura atual de 86 migrations. O helper e o runbook de restore têm pins/contagens
+históricos: não remover suas guardas para obter um PASS.
+
+A release ativa foi preservada localmente com SHA
+`142ded2d52952f8a70198a6ccf86b4cc58565d2422dd2d3144b5e3a82688698c`.
+O manifest foi verificado integralmente e o schema coincide com a candidata, sem DDL.
+A release no GitHub retorna `immutable=false`: a disponibilidade atual não garante
+retenção futura. Guardar o artefato verificado fora da VM; não depender apenas da URL.
+
+## Homologação do Node e da candidata
+
+Laboratório local Lima/VZ, 4 vCPUs, 6 GiB, disco 30 GiB, Oracle Linux 9.8 aarch64;
+sem mounts do host, encaminhamento de agente SSH ou portas da aplicação. Não foi
+criado recurso OCI. MySQL 8.4.11 local, duas bases novas com sufixo `_test`, TLS
+estrito e credenciais sintéticas. Este servidor não é uma réplica do HeatWave 26.10.0.
+
+O tar oficial `node-v22.23.4-linux-arm64.tar.xz` tem SHA
+`6287aa46b6c375d816e63ae66d024fbbfd70404825aabdfdf898a970871d2f4b`.
+A chave de releases foi pinada no commit `481637f813e912c4aa3622d7964ab426c97b8e8d`;
+assinatura válida de `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`.
+O aviso de lock do keybox foi resolvido exportando a mesma chave pública em formato
+OpenPGP e repetindo a verificação. Executável SHA
+`7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16`,
+Node 22.23.4 / OpenSSL embutido 3.5.9. Requer glibc até GLIBC_2.28; o laboratório
+tem glibc 2.34. Não carrega libnode/libssl/libbrotli do RPM. Prisma mantém sua própria
+dependência nativa de OpenSSL; client 6.12.0 e conexão TLS foram exercitados.
+
+Estratégia homologada: árvore versionada root em `/opt/traceflow-live/runtimes`,
+seletor atômico `selected` e uma diretiva `BindReadOnlyPaths` nas bases systemd de
+API, worker e retenção. O ExecStart existente continua `/usr/bin/node`; o bind
+somente no namespace da unit projeta o binário selecionado sobre `/usr/bin/node-22`.
+Isso preserva arquivos DNF, drop-ins de release e a fábrica de candidato CD.
+A fábrica real, sem alteração, foi exercitada. Não é prova de execução integral
+da pipeline/CD produtiva com suas credenciais e assinatura.
+
+Foram verificados API ready 200, anônimo 401, um worker com heartbeat, quatro leases,
+retenção dry-run com serviços reais em base sintética e recusa do alvo não produtivo
+pelo guard original. Prisma com CA confiável passou e sem a CA foi recusado.
+HTTPS público de GitHub e TraceFlow passou com TLS 1.3. Argon2 ARM64 fez hash/verify.
+`npm ci` e `npm prune --omit=dev` passaram; auditorias produtivas de ambas as árvores
+retornaram zero. As moderadas exclusivas de ESLint/minimatch da etapa 1 continuam
+fora deste patch, sem upgrade major.
+
+Os 337 testes backend cobrem auth/sessão, projetos locais/GitHub, concorrência de sync,
+jobs, relatórios/PDF e lifecycle; os 96 frontend cobrem auth, rotas, projetos e relatórios.
+A cobertura integral dos demais fluxos continua sustentada pelos 5.380 testes da etapa 1,
+sem atribuir a eles execução Linux nesta etapa. Não houve sincronização externa real.
+
+A primeira preparação do MySQL foi recusada por datadir ainda não inicializado.
+Duas tentativas de inicialização da API foram recusadas por configuração sintética
+incompleta: connection_limit ausente e storage com modo 0755 em vez de 0700.
+Foram corrigidos apenas esses dados do laboratório. Não houve mudança em código,
+assertions, retries de testes ou timeouts para mascarar falhas; os logs iniciais
+foram preservados. A execução final com as guardas originais passou.
+
+O rollback local para o RPM utilizou `22.23.2-2.0.1`, que o laboratório instalou
+para reproduzir a família Oracle; produção conserva `22.23.2-2`. Portanto a prova
+não representa igualdade binária com o RPM produtivo anterior.
+O Node fora dos namespaces das units continua gerenciado pelo DNF e não recebe
+automaticamente todas as correções oficiais. CLI administrativos e migradores
+futuros precisam de seleção explícita homologada; não executar migrations nesta manutenção.
+
+O conjunto padrão de CAs passou de 145 no RPM observado para 116 no oficial, de
+acordo com a atualização upstream NSS 3.131.1. Não adicionar CAs nem desabilitar TLS
+para esconder incompatibilidade. GitHub público, TraceFlow e MySQL de teste passaram;
+SMTP específico e integrações autenticadas externas ainda não foram exercitados.
+
+## Simulação Oracle Linux e impacto
+
+O espelho regional da OCI não respondeu no laboratório. Foram copiados somente os
+metadados públicos já presentes na VM e os cabeçalhos RPM, sem rodar DNF ou renovar
+cache produtivo. A importação reproduziu exatamente os 808 pacotes, hash
+`15f323a2ca047d3233ba47efdc207de448352450b79104a70e5f322e3e264c60`.
+Os hashes de repomd/arquivos foram conferidos. BaseOS/AppStream são de 04/11;
+UEKR8/OCI included de 03/11; addons de 30/10; Ksplice de 28/10.
+Esta simulação precisa ser revalidada antes de uma futura instalação.
+
+| Cenário                         |         Pacotes de entrada |          Download | Resultado                                         |
+| ------------------------------- | -------------------------: | ----------------: | ------------------------------------------------- |
+| ca-certificates isolado         |                  1 upgrade |     994.716 bytes | Resolvido, sem dependências adicionais            |
+| SO ativo sem Node RPM           |                10 upgrades |  97.143.397 bytes | Resolvido; lote operacional separado              |
+| Grupo com backport Oracle Node  |                15 upgrades | 145.141.492 bytes | Resolvido; backport não cobre todo o Node oficial |
+| Críticos/altos sem kernel/Nginx | 52 upgrades + 1 instalação | 202.610.521 bytes | Apenas análise; não recomendar em bloco           |
+| Kernel UEK                      |    8 instalações paralelas | 204.761.919 bytes | Plano de boot/reboot próprio; nada instalado      |
+
+A transação ampla acrescenta `perl-Unicode-Normalize` e traz glibc, openssh, política
+SELinux e outras dependências por acoplamento. Não é atualização geral recomendada.
+Os 15 RPMs anteriores e 15 novos foram obtidos e autenticados, inclusive os dois
+OCI SDK acessíveis somente pelo espelho regional (leitura HTTP sem gravar na VM).
+O solver de downgrade fechou exatamente os 15 nomes/NEVRAs no modelo de cabeçalhos.
+Scriptlets e arquivos reais não foram executados por esse ensaio.
+
+`ca-certificates` contém manipulação de .rpmsave e regeneração de confiança;
+`pcre2` contém rebuild de política SELinux com semodule. Seus efeitos não podem ser
+ignorados por a transação ser seletiva. O JSON relaciona todos os pacotes anteriores,
+propostos, avisos e CVEs, incluindo os adicionais.
+
+Leitura de /proc confirmou pcre2 no Nginx, processos systemd e numerosos daemons; expat/Python
+em firewalld, polkit, tuned e serviços de sistema; Brotli em Node e NetworkManager.
+Um reload do Nginx não comprova recarga da biblioteca pelo master. Não reiniciar
+NetworkManager, firewalld, sshd, PID 1 ou demais daemons em cadeia nesta janela.
+Processos com bibliotecas antigas exigem plano separado; pode ser necessário reboot
+controlado. Kernel novo somente fica efetivo após boot aprovado.
+WebKit/libsoup/X11/librsvg não apareceram mapeados no instante observado; continuam
+pacotes afetados, sem exposição de serviço demonstrada. Cockpit.socket estava inativo;
+rpcbind.socket ativo. Não remover pacotes nem alterar rede por essa observação.
+
+Nginx permanece `1.20.1-28.0.1.el9_8.6`, com os backports da etapa 1. Nenhuma troca
+de stream ou RPM Nginx é proposta. Correções de pcre2 podem exigir seu reinício posterior,
+o que é uma intervenção diferente de atualizar Nginx.
+
+## Produção ao encerrar a auditoria
+
+Às 23:13:58 UTC (20:13:58 America/Sao_Paulo), API PID 998649 e worker PID 998659
+continuavam ativos, zero NRestarts, Node 22.23.2. RPMs, estado CD e fingerprints de
+27 configurações/owners/modos coincidiram com a etapa 1; kernel preservado, SELinux
+Enforcing, firewalld ativo e nginx -t válido.
+
+Monitor às 23:14:42 UTC: API/HTTPS 200, MySQL true, um worker, heartbeat de 2 s,
+quatro leases dentro dos limites do monitor, zero jobs GitHub falhos, zero eventos
+de jobs falhos, zero HTTP 5xx e failures vazio; disco 78,75%, memória disponível 86,97%.
+O GET com curl usado pelo receiver e o GET do monitor devolveram o HTML esperado,
+SHA igual ao index publicado. urllib/Python recebeu 403 do Cloudflare; a causa
+exata desse tratamento por cliente não foi demonstrada. O diagnóstico foi preservado,
+sem alterar Cloudflare, User-Agent das ferramentas produtivas ou regras de segurança.
+
+**Serviços produtivos reiniciados: nenhum. Pacotes produtivos instalados: nenhum.
+Backups/volumes/instâncias criados na OCI: nenhum. Push/merge/deploy/reboot: nenhum.**
+Os serviços e bancos sintéticos pertencem exclusivamente ao laboratório local.
+A VM local foi encerrada em 04/11 às 20:22:57 America/Sao_Paulo; disco e evidências
+foram preservados. Esse encerramento não afetou a OCI.
+
+## Próximas autorizações e riscos residuais
+
+1. Aprovar separadamente o plano de backup/restore de boot e recursos temporários,
+   com isolamento antes de qualquer boot, custódia, capacidade, custo máximo e descarte.
+2. Aprovar o ensaio de restauração da captura de aplicação em destino novo e cifrado;
+   resolver o pin MySQL 26.7.0 e validar o contrato atual de 86 migrations sem relaxar guardas.
+3. Disponibilizar GitHub App/repositório exclusivos de homologação ou registrar
+   aceitação humana explícita da lacuna; esta entrega mantém o gate bloqueado.
+4. Concluir o empacotamento oficial e as provas finais no commit aprovado, com revisão
+   dos hashes da autoridade CD e das três bases systemd. Não reinstalar o receiver.
+5. Só então solicitar um plano produtivo específico para runtime/release e, separadamente,
+   cada lote SO. Reboot e patches do kernel exigem autorização própria.
+
+Node e qs permanecem vulneráveis na produção atual. A aplicação em funcionamento foi
+preservada. A correção preparada no repositório e validada localmente não encerra
+a manutenção de segurança.
+
+## Etapa 1 — registro histórico preservado
+
+As seções seguintes descrevem exclusivamente a primeira etapa, antes da homologação
+nativa e das novas consultas de recuperação acima.
+
+### Estado da entrega
 
 **Preparação local; nenhuma correção aplicada à OCI.** A produção permanece na release
 `d0645b457960b6830d6f8e87cb6e1a6fa461ebf6-142ded2d5295`.
@@ -13,7 +240,7 @@ Branch isolada: `security/20261104-controlled-maintenance`.
 Nenhuma lógica de negócio, fonte de frontend/backend, schema, migration, autenticação,
 integração ou regra de rede foi alterada.
 
-## Baseline real da produção
+### Baseline real da produção
 
 - Oracle Linux 9.8, aarch64; kernel em execução `6.12.0-207.111.5.1.el9uek.aarch64`.
 - API PID 998649 e worker PID 998659: executável `/usr/bin/node-22`, Node 22.23.2,
@@ -39,7 +266,7 @@ integração ou regra de rede foi alterada.
   com os mesmos hashes na publicação ativa. Há 184 assets históricos adicionais
   preservados pelo mecanismo existente; não foram removidos.
 
-## Vulnerabilidades e decisão mínima
+### Vulnerabilidades e decisão mínima
 
 | Vulnerabilidade / aviso                             | Componente                         | Severidade                           | Versão anterior                               | Versão corrigida ou preparada                                                                                                        | Correção                                      | Validação                                                               | Produção                                                                        | Rollback                                                         |
 | --------------------------------------------------- | ---------------------------------- | ------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -72,7 +299,7 @@ Apenas atualizar o RPM Oracle para 22.23.2-2.0.1 não satisfaz a correção inte
 pedida: sua descrição enumera somente CVE-2026-111497. Não substituir o RPM por
 tarball nem mudar para Node 24 sem decisão explícita do operador.
 
-## Validação isolada
+### Validação isolada
 
 - Node local explícito: 22.23.4, npm 10.9.9; o Node 26 do shell padrão não foi usado
   nos gates de instalação, aplicação ou cobertura.
@@ -116,7 +343,7 @@ indicadores, notificações, PDF e jobs. Cobertura automatizada local não repre
 QA manual de cada fluxo em produção nem sincronização externa real com GitHub.
 Nenhuma conta, projeto ou dado de usuário real foi modificado.
 
-## Situação da recuperação do sistema
+### Situação da recuperação do sistema
 
 A consulta de boot volumes com a identidade operacional retornou
 NotAuthorizedOrNotFound. O operador autenticou o console OCI; a página inicial
@@ -125,7 +352,7 @@ subsequente apresentou erro de rede. Nenhum snapshot foi criado e a existência
 de backup de boot recuperável não foi confirmada. Não ampliar IAM para contornar
 a limitação. A intervenção no SO/runtime permanece bloqueada por essa prova.
 
-## Recuperação, implantação e autorização
+### Recuperação, implantação e autorização
 
 1. Confirmar baseline saudável novamente e preservar a release ativa e todos os
    assets históricos. Conferir locks de CD/backup e ausência de operação concorrente.
@@ -164,7 +391,7 @@ A autorização inicial permite auditoria, branch e testes; não autoriza a inte
 produtiva acima. Como existem pré-requisitos pendentes, esta entrega não solicita
 um GO genérico nem declara a atualização concluída.
 
-## Arquivos e evidências
+### Arquivos e evidências
 
 Arquivos preparados:
 
@@ -194,7 +421,7 @@ GitHub: Dependabot retorna HTTP 403 informando que os alertas estão desabilitad
 Code Scanning retorna HTTP 404/no analysis found. Isto não significa ausência de
 vulnerabilidades. Nenhuma configuração ou permissão GitHub foi alterada.
 
-## Referências oficiais
+### Referências oficiais
 
 - [Node 22.23.4](https://nodejs.org/en/blog/release/v22.23.4)
 - [Aviso Node de outubro](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)
@@ -207,7 +434,7 @@ vulnerabilidades. Nenhuma configuração ou permissão GitHub foi alterada.
 - [follow-redirects](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p)
 - [minimatch](https://github.com/advisories/GHSA-g3hv-75wg-m249)
 
-## Inventário seletivo Oracle Linux
+### Inventário seletivo Oracle Linux
 
 O [inventário completo](evidence/security-20261104/oracle-pending-advisories.json)
 conserva todos os CVEs e NEVRAs anteriores/corrigidos por aviso. São 40 avisos
