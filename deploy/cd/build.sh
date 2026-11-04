@@ -4,7 +4,7 @@ set -euo pipefail
 : "${BASELINE_SHA:?}" "${APP_SHA:?}" "${SOURCE_DATE_EPOCH:?}" "${PASS:?}" "${OPS_ROOT:?}" "${SOURCE_ROOT:?}"
 test "$(uname -m)" = aarch64
 grep -q 'release 9.8' /etc/oracle-release
-test "$(node --version)" = v22.23.2
+test "$(node --version)" = v22.23.4
 cd "$SOURCE_ROOT"
 test "$(git rev-parse HEAD)" = "$APP_SHA"
 git diff --exit-code

@@ -307,3 +307,13 @@ A publicação autorizada de 24/10/2026 terminou com SUCCESS no workflow
 Consultar o [registro operacional](OCI_PUBLICATION_2026-10-24.md) para identidades,
 provas, encerramento da credencial e limites da verificação. Esse registro é histórico;
 o plano e a autorização consumidos não podem ser reutilizados em outra publicação.
+
+## Patch de segurança do builder — 04/11/2026
+
+O candidato de manutenção atualiza somente o pin/checksum do Node do builder de
+22.23.2 para 22.23.4. A instalação produtiva ainda usa o runtime RPM inventariado
+no [relatório de segurança](../deliveries/SECURITY_MAINTENANCE_2026-11-04.md).
+Dockerfile e build.sh fazem parte da autoridade CD: revisar seus hashes e a
+atualização explícita da trust policy antes de promoção; não contornar a recusa
+CD_AUTHORITY_CHANGED_REVIEW_REQUIRED nem reinstalar o receiver por conveniência.
+Nenhuma execução com promote=true está autorizada por esse registro.
