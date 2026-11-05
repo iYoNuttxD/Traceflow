@@ -224,3 +224,12 @@ Fontes: [OCI Always Free](https://docs.oracle.com/en-us/iaas/Content/FreeTier/fr
 [CIDRs Cloudflare IPv4](https://www.cloudflare.com/ips-v4/),
 [IPv6](https://www.cloudflare.com/ips-v6/),
 [restart seguro do journald](https://www.freedesktop.org/software/systemd/man/257/systemd-journald.socket.html).
+
+## Manutenção de segurança preparada em 04/11/2026
+
+Consultar o [relatório de auditoria e preparação](../deliveries/SECURITY_MAINTENANCE_2026-11-04.md).
+A branch prepara patches de dependências e do builder; não registra aplicação à VM.
+A homologação nativa da etapa 2 e o plano seletivo estão documentados no
+[procedimento de segurança](OCI_SECURITY_MAINTENANCE_2026-11-04.md). A recuperação
+integral e os demais gates continuam pendentes; nenhuma instalação ou reinício
+produtivo foi autorizado ou executado.

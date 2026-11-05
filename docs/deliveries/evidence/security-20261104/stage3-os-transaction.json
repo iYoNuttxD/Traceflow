@@ -1,0 +1,482 @@
+{
+  "status": "PROPOSED_NOT_INSTALLED_IN_OCI",
+  "productionInventorySha256": "15f323a2ca047d3233ba47efdc207de448352450b79104a70e5f322e3e264c60",
+  "incomingCount": 10,
+  "nginxUpgrade": false,
+  "nodeRpmUpgrade": false,
+  "kernelUpgrade": false,
+  "selected": [
+    {
+      "name": "ca-certificates",
+      "advisories": ["ELSA-2026-88459", "ELSA-2026-500450"],
+      "artifacts": [
+        {
+          "name": "ca-certificates",
+          "epoch": "0",
+          "version": "2026.2.92_v9.0.319",
+          "release": "90.3.el9_8",
+          "arch": "noarch",
+          "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "checksum": "c69abcbaa031fddd4819ee451738ab28dfc4aae27c3f32d42e18c5bf61ad93ce",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm"
+        },
+        {
+          "name": "ca-certificates",
+          "epoch": "0",
+          "version": "2025.2.80_v9.0.305",
+          "release": "91.el9",
+          "arch": "noarch",
+          "nevra": "ca-certificates-2025.2.80_v9.0.305-91.el9.noarch",
+          "checksum": "3478eda121e3b08139d3c1f90ce1a352a8f30488a35111f97b72fddfcb3198c5",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/ca-certificates-2025.2.80_v9.0.305-91.el9.noarch.rpm"
+        }
+      ]
+    },
+    {
+      "name": "expat",
+      "advisories": ["ELSA-2026-88247"],
+      "artifacts": [
+        {
+          "name": "expat",
+          "epoch": "0",
+          "version": "2.5.0",
+          "release": "6.el9_8.7",
+          "arch": "aarch64",
+          "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+          "checksum": "a43316efd31ff608b8d01156b0f236ae0fbcb1a8b5e84d61ab98da1d922cc208",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/expat-2.5.0-6.el9_8.7.aarch64.rpm"
+        },
+        {
+          "name": "expat",
+          "epoch": "0",
+          "version": "2.5.0",
+          "release": "6.el9_8.5",
+          "arch": "aarch64",
+          "nevra": "expat-2.5.0-6.el9_8.5.aarch64",
+          "checksum": "9acee34adc406434d68783edacdab4b60f97dab41ab486dbceda194163e3b05a",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/expat-2.5.0-6.el9_8.5.aarch64.rpm"
+        }
+      ]
+    },
+    {
+      "name": "libbrotli",
+      "advisories": ["ELSA-2026-500513", "ELSA-2026-90495"],
+      "artifacts": [
+        {
+          "name": "libbrotli",
+          "epoch": "0",
+          "version": "1.0.9",
+          "release": "10.0.1.el9_8",
+          "arch": "aarch64",
+          "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+          "checksum": "24b4da677ccf98b9e7bc493a130888a9a5eaaef4a918bd738fea1ae6cb123668",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/libbrotli-1.0.9-10.0.1.el9_8.aarch64.rpm"
+        },
+        {
+          "name": "libbrotli",
+          "epoch": "0",
+          "version": "1.0.9",
+          "release": "10.el9_8",
+          "arch": "aarch64",
+          "nevra": "libbrotli-1.0.9-10.el9_8.aarch64",
+          "checksum": "d579543d86ea39493b6296eb7a5df5debc6102b706bb0e9db04098b8b1dadeae",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/libbrotli-1.0.9-10.el9_8.aarch64.rpm"
+        }
+      ]
+    },
+    {
+      "name": "pcre2",
+      "advisories": ["ELSA-2026-81532"],
+      "artifacts": [
+        {
+          "name": "pcre2",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "aarch64",
+          "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+          "checksum": "97cb4292032d5c4edfed50a346e43a3d218d0a38f6ce510824d5e26b3b9fc8d5",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-10.40-7.0.1.el9_8.aarch64.rpm"
+        },
+        {
+          "name": "pcre2",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "6.0.1.el9",
+          "arch": "aarch64",
+          "nevra": "pcre2-10.40-6.0.1.el9.aarch64",
+          "checksum": "2adf2bb0228345cd8372f93fbf26feaba40019f0f5b8ed9a1ff15c7e7ce1a3d5",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-10.40-6.0.1.el9.aarch64.rpm"
+        }
+      ]
+    },
+    {
+      "name": "pcre2-syntax",
+      "advisories": ["ELSA-2026-81532"],
+      "artifacts": [
+        {
+          "name": "pcre2-syntax",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "noarch",
+          "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+          "checksum": "131c90a8552f8502382557225811e78b64223c034404b32d4430ea59a6436b00",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-syntax-10.40-7.0.1.el9_8.noarch.rpm"
+        },
+        {
+          "name": "pcre2-syntax",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "6.0.1.el9",
+          "arch": "noarch",
+          "nevra": "pcre2-syntax-10.40-6.0.1.el9.noarch",
+          "checksum": "0cb6045ab5026d7a0a71d06a7eb8af4bb52c6a05a95ec95b5828f310c2bb5def",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-syntax-10.40-6.0.1.el9.noarch.rpm"
+        }
+      ]
+    },
+    {
+      "name": "python3",
+      "advisories": ["ELSA-2026-89742"],
+      "artifacts": [
+        {
+          "name": "python3",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+          "checksum": "4c6a0aa2ceaf27698255e9d479d044f30f4073269c786655d9b4c00287525a2a",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-3.9.25-7.0.1.el9_8.6.aarch64.rpm"
+        },
+        {
+          "name": "python3",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.3",
+          "arch": "aarch64",
+          "nevra": "python3-3.9.25-7.0.1.el9_8.3.aarch64",
+          "checksum": "5ecdf94c1e44463b7aa7054bcbcb81147fd4be83c4bf4e026aa0e5917bd6c1c6",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-3.9.25-7.0.1.el9_8.3.aarch64.rpm"
+        }
+      ]
+    },
+    {
+      "name": "python3-libs",
+      "advisories": ["ELSA-2026-89742"],
+      "artifacts": [
+        {
+          "name": "python3-libs",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+          "checksum": "4e056c69280d700211e877aa49554dea991c2bf4d9dadd1f3979b31f95058a1f",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-libs-3.9.25-7.0.1.el9_8.6.aarch64.rpm"
+        },
+        {
+          "name": "python3-libs",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.3",
+          "arch": "aarch64",
+          "nevra": "python3-libs-3.9.25-7.0.1.el9_8.3.aarch64",
+          "checksum": "5f5342ff78664bd131ee3b36175a84bbc0219f7556517418ceb734727e1d90b1",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-libs-3.9.25-7.0.1.el9_8.3.aarch64.rpm"
+        }
+      ]
+    },
+    {
+      "name": "python3-urllib3",
+      "advisories": ["ELSA-2026-90494"],
+      "artifacts": [
+        {
+          "name": "python3-urllib3",
+          "epoch": "0",
+          "version": "1.26.5",
+          "release": "8.el9_8.2",
+          "arch": "noarch",
+          "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+          "checksum": "dd2f1223c0ece5ad6b04cbed675c291ffc4dd2ce5f41e87df2a57f57d0e4ab64",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-urllib3-1.26.5-8.el9_8.2.noarch.rpm"
+        },
+        {
+          "name": "python3-urllib3",
+          "epoch": "0",
+          "version": "1.26.5",
+          "release": "8.el9_8",
+          "arch": "noarch",
+          "nevra": "python3-urllib3-1.26.5-8.el9_8.noarch",
+          "checksum": "044809e414d5cfb2091a084ea791abbc993907fe29e899994b43795920e7e74d",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-urllib3-1.26.5-8.el9_8.noarch.rpm"
+        }
+      ]
+    },
+    {
+      "name": "python-unversioned-command",
+      "advisories": ["ELSA-2026-89742"],
+      "artifacts": [
+        {
+          "name": "python-unversioned-command",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "noarch",
+          "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+          "checksum": "b8e13d52613b81fed48f6756532fa9935d1181b9115d6be4f0c7cc15921b3cea",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch.rpm"
+        },
+        {
+          "name": "python-unversioned-command",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.3",
+          "arch": "noarch",
+          "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch",
+          "checksum": "50fe735452cb7a1adca9ca2182b7edfdd743ddeeea47041fc49e6829bad637f0",
+          "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch.rpm"
+        }
+      ]
+    },
+    {
+      "name": "python39-oci-sdk",
+      "advisories": ["ELSA-2026-604898"],
+      "artifacts": [
+        {
+          "name": "python39-oci-sdk",
+          "epoch": "0",
+          "version": "2.187.0",
+          "release": "1.0.5.el9",
+          "arch": "aarch64",
+          "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+          "checksum": "b133795bade3223b830cc980eadedb84923089fae824ad7034da24b165fd513d",
+          "url": "https://yum.sa-saopaulo-1.oci.oraclecloud.com/repo/OracleLinux/OL9/oci/included/aarch64/getPackage/python39-oci-sdk-2.187.0-1.0.5.el9.aarch64.rpm"
+        },
+        {
+          "name": "python39-oci-sdk",
+          "epoch": "0",
+          "version": "2.187.0",
+          "release": "1.0.3.el9",
+          "arch": "aarch64",
+          "nevra": "python39-oci-sdk-2.187.0-1.0.3.el9.aarch64",
+          "checksum": "5342b8b70e4e2fe9f0a0b8657f51d93cc6c878523220d280d7cd557fddd387d0",
+          "url": "https://yum.sa-saopaulo-1.oci.oraclecloud.com/repo/OracleLinux/OL9/oci/included/aarch64/getPackage/python39-oci-sdk-2.187.0-1.0.3.el9.aarch64.rpm"
+        }
+      ]
+    }
+  ],
+  "advisories": [
+    {
+      "repo": "ol9_oci_included-b69c56da7a42f0b4",
+      "id": "ELSA-2026-604898",
+      "severity": "Important",
+      "title": "python-oci-sdk security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": [
+        "CVE-2025-53643",
+        "CVE-2025-69223",
+        "CVE-2025-69224",
+        "CVE-2025-69225",
+        "CVE-2025-69226",
+        "CVE-2025-69227",
+        "CVE-2025-69228",
+        "CVE-2025-69229",
+        "CVE-2026-104874",
+        "CVE-2026-111063",
+        "CVE-2026-111064",
+        "CVE-2026-111065",
+        "CVE-2026-111066",
+        "CVE-2026-111748",
+        "CVE-2026-111749",
+        "CVE-2026-111750",
+        "CVE-2026-22815",
+        "CVE-2026-27448",
+        "CVE-2026-34513",
+        "CVE-2026-34514",
+        "CVE-2026-34516",
+        "CVE-2026-34517",
+        "CVE-2026-34518",
+        "CVE-2026-34519",
+        "CVE-2026-34520",
+        "CVE-2026-34525",
+        "CVE-2026-34993",
+        "CVE-2026-47265",
+        "CVE-2026-50269",
+        "CVE-2026-54273",
+        "CVE-2026-54274",
+        "CVE-2026-54275",
+        "CVE-2026-54277",
+        "CVE-2026-54278",
+        "CVE-2026-54279",
+        "CVE-2026-59881",
+        "CVE-2026-69243",
+        "CVE-2026-69244"
+      ],
+      "packages": [
+        {
+          "name": "python39-oci-sdk",
+          "arch": "aarch64",
+          "installed": ["0:2.187.0-1.0.3.el9"],
+          "fixed": "0:2.187.0-1.0.5.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-81532",
+      "severity": "Important",
+      "title": " pcre2 security update",
+      "issued": "2026-10-13 00:00:00",
+      "cves": [
+        "CVE-2026-103111",
+        "CVE-2026-86145",
+        "CVE-2026-89156",
+        "CVE-2026-89157",
+        "CVE-2026-89158",
+        "CVE-2026-89160",
+        "CVE-2026-89161"
+      ],
+      "packages": [
+        {
+          "name": "pcre2-syntax",
+          "arch": "noarch",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        },
+        {
+          "name": "pcre2",
+          "arch": "aarch64",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88459",
+      "severity": "Critical",
+      "title": " ca-certificates security update",
+      "issued": "2026-10-23 00:00:00",
+      "cves": ["CVE-2026-114406"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2026.2.92_v9.0.319-90.3.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-89742",
+      "severity": "Important",
+      "title": " python3.9 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-12345", "CVE-2026-19445", "CVE-2026-19553"],
+      "packages": [
+        {
+          "name": "python3",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python3-libs",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python-unversioned-command",
+          "arch": "noarch",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500513",
+      "severity": "Important",
+      "title": "brotli security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90494",
+      "severity": "Important",
+      "title": " python-urllib3 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-97687", "CVE-2026-97689"],
+      "packages": [
+        {
+          "name": "python3-urllib3",
+          "arch": "noarch",
+          "installed": ["0:1.26.5-8.el9_8"],
+          "fixed": "0:1.26.5-8.el9_8.2"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90495",
+      "severity": "Important",
+      "title": " brotli security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500450",
+      "severity": "Important",
+      "title": "ca-certificates security update",
+      "issued": "2026-10-20 00:00:00",
+      "cves": ["CVE-2026-111943", "CVE-2026-113470", "CVE-2026-114820"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2025.2.80_v9.0.305-91.0.1.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88247",
+      "severity": "Important",
+      "title": " expat security update",
+      "issued": "2026-10-22 00:00:00",
+      "cves": ["CVE-2026-102633", "CVE-2026-77214"],
+      "packages": [
+        {
+          "name": "expat",
+          "arch": "aarch64",
+          "installed": ["0:2.5.0-6.el9_8.5"],
+          "fixed": "0:2.5.0-6.el9_8.7"
+        }
+      ]
+    }
+  ],
+  "rollback": "Exact signed old RPMs exercised locally; not a guarantee of crash/unbootable recovery. Boot restore gate remains required."
+}

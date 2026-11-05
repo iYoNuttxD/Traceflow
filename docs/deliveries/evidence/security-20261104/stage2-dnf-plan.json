@@ -1,0 +1,4489 @@
+{
+  "formatVersion": 1,
+  "date": "2026-11-04",
+  "status": "PREPARADO_NAO_APLICADO",
+  "productionModified": false,
+  "source": "Exact 808-package RPM-header model; existing OCI DNF repodata copied read-only; checksums verified. Regional mirror not reachable from local VM.",
+  "inventorySha256": "15f323a2ca047d3233ba47efdc207de448352450b79104a70e5f322e3e264c60",
+  "nginxExcluded": true,
+  "nodeStream": "22",
+  "metadataDates": {
+    "ol9_UEKR8": {
+      "revision": "1793701824",
+      "timestamps": [1793701718, 1793701803, 1793701824, 1793701832]
+    },
+    "ol9_addons": {
+      "revision": "1793321663",
+      "timestamps": [1793321659, 1793321662, 1793321663]
+    },
+    "ol9_appstream": {
+      "revision": "1793817096",
+      "timestamps": [
+        1793816870, 1793817018, 1793817065, 1793817096, 1793817838, 1793817942
+      ]
+    },
+    "ol9_baseos_latest": {
+      "revision": "1793799438",
+      "timestamps": [
+        1793798981, 1793799152, 1793799153, 1793799338, 1793799364, 1793799437,
+        1793799446
+      ]
+    },
+    "ol9_ksplice": {
+      "revision": "1793223976",
+      "timestamps": [1793223924, 1793223969, 1793223976, 1793223978]
+    },
+    "ol9_oci_included": {
+      "revision": "1793739583",
+      "timestamps": [1793739406, 1793739468, 1793739583, 1793739589]
+    }
+  },
+  "metadataIntegrity": {
+    "ol9_UEKR8": {
+      "repomdSha256": "7b7a111228482e3d93dd14f6028f0a071e6de0f772f544fdf5d3ca0f89949cd3",
+      "records": [
+        {
+          "type": "primary",
+          "sha256": "1b9bfbe2a308bb2c440a544bf81552da6d4c6a671c901fede728d4ba15fde6cb",
+          "bytes": 71085662
+        },
+        {
+          "type": "filelists",
+          "sha256": "c88201b2be609e427985144f557eed560dbd4868270bb48ea409684d8dec6fb5",
+          "bytes": 34400537
+        },
+        {
+          "type": "updateinfo",
+          "sha256": "cccb9bdc6cca279d27d0d9544ec67afc402ca856c3134be0fe553f41944ac199",
+          "bytes": 785880
+        }
+      ]
+    },
+    "ol9_addons": {
+      "repomdSha256": "06baca70f39af6bdf193320d0f70eb002565338d463bbdb383f89c5b106633de",
+      "records": [
+        {
+          "type": "primary",
+          "sha256": "8eef5d92eebc80c2f23330e470f4a7c67596ddb30bd86170281ddb2cac25972b",
+          "bytes": 137246
+        },
+        {
+          "type": "filelists",
+          "sha256": "93b6c5fb556002d97f6ec4e8a4aa947530c627d03cbc06f73a1e84c1901da1a4",
+          "bytes": 607996
+        },
+        {
+          "type": "updateinfo",
+          "sha256": "407257bb4e40faef4fdbc8a593190fd2c04745a4357c070ac3732ef05f87e896",
+          "bytes": 110200
+        }
+      ]
+    },
+    "ol9_appstream": {
+      "repomdSha256": "12d1ef12d3974382f240771032d0d6c329e75742657377b1e6032be3e9c49e39",
+      "records": [
+        {
+          "type": "filelists",
+          "sha256": "6980fd4dcbd1ff82355ebaa5003e68b991b43dc436316aa4008b1d1b3ef436f9",
+          "bytes": 48668521
+        },
+        {
+          "type": "updateinfo",
+          "sha256": "568bc67c40416c715e12ddbf4e0a2ba35edca5fb552fe5f4dc7b0625854dd5f4",
+          "bytes": 4755188
+        },
+        {
+          "type": "group_gz",
+          "sha256": "26cd0fe5147f3040f102f699c2218a74c8d8421e02b3c1bea1c8a417d988ba1d",
+          "bytes": 126165
+        },
+        {
+          "type": "modules",
+          "sha256": "17ace8432266d65af9641759dee0b989729f6d0f3189f46564f3391edd9cae4c",
+          "bytes": 30523
+        },
+        {
+          "type": "primary",
+          "sha256": "84f37f0eef77bdf32eb95b3747e1d319a7ee26a4b778d62918b9ff062a04c100",
+          "bytes": 7682304
+        }
+      ]
+    },
+    "ol9_baseos_latest": {
+      "repomdSha256": "80ec98ab1c481341d5986c9792fca9d99bc9ced86ec10befa89f500a5864c085",
+      "records": [
+        {
+          "type": "primary",
+          "sha256": "7ceaf16bab58428b2309d1292379b33518f9888f66a5b48ae8a678bee117a535",
+          "bytes": 125354187
+        },
+        {
+          "type": "filelists",
+          "sha256": "f09eea9af4526b24dd1ac7012adf45139990d53f06fab921aa0856485f9d3ed7",
+          "bytes": 67778830
+        },
+        {
+          "type": "group_gz",
+          "sha256": "b7c8a92ba1650582588ca683a8aa5ed8bdbd8a6196354b7513454ee75d68ce6d",
+          "bytes": 71114
+        },
+        {
+          "type": "updateinfo",
+          "sha256": "1908427eaa478a938862a466378206c2a87f17908144c58c4f56fb826382390b",
+          "bytes": 3924623
+        }
+      ]
+    },
+    "ol9_ksplice": {
+      "repomdSha256": "7799bd10cbb0779811e8c460491b2d04c3d827d6b469b9d8a2c06853e7f27836",
+      "records": [
+        {
+          "type": "primary",
+          "sha256": "cb848c78f3912f48d505cb3d5a161aa6b347468ec047ddf20dc5f87ba2c88996",
+          "bytes": 1382081
+        },
+        {
+          "type": "filelists",
+          "sha256": "0a70747e5b3837b0488c029356d84160b99adb30d0af2b29f27048d241f615cf",
+          "bytes": 26224300
+        },
+        {
+          "type": "updateinfo",
+          "sha256": "0c9ee47601c931933f71d1755fe1c773931ab2a964ff669efd1dddf131991466",
+          "bytes": 4647
+        }
+      ]
+    },
+    "ol9_oci_included": {
+      "repomdSha256": "b4843fbc278413beead769fd42997415ff1aac1f96394aa4c155b7fb589deb0c",
+      "records": [
+        {
+          "type": "primary",
+          "sha256": "1cfde350ddd3392a6a6922c76ca1242ada3e480edb5788f7da585390b8b8b61f",
+          "bytes": 397012
+        },
+        {
+          "type": "filelists",
+          "sha256": "4c742891bc818c20afba05fe9cd7cc8d5336fcb1191d5263f477538931882e9d",
+          "bytes": 187317881
+        },
+        {
+          "type": "updateinfo",
+          "sha256": "0463f4d6c5fa2a35fb1251e0294f741445b61d1288925781952f92e604cda7cc",
+          "bytes": 106839
+        }
+      ]
+    }
+  },
+  "scenarios": {
+    "active-support": {
+      "status": "APROVADO_SIMULACAO",
+      "commandModel": [
+        "upgrade-minimal",
+        "ca-certificates",
+        "libbrotli",
+        "nodejs",
+        "nodejs-libs",
+        "nodejs-docs",
+        "nodejs-full-i18n",
+        "npm",
+        "pcre2",
+        "pcre2-syntax",
+        "python3",
+        "python3-libs",
+        "python-unversioned-command",
+        "python3-urllib3",
+        "python39-oci-sdk",
+        "expat"
+      ],
+      "selectionFilters": ["--exclude=nginx*", "--security"],
+      "downloadBytes": 145141492,
+      "incomingCount": 15,
+      "incoming": [
+        {
+          "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "name": "ca-certificates",
+          "epoch": "0",
+          "version": "2026.2.92_v9.0.319",
+          "release": "90.3.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 994716,
+          "installBytes": 2809600,
+          "checksum": "c69abcbaa031fddd4819ee451738ab28dfc4aae27c3f32d42e18c5bf61ad93ce",
+          "location": "getPackage/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2025.2.80_v9.0.305",
+              "release": "91.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-88459", "ELSA-2026-500450"]
+        },
+        {
+          "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+          "name": "expat",
+          "epoch": "0",
+          "version": "2.5.0",
+          "release": "6.el9_8.7",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 123215,
+          "installBytes": 341707,
+          "checksum": "a43316efd31ff608b8d01156b0f236ae0fbcb1a8b5e84d61ab98da1d922cc208",
+          "location": "getPackage/expat-2.5.0-6.el9_8.7.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.5.0",
+              "release": "6.el9_8.5",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-88247"]
+        },
+        {
+          "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+          "name": "libbrotli",
+          "epoch": "0",
+          "version": "1.0.9",
+          "release": "10.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 323307,
+          "installBytes": 797882,
+          "checksum": "24b4da677ccf98b9e7bc493a130888a9a5eaaef4a918bd738fea1ae6cb123668",
+          "location": "getPackage/libbrotli-1.0.9-10.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.0.9",
+              "release": "10.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500513", "ELSA-2026-90495"]
+        },
+        {
+          "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+          "name": "pcre2",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 221925,
+          "installBytes": 663874,
+          "checksum": "97cb4292032d5c4edfed50a346e43a3d218d0a38f6ce510824d5e26b3b9fc8d5",
+          "location": "getPackage/pcre2-10.40-7.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "10.40",
+              "release": "6.0.1.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-81532"]
+        },
+        {
+          "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+          "name": "pcre2-syntax",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 158156,
+          "installBytes": 234324,
+          "checksum": "131c90a8552f8502382557225811e78b64223c034404b32d4430ea59a6436b00",
+          "location": "getPackage/pcre2-syntax-10.40-7.0.1.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "10.40",
+              "release": "6.0.1.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-81532"]
+        },
+        {
+          "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+          "name": "python3",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 31541,
+          "installBytes": 85884,
+          "checksum": "4c6a0aa2ceaf27698255e9d479d044f30f4073269c786655d9b4c00287525a2a",
+          "location": "getPackage/python3-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+          "name": "python3-libs",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 10339201,
+          "installBytes": 34955474,
+          "checksum": "4e056c69280d700211e877aa49554dea991c2bf4d9dadd1f3979b31f95058a1f",
+          "location": "getPackage/python3-libs-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+          "name": "python3-urllib3",
+          "epoch": "0",
+          "version": "1.26.5",
+          "release": "8.el9_8.2",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 322701,
+          "installBytes": 768451,
+          "checksum": "dd2f1223c0ece5ad6b04cbed675c291ffc4dd2ce5f41e87df2a57f57d0e4ab64",
+          "location": "getPackage/python3-urllib3-1.26.5-8.el9_8.2.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.26.5",
+              "release": "8.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-90494"]
+        },
+        {
+          "nevra": "nodejs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "nodejs",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 3692543,
+          "installBytes": 9023889,
+          "checksum": "1919974bd07827cf7abdb426b99318e0ac33ca09429dc9bc4b9d7b9989e7e128",
+          "location": "getPackage/nodejs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "nodejs-docs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch",
+          "name": "nodejs-docs",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 10330285,
+          "installBytes": 102764093,
+          "checksum": "56d0c5cbf354ad00390f856725ac9010dd480370f86af664b58efd8783b180e7",
+          "location": "getPackage/nodejs-docs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "nodejs-full-i18n-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "nodejs-full-i18n",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 9302440,
+          "installBytes": 33107248,
+          "checksum": "def79a8f1b0ffd39e79861e960cf714d10520990d66981b5e850c9d313dbde50",
+          "location": "getPackage/nodejs-full-i18n-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "nodejs-libs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "nodejs-libs",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 20723381,
+          "installBytes": 77094789,
+          "checksum": "c96cc6c3db1c6105b58303bd8720a9294ee53ca2a6e3ff1734fa921eb1c60a7c",
+          "location": "getPackage/nodejs-libs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "npm-1:10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "npm",
+          "epoch": "1",
+          "version": "10.9.8",
+          "release": "1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 3949446,
+          "installBytes": 9023254,
+          "checksum": "e965b563bffc81b83fcb7be597dce0d4701d66385b29943a000225c240277655",
+          "location": "getPackage/npm-10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "10.9.8",
+              "release": "1.22.23.2.2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+          "name": "python-unversioned-command",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 9750,
+          "installBytes": 23,
+          "checksum": "b8e13d52613b81fed48f6756532fa9935d1181b9115d6be4f0c7cc15921b3cea",
+          "location": "getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+          "name": "python39-oci-sdk",
+          "epoch": "0",
+          "version": "2.187.0",
+          "release": "1.0.5.el9",
+          "arch": "aarch64",
+          "repo": "ol9_oci_included",
+          "downloadBytes": 84618885,
+          "installBytes": 407789811,
+          "checksum": "b133795bade3223b830cc980eadedb84923089fae824ad7034da24b165fd513d",
+          "location": "getPackage/python39-oci-sdk-2.187.0-1.0.5.el9.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.187.0",
+              "release": "1.0.3.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-604898"]
+        }
+      ],
+      "inventoryUnchanged": true,
+      "dnfTransactionExecuted": false
+    },
+    "high-critical-no-kernel": {
+      "status": "APROVADO_SIMULACAO",
+      "commandModel": ["upgrade-minimal"],
+      "selectionFilters": [
+        "--exclude=nginx*",
+        "--security",
+        "--sec-severity=Critical",
+        "--sec-severity=Important",
+        "--exclude=kernel*",
+        "--exclude=perf",
+        "--exclude=python3-perf"
+      ],
+      "downloadBytes": 202610521,
+      "incomingCount": 53,
+      "incoming": [
+        {
+          "nevra": "perl-Unicode-Normalize-1.27-461.el9.aarch64",
+          "name": "perl-Unicode-Normalize",
+          "epoch": "0",
+          "version": "1.27",
+          "release": "461.el9",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 95112,
+          "installBytes": 707910,
+          "checksum": "94815c9697744c913f0b3b57780b4f22e7cb72af2cce81b3536d65d79804a540",
+          "location": "getPackage/perl-Unicode-Normalize-1.27-461.el9.aarch64.rpm",
+          "installedBefore": [],
+          "associatedAdvisories": []
+        },
+        {
+          "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "name": "ca-certificates",
+          "epoch": "0",
+          "version": "2026.2.92_v9.0.319",
+          "release": "90.3.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 994716,
+          "installBytes": 2809600,
+          "checksum": "c69abcbaa031fddd4819ee451738ab28dfc4aae27c3f32d42e18c5bf61ad93ce",
+          "location": "getPackage/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2025.2.80_v9.0.305",
+              "release": "91.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-88459", "ELSA-2026-500450"]
+        },
+        {
+          "nevra": "cockpit-356.4-1.0.1.el9_8.aarch64",
+          "name": "cockpit",
+          "epoch": "0",
+          "version": "356.4",
+          "release": "1.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 38584,
+          "installBytes": 36634,
+          "checksum": "d28d1e634441175eef5ddb85eb81934bbf9738a1fa12280f18dd5114dab51d9f",
+          "location": "getPackage/cockpit-356.4-1.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "356.3",
+              "release": "1.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-94533"]
+        },
+        {
+          "nevra": "cockpit-bridge-356.4-1.0.1.el9_8.noarch",
+          "name": "cockpit-bridge",
+          "epoch": "0",
+          "version": "356.4",
+          "release": "1.0.1.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 844912,
+          "installBytes": 1533566,
+          "checksum": "fd23e89529d0c3ffe60fcbc32b512ee53adce2dfe0761556d9516ff7c2c53a9d",
+          "location": "getPackage/cockpit-bridge-356.4-1.0.1.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "356.3",
+              "release": "1.0.1.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-94533"]
+        },
+        {
+          "nevra": "cockpit-system-356.4-1.0.1.el9_8.noarch",
+          "name": "cockpit-system",
+          "epoch": "0",
+          "version": "356.4",
+          "release": "1.0.1.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 5730138,
+          "installBytes": 5830893,
+          "checksum": "cb40e696cb90f3235e94f9f57733c96d72be98bc04c12fa20f0fb36d93d45ebd",
+          "location": "getPackage/cockpit-system-356.4-1.0.1.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "356.3",
+              "release": "1.0.1.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-94533"]
+        },
+        {
+          "nevra": "cockpit-ws-356.4-1.0.1.el9_8.aarch64",
+          "name": "cockpit-ws",
+          "epoch": "0",
+          "version": "356.4",
+          "release": "1.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 1219101,
+          "installBytes": 2129365,
+          "checksum": "9f4b317c2dc6ee6883f8e8196e00c5a1e8b4e38edd642a6ee35152a1e17b7f75",
+          "location": "getPackage/cockpit-ws-356.4-1.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "356.3",
+              "release": "1.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-94533"]
+        },
+        {
+          "nevra": "cockpit-ws-selinux-356.4-1.0.1.el9_8.aarch64",
+          "name": "cockpit-ws-selinux",
+          "epoch": "0",
+          "version": "356.4",
+          "release": "1.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 48879,
+          "installBytes": 45859,
+          "checksum": "43c770e967622ac9da412c25028800dc1aa608569a5f018213cdbc406900b062",
+          "location": "getPackage/cockpit-ws-selinux-356.4-1.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "356.3",
+              "release": "1.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-94533"]
+        },
+        {
+          "nevra": "curl-7.76.1-40.el9_8.9.aarch64",
+          "name": "curl",
+          "epoch": "0",
+          "version": "7.76.1",
+          "release": "40.el9_8.9",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 308030,
+          "installBytes": 696673,
+          "checksum": "e235af3065f386118a2e5e39d93557f0e12d6dba2514dbad1c4850885716e408",
+          "location": "getPackage/curl-7.76.1-40.el9_8.9.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "7.76.1",
+              "release": "40.el9_8.7",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-80511", "ELSA-2026-92907"]
+        },
+        {
+          "nevra": "environment-modules-5.3.0-2.el9_8.1.aarch64",
+          "name": "environment-modules",
+          "epoch": "0",
+          "version": "5.3.0",
+          "release": "2.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 642358,
+          "installBytes": 3147078,
+          "checksum": "5c784e89f67a73d2470d8da8e1507f56a83eabce67d6bbfa5d1825b07089f79b",
+          "location": "getPackage/environment-modules-5.3.0-2.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "5.3.0",
+              "release": "2.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-84594"]
+        },
+        {
+          "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+          "name": "expat",
+          "epoch": "0",
+          "version": "2.5.0",
+          "release": "6.el9_8.7",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 123215,
+          "installBytes": 341707,
+          "checksum": "a43316efd31ff608b8d01156b0f236ae0fbcb1a8b5e84d61ab98da1d922cc208",
+          "location": "getPackage/expat-2.5.0-6.el9_8.7.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.5.0",
+              "release": "6.el9_8.5",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-88247"]
+        },
+        {
+          "nevra": "glibc-2.34-283.0.1.el9_8.aarch64",
+          "name": "glibc",
+          "epoch": "0",
+          "version": "2.34",
+          "release": "283.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 1833135,
+          "installBytes": 6384950,
+          "checksum": "266657c7f57e7d1cfe28637d79f330e267c44f796ebe12e693e16757b5155c88",
+          "location": "getPackage/glibc-2.34-283.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.34",
+              "release": "275.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-79281"]
+        },
+        {
+          "nevra": "glibc-all-langpacks-2.34-283.0.1.el9_8.aarch64",
+          "name": "glibc-all-langpacks",
+          "epoch": "0",
+          "version": "2.34",
+          "release": "283.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 18766305,
+          "installBytes": 227831869,
+          "checksum": "0e7d0764b0947ccd9fe2aac8d8f672b7268efb35d20dcde6a7a48984df5ec7be",
+          "location": "getPackage/glibc-all-langpacks-2.34-283.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.34",
+              "release": "275.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-79281"]
+        },
+        {
+          "nevra": "glibc-common-2.34-283.0.1.el9_8.aarch64",
+          "name": "glibc-common",
+          "epoch": "0",
+          "version": "2.34",
+          "release": "283.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 331391,
+          "installBytes": 1353506,
+          "checksum": "c445236c29767bd2213b8c3c943060f2da0f5ff46cf731bfb0839739918acadc",
+          "location": "getPackage/glibc-common-2.34-283.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.34",
+              "release": "275.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-79281"]
+        },
+        {
+          "nevra": "glibc-gconv-extra-2.34-283.0.1.el9_8.aarch64",
+          "name": "glibc-gconv-extra",
+          "epoch": "0",
+          "version": "2.34",
+          "release": "283.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 1948764,
+          "installBytes": 19414006,
+          "checksum": "c93c06538fc2f104b34c94dc3cc2f0f23f401d942fb5132be60dc424d91aa92b",
+          "location": "getPackage/glibc-gconv-extra-2.34-283.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.34",
+              "release": "275.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-79281"]
+        },
+        {
+          "nevra": "glibc-langpack-en-2.34-283.0.1.el9_8.aarch64",
+          "name": "glibc-langpack-en",
+          "epoch": "0",
+          "version": "2.34",
+          "release": "283.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 995487,
+          "installBytes": 5955802,
+          "checksum": "2af559e357ef266019fd7b7062073429813182d40769dd7af0e7fbaf1bd51e27",
+          "location": "getPackage/glibc-langpack-en-2.34-283.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.34",
+              "release": "275.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-79281"]
+        },
+        {
+          "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+          "name": "libbrotli",
+          "epoch": "0",
+          "version": "1.0.9",
+          "release": "10.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 323307,
+          "installBytes": 797882,
+          "checksum": "24b4da677ccf98b9e7bc493a130888a9a5eaaef4a918bd738fea1ae6cb123668",
+          "location": "getPackage/libbrotli-1.0.9-10.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.0.9",
+              "release": "10.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500513", "ELSA-2026-90495"]
+        },
+        {
+          "nevra": "libcurl-7.76.1-40.el9_8.9.aarch64",
+          "name": "libcurl",
+          "epoch": "0",
+          "version": "7.76.1",
+          "release": "40.el9_8.9",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 286643,
+          "installBytes": 675374,
+          "checksum": "1db75284cf1d5f0173af037ebbd4689c3c9cd1a74a25b72901e8d3a3bafeb14c",
+          "location": "getPackage/libcurl-7.76.1-40.el9_8.9.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "7.76.1",
+              "release": "40.el9_8.7",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-80511", "ELSA-2026-92907"]
+        },
+        {
+          "nevra": "openssh-9.9p1-13.0.1.el9_8.aarch64",
+          "name": "openssh",
+          "epoch": "0",
+          "version": "9.9p1",
+          "release": "13.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 448385,
+          "installBytes": 1844376,
+          "checksum": "4ae26c800a2fec42fdc5fc635303779f518949fbea5d5059f22a56f818b9951f",
+          "location": "getPackage/openssh-9.9p1-13.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "9.9p1",
+              "release": "12.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-85958"]
+        },
+        {
+          "nevra": "openssh-clients-9.9p1-13.0.1.el9_8.aarch64",
+          "name": "openssh-clients",
+          "epoch": "0",
+          "version": "9.9p1",
+          "release": "13.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 785223,
+          "installBytes": 2814770,
+          "checksum": "87380eeff3ae2d04723cd4c5aee26b7f239d0cbffa2ae6357ff8281b15a01359",
+          "location": "getPackage/openssh-clients-9.9p1-13.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "9.9p1",
+              "release": "12.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-85958"]
+        },
+        {
+          "nevra": "openssh-server-9.9p1-13.0.1.el9_8.aarch64",
+          "name": "openssh-server",
+          "epoch": "0",
+          "version": "9.9p1",
+          "release": "13.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 554904,
+          "installBytes": 1510527,
+          "checksum": "390c72631eb48083e413abe4ad18940830e27216502ad764824460004c2601c7",
+          "location": "getPackage/openssh-server-9.9p1-13.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "9.9p1",
+              "release": "12.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-85958"]
+        },
+        {
+          "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+          "name": "pcre2",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 221925,
+          "installBytes": 663874,
+          "checksum": "97cb4292032d5c4edfed50a346e43a3d218d0a38f6ce510824d5e26b3b9fc8d5",
+          "location": "getPackage/pcre2-10.40-7.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "10.40",
+              "release": "6.0.1.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-81532"]
+        },
+        {
+          "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+          "name": "pcre2-syntax",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 158156,
+          "installBytes": 234324,
+          "checksum": "131c90a8552f8502382557225811e78b64223c034404b32d4430ea59a6436b00",
+          "location": "getPackage/pcre2-syntax-10.40-7.0.1.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "10.40",
+              "release": "6.0.1.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-81532"]
+        },
+        {
+          "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+          "name": "python3",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 31541,
+          "installBytes": 85884,
+          "checksum": "4c6a0aa2ceaf27698255e9d479d044f30f4073269c786655d9b4c00287525a2a",
+          "location": "getPackage/python3-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+          "name": "python3-libs",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 10339201,
+          "installBytes": 34955474,
+          "checksum": "4e056c69280d700211e877aa49554dea991c2bf4d9dadd1f3979b31f95058a1f",
+          "location": "getPackage/python3-libs-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+          "name": "python3-urllib3",
+          "epoch": "0",
+          "version": "1.26.5",
+          "release": "8.el9_8.2",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 322701,
+          "installBytes": 768451,
+          "checksum": "dd2f1223c0ece5ad6b04cbed675c291ffc4dd2ce5f41e87df2a57f57d0e4ab64",
+          "location": "getPackage/python3-urllib3-1.26.5-8.el9_8.2.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.26.5",
+              "release": "8.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-90494"]
+        },
+        {
+          "nevra": "rpcbind-1.2.6-7.el9_8.1.aarch64",
+          "name": "rpcbind",
+          "epoch": "0",
+          "version": "1.2.6",
+          "release": "7.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 68466,
+          "installBytes": 154296,
+          "checksum": "58dcddcd401de66f952826e6f79cd13d8266c158ef5f8caf4bcac2c35b3343bd",
+          "location": "getPackage/rpcbind-1.2.6-7.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.2.6",
+              "release": "7.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-83562"]
+        },
+        {
+          "nevra": "selinux-policy-38.1.75-2.0.1.el9_8.1.noarch",
+          "name": "selinux-policy",
+          "epoch": "0",
+          "version": "38.1.75",
+          "release": "2.0.1.el9_8.1",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 41837,
+          "installBytes": 25937,
+          "checksum": "cb9b1038ed05814bccc021e0ed9d5d99c8db4cae550e18203d7bda378bbe3476",
+          "location": "getPackage/selinux-policy-38.1.75-2.0.1.el9_8.1.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "38.1.75",
+              "release": "2.0.1.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": []
+        },
+        {
+          "nevra": "selinux-policy-targeted-38.1.75-2.0.1.el9_8.1.noarch",
+          "name": "selinux-policy-targeted",
+          "epoch": "0",
+          "version": "38.1.75",
+          "release": "2.0.1.el9_8.1",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 8272081,
+          "installBytes": 19108771,
+          "checksum": "686540419b7edd3471d26b6c59e921f40e90315e879e06fbf4ee547f5538e7a9",
+          "location": "getPackage/selinux-policy-targeted-38.1.75-2.0.1.el9_8.1.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "38.1.75",
+              "release": "2.0.1.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": []
+        },
+        {
+          "nevra": "xz-5.2.5-8.el9_8.1.aarch64",
+          "name": "xz",
+          "epoch": "0",
+          "version": "5.2.5",
+          "release": "8.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 267553,
+          "installBytes": 786483,
+          "checksum": "3d59d9a622c5ea638c71b9a4c628e90915dcbf66f1050f70a808bb6c2df6f06a",
+          "location": "getPackage/xz-5.2.5-8.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "5.2.5",
+              "release": "8.el9_0",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89749"]
+        },
+        {
+          "nevra": "xz-libs-5.2.5-8.el9_8.1.aarch64",
+          "name": "xz-libs",
+          "epoch": "0",
+          "version": "5.2.5",
+          "release": "8.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 91036,
+          "installBytes": 204669,
+          "checksum": "a94998dafee05f6ce51b96757f842b83c033e2ac7fcb1ea95cedfabf52641f98",
+          "location": "getPackage/xz-libs-5.2.5-8.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "5.2.5",
+              "release": "8.el9_0",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89749"]
+        },
+        {
+          "nevra": "bind-libs-32:9.16.23-40.0.1.el9_8.13.aarch64",
+          "name": "bind-libs",
+          "epoch": "32",
+          "version": "9.16.23",
+          "release": "40.0.1.el9_8.13",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 1262749,
+          "installBytes": 3643588,
+          "checksum": "6780a2b1881f2e976da4e8d219ab7c62c0dd159d760041530ffc3916f850a08c",
+          "location": "getPackage/bind-libs-9.16.23-40.0.1.el9_8.13.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "32",
+              "version": "9.16.23",
+              "release": "40.0.1.el9_8.10",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89745", "ELSA-2026-93610"]
+        },
+        {
+          "nevra": "bind-license-32:9.16.23-40.0.1.el9_8.13.noarch",
+          "name": "bind-license",
+          "epoch": "32",
+          "version": "9.16.23",
+          "release": "40.0.1.el9_8.13",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 14056,
+          "installBytes": 18520,
+          "checksum": "ad6d5540df6759dcfefc39e3b17a2d39a9ff96e7d412dd75b82ab27c454fd89c",
+          "location": "getPackage/bind-license-9.16.23-40.0.1.el9_8.13.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "32",
+              "version": "9.16.23",
+              "release": "40.0.1.el9_8.10",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89745", "ELSA-2026-93610"]
+        },
+        {
+          "nevra": "bind-utils-32:9.16.23-40.0.1.el9_8.13.aarch64",
+          "name": "bind-utils",
+          "epoch": "32",
+          "version": "9.16.23",
+          "release": "40.0.1.el9_8.13",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 229827,
+          "installBytes": 989997,
+          "checksum": "4de608bd0747d9f0960ac6748f85527b3828425692dfdefcc5f894b90f535a98",
+          "location": "getPackage/bind-utils-9.16.23-40.0.1.el9_8.13.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "32",
+              "version": "9.16.23",
+              "release": "40.0.1.el9_8.10",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89745", "ELSA-2026-93610"]
+        },
+        {
+          "nevra": "cockpit-packagekit-356.4-1.0.1.el9_8.noarch",
+          "name": "cockpit-packagekit",
+          "epoch": "0",
+          "version": "356.4",
+          "release": "1.0.1.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 1044748,
+          "installBytes": 1128844,
+          "checksum": "3edd206a5013b995895e9ae7753b6a851d15ed75bad8b7e5088fcb88d222fe36",
+          "location": "getPackage/cockpit-packagekit-356.4-1.0.1.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "356.3",
+              "release": "1.0.1.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-94533"]
+        },
+        {
+          "nevra": "cockpit-storaged-356.4-1.0.1.el9_8.noarch",
+          "name": "cockpit-storaged",
+          "epoch": "0",
+          "version": "356.4",
+          "release": "1.0.1.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 924656,
+          "installBytes": 874002,
+          "checksum": "0ed69626fc8f7f54c12a09fb33f18e6a994e358b22759d0ee5144fbfaf6e265b",
+          "location": "getPackage/cockpit-storaged-356.4-1.0.1.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "356.3",
+              "release": "1.0.1.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-94533"]
+        },
+        {
+          "nevra": "emacs-filesystem-1:27.2-18.el9_8.3.noarch",
+          "name": "emacs-filesystem",
+          "epoch": "1",
+          "version": "27.2",
+          "release": "18.el9_8.3",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 8404,
+          "installBytes": 0,
+          "checksum": "58485a4a6aab61f4fffc6725876c647f669613e4e2aa7dad265f204c00751b86",
+          "location": "getPackage/emacs-filesystem-27.2-18.el9_8.3.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "27.2",
+              "release": "18.el9_8.2",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-85245"]
+        },
+        {
+          "nevra": "glibc-devel-2.34-283.0.1.el9_8.aarch64",
+          "name": "glibc-devel",
+          "epoch": "0",
+          "version": "2.34",
+          "release": "283.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 966568,
+          "installBytes": 2183968,
+          "checksum": "2cca9efaaf51db84aa36a73a13ac989497762db7c0de732529f51c4ac7989e80",
+          "location": "getPackage/glibc-devel-2.34-283.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.34",
+              "release": "275.0.1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-79281"]
+        },
+        {
+          "nevra": "libX11-1.8.12-1.el9_8.1.aarch64",
+          "name": "libX11",
+          "epoch": "0",
+          "version": "1.8.12",
+          "release": "1.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 651154,
+          "installBytes": 1340988,
+          "checksum": "10b7a03890b5f28b334ca3e1940f4d1d017cdb0dddfbba34e8f0e1e65a2ec988",
+          "location": "getPackage/libX11-1.8.12-1.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.8.12",
+              "release": "1.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-91365"]
+        },
+        {
+          "nevra": "libX11-common-1.8.12-1.el9_8.1.noarch",
+          "name": "libX11-common",
+          "epoch": "0",
+          "version": "1.8.12",
+          "release": "1.el9_8.1",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 349384,
+          "installBytes": 1206184,
+          "checksum": "64b7641d6026acdfb0130e50f2349884253c85a95642b81b89cc307878b10e96",
+          "location": "getPackage/libX11-common-1.8.12-1.el9_8.1.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.8.12",
+              "release": "1.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-91365"]
+        },
+        {
+          "nevra": "libXrender-0.9.10-16.el9_8.2.aarch64",
+          "name": "libXrender",
+          "epoch": "0",
+          "version": "0.9.10",
+          "release": "16.el9_8.2",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 25942,
+          "installBytes": 71151,
+          "checksum": "762a7d6b49c014769de34f18040169d72f52b1f44ff0849df83009b028528c7f",
+          "location": "getPackage/libXrender-0.9.10-16.el9_8.2.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "0.9.10",
+              "release": "16.el9_8.1",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-91057"]
+        },
+        {
+          "nevra": "librsvg2-2.50.7-3.el9_8.1.aarch64",
+          "name": "librsvg2",
+          "epoch": "0",
+          "version": "2.50.7",
+          "release": "3.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 2795629,
+          "installBytes": 8849379,
+          "checksum": "0b8e8719599104cae5810fd7472bf2b45ad9608833b7071b49d41544325d1f90",
+          "location": "getPackage/librsvg2-2.50.7-3.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.50.7",
+              "release": "3.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-86921"]
+        },
+        {
+          "nevra": "librsvg2-tools-2.50.7-3.el9_8.1.aarch64",
+          "name": "librsvg2-tools",
+          "epoch": "0",
+          "version": "2.50.7",
+          "release": "3.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 17376,
+          "installBytes": 70084,
+          "checksum": "97b75d617fa0f9fe7f7188b3c2a1d59096700a5abf3265a03634e19e82837816",
+          "location": "getPackage/librsvg2-tools-2.50.7-3.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.50.7",
+              "release": "3.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-86921"]
+        },
+        {
+          "nevra": "libsoup-2.72.0-16.el9_8.8.aarch64",
+          "name": "libsoup",
+          "epoch": "0",
+          "version": "2.72.0",
+          "release": "16.el9_8.8",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 470311,
+          "installBytes": 1357914,
+          "checksum": "a1e6eb4c939abeb368ee861f08f0e98ac76c249b712fc51e12c7df0771ce1f1c",
+          "location": "getPackage/libsoup-2.72.0-16.el9_8.8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.72.0",
+              "release": "16.el9_8.3",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-83384"]
+        },
+        {
+          "nevra": "nodejs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "nodejs",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 3692543,
+          "installBytes": 9023889,
+          "checksum": "1919974bd07827cf7abdb426b99318e0ac33ca09429dc9bc4b9d7b9989e7e128",
+          "location": "getPackage/nodejs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "nodejs-docs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch",
+          "name": "nodejs-docs",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 10330285,
+          "installBytes": 102764093,
+          "checksum": "56d0c5cbf354ad00390f856725ac9010dd480370f86af664b58efd8783b180e7",
+          "location": "getPackage/nodejs-docs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "nodejs-full-i18n-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "nodejs-full-i18n",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 9302440,
+          "installBytes": 33107248,
+          "checksum": "def79a8f1b0ffd39e79861e960cf714d10520990d66981b5e850c9d313dbde50",
+          "location": "getPackage/nodejs-full-i18n-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "nodejs-libs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "nodejs-libs",
+          "epoch": "1",
+          "version": "22.23.2",
+          "release": "2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 20723381,
+          "installBytes": 77094789,
+          "checksum": "c96cc6c3db1c6105b58303bd8720a9294ee53ca2a6e3ff1734fa921eb1c60a7c",
+          "location": "getPackage/nodejs-libs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "22.23.2",
+              "release": "2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "npm-1:10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+          "name": "npm",
+          "epoch": "1",
+          "version": "10.9.8",
+          "release": "1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 3949446,
+          "installBytes": 9023254,
+          "checksum": "e965b563bffc81b83fcb7be597dce0d4701d66385b29943a000225c240277655",
+          "location": "getPackage/npm-10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "1",
+              "version": "10.9.8",
+              "release": "1.22.23.2.2.module+el9.8.0+91062+a7d6b802",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500517"]
+        },
+        {
+          "nevra": "perl-URI-5.09-3.el9_8.1.noarch",
+          "name": "perl-URI",
+          "epoch": "0",
+          "version": "5.09",
+          "release": "3.el9_8.1",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 183376,
+          "installBytes": 217659,
+          "checksum": "af74205b2333055328d50b3ef6c772e017483eb12cbd90abe7b55dab65ae1c62",
+          "location": "getPackage/perl-URI-5.09-3.el9_8.1.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "5.09",
+              "release": "3.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-84588"]
+        },
+        {
+          "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+          "name": "python-unversioned-command",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 9750,
+          "installBytes": 23,
+          "checksum": "b8e13d52613b81fed48f6756532fa9935d1181b9115d6be4f0c7cc15921b3cea",
+          "location": "getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "webkit2gtk3-jsc-2.54.2-0.el9_8.1.aarch64",
+          "name": "webkit2gtk3-jsc",
+          "epoch": "0",
+          "version": "2.54.2",
+          "release": "0.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 4828400,
+          "installBytes": 18769884,
+          "checksum": "0e687ab14ef43a5c0341599528228ce7d14a025fb9e18fe3ed01904f9b026746",
+          "location": "getPackage/webkit2gtk3-jsc-2.54.2-0.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.54.0",
+              "release": "1.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-84583", "ELSA-2026-91580"]
+        },
+        {
+          "nevra": "xz-devel-5.2.5-8.el9_8.1.aarch64",
+          "name": "xz-devel",
+          "epoch": "0",
+          "version": "5.2.5",
+          "release": "8.el9_8.1",
+          "arch": "aarch64",
+          "repo": "ol9_appstream",
+          "downloadBytes": 78125,
+          "installBytes": 206635,
+          "checksum": "49e061080bd32a75365b2908d05f02417433a0379c057c4d4d4d4a3bcdd9821a",
+          "location": "getPackage/xz-devel-5.2.5-8.el9_8.1.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "5.2.5",
+              "release": "8.el9_0",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89749"]
+        },
+        {
+          "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+          "name": "python39-oci-sdk",
+          "epoch": "0",
+          "version": "2.187.0",
+          "release": "1.0.5.el9",
+          "arch": "aarch64",
+          "repo": "ol9_oci_included",
+          "downloadBytes": 84618885,
+          "installBytes": 407789811,
+          "checksum": "b133795bade3223b830cc980eadedb84923089fae824ad7034da24b165fd513d",
+          "location": "getPackage/python39-oci-sdk-2.187.0-1.0.5.el9.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.187.0",
+              "release": "1.0.3.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-604898"]
+        }
+      ],
+      "inventoryUnchanged": true,
+      "dnfTransactionExecuted": false
+    },
+    "kernel-uek": {
+      "status": "APROVADO_SIMULACAO",
+      "commandModel": ["upgrade-minimal", "kernel-uek*"],
+      "selectionFilters": [
+        "--exclude=nginx*",
+        "--security",
+        "--sec-severity=Important"
+      ],
+      "downloadBytes": 204761919,
+      "incomingCount": 8,
+      "incoming": [
+        {
+          "nevra": "kernel-uek-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 2717781,
+          "installBytes": 0,
+          "checksum": "0247f4ef4bc59bef79d481371ecf360e7dcf1271c099b0f8e83e6e2811ee64a7",
+          "location": "getPackage/kernel-uek-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        },
+        {
+          "nevra": "kernel-uek-core-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek-core",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 22840087,
+          "installBytes": 250892698,
+          "checksum": "f412b40620be29540c9a4d1493f2e02694c8a35615988d138f44868689bae610",
+          "location": "getPackage/kernel-uek-core-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        },
+        {
+          "nevra": "kernel-uek-modules-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek-modules",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 30928547,
+          "installBytes": 26318676,
+          "checksum": "f3374e7ff542c587cbe30e7a02988c95cd8435ce3946a5082794123f28a84ac5",
+          "location": "getPackage/kernel-uek-modules-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        },
+        {
+          "nevra": "kernel-uek-modules-core-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek-modules-core",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 36876413,
+          "installBytes": 38852228,
+          "checksum": "bb909e0647dc188ee025b225081b33ae5c2db6036e8da780b48237fba1423ee5",
+          "location": "getPackage/kernel-uek-modules-core-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        },
+        {
+          "nevra": "kernel-uek-modules-desktop-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek-modules-desktop",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 93117317,
+          "installBytes": 89205452,
+          "checksum": "2167759e9273fe6a99061c10f7e2d44bee97d08b9b51126c29b72b0ec5f43570",
+          "location": "getPackage/kernel-uek-modules-desktop-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        },
+        {
+          "nevra": "kernel-uek-modules-extra-netfilter-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek-modules-extra-netfilter",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 3595389,
+          "installBytes": 723920,
+          "checksum": "35644fbda926b8677187d7091a7da7eea6d3dfb8fd8e0174996d3b035b659f52",
+          "location": "getPackage/kernel-uek-modules-extra-netfilter-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        },
+        {
+          "nevra": "kernel-uek-modules-usb-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek-modules-usb",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 3968478,
+          "installBytes": 1040744,
+          "checksum": "d76910c4a30d090d6a333c84703808c39633fa770ad93a5e522b6d96805fac28",
+          "location": "getPackage/kernel-uek-modules-usb-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        },
+        {
+          "nevra": "kernel-uek-modules-wireless-6.12.0-208.112.5.el9uek.aarch64",
+          "name": "kernel-uek-modules-wireless",
+          "epoch": "0",
+          "version": "6.12.0",
+          "release": "208.112.5.el9uek",
+          "arch": "aarch64",
+          "repo": "ol9_UEKR8",
+          "downloadBytes": 10717907,
+          "installBytes": 7710124,
+          "checksum": "22abdf2129e59d18f469392f3071b3be0b87df4b870559750d04b185bb9b4a2b",
+          "location": "getPackage/kernel-uek-modules-wireless-6.12.0-208.112.5.el9uek.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "206.104.4.4.el9uek",
+              "arch": "aarch64"
+            },
+            {
+              "epoch": "0",
+              "version": "6.12.0",
+              "release": "207.111.5.1.el9uek",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": [
+            "ELSA-2026-500572",
+            "ELSA-2026-500394",
+            "ELSA-2026-500399"
+          ]
+        }
+      ],
+      "inventoryUnchanged": true,
+      "dnfTransactionExecuted": false
+    },
+    "ca-certificates-only": {
+      "status": "APROVADO_SIMULACAO",
+      "commandModel": ["upgrade-minimal", "ca-certificates"],
+      "selectionFilters": ["--exclude=nginx*", "--security"],
+      "downloadBytes": 994716,
+      "incomingCount": 1,
+      "incoming": [
+        {
+          "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "name": "ca-certificates",
+          "epoch": "0",
+          "version": "2026.2.92_v9.0.319",
+          "release": "90.3.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 994716,
+          "installBytes": 2809600,
+          "checksum": "c69abcbaa031fddd4819ee451738ab28dfc4aae27c3f32d42e18c5bf61ad93ce",
+          "location": "getPackage/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2025.2.80_v9.0.305",
+              "release": "91.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-88459", "ELSA-2026-500450"]
+        }
+      ],
+      "inventoryUnchanged": true,
+      "dnfTransactionExecuted": false
+    },
+    "active-os-without-node-rpm": {
+      "status": "APROVADO_SIMULACAO",
+      "commandModel": [
+        "upgrade-minimal",
+        "ca-certificates",
+        "libbrotli",
+        "pcre2",
+        "pcre2-syntax",
+        "python3",
+        "python3-libs",
+        "python-unversioned-command",
+        "python3-urllib3",
+        "python39-oci-sdk",
+        "expat"
+      ],
+      "selectionFilters": ["--exclude=nginx*", "--security"],
+      "downloadBytes": 97143397,
+      "incomingCount": 10,
+      "incoming": [
+        {
+          "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "name": "ca-certificates",
+          "epoch": "0",
+          "version": "2026.2.92_v9.0.319",
+          "release": "90.3.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 994716,
+          "installBytes": 2809600,
+          "checksum": "c69abcbaa031fddd4819ee451738ab28dfc4aae27c3f32d42e18c5bf61ad93ce",
+          "location": "getPackage/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2025.2.80_v9.0.305",
+              "release": "91.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-88459", "ELSA-2026-500450"]
+        },
+        {
+          "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+          "name": "expat",
+          "epoch": "0",
+          "version": "2.5.0",
+          "release": "6.el9_8.7",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 123215,
+          "installBytes": 341707,
+          "checksum": "a43316efd31ff608b8d01156b0f236ae0fbcb1a8b5e84d61ab98da1d922cc208",
+          "location": "getPackage/expat-2.5.0-6.el9_8.7.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.5.0",
+              "release": "6.el9_8.5",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-88247"]
+        },
+        {
+          "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+          "name": "libbrotli",
+          "epoch": "0",
+          "version": "1.0.9",
+          "release": "10.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 323307,
+          "installBytes": 797882,
+          "checksum": "24b4da677ccf98b9e7bc493a130888a9a5eaaef4a918bd738fea1ae6cb123668",
+          "location": "getPackage/libbrotli-1.0.9-10.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.0.9",
+              "release": "10.el9_8",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-500513", "ELSA-2026-90495"]
+        },
+        {
+          "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+          "name": "pcre2",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 221925,
+          "installBytes": 663874,
+          "checksum": "97cb4292032d5c4edfed50a346e43a3d218d0a38f6ce510824d5e26b3b9fc8d5",
+          "location": "getPackage/pcre2-10.40-7.0.1.el9_8.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "10.40",
+              "release": "6.0.1.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-81532"]
+        },
+        {
+          "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+          "name": "pcre2-syntax",
+          "epoch": "0",
+          "version": "10.40",
+          "release": "7.0.1.el9_8",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 158156,
+          "installBytes": 234324,
+          "checksum": "131c90a8552f8502382557225811e78b64223c034404b32d4430ea59a6436b00",
+          "location": "getPackage/pcre2-syntax-10.40-7.0.1.el9_8.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "10.40",
+              "release": "6.0.1.el9",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-81532"]
+        },
+        {
+          "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+          "name": "python3",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 31541,
+          "installBytes": 85884,
+          "checksum": "4c6a0aa2ceaf27698255e9d479d044f30f4073269c786655d9b4c00287525a2a",
+          "location": "getPackage/python3-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+          "name": "python3-libs",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "aarch64",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 10339201,
+          "installBytes": 34955474,
+          "checksum": "4e056c69280d700211e877aa49554dea991c2bf4d9dadd1f3979b31f95058a1f",
+          "location": "getPackage/python3-libs-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+          "name": "python3-urllib3",
+          "epoch": "0",
+          "version": "1.26.5",
+          "release": "8.el9_8.2",
+          "arch": "noarch",
+          "repo": "ol9_baseos_latest",
+          "downloadBytes": 322701,
+          "installBytes": 768451,
+          "checksum": "dd2f1223c0ece5ad6b04cbed675c291ffc4dd2ce5f41e87df2a57f57d0e4ab64",
+          "location": "getPackage/python3-urllib3-1.26.5-8.el9_8.2.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "1.26.5",
+              "release": "8.el9_8",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-90494"]
+        },
+        {
+          "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+          "name": "python-unversioned-command",
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.6",
+          "arch": "noarch",
+          "repo": "ol9_appstream",
+          "downloadBytes": 9750,
+          "installBytes": 23,
+          "checksum": "b8e13d52613b81fed48f6756532fa9935d1181b9115d6be4f0c7cc15921b3cea",
+          "location": "getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "3.9.25",
+              "release": "7.0.1.el9_8.3",
+              "arch": "noarch"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-89742"]
+        },
+        {
+          "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+          "name": "python39-oci-sdk",
+          "epoch": "0",
+          "version": "2.187.0",
+          "release": "1.0.5.el9",
+          "arch": "aarch64",
+          "repo": "ol9_oci_included",
+          "downloadBytes": 84618885,
+          "installBytes": 407789811,
+          "checksum": "b133795bade3223b830cc980eadedb84923089fae824ad7034da24b165fd513d",
+          "location": "getPackage/python39-oci-sdk-2.187.0-1.0.5.el9.aarch64.rpm",
+          "installedBefore": [
+            {
+              "epoch": "0",
+              "version": "2.187.0",
+              "release": "1.0.3.el9",
+              "arch": "aarch64"
+            }
+          ],
+          "associatedAdvisories": ["ELSA-2026-604898"]
+        }
+      ],
+      "inventoryUnchanged": true,
+      "dnfTransactionExecuted": false
+    }
+  },
+  "associatedAdvisories": [
+    {
+      "repo": "ol9_oci_included-b69c56da7a42f0b4",
+      "id": "ELSA-2026-604898",
+      "severity": "Important",
+      "title": "python-oci-sdk security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": [
+        "CVE-2025-53643",
+        "CVE-2025-69223",
+        "CVE-2025-69224",
+        "CVE-2025-69225",
+        "CVE-2025-69226",
+        "CVE-2025-69227",
+        "CVE-2025-69228",
+        "CVE-2025-69229",
+        "CVE-2026-104874",
+        "CVE-2026-111063",
+        "CVE-2026-111064",
+        "CVE-2026-111065",
+        "CVE-2026-111066",
+        "CVE-2026-111748",
+        "CVE-2026-111749",
+        "CVE-2026-111750",
+        "CVE-2026-22815",
+        "CVE-2026-27448",
+        "CVE-2026-34513",
+        "CVE-2026-34514",
+        "CVE-2026-34516",
+        "CVE-2026-34517",
+        "CVE-2026-34518",
+        "CVE-2026-34519",
+        "CVE-2026-34520",
+        "CVE-2026-34525",
+        "CVE-2026-34993",
+        "CVE-2026-47265",
+        "CVE-2026-50269",
+        "CVE-2026-54273",
+        "CVE-2026-54274",
+        "CVE-2026-54275",
+        "CVE-2026-54277",
+        "CVE-2026-54278",
+        "CVE-2026-54279",
+        "CVE-2026-59881",
+        "CVE-2026-69243",
+        "CVE-2026-69244"
+      ],
+      "packages": [
+        {
+          "name": "python39-oci-sdk",
+          "arch": "aarch64",
+          "installed": ["0:2.187.0-1.0.3.el9"],
+          "fixed": "0:2.187.0-1.0.5.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-80511",
+      "severity": "Moderate",
+      "title": " curl security update",
+      "issued": "2026-10-11 00:00:00",
+      "cves": ["CVE-2026-11856", "CVE-2026-8924"],
+      "packages": [
+        {
+          "name": "libcurl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.8"
+        },
+        {
+          "name": "curl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-77689",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-08 00:00:00",
+      "cves": [
+        "CVE-2026-23103",
+        "CVE-2026-53360",
+        "CVE-2026-53365",
+        "CVE-2026-53398",
+        "CVE-2026-63970",
+        "CVE-2026-64035",
+        "CVE-2026-64115",
+        "CVE-2026-64162",
+        "CVE-2026-72317",
+        "CVE-2026-74744",
+        "CVE-2026-89530",
+        "CVE-2026-89663",
+        "CVE-2026-89669",
+        "CVE-2026-89690"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-76739",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-11 00:00:00",
+      "cves": [
+        "CVE-2025-40149",
+        "CVE-2026-23442",
+        "CVE-2026-43332",
+        "CVE-2026-45861",
+        "CVE-2026-46076",
+        "CVE-2026-46275",
+        "CVE-2026-46317",
+        "CVE-2026-52942",
+        "CVE-2026-52986",
+        "CVE-2026-53049",
+        "CVE-2026-53357",
+        "CVE-2026-63829",
+        "CVE-2026-63920",
+        "CVE-2026-63922",
+        "CVE-2026-63924",
+        "CVE-2026-63984",
+        "CVE-2026-63992",
+        "CVE-2026-63993",
+        "CVE-2026-63994",
+        "CVE-2026-64385",
+        "CVE-2026-64557",
+        "CVE-2026-68432",
+        "CVE-2026-72052",
+        "CVE-2026-72099",
+        "CVE-2026-72255",
+        "CVE-2026-72289",
+        "CVE-2026-74516",
+        "CVE-2026-74569",
+        "CVE-2026-74669",
+        "CVE-2026-74746",
+        "CVE-2026-80792",
+        "CVE-2026-80921",
+        "CVE-2026-89480",
+        "CVE-2026-89481",
+        "CVE-2026-89972",
+        "CVE-2026-90227",
+        "CVE-2026-93288",
+        "CVE-2026-97417"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-81552",
+      "severity": "Important",
+      "title": " kernel security update",
+      "issued": "2026-10-13 00:00:00",
+      "cves": [
+        "CVE-2026-46309",
+        "CVE-2026-63925",
+        "CVE-2026-64507",
+        "CVE-2026-64508",
+        "CVE-2026-68123",
+        "CVE-2026-68236",
+        "CVE-2026-68245",
+        "CVE-2026-68278",
+        "CVE-2026-72318",
+        "CVE-2026-80887",
+        "CVE-2026-89811",
+        "CVE-2026-89894",
+        "CVE-2026-89970"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-81532",
+      "severity": "Important",
+      "title": " pcre2 security update",
+      "issued": "2026-10-13 00:00:00",
+      "cves": [
+        "CVE-2026-103111",
+        "CVE-2026-86145",
+        "CVE-2026-89156",
+        "CVE-2026-89157",
+        "CVE-2026-89158",
+        "CVE-2026-89160",
+        "CVE-2026-89161"
+      ],
+      "packages": [
+        {
+          "name": "pcre2-syntax",
+          "arch": "noarch",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        },
+        {
+          "name": "pcre2",
+          "arch": "aarch64",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-83562",
+      "severity": "Important",
+      "title": " rpcbind security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": ["CVE-2026-94640"],
+      "packages": [
+        {
+          "name": "rpcbind",
+          "arch": "aarch64",
+          "installed": ["0:1.2.6-7.el9"],
+          "fixed": "0:1.2.6-7.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-83156",
+      "severity": "Important",
+      "title": " kernel security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": [
+        "CVE-2026-46319",
+        "CVE-2026-53011",
+        "CVE-2026-64030",
+        "CVE-2026-68140",
+        "CVE-2026-68377",
+        "CVE-2026-68404",
+        "CVE-2026-68409",
+        "CVE-2026-72262",
+        "CVE-2026-72288",
+        "CVE-2026-72320",
+        "CVE-2026-74641",
+        "CVE-2026-74705",
+        "CVE-2026-80985",
+        "CVE-2026-81003",
+        "CVE-2026-89526",
+        "CVE-2026-90036",
+        "CVE-2026-93207",
+        "CVE-2026-93228"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-85958",
+      "severity": "Moderate",
+      "title": " openssh security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": ["CVE-2026-59997", "CVE-2026-59998", "CVE-2026-60000"],
+      "packages": [
+        {
+          "name": "openssh-clients",
+          "arch": "aarch64",
+          "installed": ["0:9.9p1-12.0.1.el9_8"],
+          "fixed": "0:9.9p1-13.0.1.el9_8"
+        },
+        {
+          "name": "openssh-server",
+          "arch": "aarch64",
+          "installed": ["0:9.9p1-12.0.1.el9_8"],
+          "fixed": "0:9.9p1-13.0.1.el9_8"
+        },
+        {
+          "name": "openssh",
+          "arch": "aarch64",
+          "installed": ["0:9.9p1-12.0.1.el9_8"],
+          "fixed": "0:9.9p1-13.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88459",
+      "severity": "Critical",
+      "title": " ca-certificates security update",
+      "issued": "2026-10-23 00:00:00",
+      "cves": ["CVE-2026-114406"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2026.2.92_v9.0.319-90.3.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-89742",
+      "severity": "Important",
+      "title": " python3.9 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-12345", "CVE-2026-19445", "CVE-2026-19553"],
+      "packages": [
+        {
+          "name": "python3",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python3-libs",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python-unversioned-command",
+          "arch": "noarch",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500513",
+      "severity": "Important",
+      "title": "brotli security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-89749",
+      "severity": "Moderate",
+      "title": " xz security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-34743"],
+      "packages": [
+        {
+          "name": "xz-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.2.5-8.el9_0"],
+          "fixed": "0:5.2.5-8.el9_8.1"
+        },
+        {
+          "name": "xz",
+          "arch": "aarch64",
+          "installed": ["0:5.2.5-8.el9_0"],
+          "fixed": "0:5.2.5-8.el9_8.1"
+        },
+        {
+          "name": "xz-devel",
+          "arch": "aarch64",
+          "installed": ["0:5.2.5-8.el9_0"],
+          "fixed": "0:5.2.5-8.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90494",
+      "severity": "Important",
+      "title": " python-urllib3 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-97687", "CVE-2026-97689"],
+      "packages": [
+        {
+          "name": "python3-urllib3",
+          "arch": "noarch",
+          "installed": ["0:1.26.5-8.el9_8"],
+          "fixed": "0:1.26.5-8.el9_8.2"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-87805",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-23 00:00:00",
+      "cves": [
+        "CVE-2025-22063",
+        "CVE-2025-38147",
+        "CVE-2026-64481",
+        "CVE-2026-68202",
+        "CVE-2026-68299",
+        "CVE-2026-68448",
+        "CVE-2026-80530",
+        "CVE-2026-80536"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-86033",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-20 00:00:00",
+      "cves": [
+        "CVE-2026-31678",
+        "CVE-2026-52935",
+        "CVE-2026-63899",
+        "CVE-2026-63962",
+        "CVE-2026-63974",
+        "CVE-2026-64024",
+        "CVE-2026-64032",
+        "CVE-2026-64114",
+        "CVE-2026-64572",
+        "CVE-2026-74509",
+        "CVE-2026-80590",
+        "CVE-2026-89633",
+        "CVE-2026-93817",
+        "CVE-2026-98260",
+        "CVE-2026-99999"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90365",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-27 00:00:00",
+      "cves": [
+        "CVE-2024-57974",
+        "CVE-2026-53388",
+        "CVE-2026-63978",
+        "CVE-2026-63979",
+        "CVE-2026-64266",
+        "CVE-2026-64523",
+        "CVE-2026-68476",
+        "CVE-2026-72242",
+        "CVE-2026-74515",
+        "CVE-2026-80824",
+        "CVE-2026-89638",
+        "CVE-2026-89777",
+        "CVE-2026-93262",
+        "CVE-2026-98222",
+        "CVE-2026-98320"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-92907",
+      "severity": "Moderate",
+      "title": " curl security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": ["CVE-2026-8932"],
+      "packages": [
+        {
+          "name": "libcurl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.9"
+        },
+        {
+          "name": "curl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-79281",
+      "severity": "Moderate",
+      "title": " glibc security, bug fix, and enhancement update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2026-18374",
+        "CVE-2026-19542",
+        "CVE-2026-6368",
+        "CVE-2026-6791",
+        "CVE-2026-77117",
+        "CVE-2026-80489"
+      ],
+      "packages": [
+        {
+          "name": "glibc-all-langpacks",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-common",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-langpack-en",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-gconv-extra",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-devel",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-93412",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2026-52929",
+        "CVE-2026-53228",
+        "CVE-2026-53270",
+        "CVE-2026-64303",
+        "CVE-2026-68169",
+        "CVE-2026-72083",
+        "CVE-2026-74283",
+        "CVE-2026-74510",
+        "CVE-2026-74582",
+        "CVE-2026-80586",
+        "CVE-2026-89603",
+        "CVE-2026-90011",
+        "CVE-2026-93787",
+        "CVE-2026-93827",
+        "CVE-2026-98364",
+        "CVE-2026-98432",
+        "CVE-2026-98466",
+        "CVE-2026-98725"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-93930",
+      "severity": "Moderate",
+      "title": " kernel security update",
+      "issued": "2026-11-03 00:00:00",
+      "cves": ["CVE-2026-63987", "CVE-2026-63996"],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-94533",
+      "severity": "Important",
+      "title": " cockpit security update",
+      "issued": "2026-11-03 00:00:00",
+      "cves": ["CVE-2026-76235", "CVE-2026-91147", "CVE-2026-91149"],
+      "packages": [
+        {
+          "name": "cockpit",
+          "arch": "aarch64",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-ws-selinux",
+          "arch": "aarch64",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-bridge",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-ws",
+          "arch": "aarch64",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-system",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-packagekit",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-storaged",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90495",
+      "severity": "Important",
+      "title": " brotli security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-84594",
+      "severity": "Moderate",
+      "title": " environment-modules security update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": ["CVE-2026-85013"],
+      "packages": [
+        {
+          "name": "environment-modules",
+          "arch": "aarch64",
+          "installed": ["0:5.3.0-2.el9"],
+          "fixed": "0:5.3.0-2.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500450",
+      "severity": "Important",
+      "title": "ca-certificates security update",
+      "issued": "2026-10-20 00:00:00",
+      "cves": ["CVE-2026-111943", "CVE-2026-113470", "CVE-2026-114820"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2025.2.80_v9.0.305-91.0.1.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88247",
+      "severity": "Important",
+      "title": " expat security update",
+      "issued": "2026-10-22 00:00:00",
+      "cves": ["CVE-2026-102633", "CVE-2026-77214"],
+      "packages": [
+        {
+          "name": "expat",
+          "arch": "aarch64",
+          "installed": ["0:2.5.0-6.el9_8.5"],
+          "fixed": "0:2.5.0-6.el9_8.7"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-83384",
+      "severity": "Important",
+      "title": " libsoup security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": [
+        "CVE-2026-102556",
+        "CVE-2026-102557",
+        "CVE-2026-102558",
+        "CVE-2026-102559",
+        "CVE-2026-102560"
+      ],
+      "packages": [
+        {
+          "name": "libsoup",
+          "arch": "aarch64",
+          "installed": ["0:2.72.0-16.el9_8.3"],
+          "fixed": "0:2.72.0-16.el9_8.8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-84583",
+      "severity": "Critical",
+      "title": " webkit2gtk3 security, bug fix, and enhancement update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": [
+        "CVE-2026-87500",
+        "CVE-2026-87512",
+        "CVE-2026-87586",
+        "CVE-2026-87596",
+        "CVE-2026-87602",
+        "CVE-2026-87604",
+        "CVE-2026-87621",
+        "CVE-2026-87648",
+        "CVE-2026-87654",
+        "CVE-2026-91720",
+        "CVE-2026-91738"
+      ],
+      "packages": [
+        {
+          "name": "webkit2gtk3-jsc",
+          "arch": "aarch64",
+          "installed": ["0:2.54.0-1.el9_8"],
+          "fixed": "0:2.54.1-1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-84588",
+      "severity": "Moderate",
+      "title": " perl-URI security update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": ["CVE-2026-19953"],
+      "packages": [
+        {
+          "name": "perl-URI",
+          "arch": "noarch",
+          "installed": ["0:5.09-3.el9"],
+          "fixed": "0:5.09-3.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-85245",
+      "severity": "Important",
+      "title": " emacs security update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": ["CVE-2026-96442"],
+      "packages": [
+        {
+          "name": "emacs-filesystem",
+          "arch": "noarch",
+          "installed": ["1:27.2-18.el9_8.2"],
+          "fixed": "1:27.2-18.el9_8.3"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-86921",
+      "severity": "Important",
+      "title": " librsvg2 security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": ["CVE-2026-96889"],
+      "packages": [
+        {
+          "name": "librsvg2",
+          "arch": "aarch64",
+          "installed": ["0:2.50.7-3.el9"],
+          "fixed": "0:2.50.7-3.el9_8.1"
+        },
+        {
+          "name": "librsvg2-tools",
+          "arch": "aarch64",
+          "installed": ["0:2.50.7-3.el9"],
+          "fixed": "0:2.50.7-3.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-89745",
+      "severity": "Moderate",
+      "title": " bind security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-19662"],
+      "packages": [
+        {
+          "name": "bind-libs",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.12"
+        },
+        {
+          "name": "bind-license",
+          "arch": "noarch",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.12"
+        },
+        {
+          "name": "bind-utils",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.12"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-500517",
+      "severity": "Important",
+      "title": "nodejs:22 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "nodejs",
+          "arch": "aarch64",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "nodejs-full-i18n",
+          "arch": "aarch64",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "nodejs-libs",
+          "arch": "aarch64",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "npm",
+          "arch": "aarch64",
+          "installed": ["1:10.9.8-1.22.23.2.2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "nodejs-docs",
+          "arch": "noarch",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-91057",
+      "severity": "Important",
+      "title": " libXrender security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": ["CVE-2026-88807"],
+      "packages": [
+        {
+          "name": "libXrender",
+          "arch": "aarch64",
+          "installed": ["0:0.9.10-16.el9_8.1"],
+          "fixed": "0:0.9.10-16.el9_8.2"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-91580",
+      "severity": "Important",
+      "title": " webkit2gtk3 security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": [
+        "CVE-2026-106245",
+        "CVE-2026-106247",
+        "CVE-2026-106293",
+        "CVE-2026-106304",
+        "CVE-2026-95325",
+        "CVE-2026-95331"
+      ],
+      "packages": [
+        {
+          "name": "webkit2gtk3-jsc",
+          "arch": "aarch64",
+          "installed": ["0:2.54.0-1.el9_8"],
+          "fixed": "0:2.54.2-0.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-91365",
+      "severity": "Important",
+      "title": " libX11 security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": ["CVE-2026-88806"],
+      "packages": [
+        {
+          "name": "libX11",
+          "arch": "aarch64",
+          "installed": ["0:1.8.12-1.el9"],
+          "fixed": "0:1.8.12-1.el9_8.1"
+        },
+        {
+          "name": "libX11-common",
+          "arch": "noarch",
+          "installed": ["0:1.8.12-1.el9"],
+          "fixed": "0:1.8.12-1.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-93610",
+      "severity": "Important",
+      "title": " bind security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2026-19630",
+        "CVE-2026-94300",
+        "CVE-2026-96888",
+        "CVE-2026-97313"
+      ],
+      "packages": [
+        {
+          "name": "bind-libs",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.13"
+        },
+        {
+          "name": "bind-license",
+          "arch": "noarch",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.13"
+        },
+        {
+          "name": "bind-utils",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.13"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_UEKR8-f4cece8a21f4abe4",
+      "id": "ELSA-2026-500572",
+      "severity": "Important",
+      "title": "Unbreakable Enterprise kernel security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2025-40326",
+        "CVE-2026-52988",
+        "CVE-2026-72315",
+        "CVE-2026-72463",
+        "CVE-2026-74347",
+        "CVE-2026-80937",
+        "CVE-2026-80939",
+        "CVE-2026-81015",
+        "CVE-2026-81016",
+        "CVE-2026-89441",
+        "CVE-2026-89500",
+        "CVE-2026-89503",
+        "CVE-2026-89520",
+        "CVE-2026-89754",
+        "CVE-2026-89766",
+        "CVE-2026-89827",
+        "CVE-2026-89859",
+        "CVE-2026-89971",
+        "CVE-2026-89972",
+        "CVE-2026-89996",
+        "CVE-2026-90002",
+        "CVE-2026-90013",
+        "CVE-2026-90029",
+        "CVE-2026-93134",
+        "CVE-2026-93196",
+        "CVE-2026-93231",
+        "CVE-2026-93244",
+        "CVE-2026-97527",
+        "CVE-2026-97528",
+        "CVE-2026-97529",
+        "CVE-2026-97530",
+        "CVE-2026-97531",
+        "CVE-2026-97532",
+        "CVE-2026-97535",
+        "CVE-2026-97536",
+        "CVE-2026-97537",
+        "CVE-2026-97549",
+        "CVE-2026-97559",
+        "CVE-2026-97566",
+        "CVE-2026-97571",
+        "CVE-2026-97597",
+        "CVE-2026-97603",
+        "CVE-2026-97609",
+        "CVE-2026-97615",
+        "CVE-2026-97618",
+        "CVE-2026-97619",
+        "CVE-2026-97620",
+        "CVE-2026-97901",
+        "CVE-2026-97906",
+        "CVE-2026-97918",
+        "CVE-2026-97919",
+        "CVE-2026-97933",
+        "CVE-2026-97934",
+        "CVE-2026-97935",
+        "CVE-2026-97938",
+        "CVE-2026-97939",
+        "CVE-2026-97949",
+        "CVE-2026-97950",
+        "CVE-2026-98101",
+        "CVE-2026-98161",
+        "CVE-2026-98167",
+        "CVE-2026-98168",
+        "CVE-2026-98169",
+        "CVE-2026-98170",
+        "CVE-2026-98171",
+        "CVE-2026-98172",
+        "CVE-2026-98173",
+        "CVE-2026-98174",
+        "CVE-2026-98175",
+        "CVE-2026-98179",
+        "CVE-2026-98181",
+        "CVE-2026-98182",
+        "CVE-2026-98184",
+        "CVE-2026-98185",
+        "CVE-2026-98186",
+        "CVE-2026-98187",
+        "CVE-2026-98188",
+        "CVE-2026-98191",
+        "CVE-2026-98192",
+        "CVE-2026-98193",
+        "CVE-2026-98194",
+        "CVE-2026-98195",
+        "CVE-2026-98196",
+        "CVE-2026-98197",
+        "CVE-2026-98198",
+        "CVE-2026-98199",
+        "CVE-2026-98201",
+        "CVE-2026-98202",
+        "CVE-2026-98203",
+        "CVE-2026-98204",
+        "CVE-2026-98205",
+        "CVE-2026-98207",
+        "CVE-2026-98208",
+        "CVE-2026-98211",
+        "CVE-2026-98213",
+        "CVE-2026-98214",
+        "CVE-2026-98215",
+        "CVE-2026-98216",
+        "CVE-2026-98217",
+        "CVE-2026-98221",
+        "CVE-2026-98222",
+        "CVE-2026-98229",
+        "CVE-2026-98230",
+        "CVE-2026-98231",
+        "CVE-2026-98232",
+        "CVE-2026-98233",
+        "CVE-2026-98234",
+        "CVE-2026-98235",
+        "CVE-2026-98236",
+        "CVE-2026-98237",
+        "CVE-2026-98238",
+        "CVE-2026-98239",
+        "CVE-2026-98241",
+        "CVE-2026-98245",
+        "CVE-2026-98246",
+        "CVE-2026-98247",
+        "CVE-2026-98248",
+        "CVE-2026-98249",
+        "CVE-2026-98251",
+        "CVE-2026-98252",
+        "CVE-2026-98253",
+        "CVE-2026-98254",
+        "CVE-2026-98255",
+        "CVE-2026-98260",
+        "CVE-2026-98261",
+        "CVE-2026-98262",
+        "CVE-2026-98263",
+        "CVE-2026-98264",
+        "CVE-2026-98265",
+        "CVE-2026-98266",
+        "CVE-2026-98267",
+        "CVE-2026-98269",
+        "CVE-2026-98270",
+        "CVE-2026-98271",
+        "CVE-2026-98272",
+        "CVE-2026-98276",
+        "CVE-2026-98287",
+        "CVE-2026-98290",
+        "CVE-2026-98291",
+        "CVE-2026-98293",
+        "CVE-2026-98295",
+        "CVE-2026-98297",
+        "CVE-2026-98299",
+        "CVE-2026-98300",
+        "CVE-2026-98301",
+        "CVE-2026-98303",
+        "CVE-2026-98306",
+        "CVE-2026-98307",
+        "CVE-2026-98308",
+        "CVE-2026-98309",
+        "CVE-2026-98312",
+        "CVE-2026-98314",
+        "CVE-2026-98316",
+        "CVE-2026-98319",
+        "CVE-2026-98320",
+        "CVE-2026-98322",
+        "CVE-2026-98325",
+        "CVE-2026-98326",
+        "CVE-2026-98327",
+        "CVE-2026-98328",
+        "CVE-2026-98329",
+        "CVE-2026-98331",
+        "CVE-2026-98334",
+        "CVE-2026-98335",
+        "CVE-2026-98336",
+        "CVE-2026-98337",
+        "CVE-2026-98339",
+        "CVE-2026-98340",
+        "CVE-2026-98342",
+        "CVE-2026-98343",
+        "CVE-2026-98344",
+        "CVE-2026-98345",
+        "CVE-2026-98346",
+        "CVE-2026-98347",
+        "CVE-2026-98348",
+        "CVE-2026-98349",
+        "CVE-2026-98354",
+        "CVE-2026-98357",
+        "CVE-2026-98358",
+        "CVE-2026-98359",
+        "CVE-2026-98360",
+        "CVE-2026-98362",
+        "CVE-2026-98363",
+        "CVE-2026-98365",
+        "CVE-2026-98366",
+        "CVE-2026-98368",
+        "CVE-2026-98369",
+        "CVE-2026-98370",
+        "CVE-2026-98373",
+        "CVE-2026-98374",
+        "CVE-2026-98377",
+        "CVE-2026-98378",
+        "CVE-2026-98379",
+        "CVE-2026-98380",
+        "CVE-2026-98381",
+        "CVE-2026-98382",
+        "CVE-2026-98383",
+        "CVE-2026-98384",
+        "CVE-2026-98405",
+        "CVE-2026-98428",
+        "CVE-2026-98432",
+        "CVE-2026-98441",
+        "CVE-2026-98442",
+        "CVE-2026-98448",
+        "CVE-2026-98452",
+        "CVE-2026-98454",
+        "CVE-2026-98455",
+        "CVE-2026-98456",
+        "CVE-2026-98457",
+        "CVE-2026-98459",
+        "CVE-2026-98460",
+        "CVE-2026-98461",
+        "CVE-2026-98462",
+        "CVE-2026-98468",
+        "CVE-2026-98477",
+        "CVE-2026-98479",
+        "CVE-2026-98484",
+        "CVE-2026-98485",
+        "CVE-2026-98486",
+        "CVE-2026-98487",
+        "CVE-2026-98488",
+        "CVE-2026-98489",
+        "CVE-2026-98490",
+        "CVE-2026-98491",
+        "CVE-2026-98494",
+        "CVE-2026-98495",
+        "CVE-2026-98498",
+        "CVE-2026-98499",
+        "CVE-2026-98501",
+        "CVE-2026-98502",
+        "CVE-2026-98503",
+        "CVE-2026-98505",
+        "CVE-2026-98506",
+        "CVE-2026-98507",
+        "CVE-2026-98508",
+        "CVE-2026-98509",
+        "CVE-2026-98510",
+        "CVE-2026-98511",
+        "CVE-2026-98512",
+        "CVE-2026-98513",
+        "CVE-2026-98514",
+        "CVE-2026-98515",
+        "CVE-2026-98516",
+        "CVE-2026-98517",
+        "CVE-2026-98519",
+        "CVE-2026-98521",
+        "CVE-2026-98523",
+        "CVE-2026-98528",
+        "CVE-2026-98531",
+        "CVE-2026-98532",
+        "CVE-2026-98536",
+        "CVE-2026-98537",
+        "CVE-2026-98538",
+        "CVE-2026-98541",
+        "CVE-2026-98544",
+        "CVE-2026-98545",
+        "CVE-2026-98547",
+        "CVE-2026-98548",
+        "CVE-2026-98549",
+        "CVE-2026-98550",
+        "CVE-2026-98553",
+        "CVE-2026-98554",
+        "CVE-2026-98561",
+        "CVE-2026-98565",
+        "CVE-2026-98567",
+        "CVE-2026-98568",
+        "CVE-2026-98569",
+        "CVE-2026-98573",
+        "CVE-2026-98586",
+        "CVE-2026-98588",
+        "CVE-2026-98590",
+        "CVE-2026-98591",
+        "CVE-2026-98594",
+        "CVE-2026-98596",
+        "CVE-2026-98597",
+        "CVE-2026-98600",
+        "CVE-2026-98601",
+        "CVE-2026-98602",
+        "CVE-2026-98605",
+        "CVE-2026-98606",
+        "CVE-2026-98607",
+        "CVE-2026-98608",
+        "CVE-2026-98609",
+        "CVE-2026-98610",
+        "CVE-2026-98611",
+        "CVE-2026-98612",
+        "CVE-2026-98613",
+        "CVE-2026-98614",
+        "CVE-2026-98621",
+        "CVE-2026-98622",
+        "CVE-2026-98623",
+        "CVE-2026-98624",
+        "CVE-2026-98625",
+        "CVE-2026-98626",
+        "CVE-2026-98629",
+        "CVE-2026-98631",
+        "CVE-2026-98632",
+        "CVE-2026-98634",
+        "CVE-2026-98636",
+        "CVE-2026-98640",
+        "CVE-2026-98641",
+        "CVE-2026-98643",
+        "CVE-2026-98644",
+        "CVE-2026-98646",
+        "CVE-2026-98647",
+        "CVE-2026-98925",
+        "CVE-2026-99082",
+        "CVE-2026-99999"
+      ],
+      "packages": [
+        {
+          "name": "kernel-uek-modules-desktop",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-wireless",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-extra-netfilter",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-usb",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_UEKR8-f4cece8a21f4abe4",
+      "id": "ELSA-2026-500394",
+      "severity": "Important",
+      "title": "Unbreakable Enterprise kernel security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": [
+        "CVE-2026-72463",
+        "CVE-2026-89754",
+        "CVE-2026-89766",
+        "CVE-2026-97594",
+        "CVE-2026-98101",
+        "CVE-2026-98260"
+      ],
+      "packages": [
+        {
+          "name": "kernel-uek-modules",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-usb",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-wireless",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-desktop",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-extra-netfilter",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_UEKR8-f4cece8a21f4abe4",
+      "id": "ELSA-2026-500399",
+      "severity": "Important",
+      "title": "Unbreakable Enterprise kernel security update",
+      "issued": "2026-10-16 00:00:00",
+      "cves": ["CVE-2026-98432", "CVE-2026-99999"],
+      "packages": [
+        {
+          "name": "kernel-uek-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-wireless",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-desktop",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-extra-netfilter",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-usb",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        }
+      ]
+    }
+  ],
+  "artifactVerification": [
+    {
+      "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm",
+      "downloadBytes": 994716,
+      "checksum": "c69abcbaa031fddd4819ee451738ab28dfc4aae27c3f32d42e18c5bf61ad93ce",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "499aebcb2c3248e781287e27b653db91dcddda49a77ffca0820e3af688b2cb73",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/expat-2.5.0-6.el9_8.7.aarch64.rpm",
+      "downloadBytes": 123215,
+      "checksum": "a43316efd31ff608b8d01156b0f236ae0fbcb1a8b5e84d61ab98da1d922cc208",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/expat-2.5.0-6.el9_8.7.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/libbrotli-1.0.9-10.0.1.el9_8.aarch64.rpm",
+      "downloadBytes": 323307,
+      "checksum": "24b4da677ccf98b9e7bc493a130888a9a5eaaef4a918bd738fea1ae6cb123668",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/libbrotli-1.0.9-10.0.1.el9_8.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-10.40-7.0.1.el9_8.aarch64.rpm",
+      "downloadBytes": 221925,
+      "checksum": "97cb4292032d5c4edfed50a346e43a3d218d0a38f6ce510824d5e26b3b9fc8d5",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/pcre2-10.40-7.0.1.el9_8.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "b6f2bcb8505110b35e4b1823c511bbd8914e42730b1096385a9372d0dfd155b4",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-syntax-10.40-7.0.1.el9_8.noarch.rpm",
+      "downloadBytes": 158156,
+      "checksum": "131c90a8552f8502382557225811e78b64223c034404b32d4430ea59a6436b00",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/pcre2-syntax-10.40-7.0.1.el9_8.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+      "downloadBytes": 31541,
+      "checksum": "4c6a0aa2ceaf27698255e9d479d044f30f4073269c786655d9b4c00287525a2a",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python3-3.9.25-7.0.1.el9_8.6.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-libs-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+      "downloadBytes": 10339201,
+      "checksum": "4e056c69280d700211e877aa49554dea991c2bf4d9dadd1f3979b31f95058a1f",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python3-libs-3.9.25-7.0.1.el9_8.6.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-urllib3-1.26.5-8.el9_8.2.noarch.rpm",
+      "downloadBytes": 322701,
+      "checksum": "dd2f1223c0ece5ad6b04cbed675c291ffc4dd2ce5f41e87df2a57f57d0e4ab64",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python3-urllib3-1.26.5-8.el9_8.2.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+      "downloadBytes": 3692543,
+      "checksum": "1919974bd07827cf7abdb426b99318e0ac33ca09429dc9bc4b9d7b9989e7e128",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-docs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-docs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch.rpm",
+      "downloadBytes": 10330285,
+      "checksum": "56d0c5cbf354ad00390f856725ac9010dd480370f86af664b58efd8783b180e7",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-docs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-full-i18n-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-full-i18n-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+      "downloadBytes": 9302440,
+      "checksum": "def79a8f1b0ffd39e79861e960cf714d10520990d66981b5e850c9d313dbde50",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-full-i18n-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-libs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-libs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+      "downloadBytes": 20723381,
+      "checksum": "c96cc6c3db1c6105b58303bd8720a9294ee53ca2a6e3ff1734fa921eb1c60a7c",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-libs-22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "npm-1:10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/npm-10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm",
+      "downloadBytes": 3949446,
+      "checksum": "e965b563bffc81b83fcb7be597dce0d4701d66385b29943a000225c240277655",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/npm-10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch.rpm",
+      "downloadBytes": 9750,
+      "checksum": "b8e13d52613b81fed48f6756532fa9935d1181b9115d6be4f0c7cc15921b3cea",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+      "url": "https://yum.sa-saopaulo-1.oci.oraclecloud.com/repo/OracleLinux/OL9/oci/included/aarch64/getPackage/python39-oci-sdk-2.187.0-1.0.5.el9.aarch64.rpm",
+      "downloadBytes": 84618885,
+      "checksum": "b133795bade3223b830cc980eadedb84923089fae824ad7034da24b165fd513d",
+      "signature": "/tmp/tfsec2-input/python39-oci-sdk-2.187.0-1.0.5.el9.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "ca-certificates-2025.2.80_v9.0.305-91.el9.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/ca-certificates-2025.2.80_v9.0.305-91.el9.noarch.rpm",
+      "downloadBytes": 983383,
+      "checksum": "3478eda121e3b08139d3c1f90ce1a352a8f30488a35111f97b72fddfcb3198c5",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/ca-certificates-2025.2.80_v9.0.305-91.el9.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "499aebcb2c3248e781287e27b653db91dcddda49a77ffca0820e3af688b2cb73",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "expat-2.5.0-6.el9_8.5.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/expat-2.5.0-6.el9_8.5.aarch64.rpm",
+      "downloadBytes": 123003,
+      "checksum": "9acee34adc406434d68783edacdab4b60f97dab41ab486dbceda194163e3b05a",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/expat-2.5.0-6.el9_8.5.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "libbrotli-1.0.9-10.el9_8.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/libbrotli-1.0.9-10.el9_8.aarch64.rpm",
+      "downloadBytes": 323103,
+      "checksum": "d579543d86ea39493b6296eb7a5df5debc6102b706bb0e9db04098b8b1dadeae",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/libbrotli-1.0.9-10.el9_8.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "pcre2-10.40-6.0.1.el9.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-10.40-6.0.1.el9.aarch64.rpm",
+      "downloadBytes": 222111,
+      "checksum": "2adf2bb0228345cd8372f93fbf26feaba40019f0f5b8ed9a1ff15c7e7ce1a3d5",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/pcre2-10.40-6.0.1.el9.aarch64.rpm:\n    Header V3 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "b6f2bcb8505110b35e4b1823c511bbd8914e42730b1096385a9372d0dfd155b4",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "pcre2-syntax-10.40-6.0.1.el9.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/pcre2-syntax-10.40-6.0.1.el9.noarch.rpm",
+      "downloadBytes": 158466,
+      "checksum": "0cb6045ab5026d7a0a71d06a7eb8af4bb52c6a05a95ec95b5828f310c2bb5def",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/pcre2-syntax-10.40-6.0.1.el9.noarch.rpm:\n    Header V3 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python3-3.9.25-7.0.1.el9_8.3.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-3.9.25-7.0.1.el9_8.3.aarch64.rpm",
+      "downloadBytes": 31221,
+      "checksum": "5ecdf94c1e44463b7aa7054bcbcb81147fd4be83c4bf4e026aa0e5917bd6c1c6",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python3-3.9.25-7.0.1.el9_8.3.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python3-libs-3.9.25-7.0.1.el9_8.3.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-libs-3.9.25-7.0.1.el9_8.3.aarch64.rpm",
+      "downloadBytes": 10337038,
+      "checksum": "5f5342ff78664bd131ee3b36175a84bbc0219f7556517418ceb734727e1d90b1",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python3-libs-3.9.25-7.0.1.el9_8.3.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python3-urllib3-1.26.5-8.el9_8.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/aarch64/getPackage/python3-urllib3-1.26.5-8.el9_8.noarch.rpm",
+      "downloadBytes": 321536,
+      "checksum": "044809e414d5cfb2091a084ea791abbc993907fe29e899994b43795920e7e74d",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python3-urllib3-1.26.5-8.el9_8.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64.rpm",
+      "downloadBytes": 3692189,
+      "checksum": "ddae12ab4ba82f759542ba8152d246bed5c9733e3e3685aeb43fc395426649fa",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-docs-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-docs-22.23.2-2.module+el9.8.0+91062+a7d6b802.noarch.rpm",
+      "downloadBytes": 10331063,
+      "checksum": "41de721572d1f2a32c4bff5bddd9e2cdec6b6e45409a9727d982fe888e15fa05",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-docs-22.23.2-2.module+el9.8.0+91062+a7d6b802.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-full-i18n-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-full-i18n-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64.rpm",
+      "downloadBytes": 9302031,
+      "checksum": "7da02fac3eb8a05458e9d2ca1290cbd07e69f03928d3b38262b66f9e47b27234",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-full-i18n-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "nodejs-libs-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/nodejs-libs-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64.rpm",
+      "downloadBytes": 20725763,
+      "checksum": "64e4b2c408bfa81dc2e1458a71ccfa990c40804c3bdb35be4e1de9ad4b241134",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/nodejs-libs-22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "npm-1:10.9.8-1.22.23.2.2.module+el9.8.0+91062+a7d6b802.aarch64",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/npm-10.9.8-1.22.23.2.2.module+el9.8.0+91062+a7d6b802.aarch64.rpm",
+      "downloadBytes": 3949139,
+      "checksum": "1b55e96979cb85b668b43d63b12ad3e676ab12074d9765ddfae436da2010343c",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/npm-10.9.8-1.22.23.2.2.module+el9.8.0+91062+a7d6b802.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/aarch64/getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch.rpm",
+      "downloadBytes": 9433,
+      "checksum": "50fe735452cb7a1adca9ca2182b7edfdd743ddeeea47041fc49e6829bad637f0",
+      "signature": "/var/lib/traceflow-security-lab/rpms-active-support/python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    },
+    {
+      "nevra": "python39-oci-sdk-2.187.0-1.0.3.el9.aarch64",
+      "url": "https://yum.sa-saopaulo-1.oci.oraclecloud.com/repo/OracleLinux/OL9/oci/included/aarch64/getPackage/python39-oci-sdk-2.187.0-1.0.3.el9.aarch64.rpm",
+      "downloadBytes": 84779712,
+      "checksum": "5342b8b70e4e2fe9f0a0b8657f51d93cc6c878523220d280d7cd557fddd387d0",
+      "signature": "/tmp/tfsec2-input/python39-oci-sdk-2.187.0-1.0.3.el9.aarch64.rpm:\n    Header V4 RSA/SHA256 Signature, key ID 8d8b756f: OK\n    Header SHA256 digest: OK\n    Header SHA1 digest: OK\n    Payload SHA256 digest: OK\n    MD5 digest: OK",
+      "scriptletsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scriptletsExecuted": false
+    }
+  ],
+  "rollbackHeaderModel": {
+    "status": "HEADER_MODEL_SOLVER_PASS",
+    "oldPackages": 15,
+    "newPackages": 15,
+    "downgradeTransaction": [
+      {
+        "nevra": "ca-certificates-2025.2.80_v9.0.305-91.el9.noarch",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "expat-2.5.0-6.el9_8.5.aarch64",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "libbrotli-1.0.9-10.el9_8.aarch64",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "pcre2-10.40-6.0.1.el9.aarch64",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "pcre2-syntax-10.40-6.0.1.el9.noarch",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "python3-3.9.25-7.0.1.el9_8.3.aarch64",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "python3-libs-3.9.25-7.0.1.el9_8.3.aarch64",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "python3-urllib3-1.26.5-8.el9_8.noarch",
+        "repo": "ol9_baseos_latest",
+        "action": 2
+      },
+      {
+        "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "nodejs-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64",
+        "repo": "ol9_appstream",
+        "action": 2
+      },
+      {
+        "nevra": "nodejs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "nodejs-docs-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.noarch",
+        "repo": "ol9_appstream",
+        "action": 2
+      },
+      {
+        "nevra": "nodejs-docs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.noarch",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "nodejs-full-i18n-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64",
+        "repo": "ol9_appstream",
+        "action": 2
+      },
+      {
+        "nevra": "nodejs-full-i18n-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "nodejs-libs-1:22.23.2-2.module+el9.8.0+91062+a7d6b802.aarch64",
+        "repo": "ol9_appstream",
+        "action": 2
+      },
+      {
+        "nevra": "nodejs-libs-1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "npm-1:10.9.8-1.22.23.2.2.module+el9.8.0+91062+a7d6b802.aarch64",
+        "repo": "ol9_appstream",
+        "action": 2
+      },
+      {
+        "nevra": "npm-1:10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be.aarch64",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch",
+        "repo": "ol9_appstream",
+        "action": 2
+      },
+      {
+        "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+        "repo": "@System",
+        "action": 3
+      },
+      {
+        "nevra": "python39-oci-sdk-2.187.0-1.0.3.el9.aarch64",
+        "repo": "ol9_oci_included",
+        "action": 2
+      },
+      {
+        "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+        "repo": "@System",
+        "action": 3
+      }
+    ],
+    "initialInventorySha256": "15f323a2ca047d3233ba47efdc207de448352450b79104a70e5f322e3e264c60",
+    "headersRoundTripExact": true,
+    "originalModelUnchanged": true,
+    "filesOrScriptletsInstalled": false,
+    "dnfTransactionExecuted": false,
+    "productionUsed": false,
+    "limitation": "Solvability and exact RPM headers only; not an OS restore or installed-package rollback rehearsal."
+  },
+  "limitations": [
+    "CVE association is the installed advisory catalog, not proof of exposure or coverage of every CVE by every selected package. Compare exact EVR and architecture before approval.",
+    "No live DNF cache refresh or package installation. Metadata must be revalidated before a future approved transaction.",
+    "No installed-package/scriptlet rollback or boot restoration test was performed.",
+    "RHCK auxiliary packages excluded from the UEK scenario remain outside its scope.",
+    "No nginx stream upgrade and no general OS update is proposed."
+  ]
+}

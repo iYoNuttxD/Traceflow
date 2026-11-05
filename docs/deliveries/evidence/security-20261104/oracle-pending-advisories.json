@@ -1,0 +1,1794 @@
+{
+  "date": "2026-11-04",
+  "status": "PENDING_REVIEW_NO_PACKAGES_INSTALLED",
+  "source": "Oracle updateinfo already cached on the VM; package EVR compared using rpm.labelCompare; module nodejs:22 preserved; modular nginx 1.26 and Node 24 excluded",
+  "limitations": [
+    "Not a resolved DNF transaction",
+    "A package advisory does not demonstrate exploitation or exposure of every CVE on ARM64",
+    "Cache dates differ by enabled repository",
+    "No OS package installation, reboot or service restart authorized"
+  ],
+  "advisories": [
+    {
+      "repo": "ol9_oci_included-b69c56da7a42f0b4",
+      "id": "ELSA-2026-604898",
+      "severity": "Important",
+      "title": "python-oci-sdk security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": [
+        "CVE-2025-53643",
+        "CVE-2025-69223",
+        "CVE-2025-69224",
+        "CVE-2025-69225",
+        "CVE-2025-69226",
+        "CVE-2025-69227",
+        "CVE-2025-69228",
+        "CVE-2025-69229",
+        "CVE-2026-104874",
+        "CVE-2026-111063",
+        "CVE-2026-111064",
+        "CVE-2026-111065",
+        "CVE-2026-111066",
+        "CVE-2026-111748",
+        "CVE-2026-111749",
+        "CVE-2026-111750",
+        "CVE-2026-22815",
+        "CVE-2026-27448",
+        "CVE-2026-34513",
+        "CVE-2026-34514",
+        "CVE-2026-34516",
+        "CVE-2026-34517",
+        "CVE-2026-34518",
+        "CVE-2026-34519",
+        "CVE-2026-34520",
+        "CVE-2026-34525",
+        "CVE-2026-34993",
+        "CVE-2026-47265",
+        "CVE-2026-50269",
+        "CVE-2026-54273",
+        "CVE-2026-54274",
+        "CVE-2026-54275",
+        "CVE-2026-54277",
+        "CVE-2026-54278",
+        "CVE-2026-54279",
+        "CVE-2026-59881",
+        "CVE-2026-69243",
+        "CVE-2026-69244"
+      ],
+      "packages": [
+        {
+          "name": "python39-oci-sdk",
+          "arch": "aarch64",
+          "installed": ["0:2.187.0-1.0.3.el9"],
+          "fixed": "0:2.187.0-1.0.5.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-80511",
+      "severity": "Moderate",
+      "title": " curl security update",
+      "issued": "2026-10-11 00:00:00",
+      "cves": ["CVE-2026-11856", "CVE-2026-8924"],
+      "packages": [
+        {
+          "name": "libcurl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.8"
+        },
+        {
+          "name": "curl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-77689",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-08 00:00:00",
+      "cves": [
+        "CVE-2026-23103",
+        "CVE-2026-53360",
+        "CVE-2026-53365",
+        "CVE-2026-53398",
+        "CVE-2026-63970",
+        "CVE-2026-64035",
+        "CVE-2026-64115",
+        "CVE-2026-64162",
+        "CVE-2026-72317",
+        "CVE-2026-74744",
+        "CVE-2026-89530",
+        "CVE-2026-89663",
+        "CVE-2026-89669",
+        "CVE-2026-89690"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-76739",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-11 00:00:00",
+      "cves": [
+        "CVE-2025-40149",
+        "CVE-2026-23442",
+        "CVE-2026-43332",
+        "CVE-2026-45861",
+        "CVE-2026-46076",
+        "CVE-2026-46275",
+        "CVE-2026-46317",
+        "CVE-2026-52942",
+        "CVE-2026-52986",
+        "CVE-2026-53049",
+        "CVE-2026-53357",
+        "CVE-2026-63829",
+        "CVE-2026-63920",
+        "CVE-2026-63922",
+        "CVE-2026-63924",
+        "CVE-2026-63984",
+        "CVE-2026-63992",
+        "CVE-2026-63993",
+        "CVE-2026-63994",
+        "CVE-2026-64385",
+        "CVE-2026-64557",
+        "CVE-2026-68432",
+        "CVE-2026-72052",
+        "CVE-2026-72099",
+        "CVE-2026-72255",
+        "CVE-2026-72289",
+        "CVE-2026-74516",
+        "CVE-2026-74569",
+        "CVE-2026-74669",
+        "CVE-2026-74746",
+        "CVE-2026-80792",
+        "CVE-2026-80921",
+        "CVE-2026-89480",
+        "CVE-2026-89481",
+        "CVE-2026-89972",
+        "CVE-2026-90227",
+        "CVE-2026-93288",
+        "CVE-2026-97417"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.56.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-81552",
+      "severity": "Important",
+      "title": " kernel security update",
+      "issued": "2026-10-13 00:00:00",
+      "cves": [
+        "CVE-2026-46309",
+        "CVE-2026-63925",
+        "CVE-2026-64507",
+        "CVE-2026-64508",
+        "CVE-2026-68123",
+        "CVE-2026-68236",
+        "CVE-2026-68245",
+        "CVE-2026-68278",
+        "CVE-2026-72318",
+        "CVE-2026-80887",
+        "CVE-2026-89811",
+        "CVE-2026-89894",
+        "CVE-2026-89970"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.57.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-81532",
+      "severity": "Important",
+      "title": " pcre2 security update",
+      "issued": "2026-10-13 00:00:00",
+      "cves": [
+        "CVE-2026-103111",
+        "CVE-2026-86145",
+        "CVE-2026-89156",
+        "CVE-2026-89157",
+        "CVE-2026-89158",
+        "CVE-2026-89160",
+        "CVE-2026-89161"
+      ],
+      "packages": [
+        {
+          "name": "pcre2-syntax",
+          "arch": "noarch",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        },
+        {
+          "name": "pcre2",
+          "arch": "aarch64",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-83562",
+      "severity": "Important",
+      "title": " rpcbind security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": ["CVE-2026-94640"],
+      "packages": [
+        {
+          "name": "rpcbind",
+          "arch": "aarch64",
+          "installed": ["0:1.2.6-7.el9"],
+          "fixed": "0:1.2.6-7.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-83156",
+      "severity": "Important",
+      "title": " kernel security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": [
+        "CVE-2026-46319",
+        "CVE-2026-53011",
+        "CVE-2026-64030",
+        "CVE-2026-68140",
+        "CVE-2026-68377",
+        "CVE-2026-68404",
+        "CVE-2026-68409",
+        "CVE-2026-72262",
+        "CVE-2026-72288",
+        "CVE-2026-72320",
+        "CVE-2026-74641",
+        "CVE-2026-74705",
+        "CVE-2026-80985",
+        "CVE-2026-81003",
+        "CVE-2026-89526",
+        "CVE-2026-90036",
+        "CVE-2026-93207",
+        "CVE-2026-93228"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.58.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-85958",
+      "severity": "Moderate",
+      "title": " openssh security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": ["CVE-2026-59997", "CVE-2026-59998", "CVE-2026-60000"],
+      "packages": [
+        {
+          "name": "openssh-clients",
+          "arch": "aarch64",
+          "installed": ["0:9.9p1-12.0.1.el9_8"],
+          "fixed": "0:9.9p1-13.0.1.el9_8"
+        },
+        {
+          "name": "openssh-server",
+          "arch": "aarch64",
+          "installed": ["0:9.9p1-12.0.1.el9_8"],
+          "fixed": "0:9.9p1-13.0.1.el9_8"
+        },
+        {
+          "name": "openssh",
+          "arch": "aarch64",
+          "installed": ["0:9.9p1-12.0.1.el9_8"],
+          "fixed": "0:9.9p1-13.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88459",
+      "severity": "Critical",
+      "title": " ca-certificates security update",
+      "issued": "2026-10-23 00:00:00",
+      "cves": ["CVE-2026-114406"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2026.2.92_v9.0.319-90.3.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-89742",
+      "severity": "Important",
+      "title": " python3.9 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-12345", "CVE-2026-19445", "CVE-2026-19553"],
+      "packages": [
+        {
+          "name": "python3",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python3-libs",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python-unversioned-command",
+          "arch": "noarch",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500513",
+      "severity": "Important",
+      "title": "brotli security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-89749",
+      "severity": "Moderate",
+      "title": " xz security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-34743"],
+      "packages": [
+        {
+          "name": "xz-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.2.5-8.el9_0"],
+          "fixed": "0:5.2.5-8.el9_8.1"
+        },
+        {
+          "name": "xz",
+          "arch": "aarch64",
+          "installed": ["0:5.2.5-8.el9_0"],
+          "fixed": "0:5.2.5-8.el9_8.1"
+        },
+        {
+          "name": "xz-devel",
+          "arch": "aarch64",
+          "installed": ["0:5.2.5-8.el9_0"],
+          "fixed": "0:5.2.5-8.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90494",
+      "severity": "Important",
+      "title": " python-urllib3 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-97687", "CVE-2026-97689"],
+      "packages": [
+        {
+          "name": "python3-urllib3",
+          "arch": "noarch",
+          "installed": ["0:1.26.5-8.el9_8"],
+          "fixed": "0:1.26.5-8.el9_8.2"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-87805",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-23 00:00:00",
+      "cves": [
+        "CVE-2025-22063",
+        "CVE-2025-38147",
+        "CVE-2026-64481",
+        "CVE-2026-68202",
+        "CVE-2026-68299",
+        "CVE-2026-68448",
+        "CVE-2026-80530",
+        "CVE-2026-80536"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.60.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-86033",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-20 00:00:00",
+      "cves": [
+        "CVE-2026-31678",
+        "CVE-2026-52935",
+        "CVE-2026-63899",
+        "CVE-2026-63962",
+        "CVE-2026-63974",
+        "CVE-2026-64024",
+        "CVE-2026-64032",
+        "CVE-2026-64114",
+        "CVE-2026-64572",
+        "CVE-2026-74509",
+        "CVE-2026-80590",
+        "CVE-2026-89633",
+        "CVE-2026-93817",
+        "CVE-2026-98260",
+        "CVE-2026-99999"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.59.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90365",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-10-27 00:00:00",
+      "cves": [
+        "CVE-2024-57974",
+        "CVE-2026-53388",
+        "CVE-2026-63978",
+        "CVE-2026-63979",
+        "CVE-2026-64266",
+        "CVE-2026-64523",
+        "CVE-2026-68476",
+        "CVE-2026-72242",
+        "CVE-2026-74515",
+        "CVE-2026-80824",
+        "CVE-2026-89638",
+        "CVE-2026-89777",
+        "CVE-2026-93262",
+        "CVE-2026-98222",
+        "CVE-2026-98320"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.61.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-92907",
+      "severity": "Moderate",
+      "title": " curl security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": ["CVE-2026-8932"],
+      "packages": [
+        {
+          "name": "libcurl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.9"
+        },
+        {
+          "name": "curl",
+          "arch": "aarch64",
+          "installed": ["0:7.76.1-40.el9_8.7"],
+          "fixed": "0:7.76.1-40.el9_8.9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-79281",
+      "severity": "Moderate",
+      "title": " glibc security, bug fix, and enhancement update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2026-18374",
+        "CVE-2026-19542",
+        "CVE-2026-6368",
+        "CVE-2026-6791",
+        "CVE-2026-77117",
+        "CVE-2026-80489"
+      ],
+      "packages": [
+        {
+          "name": "glibc-all-langpacks",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-common",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-langpack-en",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-gconv-extra",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        },
+        {
+          "name": "glibc-devel",
+          "arch": "aarch64",
+          "installed": ["0:2.34-275.0.1.el9_8"],
+          "fixed": "0:2.34-283.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-93412",
+      "severity": "Important",
+      "title": " kernel security, bug fix, and enhancement update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2026-52929",
+        "CVE-2026-53228",
+        "CVE-2026-53270",
+        "CVE-2026-64303",
+        "CVE-2026-68169",
+        "CVE-2026-72083",
+        "CVE-2026-74283",
+        "CVE-2026-74510",
+        "CVE-2026-74582",
+        "CVE-2026-80586",
+        "CVE-2026-89603",
+        "CVE-2026-90011",
+        "CVE-2026-93787",
+        "CVE-2026-93827",
+        "CVE-2026-98364",
+        "CVE-2026-98432",
+        "CVE-2026-98466",
+        "CVE-2026-98725"
+      ],
+      "packages": [
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.64.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-93930",
+      "severity": "Moderate",
+      "title": " kernel security update",
+      "issued": "2026-11-03 00:00:00",
+      "cves": ["CVE-2026-63987", "CVE-2026-63996"],
+      "packages": [
+        {
+          "name": "kernel-tools",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "kernel-tools-libs",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "kernel-headers",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        },
+        {
+          "name": "python3-perf",
+          "arch": "aarch64",
+          "installed": ["0:5.14.0-687.54.1.el9_8"],
+          "fixed": "0:5.14.0-687.65.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-94533",
+      "severity": "Important",
+      "title": " cockpit security update",
+      "issued": "2026-11-03 00:00:00",
+      "cves": ["CVE-2026-76235", "CVE-2026-91147", "CVE-2026-91149"],
+      "packages": [
+        {
+          "name": "cockpit",
+          "arch": "aarch64",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-ws-selinux",
+          "arch": "aarch64",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-bridge",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-ws",
+          "arch": "aarch64",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-system",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-packagekit",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        },
+        {
+          "name": "cockpit-storaged",
+          "arch": "noarch",
+          "installed": ["0:356.3-1.0.1.el9_8"],
+          "fixed": "0:356.4-1.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90495",
+      "severity": "Important",
+      "title": " brotli security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-84594",
+      "severity": "Moderate",
+      "title": " environment-modules security update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": ["CVE-2026-85013"],
+      "packages": [
+        {
+          "name": "environment-modules",
+          "arch": "aarch64",
+          "installed": ["0:5.3.0-2.el9"],
+          "fixed": "0:5.3.0-2.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500450",
+      "severity": "Important",
+      "title": "ca-certificates security update",
+      "issued": "2026-10-20 00:00:00",
+      "cves": ["CVE-2026-111943", "CVE-2026-113470", "CVE-2026-114820"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2025.2.80_v9.0.305-91.0.1.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88247",
+      "severity": "Important",
+      "title": " expat security update",
+      "issued": "2026-10-22 00:00:00",
+      "cves": ["CVE-2026-102633", "CVE-2026-77214"],
+      "packages": [
+        {
+          "name": "expat",
+          "arch": "aarch64",
+          "installed": ["0:2.5.0-6.el9_8.5"],
+          "fixed": "0:2.5.0-6.el9_8.7"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-83384",
+      "severity": "Important",
+      "title": " libsoup security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": [
+        "CVE-2026-102556",
+        "CVE-2026-102557",
+        "CVE-2026-102558",
+        "CVE-2026-102559",
+        "CVE-2026-102560"
+      ],
+      "packages": [
+        {
+          "name": "libsoup",
+          "arch": "aarch64",
+          "installed": ["0:2.72.0-16.el9_8.3"],
+          "fixed": "0:2.72.0-16.el9_8.8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-84583",
+      "severity": "Critical",
+      "title": " webkit2gtk3 security, bug fix, and enhancement update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": [
+        "CVE-2026-87500",
+        "CVE-2026-87512",
+        "CVE-2026-87586",
+        "CVE-2026-87596",
+        "CVE-2026-87602",
+        "CVE-2026-87604",
+        "CVE-2026-87621",
+        "CVE-2026-87648",
+        "CVE-2026-87654",
+        "CVE-2026-91720",
+        "CVE-2026-91738"
+      ],
+      "packages": [
+        {
+          "name": "webkit2gtk3-jsc",
+          "arch": "aarch64",
+          "installed": ["0:2.54.0-1.el9_8"],
+          "fixed": "0:2.54.1-1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-84588",
+      "severity": "Moderate",
+      "title": " perl-URI security update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": ["CVE-2026-19953"],
+      "packages": [
+        {
+          "name": "perl-URI",
+          "arch": "noarch",
+          "installed": ["0:5.09-3.el9"],
+          "fixed": "0:5.09-3.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-85245",
+      "severity": "Important",
+      "title": " emacs security update",
+      "issued": "2026-10-19 00:00:00",
+      "cves": ["CVE-2026-96442"],
+      "packages": [
+        {
+          "name": "emacs-filesystem",
+          "arch": "noarch",
+          "installed": ["1:27.2-18.el9_8.2"],
+          "fixed": "1:27.2-18.el9_8.3"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-86921",
+      "severity": "Important",
+      "title": " librsvg2 security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": ["CVE-2026-96889"],
+      "packages": [
+        {
+          "name": "librsvg2",
+          "arch": "aarch64",
+          "installed": ["0:2.50.7-3.el9"],
+          "fixed": "0:2.50.7-3.el9_8.1"
+        },
+        {
+          "name": "librsvg2-tools",
+          "arch": "aarch64",
+          "installed": ["0:2.50.7-3.el9"],
+          "fixed": "0:2.50.7-3.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-89745",
+      "severity": "Moderate",
+      "title": " bind security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-19662"],
+      "packages": [
+        {
+          "name": "bind-libs",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.12"
+        },
+        {
+          "name": "bind-license",
+          "arch": "noarch",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.12"
+        },
+        {
+          "name": "bind-utils",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.12"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-500517",
+      "severity": "Important",
+      "title": "nodejs:22 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "nodejs",
+          "arch": "aarch64",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "nodejs-full-i18n",
+          "arch": "aarch64",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "nodejs-libs",
+          "arch": "aarch64",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "npm",
+          "arch": "aarch64",
+          "installed": ["1:10.9.8-1.22.23.2.2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:10.9.8-1.22.23.2.2.0.1.module+el9.8.0+91084+6a4a26be"
+        },
+        {
+          "name": "nodejs-docs",
+          "arch": "noarch",
+          "installed": ["1:22.23.2-2.module+el9.8.0+91062+a7d6b802"],
+          "fixed": "1:22.23.2-2.0.1.module+el9.8.0+91084+6a4a26be"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-91057",
+      "severity": "Important",
+      "title": " libXrender security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": ["CVE-2026-88807"],
+      "packages": [
+        {
+          "name": "libXrender",
+          "arch": "aarch64",
+          "installed": ["0:0.9.10-16.el9_8.1"],
+          "fixed": "0:0.9.10-16.el9_8.2"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-91580",
+      "severity": "Important",
+      "title": " webkit2gtk3 security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": [
+        "CVE-2026-106245",
+        "CVE-2026-106247",
+        "CVE-2026-106293",
+        "CVE-2026-106304",
+        "CVE-2026-95325",
+        "CVE-2026-95331"
+      ],
+      "packages": [
+        {
+          "name": "webkit2gtk3-jsc",
+          "arch": "aarch64",
+          "installed": ["0:2.54.0-1.el9_8"],
+          "fixed": "0:2.54.2-0.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-91365",
+      "severity": "Important",
+      "title": " libX11 security update",
+      "issued": "2026-10-29 00:00:00",
+      "cves": ["CVE-2026-88806"],
+      "packages": [
+        {
+          "name": "libX11",
+          "arch": "aarch64",
+          "installed": ["0:1.8.12-1.el9"],
+          "fixed": "0:1.8.12-1.el9_8.1"
+        },
+        {
+          "name": "libX11-common",
+          "arch": "noarch",
+          "installed": ["0:1.8.12-1.el9"],
+          "fixed": "0:1.8.12-1.el9_8.1"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_appstream-bf8ee46ce1fc5b6c",
+      "id": "ELSA-2026-93610",
+      "severity": "Important",
+      "title": " bind security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2026-19630",
+        "CVE-2026-94300",
+        "CVE-2026-96888",
+        "CVE-2026-97313"
+      ],
+      "packages": [
+        {
+          "name": "bind-libs",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.13"
+        },
+        {
+          "name": "bind-license",
+          "arch": "noarch",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.13"
+        },
+        {
+          "name": "bind-utils",
+          "arch": "aarch64",
+          "installed": ["32:9.16.23-40.0.1.el9_8.10"],
+          "fixed": "32:9.16.23-40.0.1.el9_8.13"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_UEKR8-f4cece8a21f4abe4",
+      "id": "ELSA-2026-500572",
+      "severity": "Important",
+      "title": "Unbreakable Enterprise kernel security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": [
+        "CVE-2025-40326",
+        "CVE-2026-52988",
+        "CVE-2026-72315",
+        "CVE-2026-72463",
+        "CVE-2026-74347",
+        "CVE-2026-80937",
+        "CVE-2026-80939",
+        "CVE-2026-81015",
+        "CVE-2026-81016",
+        "CVE-2026-89441",
+        "CVE-2026-89500",
+        "CVE-2026-89503",
+        "CVE-2026-89520",
+        "CVE-2026-89754",
+        "CVE-2026-89766",
+        "CVE-2026-89827",
+        "CVE-2026-89859",
+        "CVE-2026-89971",
+        "CVE-2026-89972",
+        "CVE-2026-89996",
+        "CVE-2026-90002",
+        "CVE-2026-90013",
+        "CVE-2026-90029",
+        "CVE-2026-93134",
+        "CVE-2026-93196",
+        "CVE-2026-93231",
+        "CVE-2026-93244",
+        "CVE-2026-97527",
+        "CVE-2026-97528",
+        "CVE-2026-97529",
+        "CVE-2026-97530",
+        "CVE-2026-97531",
+        "CVE-2026-97532",
+        "CVE-2026-97535",
+        "CVE-2026-97536",
+        "CVE-2026-97537",
+        "CVE-2026-97549",
+        "CVE-2026-97559",
+        "CVE-2026-97566",
+        "CVE-2026-97571",
+        "CVE-2026-97597",
+        "CVE-2026-97603",
+        "CVE-2026-97609",
+        "CVE-2026-97615",
+        "CVE-2026-97618",
+        "CVE-2026-97619",
+        "CVE-2026-97620",
+        "CVE-2026-97901",
+        "CVE-2026-97906",
+        "CVE-2026-97918",
+        "CVE-2026-97919",
+        "CVE-2026-97933",
+        "CVE-2026-97934",
+        "CVE-2026-97935",
+        "CVE-2026-97938",
+        "CVE-2026-97939",
+        "CVE-2026-97949",
+        "CVE-2026-97950",
+        "CVE-2026-98101",
+        "CVE-2026-98161",
+        "CVE-2026-98167",
+        "CVE-2026-98168",
+        "CVE-2026-98169",
+        "CVE-2026-98170",
+        "CVE-2026-98171",
+        "CVE-2026-98172",
+        "CVE-2026-98173",
+        "CVE-2026-98174",
+        "CVE-2026-98175",
+        "CVE-2026-98179",
+        "CVE-2026-98181",
+        "CVE-2026-98182",
+        "CVE-2026-98184",
+        "CVE-2026-98185",
+        "CVE-2026-98186",
+        "CVE-2026-98187",
+        "CVE-2026-98188",
+        "CVE-2026-98191",
+        "CVE-2026-98192",
+        "CVE-2026-98193",
+        "CVE-2026-98194",
+        "CVE-2026-98195",
+        "CVE-2026-98196",
+        "CVE-2026-98197",
+        "CVE-2026-98198",
+        "CVE-2026-98199",
+        "CVE-2026-98201",
+        "CVE-2026-98202",
+        "CVE-2026-98203",
+        "CVE-2026-98204",
+        "CVE-2026-98205",
+        "CVE-2026-98207",
+        "CVE-2026-98208",
+        "CVE-2026-98211",
+        "CVE-2026-98213",
+        "CVE-2026-98214",
+        "CVE-2026-98215",
+        "CVE-2026-98216",
+        "CVE-2026-98217",
+        "CVE-2026-98221",
+        "CVE-2026-98222",
+        "CVE-2026-98229",
+        "CVE-2026-98230",
+        "CVE-2026-98231",
+        "CVE-2026-98232",
+        "CVE-2026-98233",
+        "CVE-2026-98234",
+        "CVE-2026-98235",
+        "CVE-2026-98236",
+        "CVE-2026-98237",
+        "CVE-2026-98238",
+        "CVE-2026-98239",
+        "CVE-2026-98241",
+        "CVE-2026-98245",
+        "CVE-2026-98246",
+        "CVE-2026-98247",
+        "CVE-2026-98248",
+        "CVE-2026-98249",
+        "CVE-2026-98251",
+        "CVE-2026-98252",
+        "CVE-2026-98253",
+        "CVE-2026-98254",
+        "CVE-2026-98255",
+        "CVE-2026-98260",
+        "CVE-2026-98261",
+        "CVE-2026-98262",
+        "CVE-2026-98263",
+        "CVE-2026-98264",
+        "CVE-2026-98265",
+        "CVE-2026-98266",
+        "CVE-2026-98267",
+        "CVE-2026-98269",
+        "CVE-2026-98270",
+        "CVE-2026-98271",
+        "CVE-2026-98272",
+        "CVE-2026-98276",
+        "CVE-2026-98287",
+        "CVE-2026-98290",
+        "CVE-2026-98291",
+        "CVE-2026-98293",
+        "CVE-2026-98295",
+        "CVE-2026-98297",
+        "CVE-2026-98299",
+        "CVE-2026-98300",
+        "CVE-2026-98301",
+        "CVE-2026-98303",
+        "CVE-2026-98306",
+        "CVE-2026-98307",
+        "CVE-2026-98308",
+        "CVE-2026-98309",
+        "CVE-2026-98312",
+        "CVE-2026-98314",
+        "CVE-2026-98316",
+        "CVE-2026-98319",
+        "CVE-2026-98320",
+        "CVE-2026-98322",
+        "CVE-2026-98325",
+        "CVE-2026-98326",
+        "CVE-2026-98327",
+        "CVE-2026-98328",
+        "CVE-2026-98329",
+        "CVE-2026-98331",
+        "CVE-2026-98334",
+        "CVE-2026-98335",
+        "CVE-2026-98336",
+        "CVE-2026-98337",
+        "CVE-2026-98339",
+        "CVE-2026-98340",
+        "CVE-2026-98342",
+        "CVE-2026-98343",
+        "CVE-2026-98344",
+        "CVE-2026-98345",
+        "CVE-2026-98346",
+        "CVE-2026-98347",
+        "CVE-2026-98348",
+        "CVE-2026-98349",
+        "CVE-2026-98354",
+        "CVE-2026-98357",
+        "CVE-2026-98358",
+        "CVE-2026-98359",
+        "CVE-2026-98360",
+        "CVE-2026-98362",
+        "CVE-2026-98363",
+        "CVE-2026-98365",
+        "CVE-2026-98366",
+        "CVE-2026-98368",
+        "CVE-2026-98369",
+        "CVE-2026-98370",
+        "CVE-2026-98373",
+        "CVE-2026-98374",
+        "CVE-2026-98377",
+        "CVE-2026-98378",
+        "CVE-2026-98379",
+        "CVE-2026-98380",
+        "CVE-2026-98381",
+        "CVE-2026-98382",
+        "CVE-2026-98383",
+        "CVE-2026-98384",
+        "CVE-2026-98405",
+        "CVE-2026-98428",
+        "CVE-2026-98432",
+        "CVE-2026-98441",
+        "CVE-2026-98442",
+        "CVE-2026-98448",
+        "CVE-2026-98452",
+        "CVE-2026-98454",
+        "CVE-2026-98455",
+        "CVE-2026-98456",
+        "CVE-2026-98457",
+        "CVE-2026-98459",
+        "CVE-2026-98460",
+        "CVE-2026-98461",
+        "CVE-2026-98462",
+        "CVE-2026-98468",
+        "CVE-2026-98477",
+        "CVE-2026-98479",
+        "CVE-2026-98484",
+        "CVE-2026-98485",
+        "CVE-2026-98486",
+        "CVE-2026-98487",
+        "CVE-2026-98488",
+        "CVE-2026-98489",
+        "CVE-2026-98490",
+        "CVE-2026-98491",
+        "CVE-2026-98494",
+        "CVE-2026-98495",
+        "CVE-2026-98498",
+        "CVE-2026-98499",
+        "CVE-2026-98501",
+        "CVE-2026-98502",
+        "CVE-2026-98503",
+        "CVE-2026-98505",
+        "CVE-2026-98506",
+        "CVE-2026-98507",
+        "CVE-2026-98508",
+        "CVE-2026-98509",
+        "CVE-2026-98510",
+        "CVE-2026-98511",
+        "CVE-2026-98512",
+        "CVE-2026-98513",
+        "CVE-2026-98514",
+        "CVE-2026-98515",
+        "CVE-2026-98516",
+        "CVE-2026-98517",
+        "CVE-2026-98519",
+        "CVE-2026-98521",
+        "CVE-2026-98523",
+        "CVE-2026-98528",
+        "CVE-2026-98531",
+        "CVE-2026-98532",
+        "CVE-2026-98536",
+        "CVE-2026-98537",
+        "CVE-2026-98538",
+        "CVE-2026-98541",
+        "CVE-2026-98544",
+        "CVE-2026-98545",
+        "CVE-2026-98547",
+        "CVE-2026-98548",
+        "CVE-2026-98549",
+        "CVE-2026-98550",
+        "CVE-2026-98553",
+        "CVE-2026-98554",
+        "CVE-2026-98561",
+        "CVE-2026-98565",
+        "CVE-2026-98567",
+        "CVE-2026-98568",
+        "CVE-2026-98569",
+        "CVE-2026-98573",
+        "CVE-2026-98586",
+        "CVE-2026-98588",
+        "CVE-2026-98590",
+        "CVE-2026-98591",
+        "CVE-2026-98594",
+        "CVE-2026-98596",
+        "CVE-2026-98597",
+        "CVE-2026-98600",
+        "CVE-2026-98601",
+        "CVE-2026-98602",
+        "CVE-2026-98605",
+        "CVE-2026-98606",
+        "CVE-2026-98607",
+        "CVE-2026-98608",
+        "CVE-2026-98609",
+        "CVE-2026-98610",
+        "CVE-2026-98611",
+        "CVE-2026-98612",
+        "CVE-2026-98613",
+        "CVE-2026-98614",
+        "CVE-2026-98621",
+        "CVE-2026-98622",
+        "CVE-2026-98623",
+        "CVE-2026-98624",
+        "CVE-2026-98625",
+        "CVE-2026-98626",
+        "CVE-2026-98629",
+        "CVE-2026-98631",
+        "CVE-2026-98632",
+        "CVE-2026-98634",
+        "CVE-2026-98636",
+        "CVE-2026-98640",
+        "CVE-2026-98641",
+        "CVE-2026-98643",
+        "CVE-2026-98644",
+        "CVE-2026-98646",
+        "CVE-2026-98647",
+        "CVE-2026-98925",
+        "CVE-2026-99082",
+        "CVE-2026-99999"
+      ],
+      "packages": [
+        {
+          "name": "kernel-uek-modules-desktop",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-wireless",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-extra-netfilter",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-usb",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        },
+        {
+          "name": "kernel-uek-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-208.112.5.el9uek"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_UEKR8-f4cece8a21f4abe4",
+      "id": "ELSA-2026-500394",
+      "severity": "Important",
+      "title": "Unbreakable Enterprise kernel security update",
+      "issued": "2026-10-15 00:00:00",
+      "cves": [
+        "CVE-2026-72463",
+        "CVE-2026-89754",
+        "CVE-2026-89766",
+        "CVE-2026-97594",
+        "CVE-2026-98101",
+        "CVE-2026-98260"
+      ],
+      "packages": [
+        {
+          "name": "kernel-uek-modules",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-usb",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-wireless",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-desktop",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-extra-netfilter",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        },
+        {
+          "name": "kernel-uek-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.3.el9uek"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_UEKR8-f4cece8a21f4abe4",
+      "id": "ELSA-2026-500399",
+      "severity": "Important",
+      "title": "Unbreakable Enterprise kernel security update",
+      "issued": "2026-10-16 00:00:00",
+      "cves": ["CVE-2026-98432", "CVE-2026-99999"],
+      "packages": [
+        {
+          "name": "kernel-uek-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-wireless",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-core",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-desktop",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-extra-netfilter",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        },
+        {
+          "name": "kernel-uek-modules-usb",
+          "arch": "aarch64",
+          "installed": [
+            "0:6.12.0-206.104.4.4.el9uek",
+            "0:6.12.0-207.111.5.1.el9uek"
+          ],
+          "fixed": "0:6.12.0-207.111.5.4.el9uek"
+        }
+      ]
+    }
+  ]
+}
