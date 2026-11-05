@@ -1,0 +1,2131 @@
+{
+  "formatVersion": 1,
+  "stage": 3,
+  "startedOn": "2026-11-04",
+  "evidenceAt": "2026-11-05T00:32:24.699291+00:00",
+  "status": "NOT_TECHNICALLY_READY",
+  "productionModified": false,
+  "backup": {
+    "status": "BLOQUEADO",
+    "authorized": "one FULL boot backup only if confirmed inside Always Free five combined backups allowance",
+    "created": false,
+    "region": "sa-saopaulo-1",
+    "volumeOcid": "ocid1.bootvolume.oc1.sa-saopaulo-1.abtxeljrzjtjdrfaswr4ngc6ausrjdp6ehomnvcq3lxqe7cdg5tor3wxldya",
+    "volumeSizeGb": 47,
+    "volumeState": "Available Always Free",
+    "backupPolicy": "None",
+    "replication": "Off",
+    "volumeScopedBackupList": "No items to display",
+    "globalBackupAllowanceConfirmed": false,
+    "reason": "Global Boot Volume Backups table remained loading through native automation; browser access host unavailable; no successful tenancy-wide combined boot/block backup count or billing eligibility proof. Per-volume Always Free badge alone does not satisfy authorization condition.",
+    "uiErrors": ["noWindowsAvailable", "elementHasNoFrame"],
+    "restorationResourcesCreated": false,
+    "restorationTestExecuted": false,
+    "restorePermission": "operator administrative policy observed in stage2; instance principal does not have required Block Storage access; no IAM modified"
+  },
+  "laboratory": {
+    "os": "Oracle Linux Server release 9.8",
+    "arch": "aarch64",
+    "cpus": 4,
+    "memoryGiB": 6,
+    "kernel": "6.12.0-204.92.4.2.el9uek.aarch64",
+    "productionKernel": "6.12.0-207.111.5.1.el9uek.aarch64",
+    "isolation": "local Lima VZ; no host mounts or production credentials; synthetic MySQL TLS; loopback Nginx/API",
+    "baseline": "exact relevant old production package versions, including Nginx 1.20.1-28.0.1.el9_8.6 and Node RPM 22.23.2-2.el9_8; not all 808 production RPMs",
+    "privatePrepatchDiskCheckpoint": true,
+    "nginxPolicy": "local equivalent of canonical restricted API port allow; global httpd networking booleans stayed off",
+    "baselineArtifactSignatureChecks": 19,
+    "note": "Eleven relevant baseline RPMs and eight supporting baseline dependencies were authenticated; these are laboratory bootstrap packages only and are excluded from the ten-package production proposal."
+  },
+  "patchDrill": {
+    "status": "PASS",
+    "productionUsed": false,
+    "steps": [
+      {
+        "label": "baseline",
+        "status": "PASS",
+        "versions": {
+          "ca-certificates": "0:2025.2.80_v9.0.305-91.el9.noarch",
+          "expat": "0:2.5.0-6.el9_8.5.aarch64",
+          "libbrotli": "0:1.0.9-10.el9_8.aarch64",
+          "pcre2": "0:10.40-6.0.1.el9.aarch64",
+          "pcre2-syntax": "0:10.40-6.0.1.el9.noarch",
+          "python3": "0:3.9.25-7.0.1.el9_8.3.aarch64",
+          "python3-libs": "0:3.9.25-7.0.1.el9_8.3.aarch64",
+          "python3-urllib3": "0:1.26.5-8.el9_8.noarch",
+          "python-unversioned-command": "0:3.9.25-7.0.1.el9_8.3.noarch",
+          "python39-oci-sdk": "0:2.187.0-1.0.3.el9.aarch64"
+        },
+        "apiReady": 200,
+        "anonymousAuth": 401,
+        "frontendUnchanged": true,
+        "nginxRegexCapture": "PASS",
+        "nginxTls": "verified synthetic CA; untrusted CA rejected",
+        "systemHttps": "GitHub and TraceFlow verified by curl",
+        "workerCount": 1,
+        "heartbeatAgeSeconds": 3,
+        "jobLeases": [
+          "github-event-dispatch",
+          "notifications-due",
+          "traceability-alerts",
+          "traceability-notice-dispatch"
+        ],
+        "processes": {
+          "api": {
+            "pid": 2868,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          },
+          "worker": {
+            "pid": 3234,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          }
+        },
+        "systemBrotliRoundtrip": "PASS",
+        "configOwnersModesPreserved": true,
+        "selinux": "Enforcing",
+        "httpdGlobalNetworkBooleans": "off",
+        "caBundleSha256": "00411c197b16f659945fba3c2f970a26030f56eef5d445c913cb59a089c813b9",
+        "systemCaPemCount": 146,
+        "mappedLibraries": {
+          "nginx": {
+            "pid": 2912,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8409753,
+                "fileInode": 8409753,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-api": {
+            "pid": 2868,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-worker": {
+            "pid": 3234,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "NetworkManager": {
+            "pid": 735,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libbrotlicommon.so.1.0.9 (deleted)",
+                "mappedInode": 8413313,
+                "fileInode": 8623377,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8409753,
+                "fileInode": 8409753,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libbrotlidec.so.1.0.9 (deleted)",
+                "mappedInode": 8413315,
+                "fileInode": 8623379,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "firewalld": {
+            "pid": 682,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8409753,
+                "fileInode": 8409753,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libexpat.so.1.8.10 (deleted)",
+                "mappedInode": 8409678,
+                "fileInode": 8390749,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpython3.9.so.1.0 (deleted)",
+                "mappedInode": 8622762,
+                "fileInode": 8390751,
+                "sameInode": false
+              }
+            ]
+          }
+        }
+      },
+      {
+        "label": "ca-only",
+        "status": "PASS",
+        "versions": {
+          "ca-certificates": "0:2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "expat": "0:2.5.0-6.el9_8.5.aarch64",
+          "libbrotli": "0:1.0.9-10.el9_8.aarch64",
+          "pcre2": "0:10.40-6.0.1.el9.aarch64",
+          "pcre2-syntax": "0:10.40-6.0.1.el9.noarch",
+          "python3": "0:3.9.25-7.0.1.el9_8.3.aarch64",
+          "python3-libs": "0:3.9.25-7.0.1.el9_8.3.aarch64",
+          "python3-urllib3": "0:1.26.5-8.el9_8.noarch",
+          "python-unversioned-command": "0:3.9.25-7.0.1.el9_8.3.noarch",
+          "python39-oci-sdk": "0:2.187.0-1.0.3.el9.aarch64"
+        },
+        "apiReady": 200,
+        "anonymousAuth": 401,
+        "frontendUnchanged": true,
+        "nginxRegexCapture": "PASS",
+        "nginxTls": "verified synthetic CA; untrusted CA rejected",
+        "systemHttps": "GitHub and TraceFlow verified by curl",
+        "workerCount": 1,
+        "heartbeatAgeSeconds": 4,
+        "jobLeases": [
+          "github-event-dispatch",
+          "notifications-due",
+          "traceability-alerts",
+          "traceability-notice-dispatch"
+        ],
+        "processes": {
+          "api": {
+            "pid": 2868,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          },
+          "worker": {
+            "pid": 3234,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          }
+        },
+        "systemBrotliRoundtrip": "PASS",
+        "configOwnersModesPreserved": true,
+        "selinux": "Enforcing",
+        "httpdGlobalNetworkBooleans": "off",
+        "caBundleSha256": "9a9c1b798f6ae057ecb84545704e38c89e10f3db5519b24cd4647a1bb2dbf299",
+        "systemCaPemCount": 118,
+        "mappedLibraries": {
+          "nginx": {
+            "pid": 2912,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8409753,
+                "fileInode": 8409753,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-api": {
+            "pid": 2868,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-worker": {
+            "pid": 3234,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "NetworkManager": {
+            "pid": 735,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libbrotlicommon.so.1.0.9 (deleted)",
+                "mappedInode": 8413313,
+                "fileInode": 8623377,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8409753,
+                "fileInode": 8409753,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libbrotlidec.so.1.0.9 (deleted)",
+                "mappedInode": 8413315,
+                "fileInode": 8623379,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "firewalld": {
+            "pid": 682,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8409753,
+                "fileInode": 8409753,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libexpat.so.1.8.10 (deleted)",
+                "mappedInode": 8409678,
+                "fileInode": 8390749,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpython3.9.so.1.0 (deleted)",
+                "mappedInode": 8622762,
+                "fileInode": 8390751,
+                "sameInode": false
+              }
+            ]
+          }
+        }
+      },
+      {
+        "label": "patched-before-restart",
+        "status": "PASS",
+        "versions": {
+          "ca-certificates": "0:2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "expat": "0:2.5.0-6.el9_8.7.aarch64",
+          "libbrotli": "0:1.0.9-10.0.1.el9_8.aarch64",
+          "pcre2": "0:10.40-7.0.1.el9_8.aarch64",
+          "pcre2-syntax": "0:10.40-7.0.1.el9_8.noarch",
+          "python3": "0:3.9.25-7.0.1.el9_8.6.aarch64",
+          "python3-libs": "0:3.9.25-7.0.1.el9_8.6.aarch64",
+          "python3-urllib3": "0:1.26.5-8.el9_8.2.noarch",
+          "python-unversioned-command": "0:3.9.25-7.0.1.el9_8.6.noarch",
+          "python39-oci-sdk": "0:2.187.0-1.0.5.el9.aarch64"
+        },
+        "apiReady": 200,
+        "anonymousAuth": 401,
+        "frontendUnchanged": true,
+        "nginxRegexCapture": "PASS",
+        "nginxTls": "verified synthetic CA; untrusted CA rejected",
+        "systemHttps": "GitHub and TraceFlow verified by curl",
+        "workerCount": 1,
+        "heartbeatAgeSeconds": 13,
+        "jobLeases": [
+          "github-event-dispatch",
+          "notifications-due",
+          "traceability-alerts",
+          "traceability-notice-dispatch"
+        ],
+        "processes": {
+          "api": {
+            "pid": 2868,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          },
+          "worker": {
+            "pid": 3234,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          }
+        },
+        "systemBrotliRoundtrip": "PASS",
+        "configOwnersModesPreserved": true,
+        "selinux": "Enforcing",
+        "httpdGlobalNetworkBooleans": "off",
+        "caBundleSha256": "9a9c1b798f6ae057ecb84545704e38c89e10f3db5519b24cd4647a1bb2dbf299",
+        "systemCaPemCount": 118,
+        "mappedLibraries": {
+          "nginx": {
+            "pid": 2912,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8528590,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-api": {
+            "pid": 2868,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-worker": {
+            "pid": 3234,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "NetworkManager": {
+            "pid": 735,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libbrotlicommon.so.1.0.9 (deleted)",
+                "mappedInode": 8413313,
+                "fileInode": 8409754,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8528590,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libbrotlidec.so.1.0.9 (deleted)",
+                "mappedInode": 8413315,
+                "fileInode": 8874125,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "firewalld": {
+            "pid": 682,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8528590,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libexpat.so.1.8.10 (deleted)",
+                "mappedInode": 8409678,
+                "fileInode": 8539969,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpython3.9.so.1.0 (deleted)",
+                "mappedInode": 8622762,
+                "fileInode": 8389163,
+                "sameInode": false
+              }
+            ]
+          }
+        }
+      },
+      {
+        "label": "patched-after-restart",
+        "status": "PASS",
+        "versions": {
+          "ca-certificates": "0:2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "expat": "0:2.5.0-6.el9_8.7.aarch64",
+          "libbrotli": "0:1.0.9-10.0.1.el9_8.aarch64",
+          "pcre2": "0:10.40-7.0.1.el9_8.aarch64",
+          "pcre2-syntax": "0:10.40-7.0.1.el9_8.noarch",
+          "python3": "0:3.9.25-7.0.1.el9_8.6.aarch64",
+          "python3-libs": "0:3.9.25-7.0.1.el9_8.6.aarch64",
+          "python3-urllib3": "0:1.26.5-8.el9_8.2.noarch",
+          "python-unversioned-command": "0:3.9.25-7.0.1.el9_8.6.noarch",
+          "python39-oci-sdk": "0:2.187.0-1.0.5.el9.aarch64"
+        },
+        "apiReady": 200,
+        "anonymousAuth": 401,
+        "frontendUnchanged": true,
+        "nginxRegexCapture": "PASS",
+        "nginxTls": "verified synthetic CA; untrusted CA rejected",
+        "systemHttps": "GitHub and TraceFlow verified by curl",
+        "workerCount": 1,
+        "heartbeatAgeSeconds": 13,
+        "jobLeases": [
+          "github-event-dispatch",
+          "notifications-due",
+          "traceability-alerts",
+          "traceability-notice-dispatch"
+        ],
+        "processes": {
+          "api": {
+            "pid": 3696,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          },
+          "worker": {
+            "pid": 3704,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          }
+        },
+        "systemBrotliRoundtrip": "PASS",
+        "configOwnersModesPreserved": true,
+        "selinux": "Enforcing",
+        "httpdGlobalNetworkBooleans": "off",
+        "caBundleSha256": "9a9c1b798f6ae057ecb84545704e38c89e10f3db5519b24cd4647a1bb2dbf299",
+        "systemCaPemCount": 118,
+        "mappedLibraries": {
+          "nginx": {
+            "pid": 3707,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8528590,
+                "fileInode": 8528590,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-api": {
+            "pid": 3696,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-worker": {
+            "pid": 3704,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "NetworkManager": {
+            "pid": 735,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libbrotlicommon.so.1.0.9 (deleted)",
+                "mappedInode": 8413313,
+                "fileInode": 8409754,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8528590,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libbrotlidec.so.1.0.9 (deleted)",
+                "mappedInode": 8413315,
+                "fileInode": 8874125,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "firewalld": {
+            "pid": 682,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8528590,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libexpat.so.1.8.10 (deleted)",
+                "mappedInode": 8409678,
+                "fileInode": 8539969,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpython3.9.so.1.0 (deleted)",
+                "mappedInode": 8622762,
+                "fileInode": 8389163,
+                "sameInode": false
+              }
+            ]
+          }
+        }
+      },
+      {
+        "label": "rollback-old",
+        "status": "PASS",
+        "versions": {
+          "ca-certificates": "0:2025.2.80_v9.0.305-91.el9.noarch",
+          "expat": "0:2.5.0-6.el9_8.5.aarch64",
+          "libbrotli": "0:1.0.9-10.el9_8.aarch64",
+          "pcre2": "0:10.40-6.0.1.el9.aarch64",
+          "pcre2-syntax": "0:10.40-6.0.1.el9.noarch",
+          "python3": "0:3.9.25-7.0.1.el9_8.3.aarch64",
+          "python3-libs": "0:3.9.25-7.0.1.el9_8.3.aarch64",
+          "python3-urllib3": "0:1.26.5-8.el9_8.noarch",
+          "python-unversioned-command": "0:3.9.25-7.0.1.el9_8.3.noarch",
+          "python39-oci-sdk": "0:2.187.0-1.0.3.el9.aarch64"
+        },
+        "apiReady": 200,
+        "anonymousAuth": 401,
+        "frontendUnchanged": true,
+        "nginxRegexCapture": "PASS",
+        "nginxTls": "verified synthetic CA; untrusted CA rejected",
+        "systemHttps": "GitHub and TraceFlow verified by curl",
+        "workerCount": 1,
+        "heartbeatAgeSeconds": 12,
+        "jobLeases": [
+          "github-event-dispatch",
+          "notifications-due",
+          "traceability-alerts",
+          "traceability-notice-dispatch"
+        ],
+        "processes": {
+          "api": {
+            "pid": 4018,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          },
+          "worker": {
+            "pid": 4019,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          }
+        },
+        "systemBrotliRoundtrip": "PASS",
+        "configOwnersModesPreserved": true,
+        "selinux": "Enforcing",
+        "httpdGlobalNetworkBooleans": "off",
+        "caBundleSha256": "00411c197b16f659945fba3c2f970a26030f56eef5d445c913cb59a089c813b9",
+        "systemCaPemCount": 146,
+        "mappedLibraries": {
+          "nginx": {
+            "pid": 4025,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8390754,
+                "fileInode": 8390754,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-api": {
+            "pid": 4018,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-worker": {
+            "pid": 4019,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "NetworkManager": {
+            "pid": 735,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libbrotlicommon.so.1.0.9 (deleted)",
+                "mappedInode": 8413313,
+                "fileInode": 8390759,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8390754,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libbrotlidec.so.1.0.9 (deleted)",
+                "mappedInode": 8413315,
+                "fileInode": 8390761,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "firewalld": {
+            "pid": 682,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8390754,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libexpat.so.1.8.10 (deleted)",
+                "mappedInode": 8409678,
+                "fileInode": 8590455,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpython3.9.so.1.0 (deleted)",
+                "mappedInode": 8622762,
+                "fileInode": 8590461,
+                "sameInode": false
+              }
+            ]
+          }
+        }
+      },
+      {
+        "label": "reapplied-corrected-after-normal-start-window",
+        "status": "PASS",
+        "versions": {
+          "ca-certificates": "0:2026.2.92_v9.0.319-90.3.el9_8.noarch",
+          "expat": "0:2.5.0-6.el9_8.7.aarch64",
+          "libbrotli": "0:1.0.9-10.0.1.el9_8.aarch64",
+          "pcre2": "0:10.40-7.0.1.el9_8.aarch64",
+          "pcre2-syntax": "0:10.40-7.0.1.el9_8.noarch",
+          "python3": "0:3.9.25-7.0.1.el9_8.6.aarch64",
+          "python3-libs": "0:3.9.25-7.0.1.el9_8.6.aarch64",
+          "python3-urllib3": "0:1.26.5-8.el9_8.2.noarch",
+          "python-unversioned-command": "0:3.9.25-7.0.1.el9_8.6.noarch",
+          "python39-oci-sdk": "0:2.187.0-1.0.5.el9.aarch64"
+        },
+        "apiReady": 200,
+        "anonymousAuth": 401,
+        "frontendUnchanged": true,
+        "nginxRegexCapture": "PASS",
+        "nginxTls": "verified synthetic CA; untrusted CA rejected",
+        "systemHttps": "GitHub and TraceFlow verified by curl",
+        "workerCount": 1,
+        "heartbeatAgeSeconds": 12,
+        "jobLeases": [
+          "github-event-dispatch",
+          "notifications-due",
+          "traceability-alerts",
+          "traceability-notice-dispatch"
+        ],
+        "processes": {
+          "api": {
+            "pid": 4314,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          },
+          "worker": {
+            "pid": 4541,
+            "node": "v22.23.4",
+            "sha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          }
+        },
+        "systemBrotliRoundtrip": "PASS",
+        "configOwnersModesPreserved": true,
+        "selinux": "Enforcing",
+        "httpdGlobalNetworkBooleans": "off",
+        "caBundleSha256": "9a9c1b798f6ae057ecb84545704e38c89e10f3db5519b24cd4647a1bb2dbf299",
+        "systemCaPemCount": 118,
+        "mappedLibraries": {
+          "nginx": {
+            "pid": 4326,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0",
+                "mappedInode": 8527546,
+                "fileInode": 8527546,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-api": {
+            "pid": 4314,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "traceflow-live-worker": {
+            "pid": 4541,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "NetworkManager": {
+            "pid": 735,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libbrotlicommon.so.1.0.9 (deleted)",
+                "mappedInode": 8413313,
+                "fileInode": 8390755,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8527546,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libbrotlidec.so.1.0.9 (deleted)",
+                "mappedInode": 8413315,
+                "fileInode": 8528322,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              }
+            ]
+          },
+          "firewalld": {
+            "pid": 682,
+            "libraries": [
+              {
+                "file": "/usr/lib64/libssl.so.3.5.8",
+                "mappedInode": 8604892,
+                "fileInode": 8604892,
+                "sameInode": true
+              },
+              {
+                "file": "/usr/lib64/libpcre2-8.so.0.11.0 (deleted)",
+                "mappedInode": 8409753,
+                "fileInode": 8527546,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libexpat.so.1.8.10 (deleted)",
+                "mappedInode": 8409678,
+                "fileInode": 8539909,
+                "sameInode": false
+              },
+              {
+                "file": "/usr/lib64/libpython3.9.so.1.0 (deleted)",
+                "mappedInode": 8622762,
+                "fileInode": 8540051,
+                "sameInode": false
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "transactions": [
+      {
+        "label": "ca-only",
+        "selectedNames": ["ca-certificates"],
+        "transaction": [
+          {
+            "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+            "name": "ca-certificates",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "ca-certificates-2025.2.80_v9.0.305-91.el9.noarch",
+            "name": "ca-certificates",
+            "repo": "@System",
+            "action": 7
+          }
+        ],
+        "productionUsed": false,
+        "rpmSignaturesAndChecksumsVerified": true,
+        "status": "INSTALLED_IN_LOCAL_LAB_ONLY",
+        "transactionId": 5,
+        "seconds": 0.99
+      },
+      {
+        "label": "remaining-nine",
+        "selectedNames": [
+          "expat",
+          "libbrotli",
+          "pcre2",
+          "pcre2-syntax",
+          "python-unversioned-command",
+          "python3",
+          "python3-libs",
+          "python3-urllib3",
+          "python39-oci-sdk"
+        ],
+        "transaction": [
+          {
+            "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+            "name": "expat",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "expat-2.5.0-6.el9_8.5.aarch64",
+            "name": "expat",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+            "name": "libbrotli",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "libbrotli-1.0.9-10.el9_8.aarch64",
+            "name": "libbrotli",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+            "name": "pcre2",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "pcre2-10.40-6.0.1.el9.aarch64",
+            "name": "pcre2",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+            "name": "pcre2-syntax",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "pcre2-syntax-10.40-6.0.1.el9.noarch",
+            "name": "pcre2-syntax",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+            "name": "python-unversioned-command",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch",
+            "name": "python-unversioned-command",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+            "name": "python3",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python3-3.9.25-7.0.1.el9_8.3.aarch64",
+            "name": "python3",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+            "name": "python3-libs",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python3-libs-3.9.25-7.0.1.el9_8.3.aarch64",
+            "name": "python3-libs",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+            "name": "python3-urllib3",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python3-urllib3-1.26.5-8.el9_8.noarch",
+            "name": "python3-urllib3",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+            "name": "python39-oci-sdk",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python39-oci-sdk-2.187.0-1.0.3.el9.aarch64",
+            "name": "python39-oci-sdk",
+            "repo": "@System",
+            "action": 7
+          }
+        ],
+        "productionUsed": false,
+        "rpmSignaturesAndChecksumsVerified": true,
+        "status": "INSTALLED_IN_LOCAL_LAB_ONLY",
+        "transactionId": 6,
+        "seconds": 22.45
+      },
+      {
+        "label": "rollback-ten",
+        "selectedNames": [
+          "ca-certificates",
+          "expat",
+          "libbrotli",
+          "pcre2",
+          "pcre2-syntax",
+          "python-unversioned-command",
+          "python3",
+          "python3-libs",
+          "python3-urllib3",
+          "python39-oci-sdk"
+        ],
+        "transaction": [
+          {
+            "nevra": "ca-certificates-2025.2.80_v9.0.305-91.el9.noarch",
+            "name": "ca-certificates",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+            "name": "ca-certificates",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "expat-2.5.0-6.el9_8.5.aarch64",
+            "name": "expat",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+            "name": "expat",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "libbrotli-1.0.9-10.el9_8.aarch64",
+            "name": "libbrotli",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+            "name": "libbrotli",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "pcre2-10.40-6.0.1.el9.aarch64",
+            "name": "pcre2",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+            "name": "pcre2",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "pcre2-syntax-10.40-6.0.1.el9.noarch",
+            "name": "pcre2-syntax",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+            "name": "pcre2-syntax",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch",
+            "name": "python-unversioned-command",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+            "name": "python-unversioned-command",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "python3-3.9.25-7.0.1.el9_8.3.aarch64",
+            "name": "python3",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+            "name": "python3",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "python3-libs-3.9.25-7.0.1.el9_8.3.aarch64",
+            "name": "python3-libs",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+            "name": "python3-libs",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "python3-urllib3-1.26.5-8.el9_8.noarch",
+            "name": "python3-urllib3",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+            "name": "python3-urllib3",
+            "repo": "@System",
+            "action": 3
+          },
+          {
+            "nevra": "python39-oci-sdk-2.187.0-1.0.3.el9.aarch64",
+            "name": "python39-oci-sdk",
+            "repo": "@commandline",
+            "action": 2
+          },
+          {
+            "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+            "name": "python39-oci-sdk",
+            "repo": "@System",
+            "action": 3
+          }
+        ],
+        "productionUsed": false,
+        "rpmSignaturesAndChecksumsVerified": true,
+        "status": "INSTALLED_IN_LOCAL_LAB_ONLY",
+        "transactionId": 7,
+        "seconds": 23.26
+      },
+      {
+        "label": "reapply-ten",
+        "selectedNames": [
+          "ca-certificates",
+          "expat",
+          "libbrotli",
+          "pcre2",
+          "pcre2-syntax",
+          "python-unversioned-command",
+          "python3",
+          "python3-libs",
+          "python3-urllib3",
+          "python39-oci-sdk"
+        ],
+        "transaction": [
+          {
+            "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+            "name": "ca-certificates",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "ca-certificates-2025.2.80_v9.0.305-91.el9.noarch",
+            "name": "ca-certificates",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+            "name": "expat",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "expat-2.5.0-6.el9_8.5.aarch64",
+            "name": "expat",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+            "name": "libbrotli",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "libbrotli-1.0.9-10.el9_8.aarch64",
+            "name": "libbrotli",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+            "name": "pcre2",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "pcre2-10.40-6.0.1.el9.aarch64",
+            "name": "pcre2",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+            "name": "pcre2-syntax",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "pcre2-syntax-10.40-6.0.1.el9.noarch",
+            "name": "pcre2-syntax",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+            "name": "python-unversioned-command",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.3.noarch",
+            "name": "python-unversioned-command",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+            "name": "python3",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python3-3.9.25-7.0.1.el9_8.3.aarch64",
+            "name": "python3",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+            "name": "python3-libs",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python3-libs-3.9.25-7.0.1.el9_8.3.aarch64",
+            "name": "python3-libs",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+            "name": "python3-urllib3",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python3-urllib3-1.26.5-8.el9_8.noarch",
+            "name": "python3-urllib3",
+            "repo": "@System",
+            "action": 7
+          },
+          {
+            "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+            "name": "python39-oci-sdk",
+            "repo": "@commandline",
+            "action": 6
+          },
+          {
+            "nevra": "python39-oci-sdk-2.187.0-1.0.3.el9.aarch64",
+            "name": "python39-oci-sdk",
+            "repo": "@System",
+            "action": 7
+          }
+        ],
+        "productionUsed": false,
+        "rpmSignaturesAndChecksumsVerified": true,
+        "status": "INSTALLED_IN_LOCAL_LAB_ONLY",
+        "transactionId": 8,
+        "seconds": 23.21
+      }
+    ],
+    "patchCount": 10,
+    "nginxReloadRetainedOldPcre2": true,
+    "nginxRestartLoadedCorrectedPcre2": true,
+    "rpmRollbackPhysicallyExercised": true,
+    "allSelectedPackageVersionsRoundTrip": true,
+    "appConfigCertificatesOwnersModesPreserved": true,
+    "selinuxStayedEnforcing": true,
+    "globalHttpdNetworkBooleansStayedOff": true,
+    "rebootPerformed": false,
+    "kernelPatched": false,
+    "startLimitDiagnostic": {
+      "status": "LAB_START_LIMIT_DIAGNOSED",
+      "systemdContract": [
+        "Result=start-limit-hit",
+        "ExecMainStatus=0",
+        "StartLimitIntervalUSec=5min",
+        "StartLimitBurst=3"
+      ],
+      "recentSuccessfulStartsWithin300s": 3,
+      "secondsUntilOldestExpires": 110.0,
+      "sampledMonotonic": 1676.423632493,
+      "earliestRetryMonotonic": 1786.425677,
+      "cause": "Repeated intentional drill starts; no worker exception or AVC recorded.",
+      "thresholdChanged": false,
+      "resetFailedUsed": false,
+      "productionUsed": false
+    },
+    "startLimitThresholdChanged": false,
+    "startLimitResetFailedUsed": false,
+    "finalBrotliProbeExecutedInFreshProcess": true,
+    "nginxSyntaxTestExit": 0,
+    "limits": [
+      "Relevant package and Nginx versions match production; not a clone of all 808 RPMs.",
+      "Lab kernel 204.92.4.2 differs from production 207.111.5.1; kernel patches excluded.",
+      "OS processes outside restarted units can retain old libraries; a separate production reload/reboot plan is still required.",
+      "Only synthetic data/credentials used. Authenticated external GitHub and SMTP not tested.",
+      "Repeated deliberate drill starts hit unchanged systemd burst limit; the normal window expired before one controlled start, without reset-failed."
+    ]
+  },
+  "selectedPackages": [
+    {
+      "nevra": "ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch",
+      "name": "ca-certificates",
+      "epoch": "0",
+      "version": "2026.2.92_v9.0.319",
+      "release": "90.3.el9_8",
+      "arch": "noarch",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 994716,
+      "installBytes": 2809600,
+      "checksum": "c69abcbaa031fddd4819ee451738ab28dfc4aae27c3f32d42e18c5bf61ad93ce",
+      "location": "getPackage/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "2025.2.80_v9.0.305",
+          "release": "91.el9",
+          "arch": "noarch"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-88459", "ELSA-2026-500450"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "expat-2.5.0-6.el9_8.7.aarch64",
+      "name": "expat",
+      "epoch": "0",
+      "version": "2.5.0",
+      "release": "6.el9_8.7",
+      "arch": "aarch64",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 123215,
+      "installBytes": 341707,
+      "checksum": "a43316efd31ff608b8d01156b0f236ae0fbcb1a8b5e84d61ab98da1d922cc208",
+      "location": "getPackage/expat-2.5.0-6.el9_8.7.aarch64.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "2.5.0",
+          "release": "6.el9_8.5",
+          "arch": "aarch64"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-88247"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "libbrotli-1.0.9-10.0.1.el9_8.aarch64",
+      "name": "libbrotli",
+      "epoch": "0",
+      "version": "1.0.9",
+      "release": "10.0.1.el9_8",
+      "arch": "aarch64",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 323307,
+      "installBytes": 797882,
+      "checksum": "24b4da677ccf98b9e7bc493a130888a9a5eaaef4a918bd738fea1ae6cb123668",
+      "location": "getPackage/libbrotli-1.0.9-10.0.1.el9_8.aarch64.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "1.0.9",
+          "release": "10.el9_8",
+          "arch": "aarch64"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-500513", "ELSA-2026-90495"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "pcre2-10.40-7.0.1.el9_8.aarch64",
+      "name": "pcre2",
+      "epoch": "0",
+      "version": "10.40",
+      "release": "7.0.1.el9_8",
+      "arch": "aarch64",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 221925,
+      "installBytes": 663874,
+      "checksum": "97cb4292032d5c4edfed50a346e43a3d218d0a38f6ce510824d5e26b3b9fc8d5",
+      "location": "getPackage/pcre2-10.40-7.0.1.el9_8.aarch64.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "10.40",
+          "release": "6.0.1.el9",
+          "arch": "aarch64"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-81532"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "pcre2-syntax-10.40-7.0.1.el9_8.noarch",
+      "name": "pcre2-syntax",
+      "epoch": "0",
+      "version": "10.40",
+      "release": "7.0.1.el9_8",
+      "arch": "noarch",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 158156,
+      "installBytes": 234324,
+      "checksum": "131c90a8552f8502382557225811e78b64223c034404b32d4430ea59a6436b00",
+      "location": "getPackage/pcre2-syntax-10.40-7.0.1.el9_8.noarch.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "10.40",
+          "release": "6.0.1.el9",
+          "arch": "noarch"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-81532"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "python3-3.9.25-7.0.1.el9_8.6.aarch64",
+      "name": "python3",
+      "epoch": "0",
+      "version": "3.9.25",
+      "release": "7.0.1.el9_8.6",
+      "arch": "aarch64",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 31541,
+      "installBytes": 85884,
+      "checksum": "4c6a0aa2ceaf27698255e9d479d044f30f4073269c786655d9b4c00287525a2a",
+      "location": "getPackage/python3-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.3",
+          "arch": "aarch64"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-89742"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "python3-libs-3.9.25-7.0.1.el9_8.6.aarch64",
+      "name": "python3-libs",
+      "epoch": "0",
+      "version": "3.9.25",
+      "release": "7.0.1.el9_8.6",
+      "arch": "aarch64",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 10339201,
+      "installBytes": 34955474,
+      "checksum": "4e056c69280d700211e877aa49554dea991c2bf4d9dadd1f3979b31f95058a1f",
+      "location": "getPackage/python3-libs-3.9.25-7.0.1.el9_8.6.aarch64.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.3",
+          "arch": "aarch64"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-89742"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "python3-urllib3-1.26.5-8.el9_8.2.noarch",
+      "name": "python3-urllib3",
+      "epoch": "0",
+      "version": "1.26.5",
+      "release": "8.el9_8.2",
+      "arch": "noarch",
+      "repo": "ol9_baseos_latest",
+      "downloadBytes": 322701,
+      "installBytes": 768451,
+      "checksum": "dd2f1223c0ece5ad6b04cbed675c291ffc4dd2ce5f41e87df2a57f57d0e4ab64",
+      "location": "getPackage/python3-urllib3-1.26.5-8.el9_8.2.noarch.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "1.26.5",
+          "release": "8.el9_8",
+          "arch": "noarch"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-90494"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch",
+      "name": "python-unversioned-command",
+      "epoch": "0",
+      "version": "3.9.25",
+      "release": "7.0.1.el9_8.6",
+      "arch": "noarch",
+      "repo": "ol9_appstream",
+      "downloadBytes": 9750,
+      "installBytes": 23,
+      "checksum": "b8e13d52613b81fed48f6756532fa9935d1181b9115d6be4f0c7cc15921b3cea",
+      "location": "getPackage/python-unversioned-command-3.9.25-7.0.1.el9_8.6.noarch.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "3.9.25",
+          "release": "7.0.1.el9_8.3",
+          "arch": "noarch"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-89742"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    },
+    {
+      "nevra": "python39-oci-sdk-2.187.0-1.0.5.el9.aarch64",
+      "name": "python39-oci-sdk",
+      "epoch": "0",
+      "version": "2.187.0",
+      "release": "1.0.5.el9",
+      "arch": "aarch64",
+      "repo": "ol9_oci_included",
+      "downloadBytes": 84618885,
+      "installBytes": 407789811,
+      "checksum": "b133795bade3223b830cc980eadedb84923089fae824ad7034da24b165fd513d",
+      "location": "getPackage/python39-oci-sdk-2.187.0-1.0.5.el9.aarch64.rpm",
+      "installedBefore": [
+        {
+          "epoch": "0",
+          "version": "2.187.0",
+          "release": "1.0.3.el9",
+          "arch": "aarch64"
+        }
+      ],
+      "associatedAdvisories": ["ELSA-2026-604898"],
+      "validatedLocally": "installed, physically downgraded, reinstalled; exact before/after NEVRAs",
+      "production": "PENDENTE"
+    }
+  ],
+  "selectedAdvisories": [
+    {
+      "repo": "ol9_oci_included-b69c56da7a42f0b4",
+      "id": "ELSA-2026-604898",
+      "severity": "Important",
+      "title": "python-oci-sdk security update",
+      "issued": "2026-10-21 00:00:00",
+      "cves": [
+        "CVE-2025-53643",
+        "CVE-2025-69223",
+        "CVE-2025-69224",
+        "CVE-2025-69225",
+        "CVE-2025-69226",
+        "CVE-2025-69227",
+        "CVE-2025-69228",
+        "CVE-2025-69229",
+        "CVE-2026-104874",
+        "CVE-2026-111063",
+        "CVE-2026-111064",
+        "CVE-2026-111065",
+        "CVE-2026-111066",
+        "CVE-2026-111748",
+        "CVE-2026-111749",
+        "CVE-2026-111750",
+        "CVE-2026-22815",
+        "CVE-2026-27448",
+        "CVE-2026-34513",
+        "CVE-2026-34514",
+        "CVE-2026-34516",
+        "CVE-2026-34517",
+        "CVE-2026-34518",
+        "CVE-2026-34519",
+        "CVE-2026-34520",
+        "CVE-2026-34525",
+        "CVE-2026-34993",
+        "CVE-2026-47265",
+        "CVE-2026-50269",
+        "CVE-2026-54273",
+        "CVE-2026-54274",
+        "CVE-2026-54275",
+        "CVE-2026-54277",
+        "CVE-2026-54278",
+        "CVE-2026-54279",
+        "CVE-2026-59881",
+        "CVE-2026-69243",
+        "CVE-2026-69244"
+      ],
+      "packages": [
+        {
+          "name": "python39-oci-sdk",
+          "arch": "aarch64",
+          "installed": ["0:2.187.0-1.0.3.el9"],
+          "fixed": "0:2.187.0-1.0.5.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-81532",
+      "severity": "Important",
+      "title": " pcre2 security update",
+      "issued": "2026-10-13 00:00:00",
+      "cves": [
+        "CVE-2026-103111",
+        "CVE-2026-86145",
+        "CVE-2026-89156",
+        "CVE-2026-89157",
+        "CVE-2026-89158",
+        "CVE-2026-89160",
+        "CVE-2026-89161"
+      ],
+      "packages": [
+        {
+          "name": "pcre2-syntax",
+          "arch": "noarch",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        },
+        {
+          "name": "pcre2",
+          "arch": "aarch64",
+          "installed": ["0:10.40-6.0.1.el9"],
+          "fixed": "0:10.40-7.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88459",
+      "severity": "Critical",
+      "title": " ca-certificates security update",
+      "issued": "2026-10-23 00:00:00",
+      "cves": ["CVE-2026-114406"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2026.2.92_v9.0.319-90.3.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-89742",
+      "severity": "Important",
+      "title": " python3.9 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-12345", "CVE-2026-19445", "CVE-2026-19553"],
+      "packages": [
+        {
+          "name": "python3",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python3-libs",
+          "arch": "aarch64",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        },
+        {
+          "name": "python-unversioned-command",
+          "arch": "noarch",
+          "installed": ["0:3.9.25-7.0.1.el9_8.3"],
+          "fixed": "0:3.9.25-7.0.1.el9_8.6"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500513",
+      "severity": "Important",
+      "title": "brotli security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90494",
+      "severity": "Important",
+      "title": " python-urllib3 security update",
+      "issued": "2026-10-26 00:00:00",
+      "cves": ["CVE-2026-97687", "CVE-2026-97689"],
+      "packages": [
+        {
+          "name": "python3-urllib3",
+          "arch": "noarch",
+          "installed": ["0:1.26.5-8.el9_8"],
+          "fixed": "0:1.26.5-8.el9_8.2"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-90495",
+      "severity": "Important",
+      "title": " brotli security update",
+      "issued": "2026-11-02 00:00:00",
+      "cves": ["CVE-2026-111497"],
+      "packages": [
+        {
+          "name": "libbrotli",
+          "arch": "aarch64",
+          "installed": ["0:1.0.9-10.el9_8"],
+          "fixed": "0:1.0.9-10.0.1.el9_8"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-500450",
+      "severity": "Important",
+      "title": "ca-certificates security update",
+      "issued": "2026-10-20 00:00:00",
+      "cves": ["CVE-2026-111943", "CVE-2026-113470", "CVE-2026-114820"],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "arch": "noarch",
+          "installed": ["0:2025.2.80_v9.0.305-91.el9"],
+          "fixed": "0:2025.2.80_v9.0.305-91.0.1.el9"
+        }
+      ]
+    },
+    {
+      "repo": "ol9_baseos_latest-f7971c3ff5bec266",
+      "id": "ELSA-2026-88247",
+      "severity": "Important",
+      "title": " expat security update",
+      "issued": "2026-10-22 00:00:00",
+      "cves": ["CVE-2026-102633", "CVE-2026-77214"],
+      "packages": [
+        {
+          "name": "expat",
+          "arch": "aarch64",
+          "installed": ["0:2.5.0-6.el9_8.5"],
+          "fixed": "0:2.5.0-6.el9_8.7"
+        }
+      ]
+    }
+  ],
+  "candidate": {
+    "status": "LOCAL_CANDIDATE_REPRODUCIBLE",
+    "productionUsed": false,
+    "sourceCommit": "2ed99fe7c51c4d343e6f18cd82c40eb4742f1595",
+    "identities": [
+      {
+        "commit": "2ed99fe7c51c4d343e6f18cd82c40eb4742f1595",
+        "packageSha256": "9609a448680cd950fb5775f022bb59b9cba283ef5da69d2282b877d781c63bf3",
+        "manifestSha256": "09ddcfa37091e4a7cbf73c07f512fd79381fea5dd39319732193dd6bd3225904",
+        "files": 4764,
+        "migrations": 86
+      },
+      {
+        "commit": "2ed99fe7c51c4d343e6f18cd82c40eb4742f1595",
+        "packageSha256": "9609a448680cd950fb5775f022bb59b9cba283ef5da69d2282b877d781c63bf3",
+        "manifestSha256": "09ddcfa37091e4a7cbf73c07f512fd79381fea5dd39319732193dd6bd3225904",
+        "files": 4764,
+        "migrations": 86
+      }
+    ],
+    "bytes": 80029952,
+    "twoIndependentBackendInstalls": true,
+    "officialPackagerUnmodified": true,
+    "frontendReusedFromApprovedArtifact": true,
+    "frontendFileCount": 71,
+    "frontendHashesUnchanged": true,
+    "migrationFiles": 86,
+    "migrationsExecuted": false,
+    "backendAuditProduction": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "node": "v22.23.4",
+    "prisma": "6.12.0",
+    "schemaSha256": "5d872e68da1759a2a64caf4c25d8a13308315c8f2c49ef400fca2f5e1948180a",
+    "githubReleaseCreated": false,
+    "remoteCiExecuted": false,
+    "signedForProduction": false,
+    "limitation": "Local preparation only. Official CI and approval must bind the final reviewed app/workflow SHA; frontend was intentionally reused, not rebuilt in this local drill."
+  },
+  "candidateRuntime": {
+    "status": "PASS",
+    "productionUsed": false,
+    "sourceCommit": "2ed99fe7c51c4d343e6f18cd82c40eb4742f1595",
+    "packageSha256": "9609a448680cd950fb5775f022bb59b9cba283ef5da69d2282b877d781c63bf3",
+    "unmodifiedOfficialUnpack": true,
+    "unmodifiedOfficialApiCandidateFactory": true,
+    "schemaGate": "86 identical migrations; no migrator invoked",
+    "apiReadiness": 200,
+    "anonymousAuthentication": 401,
+    "apiProcess": {
+      "pid": 5934,
+      "node": "v22.23.4",
+      "executableSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+    },
+    "workerProcess": {
+      "pid": 6022,
+      "node": "v22.23.4",
+      "executableSha256": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+    },
+    "workerCount": 1,
+    "heartbeatAgeSeconds": 12,
+    "scheduledJobLeases": [
+      "github-event-dispatch",
+      "notifications-due",
+      "traceability-alerts",
+      "traceability-notice-dispatch"
+    ],
+    "prismaMySql": "real readiness via TLS to synthetic MySQL 8.4.11 only",
+    "argon2": "native ARM64 hash/verify PASS",
+    "scope": "pruned production dependencies",
+    "qs": "6.16.2",
+    "newRuntime": "22.23.4",
+    "oldLabServiceRestored": true,
+    "candidateUnitsStopped": true,
+    "githubAuthenticatedSync": "not exercised; no credentials"
+  },
+  "postPatchTests": {
+    "status": "PASS",
+    "productionUsed": false,
+    "exitCode": 0,
+    "seconds": 11.28,
+    "node": "22.23.4",
+    "os": "Oracle Linux 9.8",
+    "arch": "aarch64",
+    "mysql": "8.4.11",
+    "tls": "strict synthetic CA",
+    "files": [
+      "test/api/auth-authorization.test.js",
+      "test/api/reports.test.js",
+      "test/integration/reports.test.js",
+      "test/integration/r2-agenda-jobs.test.js",
+      "test/unit/github-client-security.test.js",
+      "test/unit/health-shutdown.test.js",
+      "test/unit/production-lifecycle.test.js"
+    ],
+    "numPassedTests": 97,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "testSource": "2ed99fe7 committed source; fresh npm ci; ten selected OS security patches installed"
+  },
+  "githubPublicReadOnly": {
+    "status": "PASS_PUBLIC_READ_ONLY",
+    "productionUsed": false,
+    "authenticated": false,
+    "credentialsUsed": false,
+    "fixture": "octocat/Hello-World (public)",
+    "boundedToSinglePage": true,
+    "maxRequests": 5,
+    "retries": 0,
+    "node": "v22.23.4",
+    "arch": "arm64",
+    "sharedGithubFetchUsed": true,
+    "sharedRequestExecutorUsed": true,
+    "sharedMappersUsed": true,
+    "applicationMissingCredentialGuardPreserved": true,
+    "results": [
+      {
+        "flow": "repository",
+        "status": 200,
+        "received": 1,
+        "mapped": 1
+      },
+      {
+        "flow": "branches",
+        "status": 200,
+        "received": 1,
+        "mapped": 1
+      },
+      {
+        "flow": "commits",
+        "status": 200,
+        "received": 1,
+        "mapped": 1
+      },
+      {
+        "flow": "pullRequests",
+        "status": 200,
+        "received": 1,
+        "mapped": 1
+      },
+      {
+        "flow": "issues",
+        "status": 200,
+        "received": 1,
+        "mapped": 1
+      }
+    ],
+    "limitation": "Does not prove GitHub App JWT, installation token, private repository authorization, OAuth, webhooks, refresh or persisted full synchronization."
+  },
+  "githubAuthenticated": "BLOQUEADO: no test App credentials/repository. Public transport pass is not full sync validation. Requires separate setup authorization or explicit owner risk acceptance.",
+  "productionDependencyAudits": {
+    "backend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "frontend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "unchangedDevelopmentRisk": "Four moderate ESLint/minimatch advisories from stage2; not part of production runtime; no broad upgrade.",
+  "productionCheckpoint": {
+    "at": "2026-11-05T00:28:51.281052+00:00",
+    "services": {
+      "traceflow-live-api": {
+        "MainPID": "998649",
+        "Result": "success",
+        "NRestarts": "0",
+        "ActiveState": "active",
+        "node": "v22.23.2"
+      },
+      "traceflow-live-worker": {
+        "MainPID": "998659",
+        "Result": "success",
+        "NRestarts": "0",
+        "ActiveState": "active",
+        "node": "v22.23.2"
+      }
+    },
+    "rpmCount": 808,
+    "rpmInventorySha256": "15f323a2ca047d3233ba47efdc207de448352450b79104a70e5f322e3e264c60",
+    "protectedConfigUnchanged": true,
+    "cdStateUnchanged": true,
+    "readiness": {
+      "status": 200,
+      "bodySha256": "31bf75f4c0a97cc1f7b60df824fa390b3be9ba014f29b63c87c698ba63d9a9fd",
+      "json": {
+        "status": "ready"
+      }
+    },
+    "monitorHttps": {
+      "seconds": 0.049318,
+      "status": 200
+    },
+    "mysql": true,
+    "workerCount": 1,
+    "workerHeartbeatAgeSeconds": 10,
+    "monitorFailures": [],
+    "selinux": "Enforcing",
+    "firewalld": "active",
+    "nginxConfigTestExit": 0,
+    "pythonHttpsProbe": {
+      "errorType": "HTTPError",
+      "code": 403
+    },
+    "pythonProbeNote": "Existing Python HTTP 403 versus contracted curl/monitor 200; no WAF modification.",
+    "restartedServices": []
+  },
+  "remainingGates": {
+    "bootBackup": "BLOQUEADO",
+    "bootRestore": "PENDENTE",
+    "currentEncryptedApplicationRestore": "PENDENTE: helper pins MySQL 26.7.0; current Mac/HeatWave 26.10.0; no version guard removed",
+    "tenSelectedOsPackageDrill": "APROVADO with stated kernel/full-system limits",
+    "osSystemProcessReloadPlan": "PENDENTE: stale library consumers outside app/Nginx; no reboot approved",
+    "fullExternalGithub": "BLOQUEADO or explicit risk acceptance needed",
+    "candidatePreparation": "APROVADO local only",
+    "remoteCiExactHead": "PENDENTE authorization for branch push and draft PR",
+    "officialSignedRelease": "PENDENTE: coupled to production promotion, excluded from stage3",
+    "productionAuthorization": "PENDENTE after critical gates"
+  },
+  "localHarnessFindings": [
+    {
+      "finding": "Stale synthetic worker row left by previous stopped local VM, detected before patches",
+      "handling": "Stopped local worker; confirmed empty Project table and isolated schema; removed only the one stale local test row; retained strict workerCount==1 assertion."
+    },
+    {
+      "finding": "Repeated intentional drill starts hit existing systemd 3-starts/300s guard",
+      "handling": "No exception/AVC; waited the normal start window; one start passed; no threshold change, reset-failed, test retry/skip or relaxed assertion."
+    },
+    {
+      "finding": "Harness packager metadata initially inherited RPM Node version; re-packaging then found generated manifest from previous attempt",
+      "handling": "Official unpack rejected MANIFEST_FILE. Corrected harness PATH and removed only generated manifests before re-packaging. Two independent fresh npm installs produced identical valid artifacts; official pack/unpack unchanged. Original failed logs preserved."
+    }
+  ],
+  "custody": {
+    "root": "build/security-stage3-20261104/ (private, ignored by Git)",
+    "candidateFile": "traceflow-security-2ed99fe7-arm64.tar.gz",
+    "signed": false,
+    "githubReleaseCreated": false,
+    "remoteCiExecuted": false,
+    "harnessSha256": {
+      "run-postpatch-tests.py": "87fb03a978e5e772615a6b579507433f8cd4abe0e625c7c7c8b8164fbc3bf4c6",
+      "build-local-candidate.py": "7e4a97e07ec153bda83b998f497677170349cb31f072242a2df5e5ba20c4f213",
+      "solve-lab-baseline.py": "97f230efaed72a161fa266b56e4fa5be45d30488414fa68b7cd7511f07eb1c0d",
+      "patch-drill-lab.py": "b95c2a5d64e352b0d4ddcbfc9b43a03f31ce1aeb14aedefd49e8aa247565f3ff",
+      "finalize-local-candidate.py": "7b9c3de6564b0ac88632cffa06b3f3a6c9b53be57ff945f0c523e243dc058267",
+      "setup-local-stack.py": "a114113ab02494168deaebb383b064e7cb56adafe6360d3faccb762bd8cfbc30",
+      "prepare-baseline-extras.py": "a606114154a33461f62adff184052c4fa7f2332d75a84f3ea026860715a661f7",
+      "final-production-check.py": "8d1dcdcbd01ea47a74bd7e6b3b049f6fd580fc3b5d3340e82bcf6c7493dd0778",
+      "prepare-lab-baseline.py": "4ca32ca212c9263ec40f11a65b51006850d0aa0030f2311b456af8eb65dd8f15",
+      "install-lab-baseline.py": "d683b5ecf905dab5cd0195aaee50f4f33438c03f7d5d4952ba27ca127f2bf7ec",
+      "public-github-lab.py": "2a46601cc5b34285bde02f7a089d611d46df6cf8eefd5976aa1473dd507a02ec",
+      "verify-local-candidate.py": "fa2cb2f0464d1201662c581b4e7bc7dc6ce9fffc305a1278c4e4b757f0cf21aa",
+      "prepare-stage3-report.py": "52a5cf034f0a73771273b3c26f53f2a9902f21aa923bbbfc297fe5d9907824eb"
+    }
+  },
+  "remoteCiAuthorization": {
+    "authorized": true,
+    "scope": "push only security/20261104-controlled-maintenance and open draft PR to main for CI/review; no merge, workflow promotion, signed release or deployment",
+    "checkpoint": "authorized; not yet executed at this evidence capture"
+  }
+}

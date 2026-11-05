@@ -5,12 +5,259 @@
 **PROPOSTO; NÃO EXECUTADO; SEM GO PRODUTIVO.**
 Este procedimento depende dos gates do
 [relatório](../deliveries/SECURITY_MAINTENANCE_2026-11-04.md).
-Nenhuma instrução de escrita abaixo está autorizada pela etapa 2.
+A etapa 3 autoriza somente um backup manual FULL se a franquia gratuita for comprovada.
+Instalações, configuração, publicação, restarts, recursos temporários e reboot continuam sem autorização.
 
 Escopo mínimo proposto: Node oficial 22.23.4 lado a lado e release backend com qs 6.16.2.
 Manter follow-redirects 1.16.2 no lockfile frontend. Não modificar código funcional,
 schema, migrations, dados, autenticação, Cloudflare, DNS, NSG, firewall ou SELinux.
 Tratar patches do SO em lotes independentes. Não atualizar Nginx por número upstream.
+
+## Etapa 3 — estado dos gates e roteiro fechado
+
+**Documento preparado; não executar em produção sem o GO correspondente.**
+A autorização vigente cobre somente um backup FULL se comprovadamente gratuito;
+não cobre os comandos de escrita/ativação deste runbook.
+As provas novas estão em
+[stage3-validation.json](../deliveries/evidence/security-20261104/stage3-validation.json).
+As seções posteriores conservam detalhes do protocolo; este roteiro incorpora os
+resultados reais do laboratório e os bloqueios atuais.
+
+| Gate                                                | Estado corrente                                                       |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| Node oficial/Prisma/Argon2/API/worker/jobs ARM64    | APROVADO                                                              |
+| Instalação, downgrade e reaplicação dos dez RPMs    | APROVADO no laboratório, com limites de kernel/inventário registrados |
+| Release candidata local e 97 regressões pós-patch   | APROVADO                                                              |
+| Cinco leituras públicas GitHub                      | APROVADO para transporte/mapeamento, sem autenticação                 |
+| Backup boot gratuito / recuperação da VM            | BLOQUEADO / PENDENTE                                                  |
+| Restore da captura cifrada atual                    | PENDENTE                                                              |
+| Sincronização GitHub App autenticada                | BLOQUEADO ou aceitação explícita do responsável                       |
+| CI remoto/release assinada                          | PENDENTE                                                              |
+| Recarga integral de bibliotecas dos processos do SO | PENDENTE                                                              |
+| GO de implantação, instalação ou restart            | NÃO CONCEDIDO                                                         |
+
+### 1. Backup e checkpoint pré-implantação
+
+Consulta comprovada: boot 47 GB Available Always Free, OCID
+`ocid1.bootvolume.oc1.sa-saopaulo-1.abtxeljrzjtjdrfaswr4ngc6ausrjdp6ehomnvcq3lxqe7cdg5tor3wxldya`,
+AD JEpm:SA-SAOPAULO-1-AD-1, chave Oracle, política None e replicação Off.
+Lista do volume vazia; lista global em loading no acesso automatizado.
+**Não criado:** falta comprovar os slots combinados de backups e elegibilidade da
+região principal antes de usar a autorização condicional.
+
+Com CLI/API de operador já autenticado, fazer somente GET/list inicialmente:
+identificar home region, compartimentos acessíveis ativos, listar boot/block backups
+em cada compartimento da região principal com todas as páginas e estados, e consultar
+limites/uso. Uma consulta root sem subcompartimentos não é inventário da tenancy.
+Contar também operações em criação e recursos que ainda ocupem a franquia.
+Não ampliar IAM nem criar API key, token ou Cloud Shell por conveniência: o primeiro
+uso de Cloud Shell pode criar armazenamento persistente, fora da autorização atual.
+
+Condição de criação: São Paulo confirmada como região principal elegível, boot
+Always Free, no máximo quatro backups combinados ocupando a franquia e nenhum
+aviso/campo de cobrança. Registrar evidências sem segredos. Se não puder comprovar
+qualquer condição, parar antes de create, sem pedir novamente GO genérico.
+
+Depois de confirmar a condição, criar **uma única** captura FULL com o serviço oficial
+Boot Volume, nome `traceflow-security-prepatch-20261104`, mesma região/compartimento e
+chave Oracle. Não mudar política, retenção com lock, replicação ou chave.
+Se usar CLI, revisar estes parâmetros; gerar e preservar um único opc-retry-token
+antes da chamada, reutilizando-o em repetição de transporte para impedir duplicatas:
+
+```sh
+oci bv boot-volume-backup create \
+  --region sa-saopaulo-1 \
+  --boot-volume-id ocid1.bootvolume.oc1.sa-saopaulo-1.abtxeljrzjtjdrfaswr4ngc6ausrjdp6ehomnvcq3lxqe7cdg5tor3wxldya \
+  --type FULL \
+  --display-name traceflow-security-prepatch-20261104 \
+  --opc-retry-token "$backup_retry_token"
+```
+
+Consultar o OCID retornado até AVAILABLE e registrar tipo, volume de origem,
+tamanho lógico/efetivo, criação, estado, região, criptografia e condição de gratuidade.
+Resposta incerta não autoriza criar outra captura; primeiro consultar a operação.
+Não parar serviços para obter o backup. A captura online é crash-consistent e não
+contém o HeatWave externo. AVAILABLE não prova restauração.
+
+Preparar ensaio específico, ainda **não autorizado**:
+
+| Recurso temporário máximo proposto                   | Finalidade / condição                                                                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1 VM ARM64 1 OCPU/6 GiB                              | Helper novo, sem credenciais/IAM de produção; disponibilidade/custo ainda não comprovados                                    |
+| 1 boot limpo de 47 GB + 1 volume restaurado de 47 GB | Helper e cópia; volume original não é tocado; 94 GB adicionais dependem do uso total/quotas                                  |
+| Rede temporária isolada                              | Sem peering, NAT ou acesso a HeatWave/GitHub/SMTP/Vault/bucket; console operacional próprio e regras exclusivamente de teste |
+| Prazo de até 4 horas, sem retenção automática        | Registrar custos estimados e limite financeiro antes de solicitar autorização; descarte também deverá ser autorizado         |
+
+A franquia atual não prova disponibilidade Ampere nem gratuidade da VM temporária.
+Não usar a capacidade da VM produtiva. Antes de criar, apresentar orçamento real,
+quotas/uso, AD/shape e acesso por console, com operador responsável. Após autorização,
+restaurar a cópia, anexá-la somente ao helper e inspecionar em montagem segura.
+Validar hashes/permissões/configs/releases. Modificar apenas a cópia offline para
+mascarar serviços/timers/autostarts e remover a possibilidade de usar credenciais
+copiadas; não inicializar a cópia antes de comprovar isolamento e ausência de grants
+IAM herdados por regras amplas. Preservar o backup original recuperável intacto.
+
+Depois, parar apenas o helper e trocar **seu** boot temporário pela cópia preparada,
+mantendo a rede isolada. Verificar boot, console/SSH, SELinux/systemd e aplicação com
+configuração sintética e banco separado. Isso requer compatibilidade da troca de boot
+e permissões verificadas antes de agendar. Se houver impedimento técnico, apresentar
+variante com segunda VM para autorização, sem criar recursos além do limite aprovado.
+Medir RTO/RPO. Restore de arquivos sem boot não fecha o gate de recuperação integral.
+
+O restore da aplicação deve usar ambiente independente compatível com o helper
+MySQL 26.7.0, chave age sob custódia do operador e destino/UUID distintos. Não retirar
+o pin para acomodar MySQL 26.10.0 sem validação específica. Conferir manifest atual,
+74 tabelas, 86 migrations, 145 FKs, hashes de dados/configs/storage e funcionalidade
+com integrações externas bloqueadas. Não restaurar nem escrever no HeatWave produtivo.
+
+### 2. Correção de runtime e preparação da release
+
+Somente após os gates de recuperação e autorização exata:
+capturar baseline contemporâneo (release/CD, 27 fingerprints protegidos com owners,
+modos/ACLs/contextos, PIDs/executáveis, estado dos serviços, métricas, disco/memória,
+locks e logs recentes). Preservar tudo em custódia root e fora do boot afetado.
+Conservar o artefato ativo verificado e os 184 assets históricos.
+
+Extrair o tar oficial autenticado no caminho exclusivo descrito na seção de runtime;
+validar ELF/GLIBC, OpenSSL e hash. Preparar seletor atômico e a única diretiva de bind
+nas bases API/worker/retention. Preservar bytes anteriores e revisar fingerprints
+da trust policy; não tocar ExecStart, env, certificados ou conta. daemon-reload é uma
+mudança produtiva e depende do GO. Não reiniciar API/worker nesta preparação.
+
+Candidato local aprovado:
+`2ed99fe7c51c4d343e6f18cd82c40eb4742f1595`,
+SHA `9609a448680cd950fb5775f022bb59b9cba283ef5da69d2282b877d781c63bf3`.
+Ele não é release oficial assinada. Seguir
+[PR/CI preparado](../deliveries/SECURITY_PR_2026-11-04.md):
+autorizar push/PR em rascunho para os checks, revisar HEAD/base exatos e dois builds.
+Não executar workflow_dispatch/promote=true nem criar oci-cd-* durante homologação.
+A publicação assinada é acoplada à ativação pelo receiver.
+
+Em futura publicação aprovada, usar app_sha final, workflow_sha revisado,
+baseline_sha da release efetiva (observada d0645b457960b6830d6f8e87cb6e1a6fa461ebf6),
+transition_sha256 vazio. O baseline padrão b9c1beb9... do workflow é histórico.
+Recusar qualquer divergência de schema/86 migrations/autoridade ou novo conteúdo
+frontend. Não modificar workflow/main para contornar o gate.
+
+### 3. Publicação das dependências e ativação do runtime
+
+Um único ciclo do protocolo atual deve carregar Node oficial e qs corrigido:
+candidato 3002 → readiness/smokes → tráfego temporário → API/worker oficiais →
+tráfego de volta e encerramento do candidato. Aplicar somente drops-ins de release
+produzidos pelo receiver. Não executar migração/seeder/limpeza.
+
+Confirmar em cada processo principal `/proc/PID/exe --version`, SHA oficial,
+caminho, libnode/OpenSSL/Brotli mapeados e dependência Prisma. Confirmar qs 6.16.2
+no WorkingDirectory da release efetiva. Frontend: mesmos 71 hashes e 184 assets
+históricos preservados; follow-redirects 1.16.2 no lock, fora do bundle browser.
+
+Reiniciar apenas API e worker no ciclo CD aprovado. Jobs acompanham o worker;
+retention recebe o runtime no próximo disparo legítimo, sem forçar apply.
+O laboratório encontrou StartLimitBurst=3/300s intacto: conferir partidas recentes
+antes da janela e reservar margem para rollback. Não resetar failed nem aumentar
+limites para forçar repetidas partidas.
+
+### 4. Patches selecionados do Oracle Linux
+
+Lote fechado: os dez pares antigo/novo, SHA-256, URLs Oracle e nove advisories estão
+em [stage3-os-transaction.json](../deliveries/evidence/security-20261104/stage3-os-transaction.json).
+Não instalar os pacotes de bootstrap do laboratório. Não incluir Node RPM,
+Nginx, kernel, glibc, OpenSSH ou política SELinux neste lote.
+
+Custodiar os vinte artefatos (dez antigos/dez novos), verificar checksums e assinatura
+com chaves Oracle confiáveis. Um RPM com NOKEY, digest diferente ou NEVRA fora da lista
+interrompe o lote. Revalidar estado instalado e simulação contra inventário aprovado;
+metadados/repositórios novos não autorizam aumentar o escopo.
+
+Simular com os nomes/exatos artefatos locais, repositórios desabilitados e
+localpkg_gpgcheck/gpgcheck ativos. Inspecionar o conjunto instalado/removido:
+primeiro CA (um upgrade + um pacote substituído), depois os nove restantes
+(nove upgrades + nove substituídos). Nenhuma instalação adicional ou erase de
+outro nome é aceitável. Exemplos de formato, com cada argumento vindo do JSON fechado:
+
+```sh
+sudo dnf --disablerepo='*' --setopt=gpgcheck=True \
+  --setopt=localpkg_gpgcheck=True --assumeno upgrade /root/checkpoint/rpms-new/ca-certificates-2026.2.92_v9.0.319-90.3.el9_8.noarch.rpm
+```
+
+O segundo comando deve enumerar os nove arquivos restantes do manifesto fechado,
+sem wildcard, allowerasing ou upgrade geral. Remover assumeno somente depois da
+aprovação da transação concreta, usando as mesmas entradas. A instalação foi
+ensaiada localmente com DNF/RPM/scriptlets; a simulação produtiva ainda será gate
+antes de qualquer escrita.
+
+Após CA: conferir anchors preservados, trust store regenerado, TLS verificado dos
+destinos contratados e rejeição de CA não confiável. Parar se houver regressão.
+Após os nove: conferir NEVRAs, logs/recursos e mapas de bibliotecas dos consumidores.
+
+**PCRE2:** restart controlado do Nginx é necessário; reload da CD não basta.
+Rodar nginx -t antes e depois, preservar configuração/certificados, registrar
+master/workers e inodes carregados. Esse restart requer autorização e pode causar
+interrupção breve; não prometer impacto zero.
+
+O Node oficial embute suas bibliotecas corrigidas, mas Prisma pode usar OpenSSL
+do SO, e daemons do sistema mantêm DSOs antigas. API/worker não precisam de novos
+restarts apenas por conveniência após a promoção já concluída. PID1, NetworkManager,
+firewalld e consumidores Python requerem plano específico; não reexecutar PID1,
+reiniciar rede/firewall ou fazer reboot como continuação implícita deste lote.
+Se for necessária recarga que não possa ser feita com segurança na janela, manter
+o gate pendente e preparar janela separada com recuperação comprovada.
+
+Kernel/grupo amplo continuam fora desta execução: não declarar o SO sem altas/críticas
+com base somente nestes dez pacotes. Caso Kernel/boot precise mudar, apresentar
+plano de console, kernel anterior, espaço/EFI, ARM64/drivers e autorização próprios.
+
+### 5. Saúde, testes de produção e monitoramento
+
+Verificar após cada lote: readiness 200, HTTPS pelo cliente contratado 200,
+auth anônimo 401, HTML/hashes esperados, conexão MySQL já aferida pelo readiness/monitor,
+um worker com heartbeat <=90 s, quatro jobs sem novas falhas, zero reinícios inesperados,
+nginx -t, SELinux Enforcing e firewalld ativo. Não exibir valores de env/tokens.
+
+Autenticação com escrita somente com conta de teste autorizada; sem ela, registrar
+limite da prova. Consultas de projetos/GitHub existentes só em leitura autorizada,
+sem disparar reconciliação, reimportação ou hooks artificiais. Observar as execuções
+agendadas legítimas e seus estados. Não usar conta de usuário real para teste de escrita.
+
+Sem teste autenticado GitHub prévio, obter aceitação explícita antes do GO; se aceita,
+o smoke pós-deploy pode observar heartbeat, backlog/erros e próxima sincronização
+legítima sem modificar escopo/permissões ou forçar sync de projeto real.
+Esses smokes não transformam em “testado” o OAuth/refresh/webhook que não foi exercido.
+
+Monitorar pelo menos 30 min com métricas/logs atuais, anotando baseline e deltas de
+readiness/5xx/latência/memória/restarts/worker/jobs. Relatório final deve distinguir
+arquivo preparado, pacote instalado e processo efetivamente carregando a correção.
+
+### 6. Critérios de interrupção e retorno
+
+Interromper imediatamente próximas alterações por: hash/NEVRA/schema/autoridade fora
+do aprovado; candidato sem readiness no timeout original; auth inesperada; erro
+Prisma/TLS novo; workerCount diferente de 1 ou heartbeat >90s; nova falha de job;
+reinício inesperado/StartLimit; erro de Nginx/HTTPS ou regressão confirmada atribuível.
+Degradação sustentada de latência/5xx frente ao baseline também impede prosseguir.
+Não aumentar timeout/limite/retry para obter PASS.
+
+Antes de tráfego: parar candidato e restaurar preparação que falhou; processos antigos
+devem permanecer ativos. Depois de tráfego: usar recuperação `restore_previous` do
+adaptador atual e os bytes/drop-ins/proxy/release preservados. Conferir frontend,
+estado CD, worker/jobs e versão real do Node. Se só a release falhar, pode manter
+Node 22.23.4 já validado com a release anterior. Se o runtime falhar, restaurar
+bases/fingerprints e selecionar alvo anterior atomicamente; conferir a margem
+StartLimit antes de reiniciar somente unidades afetadas.
+
+RPMs: simular e revisar downgrade exato para os artefatos antigos preservados,
+com repositórios desabilitados e assinatura ativa. Somente após GO do plano de
+recuperação executar a transação inversa fechada e recarregar consumidores aprovados.
+Os dez downgrades reais passaram no laboratório; o resultado não garante rollback
+após crash/scriptlet interrompido, corrupção ou perda de boot. Não depender de
+dnf history undo nem presumir downgrade seguro universalmente. Se falhar ou perder
+acesso ao SO, recorrer ao restore de boot ensaiado pelo console; esse gate continua
+bloqueado, portanto ainda não há GO de produção.
+
+Não restaurar MySQL, executar migration inversa, reset --hard, limpar dados ou trocar
+DNS para desfazer este patch sem DDL. Backup do boot não inclui dados HeatWave.
+A volta ao runtime/RPM vulnerável é recuperação emergencial e reabre o risco;
+registrar isso e planejar nova correção após recuperar a saúde.
 
 ## Gates antes de agendar
 
@@ -33,8 +280,10 @@ Não interpretar disponibilidade de backup ou acesso administrativo como prova d
 
 ### Ensaio de boot proposto
 
-Nenhum backup de boot existia no escopo consultado em 04/11. Antes de intervenção
-em runtime/SO, solicitar autorização específica para:
+Nenhum backup de boot foi comprovado no escopo consultado em 04/11. A criação de
+um único FULL já está autorizada somente se a franquia gratuita for comprovada.
+Recursos temporários/restauração ainda exigem autorização específica. Antes de
+intervenção em runtime/SO, completar:
 
 1. Criar um backup completo do boot de 47 GB, sem parar a VM, preservando o volume
    original. Aguardar AVAILABLE e registrar identidade, timestamp, estado, tamanho
@@ -164,7 +413,7 @@ de conteúdo idêntico. Comparar os 71 hashes antes de promover; preservar tamb�
 não fazer um deploy frontend separado e não remover assets antigos.
 
 O build de homologação local não é uma release oficial assinada. Nenhum push,
-workflow remoto ou release foi criado na etapa 2. Após autorização para essa etapa,
+workflow remoto ou release foi criado nas etapas 2 e 3. Após autorização para essa etapa,
 conferir exato app SHA/workflow SHA, todos os checks e os dois builds reprodutíveis
 exigidos pela pipeline. Se hash, schema, migrations, authority ou artefatos diferirem
 do aprovado, interromper.
@@ -250,9 +499,11 @@ assumeno até haver autorização específica para aquele lote.
   corrige kernel em execução. Qualquer reboot necessita plano e autorização próprios.
   Os pacotes auxiliares RHCK 5.14 do inventário também não foram incluídos no lote UEK.
 
-O modelo de downgrade dos 15 pacotes validou somente solução e cabeçalhos. Antes de
-uso real, ensaiar a transação/scriptlets em clone compatível e revalidar os RPMs
-anteriores; `dnf history undo` isoladamente não garante recuperação.
+O modelo inicial validou somente solução e cabeçalhos dos quinze RPMs. A etapa 3
+instalou, desfez e reaplicou os dez do grupo sem Node RPM em laboratório compatível;
+os cinco RPMs Node adicionais continuam somente no modelo. Antes de uso real,
+revalidar todos os artefatos anteriores; `dnf history undo` isoladamente não garante
+recuperação.
 
 ## Rollback por etapa
 
